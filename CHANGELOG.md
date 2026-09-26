@@ -489,6 +489,15 @@ Preparing the first public release.
   projects with the same name stay apart. A pending permission shows the same
   project name as its agent card, and "Don't ask again" now names the folder
   the rule is saved for.
+- **An agent's recent notes are read from a real shell syntax tree.** The
+  `curl …/vault/…` detection behind the hub's live edges now parses each Bash
+  command with `mvdan.cc/sh/v3` instead of regexes, so quoting, heredocs,
+  here-strings, `${…}` and `{ …; }` groups follow bash's own rules. Only
+  `curl` calls count: a vault URL in an `echo`, a commit message or any other
+  quoted text is no longer a read, and awk's `'{ a=1 }'` is no longer an
+  assignment. A prefix assignment (`F=… cmd`) only reaches its own command,
+  an unquoted heredoc body line ending in `\` continues into its closer as in
+  bash, and a command the parser rejects yields no touches at all.
 
 ### Deprecated
 
