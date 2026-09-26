@@ -98,26 +98,35 @@ func TestCurlNoteTouches(t *testing.T) {
 		{"two heredocs on one line are both stripped",
 			"cat <<A && cat <<'B-2'\n/vault/claude-memory/fa.md\nA\n/vault/claude-memory/fb.md\nB-2\ncurl \"$B/vault/claude-memory/a.md\"",
 			[]NoteTouch{touch("claude-memory/a.md", read, zero)}},
-		{"a body line ending in a backslash does not swallow the closer",
-			"cat <<EOF\nfoo \\\nEOF\ncurl \"$B/vault/claude-memory/a.md\"",
+		{"a body line ending in a backslash swallows the closer, as in bash",
+			"cat <<EOF\nfoo \\\nEOF\ncurl \"$B/vault/claude-memory/a.md\"", nil},
+		{"a quoted-delimiter body line ending in a backslash does not swallow the closer",
+			"cat <<'EOF'\nfoo \\\nEOF\ncurl \"$B/vault/claude-memory/a.md\"",
 			[]NoteTouch{touch("claude-memory/a.md", read, zero)}},
 		{"an assignment inside a group command resolves",
 			`{ F="$B/vault/claude-memory/x.md"; curl -X PUT "$F"; }`,
 			[]NoteTouch{touch("claude-memory/x.md", write, zero)}},
+		{"a ${F=...} expansion is not an assignment",
+			`echo "${F=$B/vault/claude-memory/x.md}"; curl -X PUT "$F"`, nil},
+		{"awk braces without a space are not an assignment",
+			`a="claude-memory/x.md"; awk '{a=1} END{print a}' f; curl "$B/vault/$a"`,
+			[]NoteTouch{touch("claude-memory/x.md", read, zero)}},
+		{"awk braces with a space are not an assignment",
+			`a="claude-memory/x.md"; awk '{ a=1 }' f; curl "$B/vault/$a"`,
+			[]NoteTouch{touch("claude-memory/x.md", read, zero)}},
+		{"a multi-line quoted string is not a read",
+			"git commit -m \"docs\ncurl $B/vault/claude-memory/x.md\"", nil},
+		{"a vault URL outside a curl call is not a touch",
+			`echo "$B/vault/claude-memory/x.md"`, nil},
+		{"a prefix assignment only reaches its own command",
+			`F="$B/vault/claude-memory/x.md" true; curl "$F"`, nil},
+		{"a command the parser rejects touches nothing",
+			`curl "$B/vault/claude-memory/x.md`, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, curlNoteTouches(tt.command))
 		})
-	}
-}
-
-func TestExpandShellAssignmentsIgnoresBracesWithoutSpace(t *testing.T) {
-	for _, command := range []string{
-		`echo "${F=$B/vault/claude-memory/x.md}"; curl -X PUT "$F"`,
-		`awk '{a=1} END{print a}' f; echo $a`,
-	} {
-		assert.Equal(t, command, expandShellAssignments(command))
 	}
 }
 

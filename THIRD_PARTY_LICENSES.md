@@ -82,6 +82,7 @@ The following third-party packages are used as transitive dependencies.
 | modernc.org/mathutil | BSD-3-Clause | https://gitlab.com/cznic/mathutil/-/blob/v1.7.1/LICENSE |
 | modernc.org/memory | BSD-3-Clause | https://gitlab.com/cznic/memory/-/blob/v1.11.0/LICENSE |
 | modernc.org/sqlite | BSD-3-Clause | https://gitlab.com/cznic/sqlite/-/blob/v1.57.0/LICENSE |
+| mvdan.cc/sh/v3 | BSD-3-Clause | https://github.com/mvdan/sh/blob/v3.13.1/LICENSE |
 
 ## Frontend Dependencies
 

@@ -489,6 +489,15 @@ Preparing the first public release.
   projects with the same name stay apart. A pending permission shows the same
   project name as its agent card, and "Don't ask again" now names the folder
   the rule is saved for.
+- **An agent's recent notes are read from a real shell syntax tree.** The
+  `curl …/vault/…` detection behind the hub's live edges now parses each Bash
+  command with `mvdan.cc/sh/v3` instead of regexes, so quoting, heredocs,
+  here-strings, `${…}` and `{ …; }` groups follow bash's own rules. Only
+  `curl` calls count: a vault URL in an `echo`, a commit message or any other
+  quoted text is no longer a read, and awk's `'{ a=1 }'` is no longer an
+  assignment. A prefix assignment (`F=… cmd`) only reaches its own command,
+  an unquoted heredoc body line ending in `\` continues into its closer as in
+  bash, and a command the parser rejects yields no touches at all.
 
 ### Deprecated
 
@@ -829,6 +838,8 @@ Preparing the first public release.
 - **"Index now" says how many notes the vault search found, not only how many it added.** `POST /api/obsidian/index` returns `matched` next to `indexed`, and the panel reports "Indexed X new notes (Y found)", so a vault root that matches nothing (0 found) no longer looks the same as a vault that is already fully indexed.
 - **Settings validation errors no longer start with `settings.Set:`.** An unknown key or an invalid value reaches the `400` response as just the message, the same as a rejected Obsidian vault root already did.
 - **A slow keychain unlock no longer fails the GitHub CLI token read.** With `github.tokenSource = gh-cli`, a `gh auth token` that times out is tried once more before start fails, and the error now says it timed out instead of `signal: killed`.
+- **A repository listed twice in `github.repos` in different case shows up once.** `lx-wnk/kontor, LX-WNK/Kontor` now keeps only the first spelling, so the GitHub summary no longer lists the same repository twice.
+- **A project filter saved before project keys no longer empties the Agents roster.** A stored project name is migrated to that project's key once agents load; a stored value that matches no running project falls back to all projects.
 - **A slow finalization push no longer stalls the pipeline, and cancelling during it sticks.** The `git push` and draft-PR step runs off the orchestrator tick, so other tasks keep progressing while it waits on the network; cancelling the task aborts the push, opens no PR, and the task stays cancelled instead of being overwritten with done.
 
 ### Security
