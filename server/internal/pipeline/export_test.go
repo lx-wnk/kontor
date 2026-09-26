@@ -29,6 +29,12 @@ func (o *PipelineOrchestrator) DecideCompletedTransitionForTest(
 	return o.decideCompletedTransition(ctx, task, run, output)
 }
 
+// FinalizationPushInFlightForTest reports whether taskID has a finalization push running.
+func (o *PipelineOrchestrator) FinalizationPushInFlightForTest(taskID string) bool {
+	_, ok := o.finalizationInFlight.Load(taskID)
+	return ok
+}
+
 // IsRateLimitErrorForTest exposes isRateLimitError for testing.
 var IsRateLimitErrorForTest = isRateLimitError
 

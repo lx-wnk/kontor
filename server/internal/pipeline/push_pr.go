@@ -24,7 +24,7 @@ import (
 // refuses to finish with unpushed work, and opens (or reuses) a draft PR. A
 // failed PR creation does not block done: the error lands in pr_error.
 func (o *PipelineOrchestrator) decideFinalizationTransition(ctx context.Context, task *ent.Task, run *ent.StageRun, output map[string]any) StageTransition {
-	if task.WorktreePath == nil || *task.WorktreePath == "" || !IsGitPushAllowed(task, o.opts.AllowGitPush) {
+	if !o.finalizationPushes(task) {
 		return DoneTransition{Output: output}
 	}
 	// The agent has exited; its spawn artefacts (.claude/settings.json) would otherwise read as uncommitted work below.
@@ -40,6 +40,10 @@ func (o *PipelineOrchestrator) decideFinalizationTransition(ctx context.Context,
 	if o.opts.HasUnpushedWorkFn != nil && o.opts.HasUnpushedWorkFn(ctx, task) {
 		slog.Warn("finalization: worktree has unpushed work after push", "taskID", task.ID)
 		return FailTransition{Reason: "finalization: worktree has unpushed work (push ran but work remains unpushed)", Output: output}
+	}
+
+	if o.taskTerminatedDuringPush(ctx, task.ID) {
+		return FailTransition{Reason: "finalization: task cancelled during push", Output: output}
 	}
 
 	if o.opts.CreateDraftPRFn == nil {
@@ -66,6 +70,49 @@ func (o *PipelineOrchestrator) decideFinalizationTransition(ctx context.Context,
 			"pr_number": prNumber,
 			"pr_url":    prURL,
 		},
+	}
+}
+
+func (o *PipelineOrchestrator) finalizationPushes(task *ent.Task) bool {
+	return task.WorktreePath != nil && *task.WorktreePath != "" && IsGitPushAllowed(task, o.opts.AllowGitPush)
+}
+
+func (o *PipelineOrchestrator) taskTerminatedDuringPush(ctx context.Context, taskID string) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	current, err := o.opts.TaskRepo.GetByID(ctx, taskID)
+	return err == nil && IsTerminalStage(current.CurrentStage)
+}
+
+// startFinalizationPush runs the push and PR creation off the tick loop.
+// finalizationInFlight holds the push's cancel func per task, so a later tick
+// skips the task and NotifyTaskTerminated can abort the push. A restart
+// mid-push drops the marker; recovery re-runs finalization, and both the push
+// and ProductionCreateDraftPRFn are idempotent.
+func (o *PipelineOrchestrator) startFinalizationPush(ctx context.Context, task *ent.Task, run *ent.StageRun, output map[string]any) {
+	pushCtx, cancel := context.WithCancel(ctx)
+	if _, loaded := o.finalizationInFlight.LoadOrStore(task.ID, cancel); loaded {
+		cancel()
+		return
+	}
+	go func() {
+		defer o.finalizationInFlight.Delete(task.ID)
+		defer cancel()
+		transition := o.decideFinalizationTransition(pushCtx, task, run, output)
+		fresh, err := o.stageRuns.GetByID(ctx, run.ID)
+		if err != nil || fresh.Status != "running" {
+			return
+		}
+		if _, err := o.applyTransition(ctx, task, fresh, transition); err != nil {
+			slog.Error("finalization: applying push result failed", "taskID", task.ID, "err", err)
+		}
+	}()
+}
+
+func (o *PipelineOrchestrator) cancelFinalizationPush(taskID string) {
+	if cancel, ok := o.finalizationInFlight.Load(taskID); ok {
+		cancel.(context.CancelFunc)()
 	}
 }
 

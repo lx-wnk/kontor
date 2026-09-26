@@ -7,7 +7,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -373,4 +375,115 @@ func TestApplyDone_MergesPatchIntoStoredMetadataNotSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "yes", updated.Metadata["written_meanwhile"])
 	require.InDelta(t, 3, updated.Metadata["pr_number"], 0)
+}
+
+// asyncFinalizationFixture seeds a worktree task whose finalization run has
+// completed, wired with the given push stub and a counting PR stub.
+func asyncFinalizationFixture(t *testing.T, pushFn func(context.Context, *ent.Task) error, prCalls *atomic.Int32) (*pipeline.PipelineOrchestrator, repo.TaskRepo, repo.StageRunRepo, *ent.Task, *ent.StageRun) {
+	t.Helper()
+	ctx := context.Background()
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	orch, err := pipeline.NewOrchestrator(pipeline.OrchestratorOptions{
+		TaskRepo:          taskRepo,
+		StageRunRepo:      srRepo,
+		PermissionRepo:    repo.NewPermissionRepo(bundle.Client),
+		AuditRepo:         repo.NewAuditEventRepo(bundle.Client),
+		ConfigRepo:        repo.NewPipelineConfigRepo(bundle.Client),
+		AllowGitPush:      true,
+		RemoveWorktreeFn:  func(context.Context, *ent.Task, bool) error { return nil },
+		PushFn:            pushFn,
+		HasUnpushedWorkFn: func(context.Context, *ent.Task) bool { return false },
+		CreateDraftPRFn: func(context.Context, string, string, string, string, string) (int, string, error) {
+			prCalls.Add(1)
+			return 7, "https://github.com/lx-wnk/kontor/pull/7", nil
+		},
+	})
+	require.NoError(t, err)
+	orch.SetCompletionDetector(func(*ent.StageRun, string, pipeline.CompletionDeps) (pipeline.CompletionResult, error) {
+		return pipeline.CompletionResult{Kind: "completed", Output: map[string]any{}}, nil
+	})
+
+	task, run := makeRunningStageRunAtStage(t, ctx, taskRepo, srRepo, "async-push", "finalization")
+	task, err = taskRepo.Update(ctx, task.ID, repo.UpdateTaskInput{WorktreePath: ptr(t.TempDir())})
+	require.NoError(t, err)
+	return orch, taskRepo, srRepo, task, run
+}
+
+func TestFinalizationPush_TickReturnsWhilePushBlocksAndStartsItOnce(t *testing.T) {
+	ctx := context.Background()
+	release := make(chan struct{})
+	var pushes, prs atomic.Int32
+	orch, taskRepo, _, task, run := asyncFinalizationFixture(t, func(context.Context, *ent.Task) error {
+		pushes.Add(1)
+		<-release
+		return nil
+	}, &prs)
+
+	returned := make(chan error, 1)
+	go func() { returned <- orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{run}) }()
+	select {
+	case err := <-returned:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("tick blocked on the push")
+	}
+	require.NoError(t, orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{run}))
+	require.True(t, orch.FinalizationPushInFlightForTest(task.ID))
+
+	close(release)
+	require.Eventually(t, func() bool { return !orch.FinalizationPushInFlightForTest(task.ID) }, 2*time.Second, 5*time.Millisecond)
+
+	updated, err := taskRepo.GetByID(ctx, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, "done", updated.CurrentStage)
+	require.Equal(t, int32(1), pushes.Load(), "a second tick must not start a second push")
+	require.Equal(t, int32(1), prs.Load())
+}
+
+func TestFinalizationPush_CancelDuringPush_StaysCancelledWithoutPR(t *testing.T) {
+	ctx := context.Background()
+	started, release := make(chan struct{}), make(chan struct{})
+	var prs atomic.Int32
+	orch, taskRepo, srRepo, task, run := asyncFinalizationFixture(t, func(context.Context, *ent.Task) error {
+		close(started)
+		<-release
+		return nil
+	}, &prs)
+
+	require.NoError(t, orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{run}))
+	<-started
+	cancelled := "cancelled"
+	_, err := taskRepo.Update(ctx, task.ID, repo.UpdateTaskInput{CurrentStage: &cancelled})
+	require.NoError(t, err)
+	orch.NotifyTaskTerminated(ctx, task.ID, cancelled)
+	close(release)
+	require.Eventually(t, func() bool { return !orch.FinalizationPushInFlightForTest(task.ID) }, 2*time.Second, 5*time.Millisecond)
+
+	updated, err := taskRepo.GetByID(ctx, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", updated.CurrentStage)
+	updatedRun, err := srRepo.GetByID(ctx, run.ID)
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", updatedRun.Status)
+	require.Equal(t, int32(0), prs.Load(), "a cancelled task must not get a PR")
+}
+
+func TestApplyDone_RefusesTerminalTask(t *testing.T) {
+	ctx := context.Background()
+	var prs atomic.Int32
+	orch, taskRepo, _, task, run := asyncFinalizationFixture(t, nil, &prs)
+	cancelled := "cancelled"
+	_, err := taskRepo.Update(ctx, task.ID, repo.UpdateTaskInput{CurrentStage: &cancelled})
+	require.NoError(t, err)
+
+	_, err = orch.ApplyTransitionForTest(ctx, task, run, pipeline.DoneTransition{})
+	require.Error(t, err)
+
+	updated, err := taskRepo.GetByID(ctx, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, "cancelled", updated.CurrentStage)
 }

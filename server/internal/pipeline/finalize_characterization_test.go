@@ -257,6 +257,7 @@ func TestFinalizeCompletedAsyncRuns_FinalizationUnpushed_FailsNotDone(t *testing
 
 	err = orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{sr})
 	require.NoError(t, err)
+	require.Eventually(t, func() bool { return !orch.FinalizationPushInFlightForTest(task.ID) }, 2*time.Second, 5*time.Millisecond)
 
 	updatedTask, err := taskRepo.GetByID(ctx, task.ID)
 	require.NoError(t, err)

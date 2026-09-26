@@ -138,6 +138,9 @@ type PipelineOrchestrator struct {
 	// Key: stageRunID string; Value: struct{} (presence = goroutine in flight).
 	attachInFlight sync.Map
 
+	// finalizationInFlight maps taskID to the context.CancelFunc of its running finalization push.
+	finalizationInFlight sync.Map
+
 	// startedAt is when this orchestrator was constructed. Used by sweepOrphanRuns
 	// to distinguish a "running" run left behind by a crashed/killed prior process
 	// (started before us) from one legitimately in flight in this process.
@@ -757,6 +760,9 @@ func (o *PipelineOrchestrator) finalizeCompletedAsyncRuns(ctx context.Context, a
 			}
 			continue
 		}
+		if _, pushing := o.finalizationInFlight.Load(task.ID); pushing {
+			continue
+		}
 		cwd := task.Cwd
 		if task.WorktreePath != nil && *task.WorktreePath != "" {
 			cwd = *task.WorktreePath
@@ -783,6 +789,10 @@ func (o *PipelineOrchestrator) finalizeCompletedAsyncRuns(ctx context.Context, a
 		}
 
 		if result.Kind == "completed" {
+			if fresh.Stage == "finalization" && o.finalizationPushes(task) {
+				o.startFinalizationPush(ctx, task, fresh, result.Output)
+				continue
+			}
 			transition := o.decideCompletedTransition(ctx, task, fresh, result.Output)
 			if _, err := o.applyTransition(ctx, task, fresh, transition); err != nil {
 				slog.Error("finalizeCompletedAsyncRuns.applyTransition.completed", "err", err)
@@ -935,6 +945,7 @@ func (o *PipelineOrchestrator) updateTokenUsage(ctx context.Context, stageRunID,
 // It also removes the per-task mutex so taskLocks does not grow unbounded.
 func (o *PipelineOrchestrator) NotifyTaskTerminated(ctx context.Context, taskID, stage string) {
 	o.taskLocks.Delete(taskID)
+	o.cancelFinalizationPush(taskID)
 	o.cancelOpenStageRuns(ctx, taskID)
 	if task, err := o.opts.TaskRepo.GetByID(ctx, taskID); err == nil {
 		o.cleanupTerminalWorktree(ctx, task, true)

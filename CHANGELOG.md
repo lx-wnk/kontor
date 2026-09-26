@@ -840,6 +840,7 @@ Preparing the first public release.
 - **A slow keychain unlock no longer fails the GitHub CLI token read.** With `github.tokenSource = gh-cli`, a `gh auth token` that times out is tried once more before start fails, and the error now says it timed out instead of `signal: killed`.
 - **A repository listed twice in `github.repos` in different case shows up once.** `lx-wnk/kontor, LX-WNK/Kontor` now keeps only the first spelling, so the GitHub summary no longer lists the same repository twice.
 - **A project filter saved before project keys no longer empties the Agents roster.** A stored project name is migrated to that project's key once agents load; a stored value that matches no running project falls back to all projects.
+- **A slow finalization push no longer stalls the pipeline, and cancelling during it sticks.** The `git push` and draft-PR step runs off the orchestrator tick, so other tasks keep progressing while it waits on the network; cancelling the task aborts the push, opens no PR, and the task stays cancelled instead of being overwritten with done.
 
 ### Security
 

@@ -126,13 +126,16 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 		}); err != nil {
 			return nil, nil, nil, fmt.Errorf("applyTransition.done.updateRun: %w", err)
 		}
+		current, err := taskRepo.GetByID(ctx, task.ID)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("applyTransition.done.getTask: %w", err)
+		}
+		if IsTerminalStage(current.CurrentStage) {
+			return nil, nil, nil, fmt.Errorf("applyTransition.done: task %s is already %s", task.ID, current.CurrentStage)
+		}
 		done := "done"
 		taskUpdate := repo.UpdateTaskInput{CurrentStage: &done}
 		if len(tr.MetadataPatch) > 0 {
-			current, err := taskRepo.GetByID(ctx, task.ID)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("applyTransition.done.getTask: %w", err)
-			}
 			merged := make(map[string]any, len(current.Metadata)+len(tr.MetadataPatch))
 			maps.Copy(merged, current.Metadata)
 			maps.Copy(merged, tr.MetadataPatch)
@@ -348,7 +351,7 @@ func transitionKindName(t StageTransition) string {
 }
 
 // decideCompletedTransition maps a completed stage_run to its next transition.
-// self_review may loop back to implementation; finalization produces DoneTransition.
+// self_review may loop back to implementation; finalization may fail on a failed push or unpushed work.
 func (o *PipelineOrchestrator) decideCompletedTransition(ctx context.Context, task *ent.Task, run *ent.StageRun, output map[string]any) StageTransition {
 	if run.Stage == StageJob {
 		return DoneTransition{Output: output}

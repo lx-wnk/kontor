@@ -323,14 +323,14 @@ type OrchestratorOptions struct {
 	// Nil-safe — no-op when absent.
 	CheckpointerStopFn func(taskID string)
 
-	// HasUnpushedWorkFn reports whether a terminal task's worktree still holds
-	// unpushed commits or uncommitted changes. When it returns true, terminal
-	// cleanup retains the worktree instead of force-removing it, so the work is
-	// not orphaned. Nil disables the check (cleanup behaves as before).
+	// HasUnpushedWorkFn reports whether a task's worktree still holds unpushed
+	// commits or uncommitted changes. When it returns true, terminal cleanup
+	// retains the worktree instead of force-removing it, so the work is not
+	// orphaned. Nil disables both this check and finalization's unpushed-work check.
 	HasUnpushedWorkFn func(ctx context.Context, task *ent.Task) bool
 
-	// PushFn pushes the task branch to origin. Called by decideCompletedTransition
-	// when finalization completes and the task allows git push. Production wires
+	// PushFn pushes the task branch to origin. Called off the tick loop when
+	// finalization completes and the task allows git push. Production wires
 	// ProductionPushFn; tests inject a stub. When nil, push is skipped.
 	PushFn func(ctx context.Context, task *ent.Task) error
 
