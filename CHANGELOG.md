@@ -829,6 +829,7 @@ Preparing the first public release.
 - **"Index now" says how many notes the vault search found, not only how many it added.** `POST /api/obsidian/index` returns `matched` next to `indexed`, and the panel reports "Indexed X new notes (Y found)", so a vault root that matches nothing (0 found) no longer looks the same as a vault that is already fully indexed.
 - **Settings validation errors no longer start with `settings.Set:`.** An unknown key or an invalid value reaches the `400` response as just the message, the same as a rejected Obsidian vault root already did.
 - **A slow keychain unlock no longer fails the GitHub CLI token read.** With `github.tokenSource = gh-cli`, a `gh auth token` that times out is tried once more before start fails, and the error now says it timed out instead of `signal: killed`.
+- **A repository listed twice in `github.repos` in different case shows up once.** `lx-wnk/kontor, LX-WNK/Kontor` now keeps only the first spelling, so the GitHub summary no longer lists the same repository twice.
 
 ### Security
 

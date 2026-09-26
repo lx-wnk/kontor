@@ -46,13 +46,15 @@ func (e *StatusError) Error() string {
 // ParseRepos splits a comma-separated github.repos setting into owner/name
 // pairs, refusing anything that is not exactly one owner and one name. An
 // empty string parses to an empty list, which is how the application is
-// switched off.
+// switched off. An entry repeating an earlier one in another case is dropped,
+// keeping the first spelling, because the allow-list is case-insensitive.
 func ParseRepos(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
 	var out []string
+	seen := make(map[string]bool)
 	for _, part := range strings.Split(trimmed, ",") {
 		entry := strings.TrimSpace(part)
 		if entry == "" {
@@ -65,7 +67,10 @@ func ParseRepos(raw string) ([]string, error) {
 		if !validSegment(owner) || !validSegment(name) {
 			return nil, fmt.Errorf("github.repos: %q contains characters that are not valid in a repository path", entry)
 		}
-		out = append(out, entry)
+		if key := strings.ToLower(entry); !seen[key] {
+			seen[key] = true
+			out = append(out, entry)
+		}
 	}
 	return out, nil
 }

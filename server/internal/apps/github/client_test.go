@@ -28,6 +28,12 @@ func TestParseReposAcceptsOwnerNamePairsAndRejectsEverythingElse(t *testing.T) {
 	}
 }
 
+func TestParseReposDropsCaseInsensitiveDuplicatesKeepingTheFirstSpelling(t *testing.T) {
+	got, err := github.ParseRepos("lx-wnk/kontor,LX-WNK/Kontor,a/b")
+	require.NoError(t, err)
+	require.Equal(t, []string{"lx-wnk/kontor", "a/b"}, got)
+}
+
 // TestParseReposRefusesPathTraversalShapedEntries is D4 at the parse level:
 // a repository name that could be read two ways must be refused outright,
 // never silently normalised into something else — the same lesson that
