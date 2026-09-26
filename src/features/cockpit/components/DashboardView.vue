@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PermissionDecision } from '@/features/pipeline'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AutoApprovingStrip from '@/components/AutoApprovingStrip.vue'
 import ChannelScriptCallout from '@/components/shell/ChannelScriptCallout.vue'
 import DashboardToolbar from '@/components/shell/DashboardToolbar.vue'
@@ -48,6 +48,19 @@ const projectOptions = computed(() => [
     .map(([value, label]) => ({ value, label }))
     .sort((a, b) => a.label.localeCompare(b.label)),
 ])
+// Before project keys, the stored filter held a raw projectName; migrate it once
+// agents are known, and fall back to 'all' rather than an empty roster.
+let projectMigrated = false
+watch(agents, (list) => {
+  if (projectMigrated || list.length === 0)
+    return
+  projectMigrated = true
+  const stored = dashboardProject.value
+  if (stored === 'all' || list.some(a => agentProjectKey(a) === stored))
+    return
+  const legacy = list.find(a => a.projectName === stored)
+  dashboardProject.value = legacy ? agentProjectKey(legacy) : 'all'
+}, { immediate: true })
 const spawnerOptions = computed(() => [
   { value: 'all', label: 'All spawners' },
   ...spawners.value.map(s => ({ value: s.id, label: s.name })),

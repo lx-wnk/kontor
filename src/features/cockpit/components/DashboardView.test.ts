@@ -1,5 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { useViewState } from '@/composables/useViewState'
+import { useAgents } from '@/features/agents'
 import DashboardView from './DashboardView.vue'
 
 // The roster reads the module-level singletons in useAgents/useViewState, so a
@@ -26,18 +28,40 @@ vi.mock('@/features/agents', async () => {
   }
 })
 
+const stubs = {
+  AutoApprovingStrip: { template: '<div data-testid="auto-approving-strip" />' },
+  DashboardToolbar: { template: '<div data-testid="dashboard-toolbar" />' },
+  ChannelScriptCallout: { template: '<div data-testid="channel-script-callout" />' },
+}
+
+function mountWithStoredProject(stored: string, agents: any[]) {
+  useViewState().dashboardProject.value = stored
+  useAgents({ autoStart: false }).agents.value = agents
+  return mount(DashboardView, {
+    props: { permissionItems: [], focusedSessionId: null },
+    global: { stubs },
+  })
+}
+
 describe('dashboardView', () => {
+  it('migrates a stored project name to that project\'s key', () => {
+    const wrapper = mountWithStoredProject('Kontor', [{ projectId: 'p1', projectName: 'Kontor' }])
+    expect(useViewState().dashboardProject.value).toBe('p1')
+    wrapper.unmount()
+  })
+
+  it('falls back to all projects when the stored value matches no agent', () => {
+    const wrapper = mountWithStoredProject('gone', [{ projectId: 'p1', projectName: 'Kontor' }])
+    expect(useViewState().dashboardProject.value).toBe('all')
+    wrapper.unmount()
+  })
+
   it('renders the toolbar, the triage band and the empty state when no agent is live', () => {
+    useAgents({ autoStart: false }).agents.value = []
     const wrapper = mount(DashboardView, {
       attachTo: document.body,
       props: { permissionItems: [], focusedSessionId: null },
-      global: {
-        stubs: {
-          AutoApprovingStrip: { template: '<div data-testid="auto-approving-strip" />' },
-          DashboardToolbar: { template: '<div data-testid="dashboard-toolbar" />' },
-          ChannelScriptCallout: { template: '<div data-testid="channel-script-callout" />' },
-        },
-      },
+      global: { stubs },
     })
 
     expect(wrapper.find('[data-testid="triage-band"]').exists()).toBe(true)

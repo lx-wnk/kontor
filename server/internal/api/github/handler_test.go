@@ -50,6 +50,11 @@ func defaultUpstream(called *bool) http.HandlerFunc {
 // a test can tell deny from ask by the error text alone.
 func newEnvWithUpstream(t *testing.T, upstream http.HandlerFunc) (http.Handler, repo.GrantRepo, context.Context) {
 	t.Helper()
+	return newEnvWithRepos(t, upstream, []string{testRepo})
+}
+
+func newEnvWithRepos(t *testing.T, upstream http.HandlerFunc, repos []string) (http.Handler, repo.GrantRepo, context.Context) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -65,7 +70,7 @@ func newEnvWithUpstream(t *testing.T, upstream http.HandlerFunc) (http.Handler, 
 
 	client, err := githubapp.NewClient(githubapp.Config{
 		Token: "ghp_supersecret", BaseURL: srv.URL,
-		Repos: []string{testRepo}, AllowLoopback: true,
+		Repos: repos, AllowLoopback: true,
 	})
 	require.NoError(t, err)
 
@@ -652,6 +657,31 @@ func TestSummaryMatchesSearchHitsToTheAllowListCaseInsensitively(t *testing.T) {
 	for _, pr := range body.Repos[0].PullRequests {
 		require.NotEqual(t, "not_tracked", pr.Checks.State, "PR #%d is in an allow-listed repository", pr.Number)
 	}
+}
+
+func TestSummaryListsARepoConfiguredTwiceInDifferentCaseOnce(t *testing.T) {
+	repos, err := githubapp.ParseRepos(testRepo + ", LX-WNK/Kontor")
+	require.NoError(t, err)
+	h, grants, ctx := newEnvWithRepos(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/pulls") {
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{})
+	}, repos)
+	allowGlobally(t, grants, ctx, githubapp.CapabilityRead)
+
+	rec := do(t, h, http.MethodGet, "/api/github/summary", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Repos []struct {
+			Repo string `json:"repo"`
+		} `json:"repos"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Repos, 1, rec.Body.String())
+	require.Equal(t, testRepo, body.Repos[0].Repo)
 }
 
 // TestGateMatchesGrantPatternsOnTheConfiguredRepoSpelling proves a repository
