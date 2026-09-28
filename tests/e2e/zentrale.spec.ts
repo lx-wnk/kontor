@@ -294,3 +294,51 @@ test('the layout cannot be edited while the error line replaces the page', async
   await expect(page.getByTestId('nav-new-page')).toBeVisible()
   await expect(page.getByTestId('workspace-edit-toggle')).toHaveCount(0)
 })
+
+test('the hub widens on F, opens the sidebar New page input from its launcher and fires a launcher by digit', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const stage = page.getByTestId('hub-stage')
+  const widen = stage.getByRole('button', { name: 'Widen' })
+
+  await stage.press('f')
+  await expect(widen).toHaveAttribute('aria-pressed', 'true')
+  await stage.press('f')
+  await expect(widen).toHaveAttribute('aria-pressed', 'false')
+
+  await page.getByTestId('hub-launcher-new-page').click()
+  await expect(page.getByTestId('nav-new-page-input')).toBeFocused()
+
+  await stage.press('1')
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('agent-active-view'))).toBe('dashboard')
+})
+
+test('Escape on the hub with the Kontor overlay open collapses only the overlay', async ({ page }) => {
+  // Reduced motion makes the hub's fit synchronous, so a wrong fit shows up without waiting out a flight.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const stage = page.getByTestId('hub-stage')
+  const camera = () => stage.locator('svg g').first().getAttribute('transform')
+
+  await stage.press('+')
+  const zoomed = await camera()
+  await page.getByTestId('hub-core').click()
+  await expect(page.getByTestId('kontor-expanded')).toBeVisible()
+  // The overlay focuses its own input; the operator going back to the map leaves it open.
+  await stage.focus()
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('kontor-expanded')).toHaveCount(0)
+  expect(await camera()).toBe(zoomed)
+})
+
+test('below md the stacked tiles keep their content height and the hub stays visible', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 900 })
+  await page.goto('/')
+  await expect(page.getByTestId('hub-stage')).toBeVisible()
+  expect((await page.getByTestId('hub').boundingBox())!.height).toBeGreaterThanOrEqual(544)
+  const tiles = await page.locator('[data-testid^="workspace-tile-"]').evaluateAll(els => els
+    .map(el => ({ widget: el.getAttribute('data-testid'), top: el.getBoundingClientRect().top, contentBottom: el.firstElementChild!.getBoundingClientRect().bottom }))
+    .sort((a, b) => a.top - b.top))
+  for (let i = 1; i < tiles.length; i++)
+    expect(tiles[i].top, `${tiles[i].widget} starts below ${tiles[i - 1].widget}'s content`).toBeGreaterThanOrEqual(tiles[i - 1].contentBottom - 0.5)
+})

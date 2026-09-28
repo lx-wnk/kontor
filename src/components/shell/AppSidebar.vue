@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ActiveView } from '../../composables/useViewState'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { addPage, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
 import { useSidebar } from '../../composables/useSidebar'
 import { useViewState } from '../../composables/useViewState'
@@ -23,7 +23,7 @@ const emit = defineEmits<{
   openSettings: []
 }>()
 
-const { expanded, pinned, togglePinned, setHovering, setFocused, collapseAfterSelect } = useSidebar()
+const { expanded, pinned, togglePinned, setHovering, setFocused, collapseAfterSelect, newPageRequests } = useSidebar()
 const { activeView } = useViewState()
 
 const grouped = computed(() =>
@@ -66,6 +66,8 @@ async function startNewPage(): Promise<void> {
   await nextTick()
   newPageSlot.value?.querySelector('input')?.focus()
 }
+
+watch(newPageRequests, () => void startNewPage())
 
 async function cancelNewPage(): Promise<void> {
   creatingPage.value = false

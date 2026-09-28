@@ -1,6 +1,6 @@
 import type { ComputedRef } from 'vue'
 import type { Agent } from '@/types'
-import { computed, effectScope, ref, watch } from 'vue'
+import { computed, effectScope, readonly, ref, watch } from 'vue'
 import { useAgents } from '@/features/agents'
 import { errorMessage, readErrorMessage } from '@/utils/errorMessage'
 
@@ -11,6 +11,7 @@ const status = ref<KontorStatus>('idle')
 const error = ref('')
 const openRequested = ref(false)
 const pendingPrompt = ref<string | null>(null)
+const overlayOpen = ref(false)
 let agentWatchScope: ReturnType<typeof effectScope> | null = null
 
 const SESSION_URL = '/api/kontor-session'
@@ -114,6 +115,10 @@ function takePendingPrompt(): string | null {
   return text
 }
 
+function setOverlayOpen(open: boolean): void {
+  overlayOpen.value = open
+}
+
 async function end(): Promise<void> {
   const fallback = 'Could not end the Kontor session.'
   error.value = ''
@@ -149,7 +154,7 @@ function watchAgentExit() {
 
 export function useKontorSession() {
   watchAgentExit()
-  return { pid, status, error, refresh, start, send, end, renew, openRequested, pendingPrompt, ask, takePendingPrompt }
+  return { pid, status, error, refresh, start, send, end, renew, openRequested, pendingPrompt, ask, takePendingPrompt, overlayOpen: readonly(overlayOpen), setOverlayOpen }
 }
 
 /** The agents-stream entry for the Kontor session's pid, shared by every caller. */

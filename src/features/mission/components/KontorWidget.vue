@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useKontorAgent, useKontorSession } from '../composables/useKontorSession'
 import KontorTile from './KontorTile.vue'
 
-const { status, openRequested } = useKontorSession()
+const { status, openRequested, setOverlayOpen } = useKontorSession()
 const agent = useKontorAgent()
 
 const state = computed(() => {
@@ -67,6 +67,9 @@ useEventListener(computed(() => open.value ? window : null), 'scroll', (e) => {
 // A pending frame from an open still in flight must not run place() against
 // a cell that collapse or unmount already moved past.
 onUnmounted(cancelPendingFrame)
+
+watch(open, setOverlayOpen, { flush: 'sync' })
+onUnmounted(() => setOverlayOpen(false))
 
 // A watch's immediate call runs before `cell` exists, so a pending request is picked up in onMounted instead.
 function openIfRequested() {
