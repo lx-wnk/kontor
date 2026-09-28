@@ -639,7 +639,7 @@ func (o *PipelineOrchestrator) handleFailedResult(ctx context.Context, task *ent
 			slog.Info("orchestrator: requeuing rate-limited run",
 				"runID", fresh.ID, "stage", fresh.Stage, "attempt", attempt,
 				"maxRateLimitRetries", maxRL, "backoffSec", backoffSec)
-			if _, err := o.applyTransition(ctx, task, fresh, RequeueTransition{
+			if _, err := o.applyTransition(ctx, task, fresh, RateLimitedTransition{
 				Reason:      result.Error,
 				Output:      result.Output,
 				Attempt:     attempt,
@@ -1090,7 +1090,7 @@ func (o *PipelineOrchestrator) RequeueForUser(ctx context.Context, taskID, userP
 
 	latest, _ := o.stageRuns.GetLatestByTaskAndStage(ctx, taskID, task.CurrentStage)
 	// After reap, a formerly awaiting_user run is now failed. Accept failed or requeued.
-	if latest == nil || (latest.Status != "failed" && latest.Status != "requeued") {
+	if latest == nil || (latest.Status != "failed" && latest.Status != "requeued" && latest.Status != "rate_limited") {
 		return nil, nil
 	}
 
@@ -1099,7 +1099,7 @@ func (o *PipelineOrchestrator) RequeueForUser(ctx context.Context, taskID, userP
 	// before creating the new run, else sweepRequeueableRuns later promotes it
 	// in place to pending — leaving two pending runs on the same task+stage, the
 	// older of which never spawns and is never reaped (StartedAt stays nil).
-	if latest.Status == "requeued" {
+	if latest.Status == "requeued" || latest.Status == "rate_limited" {
 		if _, err := o.stageRuns.Update(ctx, latest.ID, repo.UpdateStageRunInput{Status: strPtr("failed")}); err != nil {
 			return nil, err
 		}

@@ -5,7 +5,7 @@ import { actionEndpoint } from '@/composables/useRunAction'
 const POLL_INTERVAL_MS = 1500
 
 // gate_state mirrors stage_run.status; these values mean the gate is settled.
-const TERMINAL_STATES = new Set(['awaiting_user', 'done', 'failed', 'cancelled', 'requeued'])
+const TERMINAL_STATES = new Set(['awaiting_user', 'done', 'failed', 'cancelled', 'requeued', 'rate_limited'])
 
 export function usePlanReview(taskId: () => string | null) {
   const gateState = ref<string>('unknown')

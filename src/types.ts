@@ -115,6 +115,8 @@ export type StageRunStatus
     | 'done'
     | 'failed'
     | 'requeued'
+    | 'rate_limited'
+    | 'cancelled'
 
 // Mirrors of server-side contracts, kept in parity by hand (Go cannot import TS):
 // autonomy is server/internal/taskcontrol/autonomy.go's ValidAutonomyValues,

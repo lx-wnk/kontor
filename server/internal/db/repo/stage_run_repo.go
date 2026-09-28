@@ -54,6 +54,7 @@ type UpdateStageRunInput struct {
 	PIDClear          bool
 	SessionID         *string
 	Output            map[string]any
+	OutputClear       bool
 	TokensUsed        *int
 	CostCents         *int
 	StartedAt         *time.Time
@@ -199,7 +200,9 @@ func (r *entStageRunRepo) Update(ctx context.Context, id string, in UpdateStageR
 	if in.SessionID != nil {
 		q = q.SetSessionID(*in.SessionID)
 	}
-	if in.Output != nil {
+	if in.OutputClear {
+		q = q.ClearOutput()
+	} else if in.Output != nil {
 		q = q.SetOutput(in.Output)
 	}
 	if in.TokensUsed != nil {

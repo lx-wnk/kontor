@@ -73,7 +73,7 @@ func (o *PipelineOrchestrator) sweepAwaitingUserRuns(ctx context.Context, allRun
 
 // sweepRequeueableRuns promotes requeued runs back to pending once their cooldown has elapsed.
 func (o *PipelineOrchestrator) sweepRequeueableRuns(ctx context.Context) error {
-	requeued, _ := o.opts.StageRunRepo.ListByStatus(ctx, "requeued")
+	requeued, _ := o.opts.StageRunRepo.ListByStatus(ctx, "requeued", "rate_limited")
 	now := time.Now()
 	for _, run := range requeued {
 		if run.NextRetryAt == nil || run.NextRetryAt.After(now) {
@@ -86,6 +86,7 @@ func (o *PipelineOrchestrator) sweepRequeueableRuns(ctx context.Context) error {
 			PIDClear:         true,
 			StartedAtClear:   true,
 			NextRetryAtClear: true,
+			OutputClear:      true,
 		}); err != nil {
 			slog.Error("sweepRequeueableRuns.update", "runID", run.ID, "err", err)
 		}
@@ -101,7 +102,7 @@ func (o *PipelineOrchestrator) sweepRequeueableRuns(ctx context.Context) error {
 //     has no live PID (see case 4 below for why a nil/zero PID alone isn't enough).
 func (o *PipelineOrchestrator) sweepOrphanRuns(ctx context.Context, allRunning []*ent.StageRun) error {
 	pendings, _ := o.opts.StageRunRepo.ListPending(ctx)
-	requeued, _ := o.opts.StageRunRepo.ListByStatus(ctx, "requeued")
+	requeued, _ := o.opts.StageRunRepo.ListByStatus(ctx, "requeued", "rate_limited")
 	all := make([]*ent.StageRun, 0, len(allRunning)+len(pendings)+len(requeued))
 	all = append(all, allRunning...)
 	all = append(all, pendings...)

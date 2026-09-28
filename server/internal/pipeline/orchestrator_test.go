@@ -575,7 +575,7 @@ func TestFinalizeCompletedAsyncRuns_RateLimited_Requeues(t *testing.T) {
 
 	updated, err := srRepo.GetByID(ctx, run.ID)
 	require.NoError(t, err)
-	require.Equal(t, "requeued", updated.Status)
+	require.Equal(t, "rate_limited", updated.Status)
 	require.Equal(t, 1, updated.RetryCount)
 	require.NotNil(t, updated.NextRetryAt)
 	// Rate-limit backoff is 600s (defaultRateLimitBackoff), much larger than infra backoff.

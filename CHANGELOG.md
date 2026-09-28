@@ -519,6 +519,7 @@ Preparing the first public release.
 
 ### Fixed
 
+- **Rate-limited (429/529) stage runs no longer advance the pipeline or count as reviews.** A run that aborts on the Claude usage limit is now classified as `rate_limited`, automatically re-queued after the reset backoff (default 600 s, configurable via `rateLimitBackoffSeconds`), and retried up to `maxRateLimitRetries` times (default 36) before parking the task. A `self_review` output that lacks the required `passed` boolean field is now a validation error rather than an implicit failure, preventing a rate-limited run with stale requeue metadata from burning a review cycle.
 - **Tasks created or changed through MCP reach the board without a reload.**
   MCP tools used to send a `task_changed` event the board ignores, so a task an
   agent created stayed invisible and opening it said "Task not found". They now

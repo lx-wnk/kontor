@@ -301,6 +301,27 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 		// pending.
 		postCommit = append(postCommit, func() { o.stageRuns.releaseStageRun(ctx, sr.ID) })
 
+	case RateLimitedTransition:
+		output := tr.Output
+		if output == nil {
+			output = map[string]any{}
+		}
+		output["requeue_reason"] = tr.Reason
+		output["attempt"] = tr.Attempt
+		nextRetry := tr.NextRetryAt
+		if _, err := srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+			Status:      strPtr("rate_limited"),
+			RetryCount:  &tr.Attempt,
+			NextRetryAt: &nextRetry,
+			Output:      output,
+		}); err != nil {
+			return nil, nil, nil, fmt.Errorf("applyTransition.rateLimited.updateRun: %w", err)
+		}
+		_ = auditRepo.RecordTaskAudit(ctx, task.ID, nil, "stage_rate_limited", "task:"+task.ID,
+			map[string]any{"stage": sr.Stage, "attempt": tr.Attempt, "reason": tr.Reason})
+		updatedRunID = sr.ID
+		postCommit = append(postCommit, func() { o.stageRuns.releaseStageRun(ctx, sr.ID) })
+
 	default:
 		panic(fmt.Sprintf("orchestrator.applyTransition: unhandled transition type %T", t))
 	}
@@ -345,6 +366,8 @@ func transitionKindName(t StageTransition) string {
 		return "async_running"
 	case RequeueTransition:
 		return "requeue"
+	case RateLimitedTransition:
+		return "rate_limited"
 	default:
 		return "unknown"
 	}
@@ -360,7 +383,14 @@ func (o *PipelineOrchestrator) decideCompletedTransition(ctx context.Context, ta
 		return o.decideFinalizationTransition(ctx, task, run, output)
 	}
 	if run.Stage == "self_review" {
-		passed, _ := output["passed"].(bool)
+		passed, ok := output["passed"].(bool)
+		if !ok {
+			return WaitUserTransition{
+				Reason:    "self_review output missing required field: passed (boolean)",
+				Output:    output,
+				AgentDone: true,
+			}
+		}
 		if !passed {
 			feedback := SummarizeReviewFindings(output)
 			prevCycles := 0
