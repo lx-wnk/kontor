@@ -204,6 +204,11 @@ func ResourceID(v string) predicate.TaskSchedule {
 	return predicate.TaskSchedule(sql.FieldEQ(FieldResourceID, v))
 }
 
+// OwnerModule applies equality check predicate on the "owner_module" field. It's identical to OwnerModuleEQ.
+func OwnerModule(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldEQ(FieldOwnerModule, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v string) predicate.TaskSchedule {
 	return predicate.TaskSchedule(sql.FieldEQ(FieldUserID, v))
@@ -1877,6 +1882,81 @@ func ResourceIDEqualFold(v string) predicate.TaskSchedule {
 // ResourceIDContainsFold applies the ContainsFold predicate on the "resource_id" field.
 func ResourceIDContainsFold(v string) predicate.TaskSchedule {
 	return predicate.TaskSchedule(sql.FieldContainsFold(FieldResourceID, v))
+}
+
+// OwnerModuleEQ applies the EQ predicate on the "owner_module" field.
+func OwnerModuleEQ(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldEQ(FieldOwnerModule, v))
+}
+
+// OwnerModuleNEQ applies the NEQ predicate on the "owner_module" field.
+func OwnerModuleNEQ(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldNEQ(FieldOwnerModule, v))
+}
+
+// OwnerModuleIn applies the In predicate on the "owner_module" field.
+func OwnerModuleIn(vs ...string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldIn(FieldOwnerModule, vs...))
+}
+
+// OwnerModuleNotIn applies the NotIn predicate on the "owner_module" field.
+func OwnerModuleNotIn(vs ...string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldNotIn(FieldOwnerModule, vs...))
+}
+
+// OwnerModuleGT applies the GT predicate on the "owner_module" field.
+func OwnerModuleGT(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldGT(FieldOwnerModule, v))
+}
+
+// OwnerModuleGTE applies the GTE predicate on the "owner_module" field.
+func OwnerModuleGTE(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldGTE(FieldOwnerModule, v))
+}
+
+// OwnerModuleLT applies the LT predicate on the "owner_module" field.
+func OwnerModuleLT(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldLT(FieldOwnerModule, v))
+}
+
+// OwnerModuleLTE applies the LTE predicate on the "owner_module" field.
+func OwnerModuleLTE(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldLTE(FieldOwnerModule, v))
+}
+
+// OwnerModuleContains applies the Contains predicate on the "owner_module" field.
+func OwnerModuleContains(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldContains(FieldOwnerModule, v))
+}
+
+// OwnerModuleHasPrefix applies the HasPrefix predicate on the "owner_module" field.
+func OwnerModuleHasPrefix(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldHasPrefix(FieldOwnerModule, v))
+}
+
+// OwnerModuleHasSuffix applies the HasSuffix predicate on the "owner_module" field.
+func OwnerModuleHasSuffix(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldHasSuffix(FieldOwnerModule, v))
+}
+
+// OwnerModuleIsNil applies the IsNil predicate on the "owner_module" field.
+func OwnerModuleIsNil() predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldIsNull(FieldOwnerModule))
+}
+
+// OwnerModuleNotNil applies the NotNil predicate on the "owner_module" field.
+func OwnerModuleNotNil() predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldNotNull(FieldOwnerModule))
+}
+
+// OwnerModuleEqualFold applies the EqualFold predicate on the "owner_module" field.
+func OwnerModuleEqualFold(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldEqualFold(FieldOwnerModule, v))
+}
+
+// OwnerModuleContainsFold applies the ContainsFold predicate on the "owner_module" field.
+func OwnerModuleContainsFold(v string) predicate.TaskSchedule {
+	return predicate.TaskSchedule(sql.FieldContainsFold(FieldOwnerModule, v))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.

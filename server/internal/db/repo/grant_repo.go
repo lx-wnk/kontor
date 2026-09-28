@@ -65,6 +65,11 @@ type CreateGrantInput struct {
 type GrantRepo interface {
 	Create(ctx context.Context, in CreateGrantInput) (*ent.Grant, error)
 	ListForCapability(ctx context.Context, capabilityName string) ([]*ent.Grant, error)
+	// ListForCapabilities answers for many capabilities in one query. A caller
+	// deciding what to show — a tool list, a settings page — must not issue one
+	// authorization per row: Gate.Authorize records usage, so asking it N
+	// questions spends N of the budget that bounds real calls.
+	ListForCapabilities(ctx context.Context, capabilityNames []string) ([]*ent.Grant, error)
 	// List returns every grant row, newest first, across all capabilities.
 	List(ctx context.Context) ([]*ent.Grant, error)
 	// Revoke tombstones a grant: revoked_at and revoked_by are set, the row
@@ -148,6 +153,20 @@ func (r *entGrantRepo) ListForCapability(ctx context.Context, capabilityName str
 		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("grant.ListForCapability: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *entGrantRepo) ListForCapabilities(ctx context.Context, capabilityNames []string) ([]*ent.Grant, error) {
+	if len(capabilityNames) == 0 {
+		return nil, nil
+	}
+	rows, err := r.client.Grant.Query().
+		Where(grant.CapabilityNameIn(capabilityNames...)).
+		Order(ent.Asc(grant.FieldGrantedAt)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("grant.ListForCapabilities: %w", err)
 	}
 	return rows, nil
 }

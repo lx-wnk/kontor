@@ -406,5 +406,5 @@ func (o *PipelineOrchestrator) decideCompletedTransition(ctx context.Context, ta
 		}
 		return NextTransition{Stage: "implementation", Output: output}
 	}
-	return NextTransition{Stage: NextStage(run.Stage), Output: output}
+	return NextTransition{Stage: NextStageForKind(task.Kind, run.Stage), Output: output}
 }

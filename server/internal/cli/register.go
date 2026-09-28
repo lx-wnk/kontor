@@ -15,6 +15,7 @@ func Register(root *cobra.Command) {
 		withConfig(newConfigCmd),
 		newSettingsCmd(),
 		newPluginsCmd(),
+		newModuleCmd(),
 		newGrantsCmd(),
 	)
 }

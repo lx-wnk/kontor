@@ -76,6 +76,8 @@ type TaskSchedule struct {
 	SkippedCount int `json:"skipped_count,omitempty"`
 	// ResourceID holds the value of the "resource_id" field.
 	ResourceID string `json:"resource_id,omitempty"`
+	// OwnerModule holds the value of the "owner_module" field.
+	OwnerModule string `json:"owner_module,omitempty"`
 	// Applications holds the value of the "applications" field.
 	Applications []string `json:"applications,omitempty"`
 	// UserID holds the value of the "user_id" field.
@@ -98,7 +100,7 @@ func (*TaskSchedule) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case taskschedule.FieldMaxIterations, taskschedule.FieldTokenBudget, taskschedule.FieldCostBudgetCents, taskschedule.FieldStageTimeoutSeconds, taskschedule.FieldSkippedCount:
 			values[i] = new(sql.NullInt64)
-		case taskschedule.FieldID, taskschedule.FieldName, taskschedule.FieldNlText, taskschedule.FieldCronExpr, taskschedule.FieldTimezone, taskschedule.FieldCatchup, taskschedule.FieldSlugPrefix, taskschedule.FieldTitle, taskschedule.FieldDescription, taskschedule.FieldCwd, taskschedule.FieldSourceBranch, taskschedule.FieldTargetBranch, taskschedule.FieldPriority, taskschedule.FieldRunMode, taskschedule.FieldProjectID, taskschedule.FieldSpawnerID, taskschedule.FieldPermissionTemplate, taskschedule.FieldLastTaskID, taskschedule.FieldResourceID, taskschedule.FieldUserID:
+		case taskschedule.FieldID, taskschedule.FieldName, taskschedule.FieldNlText, taskschedule.FieldCronExpr, taskschedule.FieldTimezone, taskschedule.FieldCatchup, taskschedule.FieldSlugPrefix, taskschedule.FieldTitle, taskschedule.FieldDescription, taskschedule.FieldCwd, taskschedule.FieldSourceBranch, taskschedule.FieldTargetBranch, taskschedule.FieldPriority, taskschedule.FieldRunMode, taskschedule.FieldProjectID, taskschedule.FieldSpawnerID, taskschedule.FieldPermissionTemplate, taskschedule.FieldLastTaskID, taskschedule.FieldResourceID, taskschedule.FieldOwnerModule, taskschedule.FieldUserID:
 			values[i] = new(sql.NullString)
 		case taskschedule.FieldNextRunAt, taskschedule.FieldLastRunAt, taskschedule.FieldLastSkippedAt, taskschedule.FieldCreatedAt, taskschedule.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -312,6 +314,12 @@ func (_m *TaskSchedule) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ResourceID = value.String
 			}
+		case taskschedule.FieldOwnerModule:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field owner_module", values[i])
+			} else if value.Valid {
+				_m.OwnerModule = value.String
+			}
 		case taskschedule.FieldApplications:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field applications", values[i])
@@ -487,6 +495,9 @@ func (_m *TaskSchedule) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("resource_id=")
 	builder.WriteString(_m.ResourceID)
+	builder.WriteString(", ")
+	builder.WriteString("owner_module=")
+	builder.WriteString(_m.OwnerModule)
 	builder.WriteString(", ")
 	builder.WriteString("applications=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Applications))

@@ -92,6 +92,18 @@ func (r *Registry) loadFS(fsys fs.FS, dir string) error {
 	return nil
 }
 
+// LoadFile registers one descriptor from disk after construction. Modules are
+// loaded after the registry is built, so their descriptors arrive this way
+// rather than through the user directory scanned at startup.
+func (r *Registry) LoadFile(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("provider: read %s: %w", path, err)
+	}
+	r.ingest(b, path)
+	return nil
+}
+
 func (r *Registry) loadFile(path string) {
 	b, err := os.ReadFile(path)
 	if err != nil {

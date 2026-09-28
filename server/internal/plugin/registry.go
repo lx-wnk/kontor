@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/envsec"
-	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // Registry discovers, starts, and health-checks plugins from a directory.
@@ -36,6 +35,12 @@ type Registry struct {
 	// settings is the optional provider that fetches decrypted per-plugin values
 	// for env injection at every spawn. Nil means no settings are injected.
 	settings SettingsProvider
+	// credentials is the optional issuer of the token a module calls back with.
+	// Nil means modules start without one and can be called but cannot call.
+	credentials CredentialIssuer
+	// dataRoot is where each module's own directory lives. Empty means modules
+	// are started without one, the same way they start without settings.
+	dataRoot string
 }
 
 // Entry is a loaded plugin with its descriptor and running process (if started by us).
@@ -84,9 +89,48 @@ func (r *Registry) SetEnabled(fn func(id string) bool) { r.enabled = fn }
 // for env injection at every spawn. Call before Load.
 func (r *Registry) SetSettingsProvider(fn SettingsProvider) { r.settings = fn }
 
+// SetCredentialIssuer wires the issuer that mints a module's callback token.
+// Optional, like the settings provider: a registry without one still starts
+// modules, they simply receive no credential.
+func (r *Registry) SetCredentialIssuer(issuer CredentialIssuer) { r.credentials = issuer }
+
+// SetDataRoot names the directory under which each module gets one of its own.
+func (r *Registry) SetDataRoot(root string) { r.dataRoot = root }
+
 // appendSettingsEnv returns base with PLUGIN_SETTING_<KEY> vars from the settings
 // provider appended. A nil provider or a provider error leaves base unchanged
 // (the plugin starts without settings rather than not at all).
+// appendModuleDataDirEnv creates the module's own directory and names it. A
+// failure is logged and the module starts without one: it can still serve what
+// core asks of it, which is a smaller problem than refusing to start.
+func (r *Registry) appendModuleDataDirEnv(base []string, id string) []string {
+	if r.dataRoot == "" {
+		return base
+	}
+	dir, err := EnsureModuleDataDir(r.dataRoot, id)
+	if err != nil {
+		slog.Warn("plugin: no data directory", "id", id, "err", err)
+		return base
+	}
+	return append(base, ModuleDataDirEnvVar+"="+dir)
+}
+
+// appendModuleTokenEnv mints the module's callback credential and appends it.
+// A failure is logged and the module starts without one: it can still serve
+// what core asks of it, and a module that cannot call back is a smaller
+// problem than a module that will not start.
+func (r *Registry) appendModuleTokenEnv(ctx context.Context, base []string, desc Descriptor) []string {
+	if r.credentials == nil {
+		return base
+	}
+	token, err := r.credentials.Issue(ctx, desc.ID, desc.Uses)
+	if err != nil {
+		slog.Warn("plugin: no callback credential issued", "id", desc.ID, "err", err)
+		return base
+	}
+	return append(base, ModuleTokenEnvVar+"="+token)
+}
+
 func (r *Registry) appendSettingsEnv(ctx context.Context, base []string, id string) []string {
 	if r.settings == nil {
 		return base
@@ -153,8 +197,11 @@ func (r *Registry) Load(serverCtx context.Context, hooks Hooks) error {
 			slog.Warn("plugin: skip — invalid plugin.json", "dir", entry.Name(), "err", err)
 			continue
 		}
-		if !ValidID(desc.ID) {
-			slog.Warn("plugin: skip — "+validation.SlugPatternMessage, "dir", entry.Name(), "id", desc.ID)
+		if err := desc.Validate(); err != nil {
+			// Refused, not skipped quietly: the manifest is the module's
+			// statement about what it needs, and a core that ignores an
+			// unreadable one loads a module it cannot honour.
+			slog.Warn("plugin: refused", "dir", entry.Name(), "err", err)
 			continue
 		}
 		if !r.isEnabled(desc.ID) {
@@ -193,7 +240,7 @@ func (r *Registry) startEntry(serverCtx, startupCtx context.Context, pluginDir s
 		cmd := exec.CommandContext(serverCtx, desc.Command[0], desc.Command[1:]...)
 		disableContextKill(cmd)
 		cmd.Dir = pluginDir
-		cmd.Env = r.appendSettingsEnv(serverCtx, buildPluginEnv(desc.Env), desc.ID)
+		cmd.Env = r.appendModuleDataDirEnv(r.appendModuleTokenEnv(serverCtx, r.appendSettingsEnv(serverCtx, buildPluginEnv(desc.Env), desc.ID), desc), desc.ID)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		if err := cmd.Start(); err != nil {
@@ -310,7 +357,24 @@ func (r *Registry) StopOne(id string) error {
 		gracefulStop(target.cmd, target.cmdDone)
 	}
 	r.removeByID(id)
+	r.revokeModuleCredential(id)
 	return nil
+}
+
+// revokeModuleCredential retires the token the module was started with. A
+// stopped module must not keep a usable credential: the process is gone, so
+// anything still presenting its token is not it.
+func (r *Registry) revokeModuleCredential(id string) {
+	if r.credentials == nil {
+		return
+	}
+	ctx := r.serverCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := r.credentials.Revoke(ctx, id); err != nil {
+		slog.Warn("plugin: callback credential not revoked", "id", id, "err", err)
+	}
 }
 
 // setIntentionalStop marks the entry's pending exit as deliberate so watchPlugin
@@ -579,6 +643,10 @@ func (r *Registry) HasDir() bool {
 	return r.dir != ""
 }
 
+// Dir is the directory the module was loaded from. Its own files — provider
+// descriptors, routine definitions — are resolved relative to it.
+func (e Entry) Dir() string { return e.pluginDir }
+
 // Healthy reports whether this entry's process is currently considered healthy.
 func (e Entry) Healthy() bool { return e.healthy }
 
@@ -603,6 +671,14 @@ func (r *Registry) InjectEntryForTest(d Descriptor, healthy bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.plugins = append(r.plugins, Entry{Descriptor: d, BaseURL: "http://" + d.Addr, healthy: healthy})
+}
+
+// InjectEntryWithDirForTest is InjectEntryForTest for a module whose own
+// directory matters — the files it ships are resolved relative to it.
+func (r *Registry) InjectEntryWithDirForTest(d Descriptor, dir string, healthy bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.plugins = append(r.plugins, Entry{Descriptor: d, BaseURL: "http://" + d.Addr, pluginDir: dir, healthy: healthy})
 }
 
 // NewHealthyEntryForTest builds a healthy Entry for tests in other packages.
@@ -714,7 +790,7 @@ func (r *Registry) watchPlugin(ctx context.Context, pluginDir string, desc Descr
 		newCmd := exec.CommandContext(ctx, desc.Command[0], desc.Command[1:]...)
 		disableContextKill(newCmd)
 		newCmd.Dir = pluginDir
-		newCmd.Env = r.appendSettingsEnv(ctx, buildPluginEnv(desc.Env), desc.ID)
+		newCmd.Env = r.appendModuleDataDirEnv(r.appendModuleTokenEnv(ctx, r.appendSettingsEnv(ctx, buildPluginEnv(desc.Env), desc.ID), desc), desc.ID)
 		newCmd.Stdout = os.Stdout
 		newCmd.Stderr = os.Stderr
 		newCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

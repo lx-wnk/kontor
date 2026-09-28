@@ -46,6 +46,8 @@ func TestRegistry_InvalidPluginID_Uppercase_Skipped(t *testing.T) {
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "MY-PLUGIN",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -65,6 +67,8 @@ func TestRegistry_InvalidPluginID_WithSpace_Skipped(t *testing.T) {
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "my plugin",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -84,6 +88,8 @@ func TestRegistry_NonLoopbackIP_Skipped(t *testing.T) {
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "valid-plugin",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -112,6 +118,8 @@ func TestRegistry_PluginWithHealthy_Loaded(t *testing.T) {
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "test-plugin",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -134,6 +142,8 @@ func writePluginJSON(t *testing.T, dir, id string, caps []string) {
 	pluginDir := filepath.Join(dir, id)
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: caps,
@@ -161,6 +171,8 @@ func writePluginJSONAddr(t *testing.T, dir, id string, caps []string, addr strin
 	pluginDir := filepath.Join(dir, id)
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: caps,
@@ -322,6 +334,8 @@ func main() {
 	require.NoError(t, buildErr, "go build failed:\n%s", out)
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -390,6 +404,8 @@ func main() {
 	require.NoError(t, buildErr, "go build failed:\n%s", out)
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -499,6 +515,8 @@ func main() {
 	require.NoError(t, buildErr, "go build failed:\n%s", out)
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -700,6 +718,8 @@ func main() {
 	require.NoError(t, buildErr, "go build failed:\n%s", out)
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -763,6 +783,8 @@ func TestStartOneRestartsUnhealthyPlugin(t *testing.T) {
 
 	// Inject a synthetic unhealthy entry (simulates a crashed plugin that exhausted restarts).
 	r.InjectEntryForTest(plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "dead-plugin",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -792,6 +814,8 @@ func TestWithTransientAgainstUnhealthyEntryRestarts(t *testing.T) {
 
 	// Inject a synthetic unhealthy entry.
 	r.InjectEntryForTest(plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           "trans-dead",
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},
@@ -887,6 +911,8 @@ func main() {
 	require.NoError(t, buildErr, "go build failed:\n%s", out)
 
 	desc := plugin.Descriptor{
+		Contract:     plugin.CurrentContract,
+		Name:         "Test Plugin",
 		ID:           id,
 		Version:      "1.0.0",
 		Capabilities: []string{plugin.CapRouteExtension},

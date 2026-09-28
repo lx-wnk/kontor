@@ -27,6 +27,13 @@ type TaskScheduleRepo interface {
 	// RecordSkip increments skipped_count and stamps last_skipped_at for a fire
 	// refused because the routine's previous run was still in flight.
 	RecordSkip(ctx context.Context, id string, at time.Time) (*ent.TaskSchedule, error)
+	// ListForModule returns the routines a module owns.
+	ListForModule(ctx context.Context, moduleID string) ([]*ent.TaskSchedule, error)
+	// DisableForModule takes a module's own routines out of service and
+	// reports how many it touched. A routine outlives the module that brought
+	// it only as a disabled row, so nothing fires for a module that is gone
+	// and nothing the operator wrote is lost.
+	DisableForModule(ctx context.Context, moduleID string) (int, error)
 }
 
 // Run modes select what a fired schedule spawns: a single job task or a full
@@ -43,6 +50,9 @@ func IsValidRunMode(mode string) bool {
 
 // CreateTaskScheduleInput carries the schedule definition plus its task template.
 type CreateTaskScheduleInput struct {
+	// OwnerModule names the module that brought this routine, empty for one a
+	// human created. It decides who may change the row later.
+	OwnerModule         string
 	Name                string
 	Enabled             *bool
 	NLText              *string
@@ -133,7 +143,8 @@ func (r *entTaskScheduleRepo) Create(ctx context.Context, in CreateTaskScheduleI
 		SetCwd(in.Cwd).
 		SetMaxIterations(in.MaxIterations).
 		SetStageTimeoutSeconds(in.StageTimeoutSeconds).
-		SetSilverBullet(in.SilverBullet)
+		SetSilverBullet(in.SilverBullet).
+		SetOwnerModule(in.OwnerModule)
 
 	if in.Enabled != nil {
 		q = q.SetEnabled(*in.Enabled)
@@ -180,6 +191,36 @@ func (r *entTaskScheduleRepo) Create(ctx context.Context, in CreateTaskScheduleI
 		slog.Warn("taskschedule.Create: resource upsert failed, reconciler will catch it", "schedule_id", s.ID, "err", err)
 	}
 	return s, nil
+}
+
+func (r *entTaskScheduleRepo) ListForModule(ctx context.Context, moduleID string) ([]*ent.TaskSchedule, error) {
+	if moduleID == "" {
+		return nil, nil
+	}
+	rows, err := r.client.TaskSchedule.Query().
+		Where(taskschedule.OwnerModuleEQ(moduleID)).
+		Order(ent.Asc(taskschedule.FieldName)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("taskschedule.ListForModule: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *entTaskScheduleRepo) DisableForModule(ctx context.Context, moduleID string) (int, error) {
+	// Guarded here rather than trusted to the caller: every routine a human
+	// created carries an empty owner, so an empty id would disable all of them.
+	if moduleID == "" {
+		return 0, nil
+	}
+	n, err := r.client.TaskSchedule.Update().
+		Where(taskschedule.OwnerModuleEQ(moduleID), taskschedule.EnabledEQ(true)).
+		SetEnabled(false).
+		Save(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("taskschedule.DisableForModule: %w", err)
+	}
+	return n, nil
 }
 
 func (r *entTaskScheduleRepo) GetByID(ctx context.Context, id string) (*ent.TaskSchedule, error) {

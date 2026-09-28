@@ -1,45 +1,117 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/lx-wnk/agent-dashboard/plugin-sdk/plugin.schema.json",
+  "$id": "https://raw.githubusercontent.com/lx-wnk/kontor/main/plugin-sdk/plugin.schema.json",
   "title": "agent-dashboard plugin manifest (plugin.json v2)",
   "type": "object",
-  "required": ["id"],
+  "required": [
+    "id",
+    "contract",
+    "name"
+  ],
   "additionalProperties": true,
   "properties": {
-    "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-    "name": { "type": "string" },
-    "version": { "type": "string" },
+    "contract": {
+      "type": "integer",
+      "const": 1,
+      "description": "Module contract version this module was built against. Required; the server refuses a module it does not match."
+    },
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
     "capabilities": {
       "type": "array",
-      "items": { "enum": ["auth_provider", "route_extension", "ui_extension"] }
+      "items": {
+        "enum": [
+          "auth_provider",
+          "route_extension",
+          "ui_extension"
+        ]
+      }
     },
-    "addr": { "type": "string", "description": "loopback host:port the plugin listens on" },
-    "command": { "type": "array", "items": { "type": "string" } },
-    "env": { "type": "array", "items": { "type": "string" } },
+    "addr": {
+      "type": "string",
+      "description": "loopback host:port the plugin listens on"
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "env": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "settings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["key", "type", "label"],
+        "required": [
+          "key",
+          "type",
+          "label"
+        ],
         "properties": {
-          "key": { "type": "string" },
-          "type": { "enum": ["string", "url", "int", "bool", "enum"] },
-          "label": { "type": "string" },
-          "secret": { "type": "boolean" },
-          "enum": { "type": "array", "items": { "type": "string" } }
+          "key": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "url",
+              "int",
+              "bool",
+              "enum"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "enum": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "lifecycle": {
       "type": "object",
       "properties": {
-        "install": { "type": "string" },
-        "postInstall": { "type": "string" },
-        "activate": { "type": "string" },
-        "deactivate": { "type": "string" },
-        "update": { "type": "string" },
-        "uninstall": { "type": "string" }
+        "install": {
+          "type": "string"
+        },
+        "postInstall": {
+          "type": "string"
+        },
+        "activate": {
+          "type": "string"
+        },
+        "deactivate": {
+          "type": "string"
+        },
+        "update": {
+          "type": "string"
+        },
+        "uninstall": {
+          "type": "string"
+        }
       }
     }
   }

@@ -1103,6 +1103,7 @@ var (
 		{Name: "last_skipped_at", Type: field.TypeTime, Nullable: true},
 		{Name: "skipped_count", Type: field.TypeInt, Default: 0},
 		{Name: "resource_id", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "owner_module", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "applications", Type: field.TypeJSON, Default: "[]"},
 		{Name: "user_id", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},

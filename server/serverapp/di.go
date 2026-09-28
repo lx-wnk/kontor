@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	sdk "github.com/lx-wnk/kontor/sdk"
@@ -484,6 +485,17 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		pluginRegistry.SetSettingsProvider(func(ctx context.Context, id string) (map[string]string, error) {
 			return pluginSettingsSvc.DecryptedAll(ctx, id)
 		})
+		// A module's callback credential: scoped to what its manifest declares,
+		// re-minted on every start, revoked when it stops.
+		pluginRegistry.SetCredentialIssuer(moduleCredentials{keys: repo.NewApiKeyRepo(entClient)})
+	}
+	// Beside the core database rather than inside a module's checkout: a module
+	// is updated with git, so data kept in the checkout would be taken along by
+	// the update.
+	if home, err := os.UserHomeDir(); err == nil {
+		pluginRegistry.SetDataRoot(filepath.Join(home, ".claude", "kontor", "modules"))
+	} else {
+		slog.Warn("modules start without a data directory: home is unknown", "err", err)
 	}
 
 	// oauthProvider and pluginLoginURL are set by the SetAuth hook when an auth_provider
@@ -526,6 +538,34 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		slog.Info("auth: no auth_provider plugin found — bypass-auth active for loopback")
 	}
 
+	// The rename left this installation's own entries in the claude CLI's
+	// config under their old names. They are renamed in place, not removed:
+	// the entry carries the credential the operator registered, and deleting
+	// it would leave them with nothing registered at all. Only entries that
+	// still point at this application are touched.
+	if moved, err := claudeconfig.MigrateLegacyEntries(); err != nil {
+		slog.Warn("pre-rename MCP entries not migrated", "err", err)
+	} else if len(moved) > 0 {
+		slog.Info("pre-rename MCP entries renamed in place", "entries", moved)
+	}
+
+	// A module carries its provider descriptors with it, so they are loaded
+	// once the modules are.
+	registerModuleProviders(pluginRegistry, providerRegistry)
+
+	// Routines a module ships are created once, owned by it, and disabled
+	// until the operator points them at a directory.
+	if entClient != nil {
+		registerModuleRoutines(ctx, pluginRegistry, repo.NewTaskScheduleRepo(entClient))
+	}
+
+	// A module's tools become grantable the moment the module is loaded: the
+	// catalogue is what the grants surface lists, so without a row nobody could
+	// allow the tool even though the gate is asked about it.
+	if entClient != nil {
+		registerModuleToolCapabilities(ctx, pluginRegistry, repo.NewCapabilityRepo(entClient))
+	}
+
 	// SP1 plugin lifecycle: DB-backed plugin state, per-plugin settings (secret
 	// fields encrypted at rest), lifecycle transitions, and on-disk discovery.
 	// Constructed only with a database — the handler stays nil otherwise.
@@ -538,6 +578,15 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 			pluginSettingsSvc,
 			pluginProcessAdapter{reg: pluginRegistry},
 		)
+		// The same root the registry hands to a starting module, so an
+		// uninstall archives exactly what that module wrote.
+		if home, err := os.UserHomeDir(); err == nil {
+			lifecycleEngine.SetDataRoot(filepath.Join(home, ".claude", "kontor", "modules"))
+		}
+		// Deactivating a module takes its routines out of service; they are
+		// disabled rather than deleted, so what they already produced stays
+		// traceable.
+		lifecycleEngine.SetRoutineRetirer(repo.NewTaskScheduleRepo(entClient))
 		discoverer := plugin.NewDiscoverer(cfg.PluginDir, pluginDiscoverRepoAdapter{inner: pluginRepo, settings: pluginSettingRepo})
 		lifecycleProbe := func(id string) (bool, bool) {
 			e, ok := pluginRegistry.Lookup(id)
@@ -713,7 +762,11 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		}
 	}
 
-	mcpHandler := provideMCPHandler(entClient, orch, sched, taskBroadcaster, projectBroadcaster, refineRunner, memRepo, memRetriever, grantUsageRepo, askerArg, obsidianClient, githubClient)
+	// A module's stage kinds become resolvable now that the orchestrator exists.
+	// A kind that collides with a core stage is refused there and logged.
+	registerModuleStageKinds(orch, pluginRegistry)
+
+	mcpHandler := provideMCPHandler(entClient, orch, sched, taskBroadcaster, projectBroadcaster, refineRunner, memRepo, memRetriever, grantUsageRepo, askerArg, obsidianClient, githubClient, newModuleToolSource(pluginRegistry))
 
 	var histImporter *histsvc.Importer
 	var historyHandler *apihistory.Handler

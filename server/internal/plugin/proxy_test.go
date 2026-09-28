@@ -38,7 +38,9 @@ func TestNewReverseProxy_ProxiesAndStripsPrefixAndHeaders(t *testing.T) {
 
 	entry := plugin.Entry{
 		Descriptor: plugin.Descriptor{
-			Addr: strings.TrimPrefix(backend.URL, "http://"),
+			Contract: plugin.CurrentContract,
+			Name:     "Test Plugin",
+			Addr:     strings.TrimPrefix(backend.URL, "http://"),
 		},
 	}
 

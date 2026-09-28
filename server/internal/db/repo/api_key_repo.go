@@ -16,7 +16,18 @@ import (
 const (
 	ApiKeyKindUser     = "user"
 	ApiKeyKindStageRun = "stage_run"
+	// ApiKeyKindModule is minted for one module process and revoked when the
+	// module is deactivated. Its scopes are the module manifest's `uses` list.
+	ApiKeyKindModule = "module"
 )
+
+// ModuleKeyName returns the key name that identifies a module's credential.
+// The module id lives in the name rather than in a column of its own: the kind
+// already separates these rows, and RevokeForModule queries both, so the
+// lookup stays a single indexed-ish predicate rather than a migration.
+func ModuleKeyName(moduleID string) string {
+	return "module:" + moduleID
+}
 
 // CreateApiKeyInput is the named input for Create. Named rather than
 // positional because the call now has more than four parameters, which is
@@ -42,6 +53,9 @@ type ApiKeyRepo interface {
 	// RevokeForStageRun deactivates every key issued for stageRunID and
 	// returns how many rows it touched.
 	RevokeForStageRun(ctx context.Context, stageRunID string) (int, error)
+	// RevokeForModule deactivates every credential issued to a module and
+	// returns how many rows it touched.
+	RevokeForModule(ctx context.Context, moduleID string) (int, error)
 	// DeleteExpired hard-deletes stage_run keys whose expires_at is before
 	// the given instant. User keys are never deleted here: they are soft-
 	// deleted through Delete so their hash stays available for audit.
@@ -137,6 +151,27 @@ func (r *entApiKeyRepo) RevokeForStageRun(ctx context.Context, stageRunID string
 		Save(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("apikey.RevokeForStageRun: %w", err)
+	}
+	return n, nil
+}
+
+// RevokeForModule deactivates every credential issued to moduleID. It mirrors
+// RevokeForStageRun, including its guard: an empty id must not match the keys
+// that carry no module name.
+func (r *entApiKeyRepo) RevokeForModule(ctx context.Context, moduleID string) (int, error) {
+	if moduleID == "" {
+		return 0, nil
+	}
+	n, err := r.client.ApiKey.Update().
+		Where(
+			apikey.KindEQ(ApiKeyKindModule),
+			apikey.NameEQ(ModuleKeyName(moduleID)),
+			apikey.Active(true),
+		).
+		SetActive(false).
+		Save(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("apikey.RevokeForModule: %w", err)
 	}
 	return n, nil
 }

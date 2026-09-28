@@ -55,7 +55,12 @@ jobs:
       - id: lists
         run: |
           WORKSPACE_MODULES='["server", "sdk"]'
-          PLUGINS='["anthropic-spawner", "github-oauth", "oauthkit", "office365-oauth", "voice-webspeech", "voice-whisper"]'
+          # Derived from what is on disk, not from a list kept in step with it.
+          # A module added or removed in plugins/ must not also have to be
+          # remembered here, and a module that lives outside this repository
+          # simply is not found — which is the point of the module contract.
+          PLUGINS=$(find plugins -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/go.mod' \; -print \
+            | sed 's|^plugins/||' | sort | jq -Rnc '[inputs]')
           {
             echo "workspace_modules=$WORKSPACE_MODULES"
             echo "plugins=$PLUGINS"
@@ -295,12 +300,12 @@ jobs:
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
       - name: Build server binary with embedded SPA
-        # scripts/e2e-server.sh rebuilds through `task` only when bin/kontor
+        # scripts/e2e-server.sh rebuilds through `task` only when bin/agent-dashboard
         # is missing or older than a source file; building it here keeps go-task
         # out of the runner.
         run: |
           pnpm build
-          cd server && go build -o ../bin/kontor ./cmd/serve/...
+          cd server && go build -o ../bin/agent-dashboard ./cmd/serve/...
       - name: Run Playwright suite
         run: pnpm test:e2e
 

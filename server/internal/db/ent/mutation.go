@@ -29467,6 +29467,7 @@ type TaskScheduleMutation struct {
 	skipped_count            *int
 	addskipped_count         *int
 	resource_id              *string
+	owner_module             *string
 	applications             *[]string
 	appendapplications       []string
 	user_id                  *string
@@ -30923,6 +30924,55 @@ func (m *TaskScheduleMutation) ResetResourceID() {
 	delete(m.clearedFields, taskschedule.FieldResourceID)
 }
 
+// SetOwnerModule sets the "owner_module" field.
+func (m *TaskScheduleMutation) SetOwnerModule(s string) {
+	m.owner_module = &s
+}
+
+// OwnerModule returns the value of the "owner_module" field in the mutation.
+func (m *TaskScheduleMutation) OwnerModule() (r string, exists bool) {
+	v := m.owner_module
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwnerModule returns the old "owner_module" field's value of the TaskSchedule entity.
+// If the TaskSchedule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskScheduleMutation) OldOwnerModule(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwnerModule is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwnerModule requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwnerModule: %w", err)
+	}
+	return oldValue.OwnerModule, nil
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (m *TaskScheduleMutation) ClearOwnerModule() {
+	m.owner_module = nil
+	m.clearedFields[taskschedule.FieldOwnerModule] = struct{}{}
+}
+
+// OwnerModuleCleared returns if the "owner_module" field was cleared in this mutation.
+func (m *TaskScheduleMutation) OwnerModuleCleared() bool {
+	_, ok := m.clearedFields[taskschedule.FieldOwnerModule]
+	return ok
+}
+
+// ResetOwnerModule resets all changes to the "owner_module" field.
+func (m *TaskScheduleMutation) ResetOwnerModule() {
+	m.owner_module = nil
+	delete(m.clearedFields, taskschedule.FieldOwnerModule)
+}
+
 // SetApplications sets the "applications" field.
 func (m *TaskScheduleMutation) SetApplications(s []string) {
 	m.applications = &s
@@ -31129,7 +31179,7 @@ func (m *TaskScheduleMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TaskScheduleMutation) Fields() []string {
-	fields := make([]string, 0, 33)
+	fields := make([]string, 0, 34)
 	if m.name != nil {
 		fields = append(fields, taskschedule.FieldName)
 	}
@@ -31217,6 +31267,9 @@ func (m *TaskScheduleMutation) Fields() []string {
 	if m.resource_id != nil {
 		fields = append(fields, taskschedule.FieldResourceID)
 	}
+	if m.owner_module != nil {
+		fields = append(fields, taskschedule.FieldOwnerModule)
+	}
 	if m.applications != nil {
 		fields = append(fields, taskschedule.FieldApplications)
 	}
@@ -31295,6 +31348,8 @@ func (m *TaskScheduleMutation) Field(name string) (ent.Value, bool) {
 		return m.SkippedCount()
 	case taskschedule.FieldResourceID:
 		return m.ResourceID()
+	case taskschedule.FieldOwnerModule:
+		return m.OwnerModule()
 	case taskschedule.FieldApplications:
 		return m.Applications()
 	case taskschedule.FieldUserID:
@@ -31370,6 +31425,8 @@ func (m *TaskScheduleMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldSkippedCount(ctx)
 	case taskschedule.FieldResourceID:
 		return m.OldResourceID(ctx)
+	case taskschedule.FieldOwnerModule:
+		return m.OldOwnerModule(ctx)
 	case taskschedule.FieldApplications:
 		return m.OldApplications(ctx)
 	case taskschedule.FieldUserID:
@@ -31590,6 +31647,13 @@ func (m *TaskScheduleMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetResourceID(v)
 		return nil
+	case taskschedule.FieldOwnerModule:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwnerModule(v)
+		return nil
 	case taskschedule.FieldApplications:
 		v, ok := value.([]string)
 		if !ok {
@@ -31756,6 +31820,9 @@ func (m *TaskScheduleMutation) ClearedFields() []string {
 	if m.FieldCleared(taskschedule.FieldResourceID) {
 		fields = append(fields, taskschedule.FieldResourceID)
 	}
+	if m.FieldCleared(taskschedule.FieldOwnerModule) {
+		fields = append(fields, taskschedule.FieldOwnerModule)
+	}
 	if m.FieldCleared(taskschedule.FieldUserID) {
 		fields = append(fields, taskschedule.FieldUserID)
 	}
@@ -31817,6 +31884,9 @@ func (m *TaskScheduleMutation) ClearField(name string) error {
 		return nil
 	case taskschedule.FieldResourceID:
 		m.ClearResourceID()
+		return nil
+	case taskschedule.FieldOwnerModule:
+		m.ClearOwnerModule()
 		return nil
 	case taskschedule.FieldUserID:
 		m.ClearUserID()
@@ -31915,6 +31985,9 @@ func (m *TaskScheduleMutation) ResetField(name string) error {
 		return nil
 	case taskschedule.FieldResourceID:
 		m.ResetResourceID()
+		return nil
+	case taskschedule.FieldOwnerModule:
+		m.ResetOwnerModule()
 		return nil
 	case taskschedule.FieldApplications:
 		m.ResetApplications()

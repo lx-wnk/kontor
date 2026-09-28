@@ -118,6 +118,10 @@ type MCPAuthInfo struct {
 	// for a key a person created. CallerResolver turns it into the capability
 	// contexts the request resolves against.
 	StageRunID string
+	// ModuleID names the module this key was issued to, empty for every other
+	// caller. What a module may change is decided by it: a module acts on its
+	// own rows and on no others.
+	ModuleID string
 }
 
 // AuthFromContext retrieves MCPAuthInfo from ctx; returns nil if absent.
@@ -183,8 +187,23 @@ func McpAuthMiddleware(keyRepo repo.ApiKeyRepo) func(http.Handler) http.Handler 
 				KeyID:      key.ID,
 				Scopes:     ResolveScopes(key.Scopes),
 				StageRunID: key.StageRunID,
+				ModuleID:   moduleIDFromKey(key.Kind, key.Name),
 			}
 			next.ServeHTTP(w, r.WithContext(ContextWithAuth(r.Context(), info)))
 		})
 	}
+}
+
+// moduleIDFromKey reads the module a credential was issued to. The id lives in
+// the key's name, which only a key of the module kind carries — so a key of any
+// other kind resolves to no module and is governed by the ordinary rules.
+func moduleIDFromKey(kind, name string) string {
+	if kind != repo.ApiKeyKindModule {
+		return ""
+	}
+	id, ok := strings.CutPrefix(name, "module:")
+	if !ok {
+		return ""
+	}
+	return id
 }

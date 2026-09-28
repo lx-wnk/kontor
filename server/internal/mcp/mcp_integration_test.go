@@ -13,7 +13,7 @@ import (
 )
 
 func TestMCPEndpoint_Initialize(t *testing.T) {
-	h := mcp.MCPHandler(mcp.ToolRegistry{})
+	h := mcp.MCPHandler(mcp.ToolRegistry{}, nil, nil)
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
@@ -35,7 +35,7 @@ func TestMCPEndpoint_ToolsList_SortedAlphabetically(t *testing.T) {
 	// Use real scope-map names that sort correctly: "list_tasks" < "update_task"
 	registry.Register(&mcp.ToolDef{Name: "update_task", Description: "Z", InputSchema: map[string]any{"type": "object"}, Handler: noop})
 	registry.Register(&mcp.ToolDef{Name: "list_tasks", Description: "A", InputSchema: map[string]any{"type": "object"}, Handler: noop})
-	h := mcp.MCPHandler(registry)
+	h := mcp.MCPHandler(registry, nil, nil)
 	body := `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
@@ -58,7 +58,7 @@ func TestMCPEndpoint_ToolsCall_MissingScope(t *testing.T) {
 			return mcp.OK([]string{})
 		},
 	})
-	h := mcp.MCPHandler(registry)
+	h := mcp.MCPHandler(registry, nil, nil)
 	// No auth in context — scope check fails with -32003
 	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_tasks","arguments":{}}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewBufferString(body))
