@@ -34,3 +34,24 @@ func buildDeniedSecretEnvKeys() map[string]struct{} {
 	}
 	return m
 }
+
+// InheritedSessionEnvKeys are the vars that bind a process to the specific
+// Claude Code session that launched it. A server started from inside a
+// Claude Code session must not forward these to the agents it spawns from
+// its own os.Environ() — doing so makes the spawned session resume as a
+// child of the parent session instead of writing its own transcript.
+// Configuration and auth vars (CLAUDE_CONFIG_DIR, CLAUDE_CODE_OAUTH_TOKEN,
+// ...) carry no such binding and are not in this set.
+var InheritedSessionEnvKeys = map[string]struct{}{
+	"CLAUDECODE":                    {},
+	"CLAUDE_CODE_CHILD_SESSION":     {},
+	"CLAUDE_CODE_SESSION_ID":        {},
+	"CLAUDE_CODE_BRIDGE_SESSION_ID": {},
+	"CLAUDE_CODE_MESSAGING_SOCKET":  {},
+	"CLAUDE_CODE_MESSAGING_TOKEN":   {},
+	"CLAUDE_CODE_SESSION_ATTENDED":  {},
+	"CLAUDE_CODE_ENTRYPOINT":        {},
+	"CLAUDE_CODE_EXECPATH":          {},
+	"CLAUDE_PID":                    {},
+	"CLAUDE_EFFORT":                 {},
+}

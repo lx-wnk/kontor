@@ -89,6 +89,11 @@ func StageRunID(v string) predicate.ApiKey {
 	return predicate.ApiKey(sql.FieldEQ(FieldStageRunID, v))
 }
 
+// SessionPid applies equality check predicate on the "session_pid" field. It's identical to SessionPidEQ.
+func SessionPid(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldEQ(FieldSessionPid, v))
+}
+
 // ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
 func ExpiresAt(v time.Time) predicate.ApiKey {
 	return predicate.ApiKey(sql.FieldEQ(FieldExpiresAt, v))
@@ -372,6 +377,56 @@ func StageRunIDEqualFold(v string) predicate.ApiKey {
 // StageRunIDContainsFold applies the ContainsFold predicate on the "stage_run_id" field.
 func StageRunIDContainsFold(v string) predicate.ApiKey {
 	return predicate.ApiKey(sql.FieldContainsFold(FieldStageRunID, v))
+}
+
+// SessionPidEQ applies the EQ predicate on the "session_pid" field.
+func SessionPidEQ(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldEQ(FieldSessionPid, v))
+}
+
+// SessionPidNEQ applies the NEQ predicate on the "session_pid" field.
+func SessionPidNEQ(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldNEQ(FieldSessionPid, v))
+}
+
+// SessionPidIn applies the In predicate on the "session_pid" field.
+func SessionPidIn(vs ...int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldIn(FieldSessionPid, vs...))
+}
+
+// SessionPidNotIn applies the NotIn predicate on the "session_pid" field.
+func SessionPidNotIn(vs ...int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldNotIn(FieldSessionPid, vs...))
+}
+
+// SessionPidGT applies the GT predicate on the "session_pid" field.
+func SessionPidGT(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldGT(FieldSessionPid, v))
+}
+
+// SessionPidGTE applies the GTE predicate on the "session_pid" field.
+func SessionPidGTE(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldGTE(FieldSessionPid, v))
+}
+
+// SessionPidLT applies the LT predicate on the "session_pid" field.
+func SessionPidLT(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldLT(FieldSessionPid, v))
+}
+
+// SessionPidLTE applies the LTE predicate on the "session_pid" field.
+func SessionPidLTE(v int) predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldLTE(FieldSessionPid, v))
+}
+
+// SessionPidIsNil applies the IsNil predicate on the "session_pid" field.
+func SessionPidIsNil() predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldIsNull(FieldSessionPid))
+}
+
+// SessionPidNotNil applies the NotNil predicate on the "session_pid" field.
+func SessionPidNotNil() predicate.ApiKey {
+	return predicate.ApiKey(sql.FieldNotNull(FieldSessionPid))
 }
 
 // ExpiresAtEQ applies the EQ predicate on the "expires_at" field.

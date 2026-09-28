@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import type { Agent, PipelineTask } from '../types'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { captureTask } from '@/composables/useCapture'
-import { useProjects } from '@/composables/useProjects'
 import { ACTIVE_VIEWS, useViewState } from '@/composables/useViewState'
+import { useKontorSession } from '@/features/mission/composables/useKontorSession'
+import { SLASH_COMMAND_REFUSAL } from '@/features/mission/composables/useReading'
 import AppModal from './ui/AppModal.vue'
 
 const emit = defineEmits<{
   navigateTask: [task: PipelineTask]
   navigateAgent: [agent: Agent]
-  captured: [taskId: string]
 }>()
 
 const { activeView } = useViewState()
-const { projects } = useProjects()
+const kontor = useKontorSession()
 
 interface Command {
   id: string
@@ -72,10 +71,8 @@ const flatResults = computed((): FlatResult[] => {
   ]
 })
 
-// Text that matches nothing is not a dead end: it becomes a backlog item.
-// That is the capture the origin document asked for -- one line in, something
-// refinable out, without first deciding slug, project or priority.
-const capturing = computed(() =>
+// Text that matches nothing goes to the Kontor session, which creates a task only when asked.
+const handingOff = computed(() =>
   query.value.trim().length > 0 && !loading.value && flatResults.value.length === 0,
 )
 
@@ -124,23 +121,25 @@ function activate(result: FlatResult) {
   closeDialog()
 }
 
-async function capture() {
-  const title = query.value.trim()
-  if (!title || busy.value)
+async function handOff() {
+  const text = query.value.trim()
+  if (!text || busy.value)
     return
+  if (text.startsWith('/') && kontor.pid.value === null) {
+    await kontor.refresh()
+    if (kontor.pid.value === null) {
+      problem.value = SLASH_COMMAND_REFUSAL
+      return
+    }
+  }
   busy.value = true
   problem.value = ''
-  try {
-    const taskId = await captureTask(title, projects.value)
+  activeView.value = 'mission'
+  if (await kontor.send(text))
     closeDialog()
-    emit('captured', taskId)
-  }
-  catch (e) {
-    problem.value = e instanceof Error ? e.message : 'Could not capture that.'
-  }
-  finally {
-    busy.value = false
-  }
+  else
+    problem.value = kontor.error.value
+  busy.value = false
 }
 
 function openDialog() {
@@ -197,8 +196,8 @@ function onKeydown(e: KeyboardEvent) {
   }
   if (e.key === 'Enter') {
     e.preventDefault()
-    if (capturing.value) {
-      void capture()
+    if (handingOff.value) {
+      void handOff()
       return
     }
     const selected = flatResults.value[selectedIdx.value]
@@ -341,16 +340,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           {{ problem }}
         </p>
         <p
-          v-else-if="capturing"
-          data-testid="spotlight-capture"
+          v-else-if="handingOff"
+          data-testid="spotlight-kontor"
           class="px-4 py-2 text-[12px] text-fg-faint"
         >
-          {{ busy ? 'Capturing…' : 'Nothing matched — ↵ captures this as a backlog item.' }}
+          {{ busy ? 'Handing to Kontor…' : 'Nothing matched — ↵ hands this to Kontor.' }}
         </p>
       </div>
       <div class="px-4 py-2 border-t border-line flex gap-3 text-[10px] text-fg-faint">
         <span>↑↓ navigate</span>
-        <span>↵ open or capture</span>
+        <span>↵ open or ask Kontor</span>
         <span>Esc close</span>
       </div>
     </div>

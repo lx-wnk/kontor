@@ -32,6 +32,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
 	"github.com/lx-wnk/kontor/server/internal/api/hooks"
+	apikontorsession "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
 	"github.com/lx-wnk/kontor/server/internal/api/onboarding"
@@ -203,6 +204,7 @@ type RouterDeps struct {
 	AdminHandler           *admin.Handler
 	UsageHandler           http.Handler
 	TrackerHandler         *trackerapi.Handler
+	KontorSessionHandler   *apikontorsession.Handler
 }
 
 // NewRouter builds the chi router with all middleware and route mounts.
@@ -498,6 +500,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 		// Tracker issue fetch + encrypted token settings.
 		if deps.TrackerHandler != nil {
 			deps.TrackerHandler.Mount(r)
+		}
+
+		if deps.KontorSessionHandler != nil {
+			deps.KontorSessionHandler.Mount(r)
 		}
 
 		// Spawn management — rate-limited user-initiated agent spawning and channel message forwarding.

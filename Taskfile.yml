@@ -93,7 +93,15 @@ tasks:
     # `once`: several tasks depend on this; without it go-task's default
     # (run: always) rebuilds the SPA for each of them in the same invocation.
     run: once
-    cmd: pnpm build
+    cmds:
+      - pnpm build
+      # vite empties the out dir, taking the committed .gitkeep that
+      # `//go:embed all:dist` needs with it. Restoring it here rather than
+      # leaving it to the caller: a missing tracked file makes the tree dirty,
+      # VERSION is `git describe --dirty`, and every build after this one would
+      # stamp `-dirty` and report itself as stale in /api/system/health — the
+      # one signal that exists to tell a stale binary from a current one.
+      - git checkout HEAD -- server/frontend/dist/.gitkeep
 
   build:
     desc: Build server binary (embeds whatever is currently in server/frontend/dist)

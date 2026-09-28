@@ -35,6 +35,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
 	"github.com/lx-wnk/kontor/server/internal/api/hooks"
+	kontorsessionapi "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
 	"github.com/lx-wnk/kontor/server/internal/api/onboarding"
@@ -73,6 +74,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/eval"
 	histsvc "github.com/lx-wnk/kontor/server/internal/history"
 	"github.com/lx-wnk/kontor/server/internal/hookstore"
+	"github.com/lx-wnk/kontor/server/internal/kontorsession"
 	"github.com/lx-wnk/kontor/server/internal/materializer"
 	mcppkg "github.com/lx-wnk/kontor/server/internal/mcp"
 	"github.com/lx-wnk/kontor/server/internal/mcpapps"
@@ -1086,6 +1088,35 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		trackerHandler = trackerapi.NewHandler(pluginSettingsSvc, nil, nil)
 	}
 
+	var kontorSessionHandler *kontorsessionapi.Handler
+	if apiKeyRepo != nil {
+		if cacheDir, err := os.UserCacheDir(); err != nil {
+			slog.Warn("kontor session disabled: no user cache dir", "err", err)
+		} else {
+			sessionDir := filepath.Join(cacheDir, "kontor", "session")
+			policy := services.NewSpawnPolicy(services.ProjectFolderRootsProvider(projectRepo, projectFolderRepo), sessionDir)
+			kontorSpawns := agents.NewSpawnManager(0, 0, 0, 0, spawnerRepo, policy)
+			kontorSvc := &kontorsession.Service{
+				Keys:       mcppkg.KontorSessionKeyIssuer{Keys: apiKeyRepo},
+				Audit:      auditEventRepo,
+				TaskAPIURL: fmt.Sprintf("http://127.0.0.1:%d", cfg.Port) + mcppkg.EndpointPath,
+				Dir:        sessionDir,
+				// Outside the session cwd so claude never auto-loads it as a project .mcp.json.
+				ConfigPath: filepath.Join(cacheDir, "kontor", "session-mcp.json"),
+				Spawn: func(ctx context.Context, o kontorsession.SpawnOptions) (int, error) {
+					return kontorSpawns.SpawnSession(ctx, agents.SessionSpawnOptions(o))
+				},
+				Terminate: kontorSpawns.TerminateSession,
+				Alive:     kontorSpawns.OwnsLiveSession,
+				WaitExit:  agents.WaitForExit,
+			}
+			if err := kontorSvc.Reconcile(ctx); err != nil {
+				slog.Warn("kontor session: reconcile failed", "err", err)
+			}
+			kontorSessionHandler = kontorsessionapi.New(kontorSvc)
+		}
+	}
+
 	routerDeps := api.RouterDeps{
 		Ctx:                    ctx,
 		Config:                 routerConfig,
@@ -1141,6 +1172,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		AuditEventRepo:         auditEventRepo,
 		UsageHandler:           usageHandler,
 		TrackerHandler:         trackerHandler,
+		KontorSessionHandler:   kontorSessionHandler,
 		AdminHandler: admin.New(
 			restart.NewAuthProviderValidator(pluginRegistry, activePluginIDs(pluginRepo), cfg.PluginDir),
 			string(restartCtl.Mode()),

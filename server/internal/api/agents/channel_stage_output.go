@@ -65,8 +65,23 @@ func (h *ChannelStageOutputHandler) Post(w http.ResponseWriter, r *http.Request)
 	}
 
 	hash := mcp.HashToken(bearerToken(r))
-	if _, err := h.apiKeys.GetByHash(r.Context(), hash); err != nil {
+	key, err := h.apiKeys.GetByHash(r.Context(), hash)
+	if err != nil {
 		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	switch key.Kind {
+	case repo.ApiKeyKindStageRun:
+		if key.StageRunID != stageRunID {
+			writeJSONError(w, http.StatusForbidden, "key not issued for this stage run")
+			return
+		}
+	case repo.ApiKeyKindUser, "":
+		// operator's own credential; Create normalises "" to user, tolerated
+		// here for rows written outside the repo.
+	default:
+		writeJSONError(w, http.StatusForbidden, "key not issued for this stage run")
 		return
 	}
 

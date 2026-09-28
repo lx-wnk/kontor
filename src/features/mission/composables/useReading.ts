@@ -3,13 +3,12 @@ import { ACTIVE_VIEWS } from '@/composables/useViewState'
 
 /**
  * What the input will do with what you typed, decided BEFORE you press Enter.
- *
- * Only readings this client can settle on its own are offered. Anything that
- * would need the server to interpret intent is deliberately absent: a reading
- * shown here is a promise, and a promise the client cannot keep is worse than
- * no reading at all.
+ * A reading shown here is a promise: navigate, hand the text to Kontor, or
+ * refuse a slash command there is no session to run it in.
  */
-export type ReadingKind = 'navigate' | 'command' | 'capture' | 'empty'
+export type ReadingKind = 'navigate' | 'command' | 'ask' | 'empty'
+
+export const SLASH_COMMAND_REFUSAL = 'Slash commands need a running Kontor session. Start one, or type it in an agent’s own prompt.'
 
 export interface Reading {
   kind: ReadingKind
@@ -21,33 +20,25 @@ export interface Reading {
   view?: ActiveView
 }
 
-export function readInput(raw: string): Reading {
+export function readInput(raw: string, sessionRunning = false): Reading {
   const text = raw.trim()
   if (!text)
     return { kind: 'empty', label: '', will: '' }
 
+  const ask: Reading = sessionRunning
+    ? { kind: 'ask', label: 'SEND TO KONTOR', will: 'Sends this to the running Kontor session.' }
+    : { kind: 'ask', label: 'START KONTOR', will: 'Starts a Kontor session with this as its first prompt. It creates a task only when you ask for one.' }
+
   if (text.startsWith('/')) {
-    return {
-      kind: 'command',
-      label: 'COMMAND',
-      will: 'Runs the slash command against the agent this view is focused on.',
-    }
+    return sessionRunning
+      ? ask
+      : { kind: 'command', label: 'COMMAND', will: 'Needs a running Kontor session. Start one, or type it in an agent\'s own prompt.' }
   }
 
   const lower = text.toLowerCase()
   const view = ACTIVE_VIEWS.find(v => lower === v || lower === `go to ${v}` || lower === `open ${v}`)
-  if (view) {
-    return {
-      kind: 'navigate',
-      label: 'GO TO',
-      will: `Switches to the ${view} view. Nothing is created.`,
-      view,
-    }
-  }
+  if (view)
+    return { kind: 'navigate', label: 'GO TO', will: `Switches to the ${view} view. Nothing is created.`, view }
 
-  return {
-    kind: 'capture',
-    label: 'CAPTURE',
-    will: 'Becomes a backlog item — the slug follows the title and the folder comes from your first project. Nothing runs yet.',
-  }
+  return ask
 }

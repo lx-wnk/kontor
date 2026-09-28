@@ -8,9 +8,11 @@ describe('navItem', () => {
     expect(w.text()).toContain('Dashboard')
   })
 
-  it('hides label text when collapsed (icon-only)', () => {
+  it('keeps the label present but transparent when collapsed (icon-only)', () => {
     const w = mount(NavItem, { props: { icon: '▦', label: 'Dashboard', active: false, expanded: false } })
-    expect(w.find('.sr-only').exists()).toBe(true)
+    expect(w.find('.sr-only').exists()).toBe(false)
+    const label = w.findAll('span').find(s => s.text() === 'Dashboard')!
+    expect(label.classes()).toContain('opacity-0')
   })
 
   it('sets aria-current=page when active', () => {

@@ -67,9 +67,13 @@ describe('nextThing', () => {
     expect(mountNext(permission).get('[data-testid="mission-context"]').text()).toBe('Dashboard · implementation')
   })
 
-  it('says nothing needs you when there is nothing', () => {
+  it('says nothing needs you in one faint line so the Kontor tile gets the height', () => {
     const w = mountNext(null)
-    expect(w.find('[data-testid="mission-calm"]').exists()).toBe(true)
+    const calm = w.get('[data-testid="mission-calm"]')
+    expect(calm.element.tagName).toBe('P')
+    expect(calm.text()).toContain('Nothing needs you')
+    expect(w.find('h2').exists()).toBe(false)
     expect(w.find('[data-testid="mission-next"]').exists()).toBe(false)
+    w.unmount()
   })
 })

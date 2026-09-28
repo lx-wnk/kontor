@@ -90,7 +90,7 @@ func init() {
 	// apikey.DefaultStageRunID holds the default value on creation for the stage_run_id field.
 	apikey.DefaultStageRunID = apikeyDescStageRunID.Default.(string)
 	// apikeyDescCreatedAt is the schema descriptor for created_at field.
-	apikeyDescCreatedAt := apikeyFields[8].Descriptor()
+	apikeyDescCreatedAt := apikeyFields[9].Descriptor()
 	// apikey.DefaultCreatedAt holds the default value on creation for the created_at field.
 	apikey.DefaultCreatedAt = apikeyDescCreatedAt.Default.(func() time.Time)
 	appsettingFields := schema.AppSetting{}.Fields()

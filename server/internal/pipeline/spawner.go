@@ -475,6 +475,9 @@ func BuildSpawnEnv(opts SpawnAgentOptions) []string {
 		if _, denied := deniedEnvKeys[key]; denied {
 			continue
 		}
+		if _, inherited := envsec.InheritedSessionEnvKeys[key]; inherited {
+			continue
+		}
 		if _, ok := allowedEnvKeys[key]; ok {
 			merged[key] = val
 			continue

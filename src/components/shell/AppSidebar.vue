@@ -64,9 +64,9 @@ function selectView(view: ActiveView): void {
   >
     <nav
       aria-label="Primary"
-      class="absolute inset-y-0 left-0 z-30 bg-card border-r border-line flex flex-col py-3 transition-[width] duration-200 motion-reduce:transition-none"
+      class="absolute inset-y-0 left-0 z-30 bg-card border-r border-line flex flex-col py-3 px-1.5 overflow-x-hidden transition-[width] duration-200 motion-reduce:transition-none"
       :class="[
-        expanded ? 'w-[220px] px-2' : 'w-[56px] px-1.5',
+        expanded ? 'w-[220px]' : 'w-[56px]',
         floating ? 'shadow-[4px_0_16px_rgba(0,0,0,0.18)]' : '',
       ]"
       @mouseenter="setHovering(true)"
@@ -74,11 +74,16 @@ function selectView(view: ActiveView): void {
       @focusin="setFocused(true)"
       @focusout="onFocusOut"
     >
-      <div class="flex items-center gap-2 px-1.5 pb-3 mb-2 border-b border-line">
+      <!-- Fixed height so the two-line title+status text (only readable once
+           expanded) never grows the block and drops every item below it. -->
+      <div class="flex items-center gap-2 px-1.5 pb-3 mb-2 border-b border-line h-11" data-testid="sidebar-brand">
         <div class="w-7 h-7 rounded-lg bg-accent shrink-0" aria-hidden="true" />
-        <div v-if="expanded" class="min-w-0 flex flex-col">
+        <div
+          class="min-w-0 flex flex-col transition-opacity duration-150 motion-reduce:transition-none"
+          :class="expanded ? 'opacity-100 delay-75' : 'opacity-0 delay-0'"
+        >
           <span class="text-[13px] font-semibold text-fg truncate leading-tight">Agent Overview</span>
-          <span class="flex items-center gap-1 text-[10px] text-fg-faint" role="status">
+          <span class="flex items-center gap-1 text-[10px] text-fg-faint whitespace-nowrap" role="status">
             <span
               class="w-1.5 h-1.5 rounded-full shrink-0"
               :class="live ? 'bg-success motion-safe:animate-pulse' : 'bg-warning'"
@@ -99,7 +104,7 @@ function selectView(view: ActiveView): void {
         </button>
       </div>
 
-      <div class="flex-1 flex flex-col gap-0.5 overflow-y-auto">
+      <div class="flex-1 flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden" data-testid="nav-items">
         <div
           v-for="(g, gi) in grouped"
           :key="g.group"
@@ -112,18 +117,23 @@ function selectView(view: ActiveView): void {
                you aimed at an icon and clicked whatever slid under the cursor. -->
           <div
             data-testid="nav-group-slot"
-            class="h-7 flex items-center shrink-0"
-            :class="expanded ? 'px-2' : 'justify-center'"
+            class="relative h-7 shrink-0 overflow-hidden"
           >
-            <span v-if="expanded" class="text-[9px] uppercase tracking-wider text-fg-faint font-bold">
+            <span
+              class="absolute inset-0 flex items-center px-2 text-[9px] uppercase tracking-wider text-fg-faint font-bold whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none"
+              :class="expanded ? 'opacity-100 delay-75' : 'opacity-0 delay-0'"
+            >
               {{ g.group }}
             </span>
             <span
-              v-else-if="gi > 0"
+              v-if="gi > 0"
               aria-hidden="true"
               data-testid="nav-group-divider"
-              class="h-px w-6 bg-line"
-            />
+              class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 motion-reduce:transition-none"
+              :class="expanded ? 'opacity-0 delay-0' : 'opacity-100 delay-75'"
+            >
+              <span class="h-px w-6 bg-line" />
+            </span>
           </div>
           <NavItem
             v-for="item in g.items"

@@ -145,15 +145,8 @@ async function answer(intent: AnswerIntent) {
     </div>
   </div>
 
-  <div v-else data-testid="mission-calm" class="flex flex-col items-center gap-3 py-6">
-    <span class="h-11 w-11 rounded-full border border-line flex items-center justify-center">
-      <span class="h-2.5 w-2.5 rounded-full bg-success" />
-    </span>
-    <h2 class="text-[26px] font-medium text-fg">
-      Nothing needs you
-    </h2>
-    <p class="text-[14px] text-fg-mute text-center max-w-[420px] leading-relaxed">
-      Agents will interrupt here if they get stuck. Until then this stays quiet.
-    </p>
-  </div>
+  <p v-else data-testid="mission-calm" class="flex items-center gap-2 text-[12.5px] text-fg-faint">
+    <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-success" />
+    Nothing needs you — agents interrupt here if they get stuck.
+  </p>
 </template>

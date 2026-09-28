@@ -30,6 +30,8 @@ type ApiKey struct {
 	Kind string `json:"kind,omitempty"`
 	// StageRunID holds the value of the "stage_run_id" field.
 	StageRunID string `json:"stage_run_id,omitempty"`
+	// SessionPid holds the value of the "session_pid" field.
+	SessionPid *int `json:"session_pid,omitempty"`
 	// ExpiresAt holds the value of the "expires_at" field.
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -48,6 +50,8 @@ func (*ApiKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case apikey.FieldActive:
 			values[i] = new(sql.NullBool)
+		case apikey.FieldSessionPid:
+			values[i] = new(sql.NullInt64)
 		case apikey.FieldID, apikey.FieldName, apikey.FieldKeyHash, apikey.FieldKind, apikey.FieldStageRunID:
 			values[i] = new(sql.NullString)
 		case apikey.FieldExpiresAt, apikey.FieldCreatedAt, apikey.FieldLastUsedAt:
@@ -110,6 +114,13 @@ func (_m *ApiKey) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field stage_run_id", values[i])
 			} else if value.Valid {
 				_m.StageRunID = value.String
+			}
+		case apikey.FieldSessionPid:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field session_pid", values[i])
+			} else if value.Valid {
+				_m.SessionPid = new(int)
+				*_m.SessionPid = int(value.Int64)
 			}
 		case apikey.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -183,6 +194,11 @@ func (_m *ApiKey) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("stage_run_id=")
 	builder.WriteString(_m.StageRunID)
+	builder.WriteString(", ")
+	if v := _m.SessionPid; v != nil {
+		builder.WriteString("session_pid=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.ExpiresAt; v != nil {
 		builder.WriteString("expires_at=")

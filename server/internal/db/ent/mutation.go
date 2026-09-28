@@ -1138,23 +1138,25 @@ func (m *AgentCostTrendMutation) ResetEdge(name string) error {
 // ApiKeyMutation represents an operation that mutates the ApiKey nodes in the graph.
 type ApiKeyMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	name          *string
-	key_hash      *string
-	scopes        *[]string
-	appendscopes  []string
-	active        *bool
-	kind          *string
-	stage_run_id  *string
-	expires_at    *time.Time
-	created_at    *time.Time
-	last_used_at  *time.Time
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*ApiKey, error)
-	predicates    []predicate.ApiKey
+	op             Op
+	typ            string
+	id             *string
+	name           *string
+	key_hash       *string
+	scopes         *[]string
+	appendscopes   []string
+	active         *bool
+	kind           *string
+	stage_run_id   *string
+	session_pid    *int
+	addsession_pid *int
+	expires_at     *time.Time
+	created_at     *time.Time
+	last_used_at   *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*ApiKey, error)
+	predicates     []predicate.ApiKey
 }
 
 var _ ent.Mutation = (*ApiKeyMutation)(nil)
@@ -1492,6 +1494,76 @@ func (m *ApiKeyMutation) ResetStageRunID() {
 	m.stage_run_id = nil
 }
 
+// SetSessionPid sets the "session_pid" field.
+func (m *ApiKeyMutation) SetSessionPid(i int) {
+	m.session_pid = &i
+	m.addsession_pid = nil
+}
+
+// SessionPid returns the value of the "session_pid" field in the mutation.
+func (m *ApiKeyMutation) SessionPid() (r int, exists bool) {
+	v := m.session_pid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionPid returns the old "session_pid" field's value of the ApiKey entity.
+// If the ApiKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ApiKeyMutation) OldSessionPid(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionPid is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionPid requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionPid: %w", err)
+	}
+	return oldValue.SessionPid, nil
+}
+
+// AddSessionPid adds i to the "session_pid" field.
+func (m *ApiKeyMutation) AddSessionPid(i int) {
+	if m.addsession_pid != nil {
+		*m.addsession_pid += i
+	} else {
+		m.addsession_pid = &i
+	}
+}
+
+// AddedSessionPid returns the value that was added to the "session_pid" field in this mutation.
+func (m *ApiKeyMutation) AddedSessionPid() (r int, exists bool) {
+	v := m.addsession_pid
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (m *ApiKeyMutation) ClearSessionPid() {
+	m.session_pid = nil
+	m.addsession_pid = nil
+	m.clearedFields[apikey.FieldSessionPid] = struct{}{}
+}
+
+// SessionPidCleared returns if the "session_pid" field was cleared in this mutation.
+func (m *ApiKeyMutation) SessionPidCleared() bool {
+	_, ok := m.clearedFields[apikey.FieldSessionPid]
+	return ok
+}
+
+// ResetSessionPid resets all changes to the "session_pid" field.
+func (m *ApiKeyMutation) ResetSessionPid() {
+	m.session_pid = nil
+	m.addsession_pid = nil
+	delete(m.clearedFields, apikey.FieldSessionPid)
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (m *ApiKeyMutation) SetExpiresAt(t time.Time) {
 	m.expires_at = &t
@@ -1660,7 +1732,7 @@ func (m *ApiKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ApiKeyMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.name != nil {
 		fields = append(fields, apikey.FieldName)
 	}
@@ -1678,6 +1750,9 @@ func (m *ApiKeyMutation) Fields() []string {
 	}
 	if m.stage_run_id != nil {
 		fields = append(fields, apikey.FieldStageRunID)
+	}
+	if m.session_pid != nil {
+		fields = append(fields, apikey.FieldSessionPid)
 	}
 	if m.expires_at != nil {
 		fields = append(fields, apikey.FieldExpiresAt)
@@ -1708,6 +1783,8 @@ func (m *ApiKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.Kind()
 	case apikey.FieldStageRunID:
 		return m.StageRunID()
+	case apikey.FieldSessionPid:
+		return m.SessionPid()
 	case apikey.FieldExpiresAt:
 		return m.ExpiresAt()
 	case apikey.FieldCreatedAt:
@@ -1735,6 +1812,8 @@ func (m *ApiKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldKind(ctx)
 	case apikey.FieldStageRunID:
 		return m.OldStageRunID(ctx)
+	case apikey.FieldSessionPid:
+		return m.OldSessionPid(ctx)
 	case apikey.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
 	case apikey.FieldCreatedAt:
@@ -1792,6 +1871,13 @@ func (m *ApiKeyMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetStageRunID(v)
 		return nil
+	case apikey.FieldSessionPid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionPid(v)
+		return nil
 	case apikey.FieldExpiresAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -1820,13 +1906,21 @@ func (m *ApiKeyMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *ApiKeyMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addsession_pid != nil {
+		fields = append(fields, apikey.FieldSessionPid)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *ApiKeyMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case apikey.FieldSessionPid:
+		return m.AddedSessionPid()
+	}
 	return nil, false
 }
 
@@ -1835,6 +1929,13 @@ func (m *ApiKeyMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *ApiKeyMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case apikey.FieldSessionPid:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSessionPid(v)
+		return nil
 	}
 	return fmt.Errorf("unknown ApiKey numeric field %s", name)
 }
@@ -1843,6 +1944,9 @@ func (m *ApiKeyMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *ApiKeyMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(apikey.FieldSessionPid) {
+		fields = append(fields, apikey.FieldSessionPid)
+	}
 	if m.FieldCleared(apikey.FieldExpiresAt) {
 		fields = append(fields, apikey.FieldExpiresAt)
 	}
@@ -1863,6 +1967,9 @@ func (m *ApiKeyMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *ApiKeyMutation) ClearField(name string) error {
 	switch name {
+	case apikey.FieldSessionPid:
+		m.ClearSessionPid()
+		return nil
 	case apikey.FieldExpiresAt:
 		m.ClearExpiresAt()
 		return nil
@@ -1894,6 +2001,9 @@ func (m *ApiKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldStageRunID:
 		m.ResetStageRunID()
+		return nil
+	case apikey.FieldSessionPid:
+		m.ResetSessionPid()
 		return nil
 	case apikey.FieldExpiresAt:
 		m.ResetExpiresAt()

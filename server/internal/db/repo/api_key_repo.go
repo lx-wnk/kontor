@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -19,6 +20,9 @@ const (
 	// ApiKeyKindModule is minted for one module process and revoked when the
 	// module is deactivated. Its scopes are the module manifest's `uses` list.
 	ApiKeyKindModule = "module"
+	// ApiKeyKindKontorSession is the credential of the one Kontor session. The
+	// active row of this kind is the session record.
+	ApiKeyKindKontorSession = "kontor_session"
 )
 
 // ModuleKeyName returns the key name that identifies a module's credential.
@@ -60,6 +64,11 @@ type ApiKeyRepo interface {
 	// the given instant. User keys are never deleted here: they are soft-
 	// deleted through Delete so their hash stays available for audit.
 	DeleteExpired(ctx context.Context, before time.Time) (int, error)
+	// ActiveKontorSession returns the active kontor_session key, or nil, nil.
+	ActiveKontorSession(ctx context.Context) (*ent.ApiKey, error)
+	SetSessionPID(ctx context.Context, id string, pid int) error
+	// RevokeKontorSessions deactivates every active kontor_session key.
+	RevokeKontorSessions(ctx context.Context) (int, error)
 }
 
 type entApiKeyRepo struct {
@@ -214,4 +223,36 @@ func (r *entApiKeyRepo) Rotate(ctx context.Context, id, newHash string) (*ent.Ap
 		return nil, fmt.Errorf("apikey.Rotate: %w", err)
 	}
 	return k, nil
+}
+
+func (r *entApiKeyRepo) ActiveKontorSession(ctx context.Context) (*ent.ApiKey, error) {
+	k, err := r.client.ApiKey.Query().
+		Where(apikey.KindEQ(ApiKeyKindKontorSession), apikey.Active(true)).
+		Order(apikey.ByCreatedAt(entsql.OrderDesc())).
+		First(ctx)
+	if ent.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("apikey.ActiveKontorSession: %w", err)
+	}
+	return k, nil
+}
+
+func (r *entApiKeyRepo) SetSessionPID(ctx context.Context, id string, pid int) error {
+	if err := r.client.ApiKey.UpdateOneID(id).SetSessionPid(pid).Exec(ctx); err != nil {
+		return fmt.Errorf("apikey.SetSessionPID: %w", err)
+	}
+	return nil
+}
+
+func (r *entApiKeyRepo) RevokeKontorSessions(ctx context.Context) (int, error) {
+	n, err := r.client.ApiKey.Update().
+		Where(apikey.KindEQ(ApiKeyKindKontorSession), apikey.Active(true)).
+		SetActive(false).
+		Save(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("apikey.RevokeKontorSessions: %w", err)
+	}
+	return n, nil
 }
