@@ -9,7 +9,7 @@ export type WidgetDef = WidgetSpec & { component: Component }
 // every feature it imports, into the index chunk that App.vue loads first.
 const LOADERS: Record<WidgetId, () => Promise<Component>> = {
   'kontor': () => import('@/features/mission').then(m => m.KontorWidget),
-  'hub': () => import('@/features/mission').then(m => m.HubWidget),
+  'hub': () => import('@/features/hub').then(m => m.HubWidget),
   'live-work': () => import('@/features/mission').then(m => m.LiveWorkWidget),
   'agents': () => import('@/features/cockpit').then(m => m.AgentsPanel),
   'pipeline': () => import('@/features/cockpit').then(m => m.PipelinePanel),

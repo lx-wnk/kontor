@@ -20,7 +20,7 @@ import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
 import { needsYouPlacement } from './composables/needsYouPlacement'
-import { NEEDS_YOU, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
+import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
 import { usePendingPermissions } from './composables/usePendingPermissions'
@@ -284,6 +284,9 @@ function navigateTo(target: { agent?: Agent, taskId?: string }) {
 
 // Widgets open a task through this — App.vue owns navigation.
 provide(OPEN_TASK, (taskId: string) => navigateTo({ taskId }))
+provide(OPEN_SETTINGS, () => {
+  showSettings.value = true
+})
 
 const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
 const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === 'hub'))

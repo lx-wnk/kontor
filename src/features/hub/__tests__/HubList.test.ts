@@ -1,0 +1,74 @@
+import type { Launcher } from '../hubLaunchers'
+import type { Agent } from '@/types'
+import { mount } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import { OPEN_SETTINGS } from '@/composables/openTask'
+import HubList from '../components/HubList.vue'
+
+const a1 = { pid: 1, projectName: 'kontor-hub' } as Agent
+const a2 = { pid: 2, projectName: 'web-app' } as Agent
+const launchers: Launcher[] = [
+  { id: 'pipeline', label: 'Pipeline', icon: '⇶', kind: 'view', view: 'pipeline' },
+  { id: 'new-page', label: 'New page', icon: '+', kind: 'new-page' },
+]
+
+function mountList(openSettings = vi.fn()) {
+  return mount(HubList, {
+    attachTo: document.body,
+    props: { agents: [{ agent: a1, state: 'working' as const }, { agent: a2, state: 'waiting' as const }], notes: [], launchers },
+    global: { provide: { [OPEN_SETTINGS]: openSettings } },
+  })
+}
+
+describe('hubList', () => {
+  it('is a labelled dialog that takes focus on its first button', () => {
+    const w = mountList()
+    const panel = w.get('[role="dialog"]')
+    expect(panel.attributes('aria-label')).toBe('Zentrale as a list')
+    expect(panel.attributes('data-hub-layer')).toBeDefined()
+    expect(document.activeElement).toBe(w.findAll('button')[0].element)
+    w.unmount()
+  })
+
+  it('lists each agent with its state word and emits the agent picked', async () => {
+    const w = mountList()
+    const rows = w.findAll('[data-testid="hub-list-agent"]')
+    expect(rows.map(r => r.attributes('aria-label'))).toEqual(['Kontor Hub, Working', 'Web App, Quiet'])
+    await rows[1].trigger('click')
+    expect(w.emitted('agent')).toEqual([[a2]])
+    w.unmount()
+  })
+
+  it('offers the launchers under Go to', async () => {
+    const w = mountList()
+    await w.findAll('button').find(b => b.text().includes('Pipeline'))!.trigger('click')
+    expect(w.emitted('launch')).toEqual([[launchers[0]]])
+    w.unmount()
+  })
+
+  it('asks to connect Obsidian while there are no notes, and opens settings for it', async () => {
+    const openSettings = vi.fn()
+    const w = mountList(openSettings)
+    expect(w.text()).toContain('Connect Obsidian to see recently touched notes.')
+    await w.findAll('button').find(b => b.text() === 'Open settings')!.trigger('click')
+    expect(openSettings).toHaveBeenCalledOnce()
+    w.unmount()
+  })
+
+  it('lists recently touched notes with their sector and age', async () => {
+    const w = mountList()
+    await w.setProps({ notes: [{ path: 'kontor/Plan.md', title: 'Plan', sector: 'kontor', mtimeMs: Date.now() - 2 * 3600_000 }] })
+    const row = w.get('[data-testid="hub-list-note"]')
+    expect(row.attributes('aria-label')).toBe('Plan, kontor, 2h ago')
+    await row.trigger('click')
+    expect(w.emitted('note')).toEqual([['kontor/Plan.md']])
+    w.unmount()
+  })
+
+  it('closes from its button', async () => {
+    const w = mountList()
+    await w.get('button[aria-label="Close list"]').trigger('click')
+    expect(w.emitted('close')).toHaveLength(1)
+    w.unmount()
+  })
+})

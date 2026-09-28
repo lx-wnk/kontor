@@ -6,6 +6,10 @@ const session = {
   pid: ref<number | null>(42),
   status: ref<'idle' | 'starting' | 'running' | 'error'>('running'),
   openRequested: ref(false),
+  overlayOpen: ref(false),
+  setOverlayOpen(open: boolean) {
+    session.overlayOpen.value = open
+  },
   ask(prefill = '') {
     void prefill
     session.openRequested.value = true
@@ -26,6 +30,7 @@ beforeEach(() => {
   session.pid.value = 42
   session.status.value = 'running'
   session.openRequested.value = false
+  session.overlayOpen.value = false
   agents.value = [{ pid: 42, status: 'active', working: true, lastOutput: 'PR #467 has four red checks.' }]
 })
 
@@ -49,6 +54,19 @@ describe('kontorWidget', () => {
     await nextTick()
     expect(document.querySelector('[data-testid="kontor-expanded"]')).not.toBeNull()
     w.unmount()
+  })
+
+  it('reports the overlay as open until it collapses or unmounts', async () => {
+    const w = mount(KontorWidget, { attachTo: document.body })
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    expect(session.overlayOpen.value).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(session.overlayOpen.value).toBe(false)
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    expect(session.overlayOpen.value).toBe(true)
+    w.unmount()
+    expect(session.overlayOpen.value).toBe(false)
   })
 
   // "/" typed into a field is text, not a shortcut.

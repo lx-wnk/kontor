@@ -12,3 +12,6 @@ export const PENDING_PERMISSIONS: InjectionKey<ReturnType<typeof usePendingPermi
 
 // App.vue ranks once per tick and provides the list; every queue and the hub core read it.
 export const NEEDS_YOU: InjectionKey<ComputedRef<NextThing[]>> = Symbol('needsYou')
+
+// App.vue owns the settings panel; the hub opens it through this.
+export const OPEN_SETTINGS: InjectionKey<() => void> = Symbol('openSettings')

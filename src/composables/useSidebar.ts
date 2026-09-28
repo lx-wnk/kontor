@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, readonly, ref, watch } from 'vue'
 
 const storedPinned = typeof localStorage !== 'undefined'
   ? localStorage.getItem('agent-sidebar-pinned') === 'true'
@@ -11,6 +11,7 @@ const focused = ref(false)
 // Without it the nav stays expanded across the content it just navigated to,
 // and anything under those 220px swallows the next click.
 const pointerSuppressed = ref(false)
+const newPageRequests = ref(0)
 const expanded = computed(() =>
   pinned.value || focused.value || (hovering.value && !pointerSuppressed.value))
 
@@ -58,6 +59,10 @@ function handleShortcut(e: KeyboardEvent) {
   }
 }
 
+function requestNewPage() {
+  newPageRequests.value++
+}
+
 export function useSidebar() {
-  return { pinned, hovering, expanded, togglePinned, setHovering, setFocused, collapseAfterSelect, handleShortcut }
+  return { pinned, hovering, expanded, togglePinned, setHovering, setFocused, collapseAfterSelect, handleShortcut, newPageRequests: readonly(newPageRequests), requestNewPage }
 }

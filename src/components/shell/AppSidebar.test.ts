@@ -296,6 +296,15 @@ describe('appSidebar', () => {
     w.unmount()
   })
 
+  it('opens the new page input when a new page is requested from elsewhere', async () => {
+    const { AppSidebar, useSidebar } = await load()
+    const w = mount(AppSidebar, { props, attachTo: document.body })
+    useSidebar().requestNewPage()
+    await flushPromises()
+    expect(document.activeElement).toBe(w.get('[data-testid="nav-new-page-input"]').element)
+    w.unmount()
+  })
+
   it('cancels a new page on Escape or an empty title', async () => {
     const { AppSidebar } = await load()
     const w = mount(AppSidebar, { props, attachTo: document.body })

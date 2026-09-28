@@ -191,7 +191,7 @@ function swapOptions(index: number) {
 
 <style scoped>
 .workspace-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
-.workspace-tile { position: relative; min-width: 0; min-height: 0; }
+.workspace-tile { position: relative; min-width: 0; }
 .workspace-tile > :deep(:not(.workspace-chrome):not(.workspace-resize)) { height: 100%; }
 .workspace-tile--editing { outline: 1px dashed var(--color-line-strong); outline-offset: 2px; border-radius: 12px; cursor: grab; }
 .workspace-tile--editing:focus-visible { outline: 2px solid var(--color-accent); }
@@ -207,6 +207,7 @@ function swapOptions(index: number) {
     grid-template-rows: repeat(var(--rows), minmax(56px, 1fr));
   }
   .workspace-tile {
+    min-height: 0;
     grid-column: var(--col) / span var(--col-span);
     grid-row: var(--row) / span var(--row-span);
   }
