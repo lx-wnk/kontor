@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ActiveView } from '../../composables/useViewState'
 import { computed } from 'vue'
+import { useWorkspace } from '@/features/workspace'
 import { viewTitle } from '../../utils/navConfig'
 import OfflineBadge from '../OfflineBadge.vue'
 
@@ -8,7 +9,8 @@ const props = defineProps<{
   activeView: ActiveView
 }>()
 
-const title = computed(() => viewTitle(props.activeView))
+const { layout } = useWorkspace()
+const title = computed(() => viewTitle(props.activeView, layout.value.pages))
 </script>
 
 <template>

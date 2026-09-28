@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ActiveView } from '../../composables/useViewState'
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
+import { addPage, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
 import { useSidebar } from '../../composables/useSidebar'
 import { useViewState } from '../../composables/useViewState'
 import { NAV_GROUPS, NAV_ITEMS } from '../../utils/navConfig'
@@ -28,6 +29,11 @@ const { activeView } = useViewState()
 const grouped = computed(() =>
   NAV_GROUPS.map(group => ({ group, items: NAV_ITEMS.filter(i => i.group === group) })))
 
+const workspace = useWorkspace()
+const ownPages = computed(() => workspace.layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
+const creatingPage = ref(false)
+const newPageSlot = ref<HTMLElement | null>(null)
+
 function badgeFor(view: ActiveView): number | null {
   if (view === 'dashboard')
     return props.attentionCount > 0 ? props.attentionCount : props.agentCount
@@ -53,6 +59,38 @@ function onFocusOut(event: FocusEvent): void {
 function selectView(view: ActiveView): void {
   activeView.value = view
   collapseAfterSelect()
+}
+
+async function startNewPage(): Promise<void> {
+  creatingPage.value = true
+  await nextTick()
+  newPageSlot.value?.querySelector('input')?.focus()
+}
+
+async function cancelNewPage(): Promise<void> {
+  creatingPage.value = false
+  await nextTick()
+  newPageSlot.value?.querySelector('button')?.focus()
+}
+
+async function createPage(event: KeyboardEvent): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!input.value.trim()) {
+    void cancelNewPage()
+    return
+  }
+  const r = addPage(workspace.layout.value, input.value)
+  if (!r.ok) {
+    input.setCustomValidity(r.reason)
+    input.reportValidity()
+    return
+  }
+  if (!await workspace.save(r.value.layout))
+    return
+  workspace.editing.value = true
+  selectView(`page:${r.value.pageId}`)
+  // Blur before the input unmounts: a removed input fires no focusout, which would hold the nav open.
+  input.blur()
 }
 </script>
 
@@ -153,6 +191,66 @@ function selectView(view: ActiveView): void {
               >{{ badgeFor(item.view) }}</span>
             </template>
           </NavItem>
+        </div>
+
+        <div class="flex flex-col gap-0.5" data-testid="nav-pages">
+          <div data-testid="nav-group-slot" class="relative h-7 shrink-0 overflow-hidden">
+            <span
+              class="absolute inset-0 flex items-center px-2 text-[9px] uppercase tracking-wider text-fg-faint font-bold whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none"
+              :class="expanded ? 'opacity-100 delay-75' : 'opacity-0 delay-0'"
+            >
+              Pages
+            </span>
+            <span
+              aria-hidden="true"
+              data-testid="nav-group-divider"
+              class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 motion-reduce:transition-none"
+              :class="expanded ? 'opacity-0 delay-0' : 'opacity-100 delay-75'"
+            >
+              <span class="h-px w-6 bg-line" />
+            </span>
+          </div>
+          <NavItem
+            v-for="p in ownPages"
+            :key="p.id"
+            :data-testid="`nav-page-${p.id}`"
+            icon="▢"
+            :label="p.title"
+            :active="activeView === `page:${p.id}`"
+            :expanded="expanded"
+            @select="selectView(`page:${p.id}`)"
+          />
+          <!-- The input takes the button's place in the same box, so no row moves.
+               It only opens from a click or key on the button, i.e. while expanded. -->
+          <div
+            v-if="workspace.loaded.value && !workspace.locked.value"
+            ref="newPageSlot"
+            data-testid="nav-new-page-slot"
+            class="h-10 shrink-0"
+          >
+            <div v-if="creatingPage" class="flex h-full items-center gap-3 px-2.5">
+              <span class="text-[16px] w-5 shrink-0 text-center text-fg-mute" aria-hidden="true">+</span>
+              <input
+                data-testid="nav-new-page-input"
+                aria-label="New page title"
+                placeholder="Page title"
+                class="min-w-0 flex-1 rounded-md border border-line-strong bg-app px-2 py-1 text-[12.5px] text-fg"
+                @input="($event.target as HTMLInputElement).setCustomValidity('')"
+                @keydown.enter.prevent="createPage"
+                @keydown.esc.prevent="cancelNewPage"
+                @blur="creatingPage = false"
+              >
+            </div>
+            <NavItem
+              v-else
+              data-testid="nav-new-page"
+              icon="+"
+              label="New page"
+              :active="false"
+              :expanded="expanded"
+              @select="startNewPage"
+            />
+          </div>
         </div>
       </div>
 

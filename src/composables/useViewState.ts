@@ -1,13 +1,34 @@
 import type { AgentGroup, AgentSort } from '../utils/agentGroup'
 import { ref, watch } from 'vue'
+import { PAGE_ID_PATTERN, ZENTRALE_PAGE_ID } from '@/features/workspace/layout'
 import { AGENT_GROUP_OPTIONS, AGENT_SORT_OPTIONS, resolveGroup } from '../utils/agentGroup'
 
-export type ActiveView = 'mission' | 'cockpit' | 'dashboard' | 'workflows' | 'pipeline' | 'cost' | 'schedules' | 'eval'
+export type CoreView = 'zentrale' | 'dashboard' | 'workflows' | 'pipeline' | 'cost' | 'schedules' | 'eval'
+// A page the operator created. The prefix keeps "is this one of mine?"
+// answerable in one line everywhere a view is compared.
+export type ActiveView = CoreView | `page:${string}`
 export type DashboardLayout = 'cards' | 'list'
 
 // Exported: the command palette derives one navigation command per view, so
 // a view added here shows up there without a second list to keep in step.
-export const ACTIVE_VIEWS: ActiveView[] = ['mission', 'cockpit', 'dashboard', 'workflows', 'pipeline', 'cost', 'schedules', 'eval']
+export const ACTIVE_VIEWS: CoreView[] = ['zentrale', 'dashboard', 'workflows', 'pipeline', 'cost', 'schedules', 'eval']
+
+export function isCoreView(v: string): v is CoreView {
+  return (ACTIVE_VIEWS as string[]).includes(v)
+}
+
+export function pageIdOf(v: ActiveView): string | null {
+  return v.startsWith('page:') ? v.slice(5) : null
+}
+
+export function resolveView(v: ActiveView, pageIds: string[]): ActiveView {
+  const id = pageIdOf(v)
+  if (id === null)
+    return v
+  if (id === ZENTRALE_PAGE_ID || !PAGE_ID_PATTERN.test(id) || !pageIds.includes(id))
+    return 'zentrale'
+  return v
+}
 const AGENT_SORT_VALUES: AgentSort[] = AGENT_SORT_OPTIONS.map(o => o.value)
 const AGENT_GROUP_VALUES: AgentGroup[] = AGENT_GROUP_OPTIONS.map(o => o.value)
 
@@ -20,14 +41,16 @@ function readInitial(): { view: ActiveView, layout: DashboardLayout } {
   let view: ActiveView
   let layout: DashboardLayout = storedLayout === 'list' ? 'list' : 'cards'
 
-  if (stored && ACTIVE_VIEWS.includes(stored as ActiveView)) {
+  // A page view is kept unchecked: the layout loads after this runs, and
+  // resolveView falls back once it has.
+  if (stored && (isCoreView(stored) || stored.startsWith('page:'))) {
     view = stored as ActiveView
   }
   else {
-    view = 'cockpit'
+    view = 'zentrale'
     if (stored) {
       // stored value is no longer valid — overwrite to stop the guard firing every load
-      ls?.setItem('agent-active-view', 'cockpit')
+      ls?.setItem('agent-active-view', 'zentrale')
     }
 
     if (!stored && legacy) {

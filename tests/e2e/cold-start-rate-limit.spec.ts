@@ -14,7 +14,7 @@ async function loadAndCollectThrottles(page: Page): Promise<string[]> {
       throttled.push(`${response.status()} ${response.url()}`)
   })
   await page.goto('/')
-  await expect(page.getByTestId('cockpit')).toBeVisible()
+  await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
   return throttled
 }
 

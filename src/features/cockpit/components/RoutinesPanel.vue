@@ -27,6 +27,7 @@ const state = computed<PanelState>(() => {
   <CockpitPanel
     id="routines"
     title="Routines"
+    icon="⟳"
     :state="state"
     :message="denied ?? error ?? 'No routine is scheduled.'"
   >

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import type { KontorStatus } from '../composables/useKontorSession'
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useViewState } from '@/composables/useViewState'
-import { AgentSessionPane, useAgents } from '@/features/agents'
-import { useKontorSession } from '../composables/useKontorSession'
+import { AgentSessionPane } from '@/features/agents'
+import { useKontorAgent, useKontorSession } from '../composables/useKontorSession'
 import { readInput, SLASH_COMMAND_REFUSAL } from '../composables/useReading'
 
-const { pid, status, error, refresh, send, end, renew } = useKontorSession()
+const { status, error, refresh, send, end, renew, pendingPrompt, takePendingPrompt } = useKontorSession()
 const { activeView } = useViewState()
-const { agents } = useAgents({ autoStart: false })
 
 const STATE_LABELS: Record<KontorStatus, string> = {
   idle: 'No session',
@@ -24,10 +23,34 @@ const busy = computed(() => status.value === 'starting')
 const reading = computed(() => readInput(text.value, running.value))
 // The scanner lists a fresh pid a few seconds after it starts; until then the
 // tile keeps its own input so a prompt typed meanwhile still reaches the session.
-const agent = computed(() => pid.value === null ? null : agents.value.find(a => a.pid === pid.value) ?? null)
+const agent = useKontorAgent()
+const paneRef = ref<InstanceType<typeof AgentSessionPane> | null>(null)
 
 // Reattaches after a reload, a view switch or a server restart.
 onMounted(refresh)
+
+// flush: 'post' so paneRef (agent's own pane) is mounted before prefill runs.
+watch([pendingPrompt, agent], ([prompt], previous) => {
+  if (prompt !== null) {
+    const t = takePendingPrompt()
+    if (t === null)
+      return
+    if (agent.value) {
+      paneRef.value?.prefill(t)
+    }
+    else {
+      text.value = t
+      nextTick(() => document.getElementById('kontor-input')?.focus())
+    }
+    return
+  }
+  // Own input still held unsent text when the agent appeared — hand it to the pane before it unmounts.
+  if (agent.value && !previous?.[1] && text.value) {
+    const t = text.value
+    text.value = ''
+    nextTick(() => paneRef.value?.prefill(t))
+  }
+}, { immediate: true, flush: 'post' })
 
 async function submit() {
   const r = reading.value
@@ -58,11 +81,11 @@ async function renewSession() {
   <section
     data-testid="kontor-tile"
     aria-label="Kontor"
-    class="relative flex min-h-[420px] flex-col overflow-hidden rounded-xl border border-line bg-card"
+    class="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-card"
   >
     <!-- Absolute, so the transcript scrolls inside the tile: the Mission column
          has no fixed height and would otherwise grow with every message. -->
-    <AgentSessionPane v-if="agent" :key="agent.pid" :agent="agent" title="Kontor" class="absolute inset-0">
+    <AgentSessionPane v-if="agent" ref="paneRef" :key="agent.pid" :agent="agent" title="Kontor" class="absolute inset-0">
       <template #actions>
         <button
           type="button"
@@ -123,7 +146,7 @@ async function renewSession() {
       </div>
 
       <div class="flex flex-col gap-2">
-        <label for="mission-input" class="text-[12.5px] text-fg-mute">
+        <label for="kontor-input" class="text-[12.5px] text-fg-mute">
           Or ask for anything — tasks, this interface, the system itself
         </label>
 
@@ -131,9 +154,9 @@ async function renewSession() {
           <div class="flex items-center gap-2.5 px-3.5 h-11">
             <span aria-hidden="true" class="font-mono text-[13px] text-accent">›</span>
             <input
-              id="mission-input"
+              id="kontor-input"
               v-model="text"
-              data-testid="mission-input"
+              data-testid="kontor-input"
               type="text"
               placeholder="Ask Kontor, or go to pipeline"
               class="flex-grow bg-transparent text-[14.5px] text-fg outline-none"
@@ -141,7 +164,7 @@ async function renewSession() {
             >
             <button
               type="button"
-              data-testid="mission-input-submit"
+              data-testid="kontor-input-submit"
               :disabled="reading.kind === 'empty' || busy"
               class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft disabled:opacity-50"
               @click="submit"
@@ -152,11 +175,11 @@ async function renewSession() {
 
           <div
             v-if="reading.kind !== 'empty'"
-            data-testid="mission-reading"
+            data-testid="kontor-reading"
             class="border-t border-line px-3.5 py-2.5 flex items-center gap-2.5"
           >
             <span
-              data-testid="mission-reading-label"
+              data-testid="kontor-reading-label"
               class="font-mono text-[10px] rounded px-1.5 py-0.5 border border-line-strong text-fg-soft shrink-0"
             >{{ reading.label }}</span>
             <!--
@@ -164,11 +187,11 @@ async function renewSession() {
             layer; without this, textContent read "GO TOSwitches to…".
           -->
             <span class="sr-only">: </span>
-            <span data-testid="mission-reading-will" class="text-[12.5px] text-fg-mute leading-snug">{{ reading.will }}</span>
+            <span data-testid="kontor-reading-will" class="text-[12.5px] text-fg-mute leading-snug">{{ reading.will }}</span>
           </div>
         </div>
 
-        <p v-if="problem || error" data-testid="mission-input-problem" role="alert" class="text-[12.5px] text-warning-text">
+        <p v-if="problem || error" data-testid="kontor-input-problem" role="alert" class="text-[12.5px] text-warning-text">
           {{ problem || error }}
         </p>
         <p v-else class="text-[12px] text-fg-faint">

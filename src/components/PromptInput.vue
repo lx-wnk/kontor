@@ -184,6 +184,14 @@ function focus() {
   inputEl.value?.focus()
 }
 
+function prefill(t: string) {
+  promptInput.value = t
+  nextTick(() => {
+    focus()
+    inputEl.value?.setSelectionRange(t.length, t.length)
+  })
+}
+
 function autoResize() {
   const el = inputEl.value as HTMLTextAreaElement | null
   if (!el)
@@ -259,7 +267,7 @@ function onConfirmStripKeydown(e: KeyboardEvent) {
   }
 }
 
-defineExpose({ focus })
+defineExpose({ focus, prefill })
 </script>
 
 <template>

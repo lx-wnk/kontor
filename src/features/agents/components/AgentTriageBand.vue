@@ -16,6 +16,7 @@ import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity
 import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { isApplicationTool } from '@/utils/applicationTool'
 import { attentionFor } from '@/utils/attention'
+import { capabilityValueLabel, elidedTitle } from '@/utils/capabilityDecision'
 import { formatErrorState, formatRelativeActivity, secondsSince, shortModel } from '@/utils/format'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
 
@@ -39,17 +40,6 @@ const { resolveAgent } = usePermissionResolve()
 const { resolvingIds: resolvingCapabilityIds, resolve: resolveCapability } = useCapabilityDecisions()
 
 const capabilityDecisions = computed(() => props.capabilityDecisions ?? [])
-
-function capabilityValueLabel(decision: PendingCapabilityDecision): string {
-  return decision.value || 'Everything'
-}
-
-// ValueElided/ContextElided are rune-cut counts, not booleans: 0 and undefined
-// both mean "not cut" so the "…" marker (and the WCAG-friendly title behind
-// it) never renders for whole, untouched values.
-function elidedTitle(count: number | undefined): string | undefined {
-  return count ? `${count} character${count === 1 ? '' : 's'} cut off` : undefined
-}
 
 // Tone → Tailwind border + text classes
 const toneBorderClass: Record<string, string> = {

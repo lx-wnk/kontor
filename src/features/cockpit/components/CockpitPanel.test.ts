@@ -36,4 +36,20 @@ describe('cockpitPanel', () => {
     const failed = mount(CockpitPanel, { props: { id: 'demo', title: 'Demo', state: 'failed', message: 'HTTP 500' } })
     expect(failed.get('[data-testid="cockpit-demo-failed"]').text()).toContain('HTTP 500')
   })
+
+  it('renders the icon, the uppercase label and the figure slot when ready', () => {
+    const w = mount(CockpitPanel, {
+      props: { id: 'x', title: 'Today', icon: '$', state: 'ready' },
+      slots: { figure: '<span data-testid="fig">$4.20</span>', default: '<p>body</p>' },
+    })
+    const header = w.get('header')
+    expect(header.text()).toContain('$')
+    expect(header.get('h2').classes()).toContain('uppercase')
+    expect(w.find('[data-testid="fig"]').exists()).toBe(true)
+  })
+
+  it('hides the figure while loading', () => {
+    const w = mount(CockpitPanel, { props: { id: 'x', title: 'Today', state: 'loading' }, slots: { figure: '<span data-testid="fig">1</span>' } })
+    expect(w.find('[data-testid="fig"]').exists()).toBe(false)
+  })
 })

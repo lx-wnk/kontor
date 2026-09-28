@@ -41,4 +41,20 @@ describe('cockpit registry panels', () => {
     expect(calls[0]).toContain('kind=routine')
     wrapper.unmount()
   })
+
+  it('the memory panel renders its icon', async () => {
+    recordFetch()
+    const wrapper = mount(MemoryPanel)
+    await flushPromises()
+    expect(wrapper.get('header').text()).toContain('✎')
+    wrapper.unmount()
+  })
+
+  it('the routines panel renders its icon', async () => {
+    recordFetch()
+    const wrapper = mount(RoutinesPanel)
+    await flushPromises()
+    expect(wrapper.get('header').text()).toContain('⟳')
+    wrapper.unmount()
+  })
 })

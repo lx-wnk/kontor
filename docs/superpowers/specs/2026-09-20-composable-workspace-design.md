@@ -1,6 +1,6 @@
 # A Workspace the Operator Composes — Design
 
-Status: proposed, unapproved
+Status: approved by the operator 2026-09-20; extended by `2026-09-21-kontor-zentrale-design.md`, whose slice table replaces the one below
 Date: 2026-09-20
 
 ## Why

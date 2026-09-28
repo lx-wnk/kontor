@@ -70,6 +70,8 @@ watch(() => props.agent.sessionId, (sessionId) => {
   if (props.autofocus && sessionId && !props.agent.machine)
     nextTick(() => promptInputRef.value?.focus())
 }, { immediate: true })
+
+defineExpose({ prefill: (t: string) => promptInputRef.value?.prefill(t) })
 </script>
 
 <template>

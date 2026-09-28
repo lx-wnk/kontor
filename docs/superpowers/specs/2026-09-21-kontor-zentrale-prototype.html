@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Kontor — Zentrale prototype</title>
+<style>
+:root{--bg:#0d0f12;--pn:#14171c;--pn2:#1a1e25;--ln:#242932;--ln2:#323946;--fg:#e7e9ec;--mu:#8a93a0;--fa:#5d6572;--ac:#7c9cff;--ok:#3ddc97;--wa:#f5b544;--bad:#ff6b6b;--halo:#9fe0ff}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:12px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif}
+button{font:inherit;color:inherit}
+code{font:11px ui-monospace,monospace;background:#232833;border-radius:4px;padding:0 4px}
+.app{display:flex;flex-direction:column;height:100vh}
+.top{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--ln)}
+.brand{font-weight:650;letter-spacing:.02em;font-size:13px}
+.tabs{display:flex;gap:4px}.tabs span{padding:3px 10px;border-radius:99px;color:var(--mu);cursor:pointer}.tabs span.on{background:#1d2330;color:var(--fg)}
+.tabs span.add{border:1px dashed var(--ln2)}
+.srch{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:4px 8px;width:300px}
+.srch input{background:none;border:0;outline:0;color:var(--fg);flex:1;font:inherit}
+.kbd{border:1px solid var(--ln2);border-radius:4px;padding:0 4px;font:10px ui-monospace,monospace;color:var(--mu)}
+.stat{color:var(--mu);font:11px ui-monospace,monospace}
+.grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;padding:10px}
+.side{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.left{grid-column:1/span 3}.centre{grid-column:4/span 6}.right{grid-column:10/span 3}
+.grid.focus .left,.grid.focus .right{display:none}.grid.focus .centre{grid-column:1/span 12}
+.tile{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:10px 12px}
+.th{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:8px}
+.th .act{margin-left:auto;border:1px solid var(--ln2);border-radius:5px;padding:1px 6px;color:var(--fg);text-transform:none;letter-spacing:0;cursor:pointer;background:none;font-size:10px}
+.big{font-size:24px;font-weight:650;line-height:1}
+.row{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.row.link{cursor:pointer;border-radius:5px;margin:0 -4px;padding:3px 4px}.row.link:hover{background:#1b2029}
+.mu{color:var(--mu)}.fa{color:var(--fa)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.stage{display:flex;gap:2px;margin:3px 0 6px}.stage i{flex:1;height:3px;border-radius:2px;background:var(--ln2)}.stage i.d{background:var(--ok)}.stage i.n{background:var(--ac)}
+.bar{height:5px;border-radius:3px;background:var(--ln2);display:flex;overflow:hidden;margin-top:6px}
+/* ---- centre ---- */
+.centre{display:flex;flex-direction:column;min-height:0;position:relative}
+.z{position:relative;flex:1;min-height:0;background:radial-gradient(circle at 50% 50%,#131821 0,#0d0f12 72%);border:1px solid var(--ln);border-radius:12px;overflow:hidden;cursor:grab;outline:none;touch-action:none}
+.z:focus-visible{border-color:var(--ac)}
+.z.drag{cursor:grabbing}
+.spacer{height:66px;flex:none}
+svg.w{position:absolute;inset:0;width:100%;height:100%}
+#edges line{stroke:#39414f;vector-effect:non-scaling-stroke;stroke-width:.7}
+.z[data-level="0"] #edges{opacity:.28}.z[data-level="1"] #edges{opacity:.55}.z[data-level="2"] #edges{opacity:.8}
+#notes circle.n{cursor:pointer}
+#notes circle.h{fill:none;stroke:var(--halo);vector-effect:non-scaling-stroke;stroke-width:1.2;opacity:.8}
+#labels text{fill:#cfd5dd;pointer-events:none;paint-order:stroke;stroke:#0d0f12;stroke-linejoin:round}
+#labels text.hub{font-weight:650}
+.z[data-level="0"] #labels text{display:none}.z[data-level="1"] #labels text:not(.hub){display:none}
+#rings circle{fill:none;stroke:#222833;stroke-dasharray:3 5;vector-effect:non-scaling-stroke}
+#sel{fill:none;stroke:#fff;vector-effect:non-scaling-stroke;stroke-width:1.5}
+#live line{stroke-width:1.4}
+#live line.rd{stroke:var(--ac);stroke-dasharray:5 4;animation:flow 1.2s linear infinite}
+#live line.wr{stroke:var(--ok);stroke-dasharray:2 3;animation:flow 1.2s linear infinite reverse}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.ov{position:absolute;inset:0;pointer-events:none}
+.ov>*{position:absolute;left:0;top:0;pointer-events:auto}
+.core{translate:-50% -50%;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,#1c2333 0,#141a26 70%);border:1px solid var(--ac);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 40px rgba(124,156,255,.18)}
+.core b{font-size:13px}.core span{font-size:10px;color:var(--mu)}
+.ag{translate:-50% -9px;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;cursor:pointer;padding:0}
+.ag .d{width:18px;height:18px;border-radius:50%;border:3px solid #0d0f12}
+.ag .l{background:rgba(13,15,18,.85);border:1px solid var(--ln);border-radius:6px;padding:1px 6px;white-space:nowrap;font-size:10.5px}
+.ag .l em{font-style:normal;color:var(--mu)}
+.ag.active .d{background:var(--ok)}.ag.idle .d{background:#6b7280}.ag.waiting .d{background:var(--wa);animation:pulse 1.6s infinite}
+.ag.waiting .l{border-color:var(--wa)}.ag.waiting .l em{color:var(--wa)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,181,68,.65)}100%{box-shadow:0 0 0 16px rgba(245,181,68,0)}}
+.ln{translate:-50% -50%;width:40px;height:40px;border-radius:50%;background:var(--pn);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px}
+.ln:hover,.ln:focus-visible{border-color:var(--ac);outline:0}
+.ln .t{position:absolute;top:43px;font-size:10px;white-space:nowrap;pointer-events:none;display:none;background:var(--pn2);border:1px solid var(--ln2);border-radius:5px;padding:1px 6px;color:var(--fg)}
+.ln:hover .t,.ln:focus-visible .t{display:block}
+.ln.add{border-style:dashed;color:var(--ac)}
+.ov.anim .ln{transition:transform .38s ease}
+.z.docked .ln .t{left:46px;top:10px}
+.sec{translate:-50% -50%;background:none;border:0;cursor:pointer;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;white-space:nowrap;padding:2px 6px;border-radius:5px}
+.sec small{color:var(--mu);letter-spacing:0;font-weight:400;margin-left:4px}
+.sec:hover{background:rgba(255,255,255,.05)}
+.z[data-level="1"] .sec{opacity:.55}.z[data-level="2"] .sec{display:none}
+.rl{translate:-50% -50%;font-size:9px;color:var(--fa);pointer-events:none!important}
+.z[data-level="2"] .rl{display:none}
+/* HUD */
+.nq{position:absolute;top:10px;left:50%;translate:-50% 0;width:min(560px,calc(100% - 120px));background:rgba(26,22,12,.94);border:1px solid var(--wa);border-radius:10px;padding:8px 10px;z-index:3;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.nq .h{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--wa)}
+.nq .h .nav{margin-left:auto;display:flex;gap:4px}
+.nq .h .nav button{background:none;border:1px solid #4a3d1c;border-radius:4px;color:var(--wa);cursor:pointer;padding:0 6px}
+.nq .q{font-size:13px;margin:4px 0 2px}.nq .why{color:#bfa56a;font-size:11px}
+.nq .b{display:flex;gap:6px;margin-top:7px}
+.btn{border:1px solid var(--ln2);background:#1b2029;border-radius:6px;padding:3px 10px;cursor:pointer}
+.btn.pri{background:var(--wa);border-color:var(--wa);color:#1a1405;font-weight:600}
+.btn.ac{background:var(--ac);border-color:var(--ac);color:#0d1020;font-weight:600}
+.btn.gh{background:none}
+.nq.calm{background:none;border:0;box-shadow:none;padding:0;text-align:center;color:var(--mu);font-size:11px}
+.ctl{position:absolute;right:10px;top:50%;translate:0 -50%;display:flex;flex-direction:column;gap:4px;z-index:2}
+.ctl button{width:30px;height:30px;border-radius:7px;background:var(--pn);border:1px solid var(--ln2);cursor:pointer}
+.ctl button:hover{border-color:var(--ac)}
+.lvl{position:absolute;left:10px;bottom:38px;display:flex;background:var(--pn);border:1px solid var(--ln2);border-radius:7px;overflow:hidden;z-index:2}
+.lvl button{background:none;border:0;padding:4px 10px;cursor:pointer;color:var(--mu)}
+.lvl button.on{background:#222a3b;color:var(--fg)}
+.legend{position:absolute;left:10px;bottom:10px;font-size:10px;color:var(--fa);z-index:2}
+.legend b{color:var(--mu);font-weight:500}
+.mm{position:absolute;right:10px;bottom:10px;width:108px;height:108px;background:rgba(20,23,28,.92);border:1px solid var(--ln2);border-radius:8px;z-index:2;cursor:crosshair}
+.mm rect{fill:rgba(124,156,255,.08);stroke:var(--ac);stroke-width:6}
+.card{position:absolute;top:92px;right:50px;width:270px;background:var(--pn2);border:1px solid var(--ln2);border-radius:10px;padding:10px 12px;z-index:4;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.card h4{margin:0 0 2px;font-size:13px}.card .p{color:var(--fa);font:10px ui-monospace,monospace;margin-bottom:6px;word-break:break-all}
+.card .x{position:absolute;right:8px;top:6px;background:none;border:0;color:var(--mu);cursor:pointer;font-size:14px}
+.card .ex{color:var(--mu);border-left:2px solid var(--ln2);padding-left:8px;margin:6px 0}
+.card .lk{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.card .lk span{border:1px solid var(--ln2);border-radius:99px;padding:0 7px;cursor:pointer;font-size:10.5px}
+.card .touch{color:var(--ac);font-size:11px;margin:4px 0}
+.card .b{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.list{position:absolute;inset:60px 50px 50px 50px;background:var(--pn2);border:1px solid var(--ln2);border-radius:10px;padding:10px 14px;z-index:5;overflow:auto}
+.toast{position:absolute;left:50%;bottom:78px;translate:-50% 0;background:#232a38;border:1px solid var(--ln2);border-radius:8px;padding:6px 12px;z-index:9;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+/* Kontor tile */
+.kt{position:absolute;left:0;right:0;bottom:0;height:56px;background:var(--pn);border:1px solid var(--ln2);border-radius:12px;z-index:6;display:flex;flex-direction:column;overflow:hidden;transition:height .28s ease,box-shadow .28s}
+.kt.open{height:64%;box-shadow:0 -18px 40px rgba(0,0,0,.5);border-color:var(--ac)}
+.kt .hd{display:flex;align-items:center;gap:8px;padding:0 12px;height:54px;flex:none;cursor:pointer}
+.kt.open .hd{height:40px;border-bottom:1px solid var(--ln)}
+.kt .st{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ok);flex:none}
+.kt .st i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:breathe 2s infinite}
+@keyframes breathe{50%{opacity:.35}}
+.kt .last{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}
+.kt.open .last{display:none}
+.kt .meta{color:var(--fa);font:10.5px ui-monospace,monospace;flex:none}
+.kt:not(.open) .meta{display:none}
+.kt .body{flex:1;overflow:auto;padding:8px 12px;display:none}
+.kt.open .body{display:block}
+.kt .in{display:none;margin:8px 12px 10px;border:1px solid var(--ln2);border-radius:8px;padding:6px 8px;gap:6px;align-items:center}
+.kt.open .in{display:flex}
+.kt .in input{flex:1;background:none;border:0;outline:0;color:var(--fg);font:inherit}
+.msg{max-width:82%;border-radius:9px;padding:6px 9px;margin:5px 0;white-space:pre-wrap}
+.msg.me{margin-left:auto;background:rgba(124,156,255,.16)}
+.msg.k{background:#1c2129}
+.msg .tool{font:10.5px ui-monospace,monospace;color:var(--mu);display:block;margin-bottom:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <span class="brand">Kontor</span>
+    <div class="tabs"><span class="on">Zentrale</span><span>Board</span><span>Kosten</span><span>Sessions</span><span class="add" title="Eigene Seite anlegen">+ Seite</span></div>
+    <label class="srch">⌕ <input id="q" list="titles" placeholder="Springe zu Notiz oder Agent …" aria-label="Springe zu Notiz oder Agent"><span class="kbd">⌘K</span></label>
+    <datalist id="titles"></datalist>
+    <span class="stat">CPU 21% · MEM 95% · heute $41.20</span>
+  </div>
+
+  <div class="grid" id="grid">
+    <aside class="side left">
+      <div class="tile"><div class="th">▶ Live work <button class="act">Board</button></div>
+        <div class="big">3 <span class="mu" style="font-size:12px;font-weight:400">laufen · 2 warten auf dich</span></div>
+        <div style="margin-top:10px" class="row link" data-agent="a1"><span><span class="dot" style="background:var(--ok)"></span>agent-dashboard</span><span class="mu">implementation</span></div>
+        <div class="stage"><i class="d"></i><i class="d"></i><i class="n"></i><i></i></div>
+        <div class="row link" data-agent="a2"><span><span class="dot" style="background:var(--wa)"></span>agent-dashboard #2</span><span style="color:var(--wa)">wartet</span></div>
+        <div class="stage"><i class="d"></i><i class="d"></i><i class="n"></i><i></i></div>
+        <div class="row link" data-agent="a3"><span><span class="dot" style="background:var(--ok)"></span>Agent-Context</span><span class="mu">plan review</span></div>
+        <div class="stage"><i class="d"></i><i class="n"></i><i></i><i></i></div>
+      </div>
+      <div class="tile"><div class="th">◉ Agents <button class="act">+ Neu</button></div>
+        <div class="row link" data-agent="a4"><span>client-shop</span><span style="color:var(--wa)">fragt dich</span></div>
+        <div class="row link" data-agent="a5"><span>session</span><span class="mu">idle</span></div>
+        <div class="row"><span class="mu">3 weitere idle</span><span></span></div>
+      </div>
+      <div class="tile" style="flex:1"><div class="th">⟳ Routinen <button class="act">Alle</button></div>
+        <div class="row"><span>02:00 dependency-sweep</span><span class="mu">nächste</span></div>
+        <div class="row"><span>07:30 morning brief</span><span style="color:var(--ok)">ok</span></div>
+        <div class="row"><span>Mo 09:00 PR-Aufräumen</span><span class="mu">geplant</span></div>
+      </div>
+    </aside>
+
+    <section class="centre">
+      <div class="z" id="z" tabindex="0" aria-label="Zentrale. Pfeiltasten verschieben, Plus und Minus zoomen, 0 zeigt alles, F für Fokus.">
+        <svg class="w" id="svg" aria-hidden="true">
+          <g id="world"><g id="wedges"></g><g id="rings"></g><g id="edges"></g><g id="notes"></g><circle id="sel" r="0"></circle><g id="labels"></g></g>
+          <g id="live"></g>
+        </svg>
+        <div class="ov" id="ov"></div>
+        <div class="nq" id="nq" role="status" aria-live="polite"></div>
+        <div class="ctl">
+          <button id="zin" title="Hineinzoomen (+)" aria-label="Hineinzoomen">+</button>
+          <button id="zout" title="Herauszoomen (−)" aria-label="Herauszoomen">−</button>
+          <button id="fit" title="Alles zeigen (0)" aria-label="Alles zeigen">⌂</button>
+          <button id="foc" title="Fokus: Zentrale über ganze Breite (F)" aria-label="Fokusmodus">⤢</button>
+          <button id="lst" title="Als Liste (L)" aria-label="Als Liste anzeigen">☰</button>
+        </div>
+        <div class="lvl" id="lvl"><button data-l="0">Lage</button><button data-l="1">Themen</button><button data-l="2">Notizen</button></div>
+        <div class="legend"><b>Winkel</b> = Projekt · <b>Abstand zur Mitte</b> = wie frisch · <span style="color:var(--ac)">- - liest</span> · <span style="color:var(--ok)">·· schreibt</span> · <span style="color:var(--halo)">◯</span> heute berührt</div>
+        <svg class="mm" id="mm" viewBox="-540 -540 1080 1080" aria-label="Übersichtskarte"><g id="mmg"></g><rect id="mmr"></rect></svg>
+        <div class="toast" id="toast"></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="kt" id="kt">
+        <div class="hd" id="kth">
+          <span class="st"><i></i>arbeitet</span>
+          <b>Kontor</b>
+          <span class="last" id="ktlast"></span>
+          <span class="meta">opus 5 · $7.06 · 1h 11m</span>
+          <span class="kbd" id="kthint">/ antworten</span>
+        </div>
+        <div class="body" id="ktbody"></div>
+        <div class="in"><span class="mu">›</span><input id="ktin" placeholder="Frag Kontor oder gib einen Befehl …" aria-label="Nachricht an Kontor"><span class="kbd">↵</span><span class="kbd">esc</span></div>
+      </div>
+    </section>
+
+    <aside class="side right">
+      <div class="tile"><div class="th">⌂ GitHub <button class="act">Öffnen</button></div>
+        <div class="big" style="color:var(--bad)">4</div><div class="mu">rote Checks auf #467 (golangci)</div>
+        <div class="row" style="margin-top:6px"><span>2 PRs offen</span><span class="mu">1 wartet auf Review</span></div></div>
+      <div class="tile"><div class="th">▦ Pipeline</div>
+        <div class="row"><span>Done</span><span>30</span></div><div class="row"><span>Läuft</span><span>3</span></div><div class="row"><span>Backlog</span><span>1</span></div>
+        <div class="bar"><div style="width:86%;background:var(--ok)"></div><div style="width:9%;background:var(--ac)"></div><div style="width:5%;background:var(--mu)"></div></div></div>
+      <div class="tile"><div class="th">✎ Memory · gerade berührt</div><div id="memrecent"></div></div>
+      <div class="tile" style="flex:1"><div class="th">$ Heute</div><div class="big">$41.20</div><div class="mu">6.1M tokens · 4 Sessions</div></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(11);
+const gauss = () => { let u = 0, v = 0; while (!u) u = R(); while (!v) v = R(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const rad = d => d * Math.PI / 180;
+const rOf = age => 110 + 300 * Math.sqrt(Math.min(age, 730) / 730);
+
+// ---------- data (synthetic, shaped like the real vault) ----------
+const SECTORS = [
+  { id:'ad', name:'agent-dashboard', path:'claude-memory/private/agent-dashboard', a0:-115, a1:-35, col:'#7c9cff', n:90,
+    pre:['lesson','spec','plan','session','decision','note'],
+    words:['kontor-session','module-contract','composable-workspace','worktree-isolation','pty-broker','sse-prop-identity','rate-limit-burst','ent-codegen-upsert','permission-grants','stage-run-credentials','mission-control','spotlight','routine-ownership','desktop-shell','golangci-toolchain','fts5-triggers','hooks-secret','obsidian-slice','capability-gate','task-pagination'] },
+  { id:'ac', name:'Agent-Context', path:'claude-memory/private/agent-context', a0:-35, a1:35, col:'#3ddc97', n:45,
+    pre:['lesson','note','decision','release'],
+    words:['layer0-workflow','skill-index','memory-stubs','lesson-graduation','knowledge-map','setup-prompt','release-flow','agent-roster','persist-blocks','domain-expansion','semver-guard','auto-update'] },
+  { id:'bo', name:'Client Shop', path:'work/client-shop', a0:35, a1:120, col:'#f59e8b', n:105,
+    pre:['ticket','note','runbook','decision','session','meeting'],
+    words:['checkout-tracking','shopware-migration','mysqldump-filter','customer-fix','pdp-performance','cart-pricing','erp-sync','sprint-review','deploy-runbook','media-cdn','search-tuning','b2b-prices','core-tables','cache-warmup','payment-webhook','seo-redirects','feature-flags','staging-reset'] },
+  { id:'mi', name:'Werkzeug & Wissen', path:'claude-memory/misc', a0:120, a1:185, col:'#c4a7ff', n:55,
+    pre:['note','howto','tool'],
+    words:['obsidian-rest-api','tailwind-v4','playwright-tips','vue-reactivity','go-generics','sqlite-wal','mcp-servers','zsh-safety','gh-cli','wails','vite-8','pnpm-trust','sigma-js','d3-force','git-worktrees','ssh-signing','caddy'] },
+  { id:'pr', name:'Privat', path:'Privat', a0:185, a1:245, col:'#ffd479', n:55,
+    pre:[''],
+    words:['Second Brain','Notion fertig machen','Reise Lissabon','Laufplan','Bücherliste','Haushalt','Steuer 2026','Geschenkideen','Fotoalbum','Rezepte','Garten','Fahrrad-Service','Konzertkarten','Umzugsliste','Weinregal'] },
+];
+const notes = [], edges = [], edgeKey = new Set();
+for (const s of SECTORS) {
+  s.mid = (s.a0 + s.a1) / 2;
+  const combos = [];
+  for (const p of s.pre) for (const w of s.words) combos.push(p ? `${p} · ${w}` : w);
+  for (let i = combos.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [combos[i], combos[j]] = [combos[j], combos[i]]; }
+  const span = s.a1 - s.a0, subs = [0.25, 0.5, 0.75].map(f => s.a0 + span * f);
+  s.notes = [];
+  for (let i = 0; i < s.n; i++) {
+    const hub = i === 0;
+    let age = hub ? 3 : Math.min(900, -Math.log(1 - R() * 0.999) * 70);
+    let title = hub ? `${s.name} · MOC` : (combos[i % combos.length] + (i >= combos.length ? ` ${Math.floor(i / combos.length) + 1}` : ''));
+    let a = hub ? s.mid : Math.max(s.a0 + 3, Math.min(s.a1 - 3, subs[i % 3] + gauss() * span * 0.09));
+    let r = hub ? 150 : rOf(age) + gauss() * 7;
+    const n = { i: notes.length, sec: s, title, age, hub, x: r * Math.cos(rad(a)), y: r * Math.sin(rad(a)), links: [] };
+    notes.push(n); s.notes.push(n);
+  }
+}
+const link = (a, b) => { if (a === b) return; const k = a.i < b.i ? a.i + ':' + b.i : b.i + ':' + a.i; if (edgeKey.has(k)) return; edgeKey.add(k); edges.push([a, b]); a.links.push(b); b.links.push(a); };
+for (const s of SECTORS) {
+  const hub = s.notes[0];
+  for (const n of s.notes.slice(1)) {
+    if (R() < 0.45) link(n, hub);
+    const cands = Array.from({ length: 6 }, () => s.notes[1 + Math.floor(R() * (s.notes.length - 1))]);
+    cands.sort((p, q) => Math.hypot(p.x - n.x, p.y - n.y) - Math.hypot(q.x - n.x, q.y - n.y));
+    link(n, cands[0]); if (R() < 0.5) link(n, cands[1]);
+    if (R() < 0.06) { const o = SECTORS[Math.floor(R() * SECTORS.length)]; link(n, o.notes[Math.floor(R() * o.notes.length)]); }
+  }
+}
+// freshest non-hub notes per sector — the ones agents are touching right now
+const freshest = (id, k) => SECTORS.find(s => s.id === id).notes.filter(n => !n.hub).sort((a, b) => a.age - b.age).slice(0, k);
+const named = (n, t, age) => { n.title = t; n.age = age; const a = Math.atan2(n.y, n.x), r = rOf(age) + 4; n.x = r * Math.cos(a); n.y = r * Math.sin(a); return n; };
+const [adA, adB, adC] = freshest('ad', 3);
+named(adA, 'spec · composable-workspace', 0.05); named(adB, 'lesson · worktree-isolation', 0.3); named(adC, 'session · kontor-session', 0.2);
+const [acA] = freshest('ac', 1); named(acA, 'note · layer0-workflow', 0.02);
+const [boA] = freshest('bo', 1); named(boA, 'note · mysqldump-filter', 0.1);
+for (const n of notes) if (n.age < 1) n.fresh = true;
+
+const AGENTS = [
+  { id:'a1', name:'agent-dashboard', sec:'ad', st:'active',  word:'arbeitet', stage:'implementation', last:'Ran pnpm typecheck — clean', off:-22, reads:[adA, adB] },
+  { id:'a2', name:'agent-dashboard #2', sec:'ad', st:'waiting', word:'wartet auf dich', stage:'implementation', last:'Waiting for permission: task lint', off:22, reads:[adC] },
+  { id:'a3', name:'Agent-Context', sec:'ac', st:'active', word:'arbeitet', stage:'plan review', last:'Writing layer0-agent-workflow.md', off:0, writes:[acA] },
+  { id:'a4', name:'client-shop', sec:'bo', st:'waiting', word:'fragt dich', stage:'self review', last:'Soll der Dump nur NOT-NULL-FKs filtern?', off:0, reads:[boA] },
+  { id:'a5', name:'session', sec:'mi', st:'idle', word:'idle', stage:'—', last:'—', off:0 },
+];
+for (const g of AGENTS) {
+  const s = SECTORS.find(x => x.id === g.sec); g.ang = rad(s.mid + g.off);
+}
+const LAUNCHERS = [['GitHub','⌂'],['Obsidian','✎'],['Board','▦'],['Kosten','$'],['Routinen','⟳'],['Sessions','▤'],['Module','◇'],['Neue Seite','+']];
+let queue = [
+  { agent:'a2', kind:'perm', q:'agent-dashboard #2 will <code>task lint</code> ausführen', why:'Nicht auf der Allow-Liste. „Für diese Routine erlauben“ stoppt die Nachfrage jede Nacht.' },
+  { agent:'a4', kind:'ask',  q:'client-shop fragt: „Core-Tabellen nur mit Filter dumpen?“', why:'Frage aus der Session (AskUserQuestion) — blockiert self review.' },
+];
+let qi = 0;
+
+// ---------- build SVG ----------
+const z = $('#z'), world = $('#world'), wedgesG = $('#wedges'), ringsG = $('#rings'), edgesG = $('#edges'), notesG = $('#notes'), labelsG = $('#labels'), liveG = $('#live'), ov = $('#ov'), sel = $('#sel');
+const wedge = (a0, a1, r1, r2) => { const p = (r, a) => [r * Math.cos(rad(a)), r * Math.sin(rad(a))]; const [x1,y1] = p(r2,a0), [x2,y2] = p(r2,a1), [x3,y3] = p(r1,a1), [x4,y4] = p(r1,a0); return `M${x1},${y1}A${r2},${r2} 0 0 1 ${x2},${y2}L${x3},${y3}A${r1},${r1} 0 0 0 ${x4},${y4}Z`; };
+for (const s of SECTORS) el('path', { d: wedge(s.a0, s.a1, 100, 440), fill: s.col, 'fill-opacity': .035 }, wedgesG);
+const RINGS = [['heute', 1], ['Woche', 7], ['Monat', 30], ['Jahr', 365]];
+for (const [, d] of RINGS) el('circle', { r: rOf(d) }, ringsG);
+for (const [a, b] of edges) el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y }, edgesG);
+for (const n of notes) {
+  if (n.fresh) n.halo = el('circle', { class: 'h', cx: n.x, cy: n.y, r: 1 }, notesG);
+  n.el = el('circle', { class: 'n', cx: n.x, cy: n.y, r: 1, fill: n.sec.col, 'fill-opacity': n.hub ? 1 : .75, 'data-i': n.i }, notesG);
+  el('title', {}, n.el).textContent = n.title;
+  const t = el('text', { x: n.x, y: n.y, dx: '.8em', dy: '.35em', class: n.hub ? 'hub' : '' }, labelsG); t.textContent = n.title; n.lab = t;
+}
+
+// ---------- overlay (screen-space, constant size, real buttons) ----------
+const core = document.createElement('div'); core.className = 'core'; core.innerHTML = '<b>Kontor</b><span id="corest"></span>'; core.title = 'Kontor-Session öffnen'; ov.appendChild(core);
+core.onclick = () => openKontor();
+for (const g of AGENTS) {
+  const b = document.createElement('button'); b.className = 'ag ' + g.st; b.setAttribute('aria-label', `${g.name}, ${g.word}`);
+  b.innerHTML = `<span class="d"></span><span class="l">${g.name} <em>${g.word}</em></span>`; b.onclick = e => { e.stopPropagation(); showAgent(g); };
+  ov.appendChild(b); g.btn = b;
+}
+for (const s of SECTORS) {
+  const b = document.createElement('button'); b.className = 'sec'; b.style.color = s.col; b.innerHTML = `${s.name}<small>${s.n}</small>`;
+  b.onclick = e => { e.stopPropagation(); const r = 260; flyTo(r * Math.cos(rad(s.mid)), r * Math.sin(rad(s.mid)), 2.6); };
+  ov.appendChild(b); s.btn = b;
+}
+const ringLabels = RINGS.map(([t, d]) => { const s = document.createElement('span'); s.className = 'rl'; s.textContent = t; ov.appendChild(s); return [s, rOf(d)]; });
+const launchers = LAUNCHERS.map(([t, g], i) => {
+  const b = document.createElement('button'); b.className = 'ln' + (g === '+' ? ' add' : ''); b.setAttribute('aria-label', t); b.title = `${t} (${i + 1})`;
+  b.innerHTML = `${g}<span class="t">${t}</span>`; b.onclick = e => { e.stopPropagation(); toast(g === '+' ? 'Neue Seite anlegen …' : `öffnet ${t}`); };
+  ov.appendChild(b); return b;
+});
+
+// ---------- camera ----------
+let W = 0, H = 0, k0 = 1, lastL = -1, docked = null;
+const cam = { k: 1, tx: 0, ty: 0 };
+const WORLD_R = 520;
+const touched = new Set(AGENTS.flatMap(g => [...(g.reads || []), ...(g.writes || [])]));
+const prio = n => (n.hub ? 100 : 0) + (touched.has(n) ? 80 : 0) + (n.fresh ? 40 : 0) + n.links.length;
+const levelOf = rel => rel < 1.8 ? 0 : rel < 4 ? 1 : 2;
+const S = (x, y) => [x * cam.k + cam.tx, y * cam.k + cam.ty];
+function placeAgents(){ for (const g of AGENTS) { const r = Math.max(g.st === 'waiting' ? 60 : 82, (g.st === 'waiting' ? 88 : 116) / cam.k); g.x = r * Math.cos(g.ang); g.y = r * Math.sin(g.ang); } }
+function render(){
+  const { k, tx, ty } = cam, rel = k / k0, L = levelOf(rel);
+  placeAgents();
+  world.setAttribute('transform', `translate(${tx},${ty}) scale(${k})`);
+  const rs = [2.1, 3.4, 4.6][L] / k;
+  for (const n of notes) { n.el.setAttribute('r', n.hub ? rs * 1.9 : rs); if (n.halo) n.halo.setAttribute('r', rs * 2.6); }
+  labelsG.style.fontSize = (11 / k) + 'px'; labelsG.style.strokeWidth = (3 / k) + 'px';
+  if (L === 2) {
+    const placed = [], vis = [];
+    for (const n of notes) { const [x, y] = S(n.x, n.y); n.sx = x; n.sy = y; if (x < -60 || x > W + 20 || y < -20 || y > H + 20) n.lab.style.display = 'none'; else vis.push(n); }
+    vis.sort((a, b) => prio(b) - prio(a));
+    for (const n of vis) { const r = { x: n.sx + 6, y: n.sy - 8, w: n.title.length * 6.3 + 10, h: 16 }; const hit = placed.some(p => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y); n.lab.style.display = hit ? 'none' : ''; if (!hit) placed.push(r); }
+  } else if (lastL === 2) for (const n of notes) n.lab.style.display = '';
+  if (L !== lastL) { z.dataset.level = L; document.querySelectorAll('#lvl button').forEach(b => b.classList.toggle('on', +b.dataset.l === L)); lastL = L; }
+  const [cx, cy] = S(0, 0); core.style.transform = `translate(${cx}px,${cy}px)`;
+  for (const g of AGENTS) { const [x, y] = S(g.x, g.y); g.btn.style.transform = `translate(${x}px,${y}px)`; }
+  for (const s of SECTORS) { const [x, y] = S(392 * Math.cos(rad(s.mid)), 392 * Math.sin(rad(s.mid))); s.btn.style.transform = `translate(${x}px,${y}px)`; }
+  for (const [sp, r] of ringLabels) { const [x, y] = S(r * Math.cos(rad(-128)), r * Math.sin(rad(-128))); sp.style.transform = `translate(${x}px,${y}px)`; }
+  // launcher ring becomes a dock once you zoom in, so navigation never leaves the screen
+  const dock = rel > 1.5;
+  if (dock !== docked) { if (docked !== null) { ov.classList.add('anim'); setTimeout(() => ov.classList.remove('anim'), 420); } docked = dock; z.classList.toggle('docked', dock); }
+  launchers.forEach((b, i) => {
+    let x, y;
+    if (dock) { x = 30; y = 150 + i * 46; }
+    else { const a = rad(-67.5 + i * 45); [x, y] = S(470 * Math.cos(a), 470 * Math.sin(a)); }
+    b.style.transform = `translate(${x}px,${y}px)`;
+  });
+  // live edges agent -> note, drawn in screen space so they stay crisp
+  liveG.innerHTML = '';
+  for (const g of AGENTS) {
+    const [ax, ay] = S(g.x, g.y);
+    for (const n of g.reads || []) { const [nx, ny] = S(n.x, n.y); el('line', { x1: ax, y1: ay, x2: nx, y2: ny, class: 'rd' }, liveG); }
+    for (const n of g.writes || []) { const [nx, ny] = S(n.x, n.y); el('line', { x1: ax, y1: ay, x2: nx, y2: ny, class: 'wr' }, liveG); }
+  }
+  if (selected) { sel.setAttribute('cx', selected.x); sel.setAttribute('cy', selected.y); sel.setAttribute('r', rs * 3.2); }
+  // minimap viewport
+  const mr = $('#mmr'); mr.setAttribute('x', -tx / k); mr.setAttribute('y', -ty / k); mr.setAttribute('width', W / k); mr.setAttribute('height', H / k);
+}
+function clampK(k){ return Math.max(k0 * 0.6, Math.min(k0 * 14, k)); }
+function zoomAt(f, mx, my){ const k = clampK(cam.k * f), q = k / cam.k; cam.tx = mx - (mx - cam.tx) * q; cam.ty = my - (my - cam.ty) * q; cam.k = k; render(); }
+function flyTo(wx, wy, rel){
+  const kT = clampK(k0 * rel), end = { k: kT, tx: W / 2 - wx * kT, ty: H / 2 - wy * kT };
+  if (reduce) { Object.assign(cam, end); render(); return; }
+  const s = { ...cam }, sc = { x: (W / 2 - s.tx) / s.k, y: (H / 2 - s.ty) / s.k }, t0 = performance.now();
+  (function step(now){
+    const p = Math.min(1, (now - t0) / 480), q = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    const kk = Math.exp(Math.log(s.k) + (Math.log(kT) - Math.log(s.k)) * q), x = sc.x + (wx - sc.x) * q, y = sc.y + (wy - sc.y) * q;
+    cam.k = kk; cam.tx = W / 2 - x * kk; cam.ty = H / 2 - y * kk; render();
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+const centreWorld = () => [(W / 2 - cam.tx) / cam.k, (H / 2 - cam.ty) / cam.k];
+new ResizeObserver(() => {
+  const first = !W, [cx, cy] = first ? [0, 0] : centreWorld(), rel = first ? 1 : cam.k / k0;
+  W = z.clientWidth; H = z.clientHeight; k0 = Math.min(W - 110, H - 150) / (2 * 490);
+  cam.k = k0 * rel; cam.tx = W / 2 - cx * cam.k; cam.ty = H / 2 - cy * cam.k; render();
+}).observe(z);
+
+// ---------- input ----------
+z.addEventListener('wheel', e => { e.preventDefault(); const r = z.getBoundingClientRect(); zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0016)), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+let drag = null, moved = false;
+z.addEventListener('pointerdown', e => {
+  if (e.target.closest('button,input,.card,.nq,.mm,.list,.kt')) return;
+  drag = { x: e.clientX, y: e.clientY, tx: cam.tx, ty: cam.ty }; moved = false; z.classList.add('drag'); z.setPointerCapture(e.pointerId);
+});
+z.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; cam.tx = drag.tx + dx; cam.ty = drag.ty + dy; render(); });
+z.addEventListener('pointerup', e => {
+  z.classList.remove('drag'); if (!drag) return; drag = null;
+  if (moved) return;
+  const hit = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.dataset && x.dataset.i !== undefined);
+  if (hit) { const n = notes[+hit.dataset.i]; lastL === 0 ? flyTo(n.x, n.y, 2.6) : showNote(n); } else closeCard();
+});
+$('#zin').onclick = () => zoomAt(1.5, W / 2, H / 2);
+$('#zout').onclick = () => zoomAt(1 / 1.5, W / 2, H / 2);
+$('#fit').onclick = () => flyTo(0, 0, 1);
+$('#foc').onclick = () => $('#grid').classList.toggle('focus');
+$('#lst').onclick = () => toggleList();
+document.querySelectorAll('#lvl button').forEach(b => b.onclick = () => { const [x, y] = centreWorld(); flyTo(+b.dataset.l === 0 ? 0 : x, +b.dataset.l === 0 ? 0 : y, [1, 2.4, 5.5][+b.dataset.l]); });
+$('#mm').addEventListener('click', e => { const r = e.currentTarget.getBoundingClientRect(); const wx = (e.clientX - r.left) / r.width * 1080 - 540, wy = (e.clientY - r.top) / r.height * 1080 - 540; flyTo(wx, wy, Math.max(cam.k / k0, 2)); });
+document.addEventListener('keydown', e => {
+  const typing = e.target.tagName === 'INPUT';
+  if (e.key === 'Escape') { if ($('#kt').classList.contains('open')) closeKontor(); else if (card) closeCard(); else if (list) toggleList(); else flyTo(0, 0, 1); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); $('#q').focus(); return; }
+  if (typing) return;
+  if (e.key === '/') { e.preventDefault(); openKontor(); return; }
+  const step = 60;
+  const map = { '+': () => zoomAt(1.4, W / 2, H / 2), '=': () => zoomAt(1.4, W / 2, H / 2), '-': () => zoomAt(1 / 1.4, W / 2, H / 2), '0': () => flyTo(0, 0, 1),
+    ArrowLeft: () => { cam.tx += step; render(); }, ArrowRight: () => { cam.tx -= step; render(); }, ArrowUp: () => { cam.ty += step; render(); }, ArrowDown: () => { cam.ty -= step; render(); },
+    f: () => $('#grid').classList.toggle('focus'), l: () => toggleList() };
+  if (map[e.key]) { e.preventDefault(); map[e.key](); }
+  else if (/^[1-8]$/.test(e.key)) launchers[+e.key - 1].click();
+});
+
+// ---------- needs-you queue ----------
+function renderQueue(){
+  const nq = $('#nq');
+  document.title = (queue.length ? `(${queue.length}) ` : '') + 'Kontor — Zentrale D';
+  const waiting = AGENTS.filter(a => a.st === 'waiting').length, running = AGENTS.filter(a => a.st === 'active').length;
+  $('#corest').textContent = `${running} laufen · ${waiting} warten`;
+  if (!queue.length) { nq.className = 'nq calm'; nq.innerHTML = '● Nichts braucht dich gerade — Agents melden sich hier, wenn sie hängen.'; return; }
+  qi = Math.min(qi, queue.length - 1);
+  const it = queue[qi];
+  nq.className = 'nq';
+  nq.innerHTML = `<div class="h">Needs you · ${qi + 1} von ${queue.length}<span class="nav"><button id="qp" aria-label="vorherige">‹</button><button id="qn" aria-label="nächste">›</button></span></div>
+    <div class="q">${it.q}</div><div class="why">${it.why}</div>
+    <div class="b">${it.kind === 'perm'
+      ? '<button class="btn pri" data-a="ok">Einmal erlauben</button><button class="btn" data-a="always">Für Routine erlauben</button><button class="btn" data-a="no">Ablehnen</button>'
+      : '<button class="btn pri" data-a="answer">Beantworten …</button>'}
+      <button class="btn gh" data-a="go" style="margin-left:auto">Zum Agent ›</button></div>`;
+  $('#qp').onclick = () => { qi = (qi - 1 + queue.length) % queue.length; renderQueue(); };
+  $('#qn').onclick = () => { qi = (qi + 1) % queue.length; renderQueue(); };
+  nq.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    const g = AGENTS.find(a => a.id === it.agent), a = b.dataset.a;
+    if (a === 'go') { flyTo(g.x, g.y, 3); showAgent(g); return; }
+    if (a === 'answer') { flyTo(g.x, g.y, 3); showAgent(g, true); return; }
+    queue.splice(qi, 1); g.st = 'active'; g.word = 'arbeitet'; g.btn.className = 'ag active'; g.btn.querySelector('em').textContent = 'arbeitet';
+    toast(a === 'no' ? 'Abgelehnt — Agent bekommt die Absage' : 'Erlaubt — Agent läuft weiter'); renderQueue();
+  });
+}
+
+// ---------- cards ----------
+let card = null, selected = null, list = null;
+function closeCard(){ if (card) card.remove(); card = null; selected = null; sel.setAttribute('r', 0); }
+function mkCard(html){ closeCard(); card = document.createElement('div'); card.className = 'card'; card.innerHTML = `<button class="x" aria-label="schließen">×</button>` + html; z.appendChild(card); card.querySelector('.x').onclick = closeCard; return card; }
+const ago = d => d < 1 / 24 ? `vor ${Math.max(1, Math.round(d * 1440))} min` : d < 1 ? `vor ${Math.round(d * 24)} h` : `vor ${Math.round(d)} Tagen`;
+function showNote(n){
+  const by = AGENTS.filter(g => (g.reads || []).includes(n) || (g.writes || []).includes(n));
+  const c = mkCard(`<h4>${n.title}</h4><div class="p">${n.sec.path}/${n.title.replace(/ · /g, '-')}.md</div>
+    <div class="mu">bearbeitet ${ago(n.age)} · ${n.links.length} Links</div>
+    ${by.map(g => `<div class="touch">${(g.writes || []).includes(n) ? '✎ schreibt gerade' : '◉ liest gerade'}: ${g.name}</div>`).join('')}
+    <div class="ex">Erste Zeilen der Notiz als Vorschau — kommt aus derselben Quelle, die der Obsidian-Index schon liest.</div>
+    <div class="lk">${n.links.slice(0, 6).map(l => `<span data-i="${l.i}">${l.title}</span>`).join('')}</div>
+    <div class="b"><button class="btn ac" data-a="ask">Kontor dazu fragen</button><button class="btn">In Obsidian öffnen</button></div>`);
+  c.querySelectorAll('.lk span').forEach(s => s.onclick = () => { const m = notes[+s.dataset.i]; flyTo(m.x, m.y, Math.max(cam.k / k0, 3)); showNote(m); });
+  c.querySelector('[data-a=ask]').onclick = () => { openKontor(`Zu [[${n.title}]]: `); };
+  selected = n; render();
+}
+function showAgent(g, answer){
+  const c = mkCard(`<h4>${g.name}</h4><div class="p">stage: ${g.stage}</div>
+    <div style="color:${g.st === 'waiting' ? 'var(--wa)' : g.st === 'active' ? 'var(--ok)' : 'var(--mu)'}">● ${g.word}</div>
+    <div class="ex">${g.last}</div>
+    ${(g.reads || []).map(n => `<div class="touch">liest: ${n.title}</div>`).join('')}${(g.writes || []).map(n => `<div class="touch" style="color:var(--ok)">schreibt: ${n.title}</div>`).join('')}
+    ${answer ? '<div class="kt-a" style="margin-top:6px"><input style="width:100%;background:#12151b;border:1px solid var(--ln2);border-radius:6px;color:var(--fg);padding:5px 7px" placeholder="Antwort an den Agent …"></div>' : ''}
+    <div class="b"><button class="btn ac">Session öffnen</button><button class="btn">Stoppen</button></div>`);
+  if (answer) c.querySelector('input').focus();
+}
+function toggleList(){
+  if (list) { list.remove(); list = null; return; }
+  list = document.createElement('div'); list.className = 'list';
+  const recent = notes.filter(n => !n.hub).sort((a, b) => a.age - b.age).slice(0, 14);
+  list.innerHTML = `<div class="th">Zentrale als Liste — gleicher Inhalt, für Tastatur und Screenreader <button class="act" id="lc">schließen</button></div>
+    <div class="th" style="margin-top:6px">Agents</div>${AGENTS.map(g => `<div class="row link" data-g="${g.id}"><span>${g.name}</span><span class="mu">${g.word}</span></div>`).join('')}
+    <div class="th" style="margin-top:10px">Zuletzt berührt</div>${recent.map(n => `<div class="row link" data-n="${n.i}"><span>${n.title}</span><span class="mu">${n.sec.name} · ${ago(n.age)}</span></div>`).join('')}`;
+  z.appendChild(list);
+  list.querySelector('#lc').onclick = toggleList;
+  list.querySelectorAll('[data-g]').forEach(r => r.onclick = () => { const g = AGENTS.find(a => a.id === r.dataset.g); toggleList(); flyTo(g.x, g.y, 3); showAgent(g); });
+  list.querySelectorAll('[data-n]').forEach(r => r.onclick = () => { const n = notes[+r.dataset.n]; toggleList(); flyTo(n.x, n.y, 5); showNote(n); });
+}
+function toast(t){ const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => e.classList.remove('on'), 1600); }
+
+// ---------- Kontor tile ----------
+const convo = [
+  ['me', 'Was ist über Nacht passiert?'],
+  ['k', '<span class="tool">Bash · gh pr checks 467</span>2 Routinen liefen grün. PR #467 hat 4 rote Checks (golangci: unused param in stage_handlers.go).'],
+  ['me', 'Und der Shop?'],
+  ['k', '<span class="tool">Read · work/client-shop/note · mysqldump-filter.md</span>client-shop wartet auf deine Antwort zum Dump-Filter — steht oben in „Needs you“.'],
+  ['k', 'PR #467 hat 4 rote Checks. Soll ich einen Fix-Task mit manual autonomy anlegen?'],
+];
+function renderConvo(){ $('#ktbody').innerHTML = convo.map(([w, t]) => `<div class="msg ${w}">${t}</div>`).join(''); $('#ktbody').scrollTop = 1e6; const last = convo.filter(c => c[0] === 'k').pop(); $('#ktlast').innerHTML = last[1].replace(/<span class="tool">.*?<\/span>/, ''); }
+function openKontor(prefill){ const kt = $('#kt'); kt.classList.add('open'); $('#kthint').textContent = 'esc'; const i = $('#ktin'); if (prefill) i.value = prefill; setTimeout(() => { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, reduce ? 0 : 150); }
+function closeKontor(){ $('#kt').classList.remove('open'); $('#kthint').textContent = '/ antworten'; z.focus(); }
+$('#kth').onclick = () => $('#kt').classList.contains('open') ? closeKontor() : openKontor();
+$('#ktin').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.value.trim()) return;
+  convo.push(['me', e.target.value.trim()]); e.target.value = ''; renderConvo();
+  setTimeout(() => { convo.push(['k', '<span class="tool">kontor-tasks · create_task</span>Erledigt — Task „Fix golangci auf #467“ liegt in der Pipeline (manual autonomy).']); renderConvo(); }, 700);
+});
+
+// ---------- side tiles + minimap + search ----------
+$('#memrecent').innerHTML = [adA, acA, adC, boA].map(n => `<div class="row link" data-n="${n.i}"><span>${n.title}</span><span class="mu">${ago(n.age)}</span></div>`).join('');
+document.querySelectorAll('[data-n]').forEach(r => r.onclick = () => { const n = notes[+r.dataset.n]; flyTo(n.x, n.y, 5); showNote(n); });
+document.querySelectorAll('.side [data-agent]').forEach(r => r.onclick = () => { const g = AGENTS.find(a => a.id === r.dataset.agent); flyTo(g.x, g.y, 3); showAgent(g); });
+const mmg = $('#mmg');
+for (const s of SECTORS) el('path', { d: wedge(s.a0, s.a1, 100, 440), fill: s.col, 'fill-opacity': .12 }, mmg);
+for (const n of notes) el('circle', { cx: n.x, cy: n.y, r: 5, fill: n.sec.col, 'fill-opacity': .8 }, mmg);
+for (const g of AGENTS) el('circle', { cx: 90 * Math.cos(g.ang), cy: 90 * Math.sin(g.ang), r: 16, fill: g.st === 'waiting' ? '#f5b544' : g.st === 'active' ? '#3ddc97' : '#6b7280' }, mmg);
+$('#titles').innerHTML = notes.map(n => `<option value="${n.title}">`).join('') + AGENTS.map(g => `<option value="${g.name}">`).join('');
+$('#q').addEventListener('change', e => {
+  const v = e.target.value.toLowerCase(); if (!v) return;
+  const g = AGENTS.find(a => a.name.toLowerCase() === v); if (g) { flyTo(g.x, g.y, 3); showAgent(g); e.target.value = ''; return; }
+  const n = notes.find(x => x.title.toLowerCase() === v) || notes.find(x => x.title.toLowerCase().includes(v));
+  if (n) { flyTo(n.x, n.y, 5.5); showNote(n); e.target.value = ''; z.focus(); }
+});
+
+renderQueue(); renderConvo(); z.focus();
+})();
+</script>
+</body>
+</html>

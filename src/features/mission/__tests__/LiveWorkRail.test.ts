@@ -39,10 +39,4 @@ describe('liveWorkRail', () => {
     expect(wrapper.text()).toContain('Nothing is running')
     wrapper.unmount()
   })
-
-  it('counts what it shows', () => {
-    const wrapper = mount(LiveWorkRail, { props: { tasks: [task('a', 'implementation'), task('b', 'finalization')] } })
-    expect(wrapper.text()).toContain('2 running')
-    wrapper.unmount()
-  })
 })

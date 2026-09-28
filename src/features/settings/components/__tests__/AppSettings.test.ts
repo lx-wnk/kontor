@@ -40,6 +40,21 @@ describe('appSettings', () => {
     }))
   })
 
+  // workspace.layout is edited on the page itself, never as a raw JSON field here.
+  it('hides the workspace category while keeping other categories visible', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { key: 'workspace.layout', type: 'string', value: '', default: '', apply: 'live', category: 'workspace' },
+        { key: 'sse.intervalMs', type: 'int', value: '3000', default: '3000', apply: 'restart', category: 'sse' },
+      ],
+    })
+    const w = mount(AppSettings)
+    await flushPromises()
+    expect(w.text()).not.toContain('workspace.layout')
+    expect(w.text()).toContain('sse.intervalMs')
+  })
+
   // A failed rebuild must show the build output, not claim the restart happened.
   it('shows the build output on a failed rebuild instead of claiming success', async () => {
     const fetchMock = vi.fn()

@@ -21,10 +21,10 @@ describe('useViewState', () => {
     localStorage.clear()
   })
 
-  it('defaults to cockpit/cards with no stored state', async () => {
+  it('defaults to zentrale/cards with no stored state', async () => {
     const { useViewState } = await freshModule()
     const { activeView, dashboardLayout } = useViewState()
-    expect(activeView.value).toBe('cockpit')
+    expect(activeView.value).toBe('zentrale')
     expect(dashboardLayout.value).toBe('cards')
   })
 
@@ -59,10 +59,42 @@ describe('useViewState', () => {
     expect(localStorage.getItem('agent-dashboard-layout')).toBe('list')
   })
 
-  it('ignores an unknown stored activeView and falls back to cockpit', async () => {
+  it('keeps a stored page view and recognises core views', async () => {
+    localStorage.setItem('agent-active-view', 'page:p-abc')
+    const { useViewState, isCoreView, pageIdOf, resolveView } = await freshModule()
+    expect(useViewState().activeView.value).toBe('page:p-abc')
+    expect(isCoreView('zentrale')).toBe(true)
+    expect(isCoreView('page:p-abc')).toBe(false)
+    expect(pageIdOf('page:p-abc')).toBe('p-abc')
+    expect(pageIdOf('zentrale')).toBeNull()
+    // A page that no longer exists falls back instead of blanking the screen.
+    expect(resolveView('page:p-gone', ['zentrale'])).toBe('zentrale')
+    expect(resolveView('page:p-abc', ['zentrale', 'p-abc'])).toBe('page:p-abc')
+  })
+
+  it('maps page:zentrale to the core zentrale view', async () => {
+    const { resolveView } = await freshModule()
+    expect(resolveView('page:zentrale', ['zentrale', 'morning'])).toBe('zentrale')
+  })
+
+  it('falls back when a stored page id does not match the id pattern', async () => {
+    const { resolveView } = await freshModule()
+    expect(resolveView('page:Not Valid!', ['Not Valid!'])).toBe('zentrale')
+  })
+
+  it('ignores an unknown stored activeView and falls back to zentrale', async () => {
     localStorage.setItem('agent-active-view', 'kanban')
     const { useViewState } = await freshModule()
-    expect(useViewState().activeView.value).toBe('cockpit')
+    expect(useViewState().activeView.value).toBe('zentrale')
+  })
+
+  // The two views folded into the Zentrale. Someone whose last view was one of
+  // them falls back to the Zentrale, and the stale value is overwritten.
+  it.each(['mission', 'cockpit'])('reads a stored %s view as zentrale', async (old) => {
+    localStorage.setItem('agent-active-view', old)
+    const { useViewState } = await freshModule()
+    expect(useViewState().activeView.value).toBe('zentrale')
+    expect(localStorage.getItem('agent-active-view')).toBe('zentrale')
   })
 })
 

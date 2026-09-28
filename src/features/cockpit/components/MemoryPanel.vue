@@ -26,6 +26,7 @@ const state = computed<PanelState>(() => {
   <CockpitPanel
     id="memory"
     title="Memory"
+    icon="✎"
     :state="state"
     :message="denied ?? error ?? 'No memory space is defined in this scope.'"
   >

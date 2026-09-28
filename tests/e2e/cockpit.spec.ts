@@ -18,7 +18,7 @@ async function expectOnlyState(page: Page, panel: string, state: string) {
 
 async function openCockpit(page: Page) {
   await page.goto('/')
-  await expect(page.getByTestId('cockpit')).toBeVisible()
+  await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
 }
 
 test.describe('cockpit panels', () => {
@@ -93,11 +93,13 @@ test.describe('cockpit panels', () => {
     await expectOnlyState(page, 'routines', 'empty')
   })
 
-  test('the cockpit does not replace the dashboard, it sits beside it', async ({ page }) => {
+  test('the sidebar lists Zentrale before Dashboard', async ({ page }) => {
     await stubJson(page, '/api/github/summary', { error: 'github is not configured' }, 503)
     await openCockpit(page)
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: 'Dashboard' }).click()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dashboard')
-    await expect(page.getByTestId('cockpit')).toHaveCount(0)
+    const labels = await page.locator('[data-testid="nav-items"] button').allTextContents()
+    const zentraleIndex = labels.findIndex(t => t.includes('Zentrale'))
+    const dashboardIndex = labels.findIndex(t => t.includes('Dashboard'))
+    expect(zentraleIndex).toBeGreaterThanOrEqual(0)
+    expect(dashboardIndex).toBeGreaterThan(zentraleIndex)
   })
 })

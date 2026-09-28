@@ -17,7 +17,7 @@ interface Sample {
 
 /** Synchronous single-frame read, used for the pre-hover / post-collapse baseline. */
 function readMetrics(): Metrics {
-  const NAV_LABELS = ['Mission', 'Cockpit', 'Dashboard']
+  const NAV_LABELS = ['Zentrale', 'Dashboard']
   const navEl = document.querySelector('nav[aria-label="Primary"]') as HTMLElement
   const brand = document.querySelector('[data-testid="sidebar-brand"]') as HTMLElement
   const buttons = NAV_LABELS.map(label =>
@@ -31,7 +31,7 @@ function readMetrics(): Metrics {
 
 /** Samples layout every animation frame for ~400ms — long enough to cover the 200ms width transition. */
 function sampleFrames(): Promise<Sample> {
-  const NAV_LABELS = ['Mission', 'Cockpit', 'Dashboard']
+  const NAV_LABELS = ['Zentrale', 'Dashboard']
   const navEl = document.querySelector('nav[aria-label="Primary"]') as HTMLElement
   const brand = document.querySelector('[data-testid="sidebar-brand"]') as HTMLElement
   const buttons = NAV_LABELS.map(label =>

@@ -4,7 +4,7 @@ import { stubAuthDisabled, stubEmptyStream, stubJson } from './helpers'
 const PID = 4242
 
 test('Mission input starts a Kontor session instead of creating a task', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('agent-active-view', 'mission'))
+  await page.addInitScript(() => localStorage.setItem('agent-active-view', 'zentrale'))
   await stubAuthDisabled(page)
   await stubJson(page, '/api/agents', [])
   await stubEmptyStream(page, '/api/agents/stream')
@@ -31,11 +31,16 @@ test('Mission input starts a Kontor session instead of creating a task', async (
   })
 
   await page.goto('/')
+  // Wait for the collapsed tile — the Kontor widget is behind an async chunk,
+  // and pressing '/' before it mounts its own key listener is a race.
+  await expect(page.getByTestId('kontor-collapsed')).toBeVisible()
+  await page.locator('body').press('/')
+  await expect(page.getByTestId('kontor-expanded')).toBeVisible()
   await expect(page.getByTestId('kontor-state')).toHaveText('No session')
 
-  const input = page.getByTestId('mission-input')
+  const input = page.getByTestId('kontor-input')
   await input.fill('Plan phase 4 of the dashboard')
-  await expect(page.getByTestId('mission-reading-label')).toHaveText('START KONTOR')
+  await expect(page.getByTestId('kontor-reading-label')).toHaveText('START KONTOR')
   await input.press('Enter')
 
   await expect(page.getByTestId('kontor-state')).toHaveText('Running')

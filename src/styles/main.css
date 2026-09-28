@@ -134,6 +134,17 @@
   --neutral-soft: var(--color-slate-100);
   --neutral-text: var(--color-slate-600);
   --neutral-line: var(--color-slate-200);
+  /* Hub — start-page canvas background, today-touched ring, sector palette */
+  --hub-bg: radial-gradient(circle at 50% 50%, var(--color-slate-100) 0, var(--app) 72%);
+  --halo: var(--color-sky-500);
+  --sector-0: #4f6bed;
+  --sector-1: #16a36a;
+  --sector-2: #e06c55;
+  --sector-3: #8b67e0;
+  --sector-4: #c9921a;
+  --sector-5: #0f8fa3;
+  --sector-6: #d0537f;
+  --sector-7: #6b7a2a;
 }
 
 .dark {
@@ -173,6 +184,17 @@
   --neutral-soft: var(--color-slate-800);
   --neutral-text: var(--color-slate-400);
   --neutral-line: var(--color-slate-700);
+  /* Hub — start-page canvas background, today-touched ring, sector palette */
+  --hub-bg: radial-gradient(circle at 50% 50%, #131821 0, var(--app) 72%);
+  --halo: #9fe0ff;
+  --sector-0: #7c9cff;
+  --sector-1: #3ddc97;
+  --sector-2: #f59e8b;
+  --sector-3: #c4a7ff;
+  --sector-4: #ffd479;
+  --sector-5: #5fd4e8;
+  --sector-6: #ff8fb8;
+  --sector-7: #b9d46a;
 }
 
 /*

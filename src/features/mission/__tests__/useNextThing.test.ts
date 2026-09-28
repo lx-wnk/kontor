@@ -1,7 +1,8 @@
 import type { PermissionItem } from '@/composables/usePendingPermissions'
+import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import { describe, expect, it } from 'vitest'
-import { KIND_RANK, rankNextThings } from '../composables/useNextThing'
+import { KIND_RANK, rankNextThings, WHY } from '../composables/useNextThing'
 
 function task(id: string, over: Partial<PipelineTask> = {}): PipelineTask {
   return { id, slug: id, title: `task ${id}`, currentStage: 'implementation', cwd: '/repo', ...over } as PipelineTask
@@ -106,5 +107,23 @@ describe('rankNextThings', () => {
   it('gives every kind a distinct place in the order', () => {
     const ranks = Object.values(KIND_RANK)
     expect(new Set(ranks).size).toBe(ranks.length)
+  })
+
+  it('ranks a pending capability decision after questions and before plans', () => {
+    const decision: PendingCapabilityDecision = { id: 'd1', capability: 'net.fetch', value: 'api.github.com', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T10:00:00Z' }
+    const planTask = task('t-plan', { currentStage: 'plan_review' })
+    const ranked = rankNextThings([], [planTask], [], [decision])
+    expect(ranked.map(n => n.kind)).toEqual(['capability', 'plan'])
+    expect(ranked[0]).toMatchObject({ kind: 'capability', decision, title: 'net.fetch(api.github.com)', why: WHY.capability })
+  })
+
+  // Pushed newest-first, several capability items must still serve the
+  // longest wait first, same as permissions — otherwise a trickle of new
+  // asks starves the oldest one.
+  it('ranks several capability decisions oldest-first regardless of push order', () => {
+    const newer: PendingCapabilityDecision = { id: 'd-new', capability: 'net.fetch', value: 'api.github.com', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T12:00:00Z' }
+    const older: PendingCapabilityDecision = { id: 'd-old', capability: 'fs.write', value: '/tmp/out', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T09:00:00Z' }
+    const ranked = rankNextThings([], [], [], [newer, older])
+    expect(ranked.map(n => n.decision?.id)).toEqual(['d-old', 'd-new'])
   })
 })

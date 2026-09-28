@@ -1,4 +1,4 @@
-import type { ActiveView } from '@/composables/useViewState'
+import type { CoreView } from '@/composables/useViewState'
 import { ACTIVE_VIEWS } from '@/composables/useViewState'
 
 /**
@@ -17,7 +17,7 @@ export interface Reading {
   /** What pressing Enter does, stated as a consequence. */
   will: string
   /** For navigate: the view to switch to. */
-  view?: ActiveView
+  view?: CoreView
 }
 
 export function readInput(raw: string, sessionRunning = false): Reading {

@@ -21,7 +21,7 @@ const state = computed<PanelState>(() => {
 </script>
 
 <template>
-  <CockpitPanel id="agents" title="Agents" :state="state" :message="error ?? 'No agent is running right now.'">
+  <CockpitPanel id="agents" title="Agents" icon="◉" :state="state" :message="error ?? 'No agent is running right now.'">
     <ul class="flex flex-col gap-1.5">
       <li v-for="a in agents.slice(0, 6)" :key="a.sessionId" class="flex items-center justify-between gap-2 text-[12px] min-w-0" :data-testid="`cockpit-agent-${a.sessionId}`">
         <span class="truncate text-fg">{{ a.projectName }}</span>

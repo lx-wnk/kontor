@@ -8,6 +8,7 @@ import AppButton from './ui/AppButton.vue'
 
 const props = defineProps<{
   detectedQuestion: DetectedQuestion
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -177,7 +178,7 @@ function handleDetectedChatSubmit() {
         variant="primary"
         size="sm"
         data-testid="detected-send-btn"
-        :disabled="!detectedAnswered"
+        :disabled="!detectedAnswered || disabled"
         @click="handleDetectedSubmit"
       >
         Send answer
@@ -205,7 +206,7 @@ function handleDetectedChatSubmit() {
           variant="secondary"
           size="sm"
           data-testid="detected-chat-send-btn"
-          :disabled="!detectedChatReady"
+          :disabled="!detectedChatReady || disabled"
           @click="handleDetectedChatSubmit"
         >
           Send as chat

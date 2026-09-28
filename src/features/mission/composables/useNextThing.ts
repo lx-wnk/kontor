@@ -1,4 +1,5 @@
 import type { PermissionItem } from '@/composables/usePendingPermissions'
+import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import type { DetectedConfirm, DetectedQuestion } from '@/utils/askQuestionScreen'
 
@@ -11,7 +12,7 @@ import type { DetectedConfirm, DetectedQuestion } from '@/utils/askQuestionScree
  * blocked-ness is what makes the answer explainable in one sentence, and an
  * order nobody can explain is one people stop trusting.
  */
-export type NextKind = 'permission' | 'question' | 'plan'
+export type NextKind = 'permission' | 'question' | 'capability' | 'plan'
 
 export interface NextThing {
   kind: NextKind
@@ -27,6 +28,8 @@ export interface NextThing {
   /** Whichever screen that agent is holding open — one of the two, never both. */
   question?: DetectedQuestion
   confirm?: DetectedConfirm
+  /** The decision to allow or deny, for the capability kind. */
+  decision?: PendingCapabilityDecision
   /** What the centre puts in its headline. */
   title: string
   /** Why this one is first, shown verbatim — never a rank number. */
@@ -34,11 +37,12 @@ export interface NextThing {
 }
 
 /** Lower sorts first. Exported so a new kind has to state its place. */
-export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, plan: 2 }
+export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, capability: 2, plan: 3 }
 
 export const WHY: Record<NextKind, string> = {
   permission: 'First because an agent is stopped until you answer.',
   question: 'An agent asked you something and cannot go on until you reply.',
+  capability: 'A run is paused until you allow or deny this capability.',
   plan: 'Waiting on your approval — nothing is running while it waits.',
 }
 
@@ -47,7 +51,7 @@ export const WHY: Record<NextKind, string> = {
  * [0] for the centre and counts the rest, so the centre can never disagree
  * with what "2 more after this" says.
  */
-export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], agents: Agent[] = []): NextThing[] {
+export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], agents: Agent[] = [], decisions: PendingCapabilityDecision[] = []): NextThing[] {
   const out: NextThing[] = []
 
   for (const item of items) {
@@ -89,6 +93,19 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
     })
   }
 
+  for (const decision of decisions) {
+    out.push({
+      kind: 'capability',
+      taskId: '',
+      taskTitle: '',
+      projectName: '',
+      stage: '',
+      decision,
+      title: decision.value ? `${decision.capability}(${decision.value})` : decision.capability,
+      why: WHY.capability,
+    })
+  }
+
   for (const task of tasks) {
     if (task.currentStage !== 'plan_review')
       continue
@@ -112,7 +129,7 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
 }
 
 function waitedSince(n: NextThing): number {
-  const at = n.request?.requestedAt
+  const at = n.request?.requestedAt ?? n.decision?.requestedAt
   if (!at)
     return Number.MAX_SAFE_INTEGER
   const t = Date.parse(at)
