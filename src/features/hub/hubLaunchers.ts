@@ -36,13 +36,13 @@ const DOCK_TOP = 150
 const DOCK_STEP = 46
 
 // Where a launcher's centre lands on screen: on the left rail while docked, on its ring slot else.
-export function launcherPoint(index: number, docked: boolean, cam: Camera, agentRingPx: number): [number, number] {
+export function launcherPoint(index: number, docked: boolean, cam: Camera, k0: number, agentRingPx: number): [number, number] {
   return docked
     ? [DOCK_X, DOCK_TOP + index * DOCK_STEP]
-    : toScreen(cam, ...polar(launcherRingRadius(cam.k, agentRingPx), launcherSlotDeg(index)))
+    : toScreen(cam, ...polar(launcherRingRadius(k0, agentRingPx), launcherSlotDeg(index)))
 }
 
-export function launcherBox(index: number, docked: boolean, cam: Camera, agentRingPx: number): LabelBox {
-  const [sx, sy] = launcherPoint(index, docked, cam, agentRingPx)
+export function launcherBox(index: number, docked: boolean, cam: Camera, k0: number, agentRingPx: number): LabelBox {
+  const [sx, sy] = launcherPoint(index, docked, cam, k0, agentRingPx)
   return { x: sx - LAUNCHER_PX / 2, y: sy - LAUNCHER_PX / 2, w: LAUNCHER_PX, h: LAUNCHER_PX }
 }

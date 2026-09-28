@@ -271,6 +271,23 @@ type RecentTool struct {
 	Elided int    `json:"elided,omitempty"`
 }
 
+// NoteTouchKind says whether an agent read or wrote a vault note.
+type NoteTouchKind string
+
+const (
+	NoteTouchKindRead  NoteTouchKind = "read"
+	NoteTouchKindWrite NoteTouchKind = "write"
+)
+
+// NoteTouch is one vault note an agent read or wrote recently.
+type NoteTouch struct {
+	// Path is relative to obsidian.vaultRoot, the form the vault graph lists.
+	Path string        `json:"path"`
+	Kind NoteTouchKind `json:"kind"`
+	// At is RFC 3339, like Agent.LastActivity.
+	At string `json:"at"`
+}
+
 // PendingToolUse is the last assistant tool_use block that has no matching
 // tool_result yet. It indicates the agent is currently executing or blocked on
 // that tool call.
@@ -379,13 +396,18 @@ type Agent struct {
 	// ClaudeConfigDir alone, and the difference between attributing a session
 	// to a profile and having no idea which profile it runs on. Server-side
 	// only (the client has no use for it), hence no JSON field.
-	ClaudeConfigDirKnown      bool           `json:"-"`
-	Entrypoint                Entrypoint     `json:"entrypoint"`
-	Status                    AgentStatus    `json:"status"`
-	Uptime                    int64          `json:"uptime"`
-	LastActivity              string         `json:"lastActivity"`
-	CurrentAction             *string        `json:"currentAction"`
-	LastTools                 []RecentTool   `json:"lastTools"`
+	ClaudeConfigDirKnown bool         `json:"-"`
+	Entrypoint           Entrypoint   `json:"entrypoint"`
+	Status               AgentStatus  `json:"status"`
+	Uptime               int64        `json:"uptime"`
+	LastActivity         string       `json:"lastActivity"`
+	CurrentAction        *string      `json:"currentAction"`
+	LastTools            []RecentTool `json:"lastTools"`
+	// SessionTitle is the newest /rename custom title, else the newest
+	// Claude-generated title, else empty.
+	SessionTitle string `json:"sessionTitle,omitempty"`
+	// RecentNotes are the vault notes this agent read or wrote in the last ten minutes, newest first.
+	RecentNotes               []NoteTouch    `json:"recentNotes,omitempty"`
 	Tasks                     []TaskInfo     `json:"tasks"`
 	Subagents                 []SubAgent     `json:"subagents"`
 	TokenUsage                TokenUsage     `json:"tokenUsage"`

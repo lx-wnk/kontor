@@ -14,6 +14,10 @@ Preparing the first public release.
 
 ### Fixed
 
+- **Token totals no longer double-count under concurrent refreshes.** When the
+  agent stream, a hook-triggered rescan and an HTTP read refreshed the same
+  active session at once, each added the newly appended messages, inflating
+  that agent's tokens and cost. An appended region is now counted once.
 - **A widget whose chunk failed once recovers after a successful reload.**
   A tile that failed to load stayed recorded as failed even after a remount
   loaded its chunk, so the hub kept the needs-you strip visible beside it and
@@ -125,6 +129,8 @@ Preparing the first public release.
 
 ### Changed
 
+- The hub returns to its previous zoom and position after closing a card or
+  coming back from a module.
 - The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
   `lx-wnk/tap/kontor`, the container image is `ghcr.io/lx-wnk/kontor`, the macOS
   bundle identifier is `com.lxwnk.kontor`, and the Go modules are
@@ -174,6 +180,15 @@ Preparing the first public release.
 - **Pipeline stages renamed: `concept` is now `backlog`, `backlog` is now `ready`.** The holding pen where refinement chat runs is now called `backlog`, and the starting gun that auto-advances to implementation is now called `ready`. A one-shot data migration rewrites existing rows in `tasks.current_stage` and `stage_runs.stage` in collision-safe order (backlog→ready first, concept→backlog second). It also rewrote `task_schedules.current_stage` until that column was dropped — a routine never chose a stage, and nothing read the column. It runs exactly once, recorded in a new `applied_migrations` table, and it has to: the rename is chained, so a second pass would take the rows the first pass wrote as `backlog` and push them on to `ready` — every task parked in the refinement holding pen would start running by itself after a restart. The stored data cannot settle the question either, because a database holding no `concept` row is indistinguishable from a migrated one. `stage_runs.stage` is rewritten for all rows including terminal runs, because `GetLatestByTaskAndStage` lookups on non-terminal runs would break otherwise, and the rename is name normalization, not history falsification. The `refine.Concept` domain type, `inject_concept` tool name, and `conceptOutput`/`conceptJSON` variables are unchanged — they describe the domain object, not the pipeline stage.
 
 ### Added
+- Agents carry their session title (a /rename title, else Claude's generated one).
+- **Live edges in the hub.** A dashed line runs from an agent to each vault
+  note it read in the last ten minutes, a dotted one to each note it wrote,
+  fading as the touch ages. The server reads them from the agent's Obsidian MCP
+  calls and its `curl …/vault/…` commands (a `${VAR:-default}` is read as its
+  default, a variable assigned earlier in the same command is resolved; a path
+  holding any other shell variable is skipped, never guessed)
+  and ships them as `recentNotes` on each
+  agent; the `L` list names the same notes under each agent.
 - **The hub.** The Zentrale's centre tile is a zoomable live map: an orbit of
   every running agent grouped into sectors by project, and the Obsidian vault
   drawn alongside it as the hub's *brain* — notes and links on the same

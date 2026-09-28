@@ -102,4 +102,28 @@ describe('hubList', () => {
     expect(w.emitted('close')).toHaveLength(1)
     w.unmount()
   })
+
+  it('lists each agent\'s recent notes under it, and picking one emits its path', async () => {
+    const at = new Date().toISOString()
+    const w = mount(HubList, {
+      attachTo: document.body,
+      props: {
+        agents: [{ agent: a1, state: 'working' as const, notes: [{ path: 'work/plan.md', title: 'plan', kind: 'write' as const, at }] }],
+        notes: [],
+        graphStatus: 'ready' as GraphStatus,
+        graphMessage: '',
+        launchers,
+      },
+      global: { provide: { [OPEN_SETTINGS]: vi.fn() } },
+    })
+    const rows = w.findAll('[data-testid="hub-list-agent-note"]')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].attributes('aria-label')).toMatch(/^plan, wrote /)
+    await rows[0].trigger('click')
+    expect(w.emitted('note')).toEqual([['work/plan.md']])
+    const group = rows[0].element.closest('[role="group"]')
+    expect(group).not.toBeNull()
+    expect(group!.getAttribute('aria-labelledby')).toBe(w.get('[data-testid="hub-list-agent"]').attributes('id'))
+    w.unmount()
+  })
 })

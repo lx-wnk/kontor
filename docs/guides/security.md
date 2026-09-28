@@ -428,6 +428,11 @@ REST plugin may read note content to evaluate the JsonLogic query, but
 neither search asks for it back). Both searches are vault-wide upstream, so every note and every
 link target is confined to `obsidian.vaultRoot` (`pathUnderRoot`) before it is
 returned; a note outside the root, and a link to or from one, never appears.
+The agent stream (`/api/agents/stream`) carries each agent's `recentNotes` —
+vault-relative paths of notes it read or wrote in the last ten minutes —
+without a `memory.read` check, because a capability grant is scoped
+(global/project), not per viewer, and the stream already carries the agents'
+full shell commands. Note contents and the graph stay behind `memory.read`.
 The graph is cached for 60 seconds and rebuilt once for all concurrent
 callers. An upstream failure answers `502` with a fixed message, never the
 upstream error text, which can carry the vault URL. **The open route refuses

@@ -57,17 +57,18 @@ describe('camera maths', () => {
 
 describe('launchersDocked', () => {
   // The stage that just holds the ring: its radius plus half a launcher button.
-  const fits = (scale: number, ring: number) => 2 * (launcherRingRadius(scale, ring) * scale + LAUNCHER_PX / 2)
+  const fits = (k0: number, ring: number, rel = 1) => 2 * (launcherRingRadius(k0, ring) * k0 * rel + LAUNCHER_PX / 2)
 
   it('keeps the ring while it fits the stage and the camera is below the dock zoom', () => {
     expect(launchersDocked(1, 0.57, 196, fits(0.57, 196) + 1)).toBe(false)
-    expect(launchersDocked(DOCK_REL, 0.57, 196, fits(0.57, 196) + 1)).toBe(false)
+    expect(launchersDocked(DOCK_REL, 0.57, 196, fits(0.57, 196, DOCK_REL) + 1)).toBe(false)
   })
   it('docks beyond the dock zoom', () => {
     expect(launchersDocked(DOCK_REL + 0.01, 1, 116, Infinity)).toBe(true)
   })
   it('docks when the ring the sector names push out no longer fits the stage', () => {
     expect(launchersDocked(1, 0.57, 196, fits(0.57, 196) - 1)).toBe(true)
+    expect(launchersDocked(1.2, 0.57, 196, fits(0.57, 196) + 1)).toBe(true)
     // A crowded agent ring pushes the sector names out, and the launchers with them.
     expect(launchersDocked(1, 1, 455, 1090)).toBe(true)
     expect(launchersDocked(1, 1, 116, 1090)).toBe(false)

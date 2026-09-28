@@ -293,6 +293,26 @@ export interface RecentTool {
   elided?: number
 }
 /**
+ * NoteTouchKind says whether an agent read or wrote a vault note.
+ */
+export const NoteTouchKindRead = 'read'
+export const NoteTouchKindWrite = 'write'
+export type NoteTouchKind = typeof NoteTouchKindRead | typeof NoteTouchKindWrite
+/**
+ * NoteTouch is one vault note an agent read or wrote recently.
+ */
+export interface NoteTouch {
+  /**
+   * Path is relative to obsidian.vaultRoot, the form the vault graph lists.
+   */
+  path: string
+  kind: NoteTouchKind
+  /**
+   * At is RFC 3339, like Agent.LastActivity.
+   */
+  at: string
+}
+/**
  * PendingToolUse is the last assistant tool_use block that has no matching
  * tool_result yet. It indicates the agent is currently executing or blocked on
  * that tool call.
@@ -408,6 +428,15 @@ export interface Agent {
   lastActivity: string
   currentAction?: string
   lastTools: RecentTool[]
+  /**
+   * SessionTitle is the newest /rename custom title, else the newest
+   * Claude-generated title, else empty.
+   */
+  sessionTitle?: string
+  /**
+   * RecentNotes are the vault notes this agent read or wrote in the last ten minutes, newest first.
+   */
+  recentNotes?: NoteTouch[]
   tasks: TaskInfo[]
   subagents: SubAgent[]
   tokenUsage: TokenUsage

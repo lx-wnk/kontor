@@ -23,6 +23,10 @@ export interface UseHubCamera {
   centreWorld: () => [number, number]
 }
 
+interface HubView { wx: number, wy: number, rel: number }
+
+export const lastHubView = shallowRef<HubView | null>(null)
+
 const TAP_THRESHOLD_PX = 3
 // pointerdown ignored on interactive chrome so it stays draggable everywhere else
 const INTERACTIVE_SELECTOR = 'button, input, a, [data-hub-layer]'
@@ -34,7 +38,7 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
   const dragging = ref(false)
   let sized = false
   // The destination of a flight that has not landed — before the first measure there is nothing to fly through, and a resize mid-flight settles on it rather than finishing against the old stage.
-  let pendingFlight: { wx: number, wy: number, rel: number } | null = null
+  let pendingFlight: HubView | null = lastHubView.value
 
   const rel = computed(() => cam.value.k / k0.value)
   const level = computed<HubLevel>(() => levelOf(rel.value))
@@ -161,7 +165,13 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
     dragStart = null
   })
 
-  onUnmounted(cancelFlight)
+  onUnmounted(() => {
+    if (sized) {
+      const [wx, wy] = centreWorld()
+      lastHubView.value = pendingFlight ?? { wx, wy, rel: rel.value }
+    }
+    cancelFlight()
+  })
 
   return {
     cam,

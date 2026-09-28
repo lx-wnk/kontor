@@ -2,7 +2,7 @@ import type { HubCameraOptions } from '../composables/useHubCamera'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, ref } from 'vue'
-import { useHubCamera } from '../composables/useHubCamera'
+import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { MAX_REL, toScreen } from '../hubCamera'
 
 class MockResizeObserver {
@@ -47,7 +47,7 @@ async function mountCamera(options?: HubCameraOptions) {
   await flushPromises()
   const el = wrapper.element as HTMLElement
   el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1090, height: 1130, right: 1090, bottom: 1130, x: 0, y: 0, toJSON: () => ({}) })
-  return { api, el }
+  return { api, el, wrapper }
 }
 
 function resize(width: number, height: number) {
@@ -57,6 +57,7 @@ function resize(width: number, height: number) {
 
 beforeEach(() => {
   MockResizeObserver.instances = []
+  lastHubView.value = null
   vi.stubGlobal('ResizeObserver', MockResizeObserver)
   stubReducedMotion(false)
 })
@@ -175,5 +176,27 @@ describe('useHubCamera', () => {
     expect(api.rel.value).toBeCloseTo(relBefore)
     expect(api.centreWorld()[0]).toBeCloseTo(centreBefore[0])
     expect(api.centreWorld()[1]).toBeCloseTo(centreBefore[1])
+  })
+
+  it('lands a remount on the previous centre and rel instead of fitting, and fit still fits', async () => {
+    stubReducedMotion(true)
+    const first = await mountCamera()
+    resize(1090, 1130)
+    first.api.zoomBy(2.5)
+    first.api.panBy(-120, 40)
+    const [cx, cy] = first.api.centreWorld()
+    const relBefore = first.api.rel.value
+    first.wrapper.unmount()
+
+    const { api } = await mountCamera()
+    resize(700, 700)
+
+    expect(api.rel.value).toBeCloseTo(relBefore)
+    expect(api.centreWorld()[0]).toBeCloseTo(cx)
+    expect(api.centreWorld()[1]).toBeCloseTo(cy)
+
+    api.fit()
+    expect(api.rel.value).toBeCloseTo(1)
+    expect(toScreen(api.cam.value, 0, 0)).toEqual([350, 350])
   })
 })

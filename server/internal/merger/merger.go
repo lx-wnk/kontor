@@ -259,6 +259,7 @@ type Merger struct {
 	tracker     *staleTracker
 	registry    *provider.Registry
 	screenProbe ScreenProbeFn
+	notePath    func(string) (string, bool)
 }
 
 // ScreenProbeFn resolves whichever AskUserQuestion screen is currently open on
@@ -392,7 +393,7 @@ func (m *Merger) GetAgents(ctx context.Context, opts GetAgentsOpts) ([]sdk.Agent
 	// Append finished (stale) controllable agents. Dedup guards the PID-reuse
 	// edge: a session re-launched under a new live PID must not also show a
 	// stale card from the old PID's snapshot.
-	for _, s := range m.tracker.buildStale(livePIDs, opts.BaselinePerSessionCostUSD) {
+	for _, s := range m.tracker.buildStale(livePIDs, opts.BaselinePerSessionCostUSD, m.notePath) {
 		if liveSessions[s.SessionID] {
 			continue
 		}
@@ -484,6 +485,8 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 		LastActivity:              session.LastActivity.Format(time.RFC3339),
 		CurrentAction:             strPtr(session.CurrentAction),
 		LastTools:                 append(make([]sdk.RecentTool, 0), session.LastTools...),
+		SessionTitle:              session.SessionTitle,
+		RecentNotes:               agentNotes(session.RecentNotes, m.notePath, time.Now()),
 		Tasks:                     append(make([]sdk.TaskInfo, 0), session.Tasks...),
 		Subagents:                 buildSubagents(session),
 		TokenUsage:                session.TokenUsage,

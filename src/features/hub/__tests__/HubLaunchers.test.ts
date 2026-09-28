@@ -11,10 +11,11 @@ const launchers: Launcher[] = [
   { id: 'new-page', label: 'New page', icon: '+', kind: 'new-page' },
 ]
 const cam = { k: 2, tx: 500, ty: 400 }
+const K0 = 1
 const AGENT_RING_PX = 196
 
 function mountLaunchers(docked: boolean) {
-  return mount(HubLaunchers, { props: { launchers, cam, docked, agentRingPx: AGENT_RING_PX } })
+  return mount(HubLaunchers, { props: { launchers, cam, k0: K0, docked, agentRingPx: AGENT_RING_PX } })
 }
 
 function position(w: ReturnType<typeof mountLaunchers>, i: number): [number, number] {
@@ -29,7 +30,7 @@ describe('hubLaunchers', () => {
     expect(buttons.map(b => b.attributes('aria-label'))).toEqual(['Dashboard', 'Pipeline', 'New page'])
     expect(buttons.map(b => b.attributes('title'))).toEqual(['Dashboard (1)', 'Pipeline (2)', 'New page (3)'])
     launchers.forEach((_, i) => {
-      const [wx, wy] = polar(launcherRingRadius(cam.k, AGENT_RING_PX), launcherSlotDeg(i))
+      const [wx, wy] = polar(launcherRingRadius(K0, AGENT_RING_PX), launcherSlotDeg(i))
       const [x, y] = position(w, i)
       expect(x).toBeCloseTo(wx * cam.k + cam.tx)
       expect(y).toBeCloseTo(wy * cam.k + cam.ty)

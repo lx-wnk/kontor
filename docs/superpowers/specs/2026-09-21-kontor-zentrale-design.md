@@ -201,17 +201,10 @@ appear on hover and focus.
 
 ### Live edges
 
-A dashed line runs from an agent to each note it read in the last ten minutes, a
-dotted one to each note it wrote.
-
-- **Pipeline tasks:** the chain exists today — stage run → `memory_injection.entry_ids`
-  (`server/internal/db/ent/schema/memory_injection.go:20-24`) → memory entry →
-  `source_ref`, which is the note path for Obsidian pointers.
-- **Interactive agents:** `Agent.lastTools[].detail` carries the path for
-  Edit/Write (`src/sdk.generated.ts:282-294`). Whether a Read or an Obsidian MCP
-  call exposes a vault path the same way is **unverified**; slice 9 starts by
-  checking a live session's tool trail, and ships pipeline edges alone if it does
-  not.
+Superseded by `2026-09-23-kontor-live-edges-design.md`: static dashed (read)
+and dotted (write) edges from an agent to the notes it touched in the last ten
+minutes, extracted from its curl and Obsidian MCP calls. Pipeline edges and
+flowing animation were dropped there.
 
 ### The note card
 
@@ -236,7 +229,7 @@ and *Open in Obsidian*.
 
 The list view (`L`) holds the same content as the canvas — agents with their state,
 recently touched notes — as focusable rows. All motion (flights, the pulse, the
-flowing edges, the Kontor tile's growth) is dropped under `prefers-reduced-motion`.
+Kontor tile's growth) is dropped under `prefers-reduced-motion`.
 
 ## Server: `GET /api/obsidian/graph`
 
