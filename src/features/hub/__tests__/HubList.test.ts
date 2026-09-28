@@ -1,3 +1,4 @@
+import type { GraphStatus } from '../composables/useObsidianGraph'
 import type { Launcher } from '../hubLaunchers'
 import type { Agent } from '@/types'
 import { mount } from '@vue/test-utils'
@@ -12,10 +13,10 @@ const launchers: Launcher[] = [
   { id: 'new-page', label: 'New page', icon: '+', kind: 'new-page' },
 ]
 
-function mountList(openSettings = vi.fn()) {
+function mountList(openSettings = vi.fn(), graphStatus: GraphStatus = 'ready', graphMessage = '') {
   return mount(HubList, {
     attachTo: document.body,
-    props: { agents: [{ agent: a1, state: 'working' as const }, { agent: a2, state: 'waiting' as const }], notes: [], launchers },
+    props: { agents: [{ agent: a1, state: 'working' as const }, { agent: a2, state: 'waiting' as const }], notes: [], graphStatus, graphMessage, launchers },
     global: { provide: { [OPEN_SETTINGS]: openSettings } },
   })
 }
@@ -46,13 +47,43 @@ describe('hubList', () => {
     w.unmount()
   })
 
-  it('asks to connect Obsidian while there are no notes, and opens settings for it', async () => {
+  it('asks to connect Obsidian while unconfigured, and opens settings for it', async () => {
     const openSettings = vi.fn()
-    const w = mountList(openSettings)
+    const w = mountList(openSettings, 'unconfigured')
     expect(w.text()).toContain('Connect Obsidian to see recently touched notes.')
     await w.findAll('button').find(b => b.text() === 'Open settings')!.trigger('click')
     expect(openSettings).toHaveBeenCalledOnce()
     w.unmount()
+  })
+
+  it('says the vault read was denied, with the server message visible and in the title, and offers no settings button', () => {
+    const w = mountList(vi.fn(), 'denied', 'memory.read denied')
+    const notice = w.get('[data-testid="hub-list-note-notice"]')
+    expect(notice.text()).toBe('Memory reads are not granted, so your notes stay hidden. memory.read denied')
+    expect(notice.attributes('title')).toBe('memory.read denied')
+    expect(w.get('[data-testid="hub-list-note-notice-detail"]').text()).toBe('memory.read denied')
+    expect(w.findAll('button').find(b => b.text() === 'Open settings')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('says the vault could not be loaded when the read failed', () => {
+    const w = mountList(vi.fn(), 'failed')
+    expect(w.get('[data-testid="hub-list-note-notice"]').text()).toBe('Your notes could not be loaded; retrying when you come back to this window.')
+    w.unmount()
+  })
+
+  it('says there are no notes yet once the vault is ready and empty', () => {
+    const w = mountList(vi.fn(), 'ready')
+    expect(w.get('[data-testid="hub-list-note-notice"]').text()).toBe('No notes yet.')
+    w.unmount()
+  })
+
+  it('shows no notice while idle or loading', () => {
+    for (const graphStatus of ['idle', 'loading'] as const) {
+      const w = mountList(vi.fn(), graphStatus)
+      expect(w.find('[data-testid="hub-list-note-notice"]').exists()).toBe(false)
+      w.unmount()
+    }
   })
 
   it('lists recently touched notes with their sector and age', async () => {

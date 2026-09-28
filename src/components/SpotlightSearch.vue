@@ -2,10 +2,12 @@
 import type { Agent, PipelineTask } from '../types'
 import type { ActiveView } from '@/composables/useViewState'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ACTIVE_VIEWS, useViewState } from '@/composables/useViewState'
+import { toast } from '@/composables/useToast'
+import { ACTIVE_VIEWS, pageView, useViewState } from '@/composables/useViewState'
+import { focusInHub, NO_HUB_PAGE_MESSAGE, useObsidianGraph } from '@/features/hub'
 import { useKontorSession } from '@/features/mission/composables/useKontorSession'
 import { SLASH_COMMAND_REFUSAL } from '@/features/mission/composables/useReading'
-import { pageView, pageWithWidget, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
+import { pageWithWidget, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
 import AppModal from './ui/AppModal.vue'
 
 const emit = defineEmits<{
@@ -16,12 +18,32 @@ const emit = defineEmits<{
 const { activeView } = useViewState()
 const kontor = useKontorSession()
 const { layout } = useWorkspace()
+const { status: graphStatus, recentNotes } = useObsidianGraph()
 
 interface Command {
   id: string
   label: string
   run: () => void
 }
+
+interface NoteEntry {
+  id: string
+  path: string
+  label: string
+  hint: string
+}
+
+// A large vault would otherwise slow every keystroke; the matcher only ever sees the freshest slice.
+const NOTE_ENTRY_CAP = 2000
+
+function folderOf(path: string): string {
+  const i = path.lastIndexOf('/')
+  return i < 0 ? 'Notes' : path.slice(0, i)
+}
+
+const recentNoteEntries = computed<NoteEntry[]>(() => graphStatus.value === 'ready'
+  ? recentNotes(NOTE_ENTRY_CAP).map(n => ({ id: `note:${n.path}`, path: n.path, label: n.title, hint: folderOf(n.path) }))
+  : [])
 
 // Derived from ACTIVE_VIEWS so a view added there shows up here without a
 // second list to keep in step.
@@ -32,9 +54,9 @@ const commands = computed<Command[]>(() => [
     run: () => { activeView.value = view },
   })),
   ...layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID).map(p => ({
-    id: `view:page:${p.id}`,
+    id: `view:${pageView(p.id)}`,
     label: `Go to ${p.title}`,
-    run: () => { activeView.value = `page:${p.id}` },
+    run: () => { activeView.value = pageView(p.id) },
   })),
 ])
 
@@ -71,6 +93,7 @@ let abortController: AbortController | null = null
 type FlatResult
   = | { type: 'task', item: PipelineTask }
     | { type: 'agent', item: Agent }
+    | { type: 'note', item: NoteEntry }
     | { type: 'command', item: Command }
 
 const matchingCommands = computed(() => {
@@ -80,10 +103,18 @@ const matchingCommands = computed(() => {
   return commands.value.filter(c => c.label.toLowerCase().includes(q))
 })
 
+const matchingNotes = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q)
+    return []
+  return recentNoteEntries.value.filter(n => n.label.toLowerCase().includes(q))
+})
+
 const flatResults = computed((): FlatResult[] => {
   return [
     ...results.value.tasks.map(t => ({ type: 'task' as const, item: t })),
     ...results.value.agents.map(a => ({ type: 'agent' as const, item: a })),
+    ...matchingNotes.value.map(n => ({ type: 'note' as const, item: n })),
     ...matchingCommands.value.map(c => ({ type: 'command' as const, item: c })),
   ]
 })
@@ -129,12 +160,19 @@ async function search(q: string) {
 }
 
 function activate(result: FlatResult) {
-  if (result.type === 'task')
+  if (result.type === 'task') {
     emit('navigateTask', result.item)
-  else if (result.type === 'agent')
+  }
+  else if (result.type === 'agent') {
     emit('navigateAgent', result.item)
-  else
+  }
+  else if (result.type === 'note') {
+    if (!focusInHub({ kind: 'note', path: result.item.path }))
+      toast.info(NO_HUB_PAGE_MESSAGE)
+  }
+  else {
     result.item.run()
+  }
   closeDialog()
 }
 
@@ -324,28 +362,56 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
             </div>
           </template>
 
+          <template v-if="matchingNotes.length > 0">
+            <div
+              class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-faint"
+              :class="{ 'border-t border-line mt-1': results.tasks.length + results.agents.length > 0 }"
+            >
+              Notes
+            </div>
+            <div
+              v-for="(note, idx) in matchingNotes"
+              :id="`spotlight-opt-${results.tasks.length + results.agents.length + idx}`"
+              :key="note.id"
+              role="option"
+              tabindex="-1"
+              :aria-selected="selectedIdx === (results.tasks.length + results.agents.length + idx)"
+              :data-testid="`spotlight-${note.id}`"
+              class="w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors cursor-pointer"
+              :class="selectedIdx === (results.tasks.length + results.agents.length + idx)
+                ? 'bg-accent-soft text-accent'
+                : 'text-fg-soft hover:bg-raised'"
+              @click="activate({ type: 'note', item: note })"
+              @mouseenter="selectedIdx = results.tasks.length + results.agents.length + idx"
+            >
+              <span class="text-[10px] uppercase tracking-wide text-fg-faint w-10 flex-shrink-0">Note</span>
+              <span class="truncate">{{ note.label }}</span>
+              <span class="ml-auto text-[10px] text-fg-faint">{{ note.hint }}</span>
+            </div>
+          </template>
+
           <!-- Commands section -->
           <template v-if="matchingCommands.length > 0">
             <div
               class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-faint"
-              :class="{ 'border-t border-line mt-1': results.tasks.length + results.agents.length > 0 }"
+              :class="{ 'border-t border-line mt-1': results.tasks.length + results.agents.length + matchingNotes.length > 0 }"
             >
               Commands
             </div>
             <div
               v-for="(command, idx) in matchingCommands"
-              :id="`spotlight-opt-${results.tasks.length + results.agents.length + idx}`"
+              :id="`spotlight-opt-${results.tasks.length + results.agents.length + matchingNotes.length + idx}`"
               :key="command.id"
               role="option"
               tabindex="-1"
-              :aria-selected="selectedIdx === (results.tasks.length + results.agents.length + idx)"
+              :aria-selected="selectedIdx === (results.tasks.length + results.agents.length + matchingNotes.length + idx)"
               :data-testid="`spotlight-command-${command.id}`"
               class="w-full text-left px-4 py-2 text-sm flex items-center gap-3 transition-colors cursor-pointer"
-              :class="selectedIdx === (results.tasks.length + results.agents.length + idx)
+              :class="selectedIdx === (results.tasks.length + results.agents.length + matchingNotes.length + idx)
                 ? 'bg-accent-soft text-accent'
                 : 'text-fg-soft hover:bg-raised'"
               @click="activate({ type: 'command', item: command })"
-              @mouseenter="selectedIdx = results.tasks.length + results.agents.length + idx"
+              @mouseenter="selectedIdx = results.tasks.length + results.agents.length + matchingNotes.length + idx"
             >
               <span class="text-[10px] uppercase tracking-wide text-fg-faint w-10 flex-shrink-0">Go</span>
               <span class="truncate">{{ command.label }}</span>

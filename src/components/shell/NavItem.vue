@@ -4,6 +4,7 @@ defineProps<{
   label: string
   active: boolean
   expanded: boolean
+  disabled?: boolean
 }>()
 defineEmits<{ select: [] }>()
 </script>
@@ -11,7 +12,8 @@ defineEmits<{ select: [] }>()
 <template>
   <button
     type="button"
-    class="flex items-center gap-3 w-full overflow-hidden rounded-lg px-2.5 min-h-[40px] text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+    :disabled="disabled"
+    class="flex items-center gap-3 w-full overflow-hidden rounded-lg px-2.5 min-h-[40px] text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:opacity-50 disabled:cursor-not-allowed"
     :class="active
       ? 'bg-accent-soft text-accent font-semibold'
       : 'text-fg-mute hover:text-fg hover:bg-raised'"

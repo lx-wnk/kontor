@@ -43,8 +43,7 @@ async function mountCamera(options?: HubCameraOptions) {
     },
     template: '<div ref="stage"></div>',
   }), { attachTo: document.body })
-  // vueuse's flush:'post' watchers run their immediate call before the template
-  // ref is set; they re-run with the real element only after the next tick.
+  // vueuse's flush:'post' watchers run their immediate call before the ref exists; they rerun once it's set.
   await flushPromises()
   const el = wrapper.element as HTMLElement
   el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1090, height: 1130, right: 1090, bottom: 1130, x: 0, y: 0, toJSON: () => ({}) })
@@ -135,6 +134,33 @@ describe('useHubCamera', () => {
     expect(api.dragging.value).toBe(false)
     el.dispatchEvent(pointer('pointerup', { clientX: 300, clientY: 300 }))
     expect(onTap).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('flies to a target requested before the stage had a size once it is measured (reduced motion %s)', async (reduce) => {
+    stubReducedMotion(reduce)
+    const { api } = await mountCamera()
+
+    api.flyTo(100, 0, 5)
+    resize(700, 700)
+
+    expect(api.rel.value).toBeCloseTo(5)
+    const [sx, sy] = toScreen(api.cam.value, 100, 0)
+    expect(sx).toBeCloseTo(350)
+    expect(sy).toBeCloseTo(350)
+  })
+
+  it('settles on the target when the stage resizes mid-flight', async () => {
+    const { api } = await mountCamera()
+    resize(1090, 1130)
+
+    api.flyTo(100, 0, 5)
+    resize(700, 700)
+    await new Promise(resolve => requestAnimationFrame(resolve))
+
+    expect(api.rel.value).toBeCloseTo(5)
+    const [sx, sy] = toScreen(api.cam.value, 100, 0)
+    expect(sx).toBeCloseTo(350)
+    expect(sy).toBeCloseTo(350)
   })
 
   it('keeps the centre world point and rel across a later resize', async () => {

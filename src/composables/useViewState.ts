@@ -21,6 +21,10 @@ export function pageIdOf(v: ActiveView): string | null {
   return v.startsWith('page:') ? v.slice(5) : null
 }
 
+export function pageView(id: string): ActiveView {
+  return id === ZENTRALE_PAGE_ID ? 'zentrale' : `page:${id}`
+}
+
 export function resolveView(v: ActiveView, pageIds: string[]): ActiveView {
   const id = pageIdOf(v)
   if (id === null)
@@ -115,6 +119,11 @@ function readStoredSpawner(): string {
 
 const initial = readInitial()
 const activeView = ref<ActiveView>(initial.view)
+// A caller sets this CSS selector before changing activeView; App.vue's watcher focuses
+// it once and clears it, falling back to #main-content when unset or not in the DOM.
+const focusAfterNavigation = ref<string | null>(null)
+// Set alongside focusAfterNavigation when edit mode should survive the navigation about to happen; consumed once.
+const editAfterNavigation = ref(false)
 const dashboardLayout = ref<DashboardLayout>(initial.layout)
 const dashboardSort = ref<AgentSort>(readStoredSort())
 const dashboardGroup = ref<AgentGroup>(readStoredGroup())
@@ -173,5 +182,5 @@ watch(dashboardSpawner, (v) => {
 }, { flush: 'sync' })
 
 export function useViewState() {
-  return { activeView, dashboardLayout, dashboardSort, dashboardGroup, setDashboardGroup, dashboardProject, dashboardSpawner }
+  return { activeView, focusAfterNavigation, editAfterNavigation, dashboardLayout, dashboardSort, dashboardGroup, setDashboardGroup, dashboardProject, dashboardSpawner }
 }

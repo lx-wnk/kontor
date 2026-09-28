@@ -1,28 +1,33 @@
 <script setup lang="ts">
 import type { Camera } from '../hubCamera'
 import type { Sector } from '../hubGeometry'
-import type { AgentDisplayStatus } from '@/utils/statusColors'
+import type { Agent } from '@/types'
+import type { AgentDisplayStatus, ChipTone } from '@/utils/statusColors'
 import { computed } from 'vue'
-import { wedgePath } from '../hubGeometry'
+import { agentStatusTone } from '@/utils/statusColors'
+import { MINIMAP_HALF, sectorColour, wedgePath } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
   size: { width: number, height: number }
   sectors: Sector[]
-  agents: ReadonlyArray<{ x: number, y: number, state: AgentDisplayStatus }>
+  agents: ReadonlyArray<{ agent: Agent, x: number, y: number, state: AgentDisplayStatus }>
 }>()
 
 const emit = defineEmits<{ fly: [wx: number, wy: number] }>()
 
-const HALF = 540
 const AGENT_DOT_R = 16
 
-const DOT_FILL: Record<AgentDisplayStatus, string> = {
-  working: 'fill-info-dot',
-  active: 'fill-success-dot',
-  waiting: 'fill-warning-dot',
-  idle: 'fill-fg-faint',
-  finished: 'fill-fg-faint',
+// Tailwind needs the full literal class name, so the tone still maps to a fixed string per component.
+const TONE_DOT_FILL: Partial<Record<ChipTone, string>> = {
+  success: 'fill-success-dot',
+  info: 'fill-info-dot',
+  warning: 'fill-warning-dot',
+  neutral: 'fill-fg-faint',
+}
+
+function fillClass(state: AgentDisplayStatus): string {
+  return TONE_DOT_FILL[agentStatusTone(state)] ?? 'fill-fg-faint'
 }
 
 const viewport = computed(() => {
@@ -32,26 +37,27 @@ const viewport = computed(() => {
 
 function onClick(e: MouseEvent) {
   const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
-  emit('fly', (e.clientX - r.left) / r.width * 2 * HALF - HALF, (e.clientY - r.top) / r.height * 2 * HALF - HALF)
+  emit('fly', (e.clientX - r.left) / r.width * 2 * MINIMAP_HALF - MINIMAP_HALF, (e.clientY - r.top) / r.height * 2 * MINIMAP_HALF - MINIMAP_HALF)
 }
 </script>
 
 <template>
   <svg
     data-hub-layer
-    :viewBox="`${-HALF} ${-HALF} ${2 * HALF} ${2 * HALF}`"
+    :viewBox="`${-MINIMAP_HALF} ${-MINIMAP_HALF} ${2 * MINIMAP_HALF} ${2 * MINIMAP_HALF}`"
     aria-label="Overview map"
+    aria-hidden="true"
     class="absolute bottom-2.5 right-2.5 z-[2] size-[108px] cursor-crosshair rounded-lg border border-line-strong bg-card/90"
     @click="onClick"
   >
     <path
-      v-for="(sector, i) in sectors"
+      v-for="sector in sectors"
       :key="sector.key"
       :d="wedgePath(sector.start, sector.end)"
       fill-opacity="0.12"
-      :style="{ fill: `var(--sector-${i % 8})` }"
+      :style="{ fill: `var(--sector-${sectorColour(sector.key)})` }"
     />
-    <circle v-for="(agent, i) in agents" :key="i" :cx="agent.x" :cy="agent.y" :r="AGENT_DOT_R" :class="DOT_FILL[agent.state]" />
+    <circle v-for="{ agent, x, y, state } in agents" :key="agent.pid" :cx="x" :cy="y" :r="AGENT_DOT_R" :class="fillClass(state)" />
     <rect v-bind="viewport" stroke-width="6" class="fill-accent/10 stroke-accent" />
   </svg>
 </template>

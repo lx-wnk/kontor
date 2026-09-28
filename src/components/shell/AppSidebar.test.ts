@@ -276,7 +276,8 @@ describe('appSidebar', () => {
     expect(w.get('[data-testid="nav-page-p-a"]').attributes('aria-current')).toBe('page')
   })
 
-  it('creates a named page, opens it and turns on edit mode', async () => {
+  // This component-only mount has no App.vue watcher to apply edit mode — asserts the declaration createPage hands it instead.
+  it('creates a named page, opens it and declares edit mode for the navigation watcher', async () => {
     const { AppSidebar, useViewState } = await load()
     const w = mount(AppSidebar, { props, attachTo: document.body })
     await w.get('[data-testid="nav-new-page"]').trigger('click')
@@ -291,8 +292,32 @@ describe('appSidebar', () => {
     expect(saved.pages).toHaveLength(3)
     expect(saved.pages[2]).toMatchObject({ title: 'Evening', tiles: [] })
     expect(useViewState().activeView.value).toBe(`page:${saved.pages[2]!.id}`)
-    expect(ws.editing.value).toBe(true)
+    expect(useViewState().editAfterNavigation.value).toBe(true)
     expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  // No attachTo — focus()/blur() are no-ops here, so this isolates the explicit close from the @blur handler.
+  it('closes the input explicitly after a successful save, not merely via blur', async () => {
+    const { AppSidebar } = await load()
+    const w = mount(AppSidebar, { props })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await w.get('[data-testid="nav-new-page-input"]').setValue('Evening')
+    await w.get('[data-testid="nav-new-page-input"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+  })
+
+  // The focus() call itself is App.vue's watcher's, absent here — this asserts the declaration createPage hands it.
+  it('declares the new page\'s nav item as the focus target after creating it', async () => {
+    const { AppSidebar, useViewState } = await load()
+    const w = mount(AppSidebar, { props, attachTo: document.body })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await w.get('[data-testid="nav-new-page-input"]').setValue('Evening')
+    await w.get('[data-testid="nav-new-page-input"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    const newId = ws.save.mock.calls[0]![0].pages[2]!.id
+    expect(useViewState().focusAfterNavigation.value).toBe(`[data-testid="nav-page-${newId}"]`)
     w.unmount()
   })
 
@@ -302,6 +327,24 @@ describe('appSidebar', () => {
     useSidebar().requestNewPage()
     await flushPromises()
     expect(document.activeElement).toBe(w.get('[data-testid="nav-new-page-input"]').element)
+    w.unmount()
+  })
+
+  // The hub's launcher reaches startNewPage() through requestNewPage(), bypassing the
+  // nav button's own disabled state — the guard has to live in startNewPage() itself.
+  it('ignores a new page request from elsewhere while the button would be disabled', async () => {
+    const { AppSidebar, useSidebar } = await load()
+    ws.loaded.value = false
+    const w = mount(AppSidebar, { props, attachTo: document.body })
+    useSidebar().requestNewPage()
+    await flushPromises()
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+
+    ws.loaded.value = true
+    ws.locked.value = 'unreadable'
+    useSidebar().requestNewPage()
+    await flushPromises()
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
     w.unmount()
   })
 
@@ -344,6 +387,7 @@ describe('appSidebar', () => {
     await input.setValue('x'.repeat(81))
     await input.trigger('keydown', { key: 'Enter' })
     expect(ws.save).not.toHaveBeenCalled()
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(true)
     expect((input.element as HTMLInputElement).validationMessage).toMatch(/1 to 80 characters/)
   })
 
@@ -358,15 +402,24 @@ describe('appSidebar', () => {
     expect(box().classes()).toContain('h-10')
   })
 
-  // Adding onto the built-in layout before the stored one arrives would save over it.
-  it('offers no new page until the layout has loaded, nor while it is locked', async () => {
+  // Disabled, not hidden, while unloaded: hiding it would shift the Insights group, and enabling early would save over a layout not yet arrived.
+  it('disables the new-page button until the layout has loaded, and while it is locked', async () => {
     const { AppSidebar } = await load()
     ws.loaded.value = false
     const w = mount(AppSidebar, { props })
-    expect(w.find('[data-testid="nav-new-page"]').exists()).toBe(false)
+    expect(w.get('[data-testid="nav-new-page"]').attributes('disabled')).toBeDefined()
     ws.loaded.value = true
+    await nextTick()
+    expect(w.get('[data-testid="nav-new-page"]').attributes('disabled')).toBeUndefined()
     ws.locked.value = 'unreadable'
     await nextTick()
-    expect(w.find('[data-testid="nav-new-page"]').exists()).toBe(false)
+    expect(w.get('[data-testid="nav-new-page"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('renders the new-page slot from first paint, so the Insights group never shifts once loaded', async () => {
+    const { AppSidebar } = await load()
+    ws.loaded.value = false
+    const w = mount(AppSidebar, { props })
+    expect(w.find('[data-testid="nav-new-page-slot"]').exists()).toBe(true)
   })
 })

@@ -34,8 +34,9 @@ import { useUsage } from './composables/useUsage'
 import { useUser } from './composables/useUser'
 import { pageIdOf, resolveView, useViewState } from './composables/useViewState'
 import { NeedsYouQueue, rankNextThings } from './features/mission'
-import { useWorkspace, ZENTRALE_PAGE_ID } from './features/workspace'
+import { failedWidgets, HUB_WIDGET, useWorkspace, watchExternalChanges, ZENTRALE_PAGE_ID } from './features/workspace'
 import { formatCost } from './utils/format'
+import { isTypingTarget } from './utils/isTypingTarget'
 
 // PERF-BUNDLE1: AgentModal is only ever rendered on agent selection — split into its own chunk
 const AgentModal = defineAsyncComponent(() => import('@/features/agents/components/AgentModal.vue'))
@@ -65,8 +66,7 @@ const TaskModal = defineAsyncComponent(() => import('@/features/pipeline/compone
 const RefinementChat = defineAsyncComponent(() => import('@/features/pipeline/components/RefinementChat.vue'))
 const PlanReviewPanel = defineAsyncComponent(() => import('@/features/pipeline/components/PlanReviewPanel.vue'))
 const EditGateModal = defineAsyncComponent(() => import('./components/EditGateModal.vue'))
-// The settings panel and its statically-imported tabs (Spawner, Project, Grant, …)
-// are the largest module reachable from the entry chunk — load on demand.
+// The settings panel and its tabs are the largest module reachable from the entry chunk — load on demand.
 const ApiKeySettings = defineAsyncComponent(() => import('@/features/settings/components/ApiKeySettings.vue'))
 
 const { user, authEnabled, loaded, loadUser } = useUser()
@@ -82,8 +82,13 @@ watch(showLogin, (visible) => {
 const { canInstall, promptInstall } = useInstallPrompt()
 const { theme, toggleTheme } = useTheme()
 
-const { activeView, dashboardLayout } = useViewState()
+const { activeView, focusAfterNavigation, editAfterNavigation, dashboardLayout } = useViewState()
 const workspace = useWorkspace()
+let stopWatching: (() => void) | undefined
+onMounted(() => {
+  stopWatching = watchExternalChanges()
+})
+onUnmounted(() => stopWatching?.())
 const { handleShortcut: handleSidebarShortcut } = useSidebar()
 const { resolveAgent, approveAll } = usePermissionResolve()
 
@@ -104,8 +109,7 @@ const combinedAttentionCount = computed(() => attentionCount.value + permissionI
 // and Cost view agree. Distinct from totalCost (cost of agents running now).
 const { todayUsd, start: startTodayCost } = useTodayCost()
 
-// Ranked once per tick and provided — every queue and the hub core read this
-// same list instead of each re-ranking on every SSE tick.
+// Ranked once per tick and provided, so every queue and the hub core share one ranking instead of re-ranking per SSE tick.
 const needsYou = computed(() => rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value))
 provide(NEEDS_YOU, needsYou)
 const needsYouCount = computed(() => needsYou.value.length)
@@ -131,11 +135,17 @@ watch(loaded, (isLoaded) => {
   }
 }, { immediate: true })
 
-// Move focus to main content on view change for keyboard/screen-reader users;
-// a wide tile is per window, so it doesn't survive navigating to another page either.
+// Sole owner of post-navigation focus and (default-off) edit mode; #main-content is the fallback focus target per SC 2.4.3.
 watch(activeView, () => {
   workspace.wide.value = null
-  nextTick(() => document.getElementById('main-content')?.focus())
+  workspace.editing.value = editAfterNavigation.value
+  editAfterNavigation.value = false
+  const target = focusAfterNavigation.value
+  focusAfterNavigation.value = null
+  nextTick(() => {
+    const el = (target && document.querySelector<HTMLElement>(target)) || document.getElementById('main-content')
+    el?.focus()
+  })
 })
 
 // A wide tile would hide most of the page's tiles from the editor.
@@ -215,8 +225,7 @@ function resolveFocused(outcome: 'granted' | 'denied') {
 function handleKeydown(e: KeyboardEvent) {
   handleSidebarShortcut(e)
 
-  const tag = (e.target as HTMLElement)?.tagName
-  const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable
+  const isTyping = isTypingTarget(e.target)
   // key normalised so CapsLock doesn't break the lower-case shortcuts
   const key = e.key.toLowerCase()
 
@@ -289,7 +298,7 @@ provide(OPEN_SETTINGS, () => {
 })
 
 const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
-const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === 'hub'))
+const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !failedWidgets.has(HUB_WIDGET) && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === HUB_WIDGET))
 // Before the layout has loaded a page id cannot be judged missing; loaded is a
 // source of its own because a failed load flips it without replacing layout.
 watch([activeView, workspace.layout, workspace.loaded], () => {
@@ -297,6 +306,15 @@ watch([activeView, workspace.layout, workspace.loaded], () => {
     activeView.value = resolveView(activeView.value, workspace.layout.value.pages.map(p => p.id))
 }, { immediate: true })
 const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value, pageHasHub: pageHasHub.value, error: !!error.value }))
+
+// The toggle's own click, not a watcher on workspace.editing: that ref also flips on
+// navigation (activeView watcher above) and on create-page, which already owns focus
+// through focusAfterNavigation — a watcher here would fight that declaration.
+async function enterEditLayout() {
+  workspace.editing.value = true
+  await nextTick()
+  document.querySelector<HTMLElement>('[data-testid="workspace-done"]')?.focus()
+}
 
 // Single routing rule: plan_review tasks open the plan panel, all others the generic modal.
 function openTask(t: PipelineTask) {
@@ -351,14 +369,13 @@ onMounted(() => usageComposable.start())
               + New Agent
             </button>
             <button
-              v-if="currentPageId !== null && !error && !workspaceChunkFailed && workspace.loaded.value && !workspace.locked.value"
+              v-if="currentPageId !== null && !error && !workspaceChunkFailed && workspace.loaded.value && !workspace.locked.value && !workspace.editing.value"
               type="button"
               data-testid="workspace-edit-toggle"
-              :aria-pressed="workspace.editing.value"
               class="h-8 rounded-md border border-line-strong px-3 text-[12.5px] text-fg-soft"
-              @click="workspace.editing.value = !workspace.editing.value"
+              @click="enterEditLayout"
             >
-              {{ workspace.editing.value ? 'Done' : 'Edit layout' }}
+              Edit layout
             </button>
           </template>
         </AppTopbar>

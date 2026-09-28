@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -222,5 +223,27 @@ func TestAPIKeyNeverAppearsInAnError(t *testing.T) {
 		t.Fatal("Search: want error dialling a closed port")
 	} else if strings.Contains(err.Error(), apiKey) {
 		t.Fatalf("error leaks the API key: %v", err)
+	}
+}
+
+func TestOpenNoteSendsTheRootResolvedPath(t *testing.T) {
+	client, calls := newGraphVault(t, http.StatusOK)
+
+	if err := client.OpenNote(context.Background(), "a.md"); err != nil {
+		t.Fatalf("OpenNote: %v", err)
+	}
+	if want := []string{"POST /open/root/a.md"}; !slices.Equal(calls(), want) {
+		t.Errorf("requests = %v, want %v", calls(), want)
+	}
+}
+
+func TestOpenNoteRefusesAnEscapeBeforeAnyRequest(t *testing.T) {
+	client, calls := newGraphVault(t, http.StatusOK)
+
+	if err := client.OpenNote(context.Background(), "../etc.md"); err == nil {
+		t.Fatal("OpenNote: want an error for a path escaping the vault root, got nil")
+	}
+	if got := calls(); len(got) != 0 {
+		t.Errorf("requests = %v, want none", got)
 	}
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { OpResult, WorkspacePage as Page, WorkspaceLayout } from '../layout'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useViewState } from '@/composables/useViewState'
+import { navItemSelector } from '@/utils/navConfig'
 import { removePage, renamePage, replacePage, widenedTiles } from '../layout'
 import { useWorkspace } from '../useWorkspace'
 import WorkspaceEditBar from './WorkspaceEditBar.vue'
@@ -9,7 +10,7 @@ import WorkspaceGrid from './WorkspaceGrid.vue'
 
 const props = defineProps<{ pageId: string }>()
 const { layout, loaded, load, save, locked, saveError, editing, wide, reset, retry, page } = useWorkspace()
-const { activeView } = useViewState()
+const { activeView, focusAfterNavigation } = useViewState()
 onMounted(load)
 
 const current = computed(() => page(props.pageId))
@@ -52,9 +53,21 @@ async function onChange(next: Page) {
     refusal.value = saveFailureReason()
 }
 
+// The bar's own Done click, not a watcher on editing: that ref also flips false on
+// navigation and when the layout locks, neither of which leaves the toggle on screen.
+async function onDone() {
+  editing.value = false
+  await nextTick()
+  document.querySelector<HTMLElement>('[data-testid="workspace-edit-toggle"]')?.focus()
+}
+
 async function onRemove() {
-  if (!await commit(removePage(layout.value, props.pageId)))
+  // Declared before save(): App.vue's resolveView watcher can redirect activeView first.
+  focusAfterNavigation.value = navItemSelector('zentrale')
+  if (!await commit(removePage(layout.value, props.pageId))) {
+    focusAfterNavigation.value = null
     return
+  }
   editing.value = false
   activeView.value = 'zentrale'
 }
@@ -80,7 +93,7 @@ async function onRemove() {
       :refusal="refusal"
       @change="onChange"
       @refuse="r => (refusal = r)"
-      @done="editing = false"
+      @done="onDone"
       @rename="title => commit(renamePage(layout, pageId, title))"
       @remove="onRemove"
     />

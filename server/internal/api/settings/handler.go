@@ -24,7 +24,9 @@ func (h *Handler) MountRead(r chi.Router) {
 	r.Get("/api/settings", apierr.ErrorMiddleware(h.list))
 }
 
-// MountWrite registers PATCH /api/settings/{key}; the router mounts it behind session auth only (local-trust posture).
+// MountWrite registers PATCH /api/settings/{key}: mounted in the protected
+// group (loopback host, same-origin for mutations, session auth unless
+// bypassed), no admin gate.
 func (h *Handler) MountWrite(r chi.Router) {
 	r.Patch("/api/settings/{key}", apierr.ErrorMiddleware(h.patch))
 }

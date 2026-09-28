@@ -1,6 +1,7 @@
 import type { Project } from '../types'
 import { onUnmounted, ref, shallowRef } from 'vue'
 import { errorMessage } from '../utils/errorMessage'
+import { fetchWithRateLimitRetry } from '../utils/fetchWithRateLimitRetry'
 import { createSseResource } from './useSseResource'
 
 const projects = shallowRef<Project[]>([])
@@ -15,7 +16,7 @@ export interface ProjectEvent {
 
 async function fetchProjects(): Promise<void> {
   try {
-    const res = await fetch('/api/projects')
+    const res = await fetchWithRateLimitRetry('/api/projects')
     if (!res.ok)
       throw new Error(`HTTP ${res.status}`)
     projects.value = await res.json() as Project[]

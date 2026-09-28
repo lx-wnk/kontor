@@ -232,7 +232,25 @@ export function emptyCommandSet(): DynamicCommandSet {
   return { commands: [], builtinsMayBeStale: false }
 }
 
-const dynamicCommandCache = new Map<string, DynamicCommandSet>()
+// A command installed mid-session is invisible until its scope's entry expires,
+// so the lifetime is the whole invalidation. 60 s matches the two caches next to
+// it (useObsidianGraph, the server's graph cache).
+const DYNAMIC_COMMAND_TTL_MS = 60_000
+
+const dynamicCommandCache = new Map<string, { at: number, set: DynamicCommandSet }>()
+
+/** Entries currently held. Exported so a test (or devtools) can see the map stay bounded. */
+export function dynamicCommandCacheSize(): number {
+  return dynamicCommandCache.size
+}
+
+function cacheSet(key: string, set: DynamicCommandSet, now: number): void {
+  for (const [k, entry] of dynamicCommandCache) {
+    if (now - entry.at >= DYNAMIC_COMMAND_TTL_MS)
+      dynamicCommandCache.delete(k)
+  }
+  dynamicCommandCache.set(key, { at: now, set })
+}
 
 function scopeKey(scope: DynamicCommandScope): string {
   // Prefix per identifier kind so distinct namespaces (a session id, a spawner
@@ -248,8 +266,10 @@ function scopeKey(scope: DynamicCommandScope): string {
 
 export async function fetchDynamicCommands(scope: DynamicCommandScope): Promise<DynamicCommandSet> {
   const key = scopeKey(scope)
-  if (dynamicCommandCache.has(key))
-    return dynamicCommandCache.get(key)!
+  const now = Date.now()
+  const hit = dynamicCommandCache.get(key)
+  if (hit && now - hit.at < DYNAMIC_COMMAND_TTL_MS)
+    return hit.set
 
   const params = new URLSearchParams()
   if (scope.sessionId)
@@ -273,7 +293,7 @@ export async function fetchDynamicCommands(scope: DynamicCommandScope): Promise<
       builtinsMayBeStale: !!data.builtinsMayBeStale,
       engineVersion: data.engineVersion,
     }
-    dynamicCommandCache.set(key, set)
+    cacheSet(key, set, now)
     return set
   }
   catch {

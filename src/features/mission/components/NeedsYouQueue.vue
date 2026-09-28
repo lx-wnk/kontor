@@ -6,8 +6,7 @@ import NextThing from './NextThing.vue'
 
 const props = defineProps<{ variant: 'docked' | 'strip', kinds?: NextKind[] }>()
 
-// App.vue ranks once per tick and provides the list, and owns navigation —
-// both are provided by App for every place a queue renders.
+// App.vue ranks once per tick, owns navigation, and provides both to every queue via inject.
 const needsYou = inject(NEEDS_YOU)
 const openTask = inject(OPEN_TASK)
 if (!needsYou || !openTask)

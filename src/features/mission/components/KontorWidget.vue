@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onKeyStroke, useEventListener } from '@vueuse/core'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { isTypingTarget } from '@/utils/isTypingTarget'
 import { useKontorAgent, useKontorSession } from '../composables/useKontorSession'
 import KontorTile from './KontorTile.vue'
 
@@ -30,8 +31,7 @@ function cancelPendingFrame() {
   }
 }
 
-// Grows out of its own cell towards the larger free side, up to 64% of the
-// window, as an overlay: the grid underneath does not re-flow.
+// Grows out of its own cell as an overlay, up to 64% of the window: the grid underneath does not re-flow.
 function place(heightOverride?: number) {
   const r = cell.value!.getBoundingClientRect()
   const vh = window.innerHeight
@@ -64,8 +64,7 @@ useEventListener(computed(() => open.value ? window : null), 'scroll', (e) => {
   place()
 }, { capture: true })
 
-// A pending frame from an open still in flight must not run place() against
-// a cell that collapse or unmount already moved past.
+// A pending frame from an open still in flight must not run place() against a cell that collapse/unmount already moved past.
 onUnmounted(cancelPendingFrame)
 
 watch(open, setOverlayOpen, { flush: 'sync' })
@@ -89,13 +88,8 @@ async function collapse() {
   cell.value?.focus()
 }
 
-function typingIn(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
-}
-
 onKeyStroke('/', (e) => {
-  if (open.value || typingIn(e.target))
+  if (open.value || isTypingTarget(e.target))
     return
   e.preventDefault()
   grow()

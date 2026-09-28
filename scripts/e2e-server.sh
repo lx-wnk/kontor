@@ -12,7 +12,8 @@ cd "$(dirname "$0")/.."
 
 BIN=bin/kontor
 E2E_PORT="${E2E_PORT:-13199}"
-E2E_DB="${E2E_DB_PATH:-$PWD/.e2e/dashboard-e2e.db}"
+# Per port, so a second server on another port never shares the first's database.
+E2E_DB="${E2E_DB_PATH:-$PWD/.e2e/dashboard-e2e-$E2E_PORT.db}"
 
 # The scanned set must cover everything that ends up in the embedded bundle, not
 # just the languages: a change to index.html, a stylesheet or a file in public/

@@ -1,6 +1,7 @@
 import process from 'node:process'
 import { expect, test } from '@playwright/test'
 import { openListboxOptions, selectListboxOption } from './helpers'
+import { APP_BASE_URL } from './servers'
 
 // Allow the dev environment to override the dashboard URL — e.g. point at the
 // Vite dev server (`http://localhost:5173`) when the Go backend on 13199 has
@@ -27,7 +28,7 @@ test('spawn dialog shows project picker and hydrates cwd from default folder', a
   // header (`missing Origin header`, 403). Browser requests get this header
   // for free; APIRequestContext does not, so we set it explicitly for every
   // mutating call.
-  const csrfHeaders = { Origin: baseURL ?? 'http://localhost:13199' }
+  const csrfHeaders = { Origin: baseURL ?? APP_BASE_URL }
 
   // 1. Pre-seed a project.
   const projectRes = await request.post('/api/projects', {
@@ -123,7 +124,7 @@ test('spawn dialog shows project picker and hydrates cwd from default folder', a
 
 test('spawn dialog submits payload with project cwd, permission mode, and prompt', async ({ page, request, baseURL }) => {
   const slug = `e2e-${Date.now()}`
-  const csrfHeaders = { Origin: baseURL ?? 'http://localhost:13199' }
+  const csrfHeaders = { Origin: baseURL ?? APP_BASE_URL }
 
   const projectRes = await request.post('/api/projects', {
     headers: csrfHeaders,

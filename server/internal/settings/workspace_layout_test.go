@@ -54,9 +54,12 @@ func TestWorkspaceLayout_Validation(t *testing.T) {
 		"trailing garbage": zentraleOnly + " garbage",
 		// Leading whitespace keeps this valid JSON: only the size cap, not a
 		// parse error, must reject it.
-		"over 1 MiB":       strings.Repeat(" ", workspaceMaxRawBytes) + zentraleOnly,
-		"duplicate widget": strings.Replace(zentraleOnly, `"widget":"obsidian__recent"`, `"widget":"agents"`, 1),
-		"tiles null":       `{"version":1,"pages":[{"id":"zentrale","title":"Zentrale","tiles":null}]}`,
+		"over 1 MiB": strings.Repeat(" ", workspaceMaxRawBytes) + zentraleOnly,
+		// The size cap must run before the whitespace-only shortcut, or an
+		// oversized value made entirely of spaces slips through as "empty".
+		"whitespace-only over 1 MiB": strings.Repeat(" ", workspaceMaxRawBytes+1),
+		"duplicate widget":           strings.Replace(zentraleOnly, `"widget":"obsidian__recent"`, `"widget":"agents"`, 1),
+		"tiles null":                 `{"version":1,"pages":[{"id":"zentrale","title":"Zentrale","tiles":null}]}`,
 	}
 	for name, raw := range bad {
 		require.Error(t, d.Validate(raw), name)

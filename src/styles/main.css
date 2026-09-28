@@ -134,7 +134,6 @@
   --neutral-soft: var(--color-slate-100);
   --neutral-text: var(--color-slate-600);
   --neutral-line: var(--color-slate-200);
-  /* Hub — start-page canvas background, today-touched ring, sector palette */
   --hub-bg: radial-gradient(circle at 50% 50%, var(--color-slate-100) 0, var(--app) 72%);
   --halo: var(--color-sky-500);
   --sector-0: #4f6bed;
@@ -184,7 +183,6 @@
   --neutral-soft: var(--color-slate-800);
   --neutral-text: var(--color-slate-400);
   --neutral-line: var(--color-slate-700);
-  /* Hub — start-page canvas background, today-touched ring, sector palette */
   --hub-bg: radial-gradient(circle at 50% 50%, #131821 0, var(--app) 72%);
   --halo: #9fe0ff;
   --sector-0: #7c9cff;

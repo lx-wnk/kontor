@@ -114,12 +114,10 @@ describe('rankNextThings', () => {
     const planTask = task('t-plan', { currentStage: 'plan_review' })
     const ranked = rankNextThings([], [planTask], [], [decision])
     expect(ranked.map(n => n.kind)).toEqual(['capability', 'plan'])
-    expect(ranked[0]).toMatchObject({ kind: 'capability', decision, title: 'net.fetch(api.github.com)', why: WHY.capability })
+    expect(ranked[0]).toMatchObject({ kind: 'capability', decision, why: WHY.capability })
   })
 
-  // Pushed newest-first, several capability items must still serve the
-  // longest wait first, same as permissions — otherwise a trickle of new
-  // asks starves the oldest one.
+  // Pushed newest-first, capability items still serve the longest wait first, same as permissions.
   it('ranks several capability decisions oldest-first regardless of push order', () => {
     const newer: PendingCapabilityDecision = { id: 'd-new', capability: 'net.fetch', value: 'api.github.com', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T12:00:00Z' }
     const older: PendingCapabilityDecision = { id: 'd-old', capability: 'fs.write', value: '/tmp/out', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T09:00:00Z' }

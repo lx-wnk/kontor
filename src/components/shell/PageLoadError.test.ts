@@ -14,8 +14,7 @@ describe('pageLoadError', () => {
     w.unmount()
   })
 
-  // The desktop app has no browser chrome to reload from, so the failed
-  // page needs its own way back (R27).
+  // The desktop app has no browser chrome to reload from, so the failed page needs its own way back (R27).
   it('reloads the page when the Reload button is clicked', async () => {
     const reload = vi.fn()
     vi.stubGlobal('location', { ...window.location, reload })

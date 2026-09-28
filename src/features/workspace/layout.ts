@@ -1,9 +1,7 @@
 import type { WidgetSpec } from './widgetSpecs'
-import type { ActiveView } from '@/composables/useViewState'
 import { isWidgetId, WIDGET_SPECS } from './widgetSpecs'
 
-// Tiles are persisted layout data (see validateLayout below): the widget id
-// crossed that boundary as a plain string, so every lookup here is guarded.
+// Tiles are persisted as plain strings, so every widget lookup here is guarded (see validateLayout below).
 function specOf(widget: string): WidgetSpec | undefined {
   return isWidgetId(widget) ? WIDGET_SPECS[widget] : undefined
 }
@@ -38,8 +36,7 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
-// The spec's default Zentrale, 12 × 12. Frozen so a caller can never mutate the
-// shared default in place — every change has to go through a copy.
+// Default Zentrale, 12 × 12 — frozen so no caller can mutate the shared default in place.
 export const DEFAULT_LAYOUT: WorkspaceLayout = deepFreeze({
   version: 1,
   pages: [{
@@ -248,10 +245,6 @@ export function pageWithWidget(layout: WorkspaceLayout, widget: string): Workspa
   if (zentrale?.tiles.some(t => t.widget === widget))
     return zentrale
   return layout.pages.find(p => p.id !== ZENTRALE_PAGE_ID && p.tiles.some(t => t.widget === widget)) ?? null
-}
-
-export function pageView(id: string): ActiveView {
-  return id === ZENTRALE_PAGE_ID ? 'zentrale' : `page:${id}`
 }
 
 function rowsOverlap(a: PlacedTile, b: PlacedTile): boolean {

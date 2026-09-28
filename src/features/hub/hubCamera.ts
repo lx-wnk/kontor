@@ -1,4 +1,4 @@
-import { LAUNCHER_RING_RADIUS } from './hubGeometry'
+import { LAUNCHER_PX, launcherRingRadius } from './hubGeometry'
 
 export interface Camera { k: number, tx: number, ty: number }
 export type HubLevel = 0 | 1 | 2
@@ -8,11 +8,10 @@ export const MAX_REL = 14
 export const LEVEL_TOPICS = 1.8
 export const LEVEL_NOTES = 4
 export const DOCK_REL = 1.5
-export const LAUNCHER_AGENT_CLEARANCE_PX = 44
 export const FLY_MS = 480
 export const LEVEL_TARGETS: Record<HubLevel, number> = { 0: 1, 1: 2.4, 2: 5.5 }
 
-// The prototype's fit: the disc of radius 490 plus room for the controls (110 px) and the queue (150 px).
+// Reserves 110px for the controls and 150px for the queue when fitting the disc (radius 490).
 export function fitScale(width: number, height: number): number {
   return Math.max(0.05, Math.min(width - 110, height - 150) / (2 * 490))
 }
@@ -57,6 +56,7 @@ export function flyFrame(from: Camera, to: { wx: number, wy: number, k: number }
   return centredOn(cx + (to.wx - cx) * q, cy + (to.wy - cy) * q, k, width, height)
 }
 
-export function launchersDocked(rel: number, scale: number, agentRingPx: number): boolean {
-  return rel > DOCK_REL || LAUNCHER_RING_RADIUS * scale < agentRingPx + LAUNCHER_AGENT_CLEARANCE_PX
+// The ring grows with the legend it clears, so it docks once it no longer fits the stage.
+export function launchersDocked(rel: number, scale: number, agentRingPx: number, stagePx: number): boolean {
+  return rel > DOCK_REL || launcherRingRadius(scale, agentRingPx) * scale > stagePx / 2 - LAUNCHER_PX / 2
 }

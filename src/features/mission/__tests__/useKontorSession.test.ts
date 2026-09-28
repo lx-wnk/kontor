@@ -162,6 +162,15 @@ describe('useKontorSession', () => {
     expect(s.pid.value).toBe(1234)
   })
 
+  it('opens the tile without staging a prompt when asked with no text', () => {
+    const s = useKontorSession()
+    s.ask()
+    expect(s.openRequested.value).toBe(true)
+    expect(s.pendingPrompt.value).toBeNull()
+    s.ask('[[notes/a]] ')
+    expect(s.pendingPrompt.value).toBe('[[notes/a]] ')
+  })
+
   it('does not start a session when the pre-send refresh fails', async () => {
     fetchMock.mockResolvedValueOnce(reply({ error: 'boom' }, 500)).mockResolvedValue(reply({ pid: 5678 }))
     const s = useKontorSession()

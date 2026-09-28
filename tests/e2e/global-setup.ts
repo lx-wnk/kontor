@@ -1,15 +1,16 @@
-import type { FullConfig } from '@playwright/test'
+import { APP_BASE_URL, LIMITER_BASE_URL } from './servers'
 
 /**
- * The suite runs against a scratch database, which starts with the first-run
+ * Each server runs against a scratch database, which starts with the first-run
  * onboarding dialog open — it covers the page and swallows every click the
- * specs make. Runs after the webServer is ready, so the server is reachable.
+ * specs make. Runs after both webServers are ready, so they are reachable.
  */
-export default async function globalSetup(config: FullConfig): Promise<void> {
-  const baseURL = config.projects[0]?.use?.baseURL
-  if (!baseURL)
-    throw new Error('global-setup: no baseURL configured')
+export default async function globalSetup(): Promise<void> {
+  for (const baseURL of [APP_BASE_URL, LIMITER_BASE_URL])
+    await prepare(baseURL)
+}
 
+async function prepare(baseURL: string): Promise<void> {
   const res = await fetch(`${baseURL}/api/onboarding/status`, {
     method: 'PATCH',
     // The server rejects mutations whose Origin does not match its own host.
@@ -17,5 +18,14 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     body: JSON.stringify({ completed: true }),
   })
   if (!res.ok)
-    throw new Error(`global-setup: dismissing onboarding failed (${res.status})`)
+    throw new Error(`global-setup: dismissing onboarding failed on ${baseURL} (${res.status})`)
+
+  // A prior run killed before its afterEach would otherwise leak a stored layout into this one.
+  const layoutRes = await fetch(`${baseURL}/api/settings/workspace.layout`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'Origin': baseURL },
+    body: JSON.stringify({ value: '' }),
+  })
+  if (!layoutRes.ok)
+    throw new Error(`global-setup: resetting workspace.layout failed on ${baseURL} (${layoutRes.status})`)
 }

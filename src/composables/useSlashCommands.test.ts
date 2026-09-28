@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { dispatchSlashCommand, fetchDynamicCommands, parseSlashCommand } from './useSlashCommands'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { dispatchSlashCommand, dynamicCommandCacheSize, fetchDynamicCommands, parseSlashCommand } from './useSlashCommands'
 
 describe('parseSlashCommand', () => {
   it('returns null for non-slash input', () => {
@@ -213,6 +213,42 @@ describe('fetchDynamicCommands', () => {
     expect(set.builtinsMayBeStale).toBe(true)
     expect(set.engineVersion).toBe('2.1.224')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('fetchDynamicCommands caching', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('serves a scope from cache, refetches it after the TTL, and drops the expired entry', async () => {
+    vi.useFakeTimers()
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ commands: [] }) })
+    vi.stubGlobal('fetch', mockFetch)
+
+    await fetchDynamicCommands({ sessionId: 'sess-ttl' })
+    await fetchDynamicCommands({ sessionId: 'sess-ttl' })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(60_001)
+    await fetchDynamicCommands({ sessionId: 'sess-ttl' })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('evicts entries for sessions that are gone instead of holding one per session forever', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ commands: [] }) }))
+
+    for (const sessionId of ['gone-1', 'gone-2', 'gone-3'])
+      await fetchDynamicCommands({ sessionId })
+    const withGoneSessions = dynamicCommandCacheSize()
+    expect(withGoneSessions).toBeGreaterThanOrEqual(3)
+
+    vi.advanceTimersByTime(60_001)
+    await fetchDynamicCommands({ sessionId: 'still-here' })
+
+    expect(dynamicCommandCacheSize()).toBeLessThan(withGoneSessions)
   })
 })
 

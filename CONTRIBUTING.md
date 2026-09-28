@@ -70,6 +70,8 @@ Build the SPA **before** the binary — `go:embed` bakes the compiled frontend i
 | `pnpm test:e2e` | Playwright end-to-end tests (starts its own server on `:13199`, against a scratch DB under `.e2e/`; also runs in CI as **E2E (Playwright)**) |
 | `pnpm typecheck` | vue-tsc type checking |
 
+`playwright.config.ts` starts the E2E server with `KONTOR_RATE_LIMIT_RPS`, which raises the per-IP sustained request rate the server allows (the F-SEC-010 control): the suite drives more requests per second than a human ever will, and on loopback every client shares one bucket. It exists for that suite — unset, which is every other run and every release build, the production default is unchanged — and `tests/e2e/cold-start-rate-limit.spec.ts` deliberately drives a second E2E server without it, so the real limit stays under test.
+
 ## Architecture
 
 ```

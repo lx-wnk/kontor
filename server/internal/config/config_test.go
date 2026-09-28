@@ -37,6 +37,19 @@ func TestLoad_CustomValuesFromEnv(t *testing.T) {
 	assert.Equal(t, 9090, cfg.Port)
 }
 
+// The E2E server raises the per-IP limit through this key; unset it stays zero,
+// which leaves the middleware on its production default.
+func TestLoad_RateLimitRPS(t *testing.T) {
+	cfg, err := Load("")
+	require.NoError(t, err)
+	assert.Equal(t, 0, cfg.RateLimitRPS)
+
+	t.Setenv("KONTOR_RATE_LIMIT_RPS", "1000")
+	cfg, err = Load("")
+	require.NoError(t, err)
+	assert.Equal(t, 1000, cfg.RateLimitRPS)
+}
+
 // A moved operational key set in the environment is ignored: Load still
 // succeeds and the field no longer exists on Config.
 func TestLoad_MovedKeyInEnvIsIgnoredAndWarned(t *testing.T) {

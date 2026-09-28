@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/lx-wnk/kontor/server/internal/api"
 	authpkg "github.com/lx-wnk/kontor/server/internal/auth"
 	"github.com/lx-wnk/kontor/server/internal/config"
@@ -42,6 +44,8 @@ func provideRouterConfig(cfg config.Config, settingsSvc *settings.Service, oauth
 		InjectRateWindowMs: settingsSvc.Int("inject.rateWindowMs"),
 		AuthPluginSecret:   cfg.AuthPluginSecret,
 		PluginLoginURL:     pluginLoginURL,
+		// Zero leaves IPRateLimiterConfig on its own measured defaults.
+		AuthRateLimiterConfig: api.IPRateLimiterConfig{Rate: rate.Limit(cfg.RateLimitRPS)},
 	}
 }
 

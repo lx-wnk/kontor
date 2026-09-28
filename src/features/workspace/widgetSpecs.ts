@@ -1,6 +1,8 @@
 export const WIDGET_IDS = ['kontor', 'hub', 'live-work', 'agents', 'pipeline', 'routines', 'github', 'memory', 'cost-today'] as const
 export type WidgetId = typeof WIDGET_IDS[number]
 
+export const HUB_WIDGET: WidgetId = 'hub'
+
 export function isWidgetId(id: string): id is WidgetId {
   return (WIDGET_IDS as readonly string[]).includes(id)
 }
