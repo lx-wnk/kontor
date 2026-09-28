@@ -100,9 +100,7 @@ describe('edit mode', () => {
 })
 
 describe('drag and resize', () => {
-  // jsdom's PointerEvent constructor does not carry clientX/clientY/pointerId
-  // through Vue Test Utils' trigger() init dict, so pointer events used to
-  // determine a drop cell are constructed and dispatched directly.
+  // jsdom's PointerEvent constructor drops clientX/clientY/pointerId through trigger()'s init dict, so events are dispatched directly.
   function pointer(type: string, init: { clientX: number, clientY: number, pointerId: number, button?: number }) {
     return new PointerEvent(type, { bubbles: true, cancelable: true, ...init })
   }
@@ -123,6 +121,39 @@ describe('drag and resize', () => {
     await w.vm.$nextTick()
     expect(w.emitted('change')?.at(-1)?.[0]).toMatchObject({ tiles: [{ widget: 'agents', col: 8, row: 1 }, { widget: 'github' }] })
     expect(rect).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
+  // Grabbing off-anchor must not shift the tile by the grab point itself (grabCol/grabRow, subtracted back out in moveDrag).
+  it('drops a tile grabbed 2 cells right of its anchor at the offset-adjusted cell', async () => {
+    const w = mount(WorkspaceGrid, { props: { page, editing: true }, attachTo: document.body })
+    const grid = w.get('[data-testid="workspace-grid"]').element as HTMLElement
+    grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1190, height: 320, right: 1190, bottom: 320, x: 0, y: 0, toJSON: () => ({}) })
+    const tile = w.get('[data-testid="workspace-tile-agents"]').element
+    // clientX 250 is col 3 — 2 cells right of agents' col-1 anchor.
+    tile.dispatchEvent(pointer('pointerdown', { clientX: 250, clientY: 5, pointerId: 1, button: 0 }))
+    // clientX 950 is col 10; the 2-cell grab offset lands the anchor at col 8.
+    tile.dispatchEvent(pointer('pointermove', { clientX: 950, clientY: 5, pointerId: 1 }))
+    await w.vm.$nextTick()
+    tile.dispatchEvent(pointer('pointerup', { clientX: 950, clientY: 5, pointerId: 1 }))
+    await w.vm.$nextTick()
+    expect(w.emitted('change')?.at(-1)?.[0]).toMatchObject({ tiles: [{ widget: 'agents', col: 8, row: 1 }, { widget: 'github' }] })
+    w.unmount()
+  })
+
+  it('drops nothing and clears the ghost on pointercancel', async () => {
+    const w = mount(WorkspaceGrid, { props: { page, editing: true }, attachTo: document.body })
+    const grid = w.get('[data-testid="workspace-grid"]').element as HTMLElement
+    grid.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1190, height: 320, right: 1190, bottom: 320, x: 0, y: 0, toJSON: () => ({}) })
+    const tile = w.get('[data-testid="workspace-tile-agents"]').element
+    tile.dispatchEvent(pointer('pointerdown', { clientX: 5, clientY: 5, pointerId: 1, button: 0 }))
+    tile.dispatchEvent(pointer('pointermove', { clientX: 605, clientY: 5, pointerId: 1 }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-testid="workspace-ghost"]').exists()).toBe(true)
+    tile.dispatchEvent(pointer('pointercancel', { clientX: 605, clientY: 5, pointerId: 1 }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-testid="workspace-ghost"]').exists()).toBe(false)
+    expect(w.emitted('change')).toBeUndefined()
     w.unmount()
   })
 
@@ -237,6 +268,16 @@ describe('page rename and delete', () => {
     w.unmount()
   })
 
+  it('disarms the delete confirmation once the title changes', async () => {
+    const w = mount(WorkspaceEditBar, { props: { page: morning, refusal: null } })
+    await w.get('[data-testid="workspace-delete-page"]').trigger('click')
+    expect(w.find('[data-testid="workspace-delete-confirm"]').exists()).toBe(true)
+
+    await w.get('[data-testid="workspace-rename"]').setValue('Dawn')
+    expect(w.find('[data-testid="workspace-delete-confirm"]').exists()).toBe(false)
+    w.unmount()
+  })
+
   function seed() {
     ws.layout.value = { version: 1, pages: [{ id: 'zentrale', title: 'Zentrale', tiles: [] }, morning] }
     ws.editing.value = true
@@ -259,7 +300,8 @@ describe('page rename and delete', () => {
     w.unmount()
   })
 
-  it('removes a deleted page and goes back to the Zentrale', async () => {
+  // Focusing nav-item-zentrale for real needs App.vue's watcher, absent here — onRemove declares the target instead.
+  it('removes a deleted page, goes back to the Zentrale and declares its nav item as the focus target', async () => {
     seed()
     const w = mount(WorkspacePage, { props: { pageId: 'p-morning' } })
     await w.get('[data-testid="workspace-delete-page"]').trigger('click')
@@ -267,11 +309,13 @@ describe('page rename and delete', () => {
     await flushPromises()
     expect(ws.save.mock.calls[0]![0].pages.map((p: { id: string }) => p.id)).toEqual(['zentrale'])
     expect(useViewState().activeView.value).toBe('zentrale')
+    expect(useViewState().focusAfterNavigation.value).toBe('[data-testid="nav-item-zentrale"]')
     expect(ws.editing.value).toBe(false)
     w.unmount()
   })
 
-  it('stays on the page when the store refuses the delete', async () => {
+  // A refused delete must not leave a stale focus declaration for the next navigation to pick up.
+  it('stays on the page when the store refuses the delete, and clears the focus declaration', async () => {
     seed()
     ws.save.mockResolvedValueOnce(false)
     const w = mount(WorkspacePage, { props: { pageId: 'p-morning' } })
@@ -281,6 +325,7 @@ describe('page rename and delete', () => {
     expect(ws.save).toHaveBeenCalledTimes(1)
     expect(useViewState().activeView.value).toBe('page:p-morning')
     expect(ws.editing.value).toBe(true)
+    expect(useViewState().focusAfterNavigation.value).toBe(null)
     w.unmount()
   })
 })

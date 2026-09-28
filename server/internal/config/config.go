@@ -44,6 +44,12 @@ type Config struct {
 	// so an external auth plugin can establish sessions after completing OAuth.
 	AuthPluginSecret string        `koanf:"auth_plugin_secret"`
 	Adapters         AdapterConfig `koanf:"adapters"`
+	// RateLimitRPS overrides the per-IP sustained request rate (F-SEC-010).
+	// Zero — the normal case — keeps the measured production default. The E2E
+	// server raises it via KONTOR_RATE_LIMIT_RPS because the suite drives more
+	// requests per second than a human ever will, and every local client shares
+	// one bucket.
+	RateLimitRPS int `koanf:"rate_limit_rps"`
 	// RestartMode controls how POST /api/admin/restart relaunches the server:
 	// "reexec" (default) replaces the process image in place (no supervisor needed);
 	// "exit" exits 0 so an external supervisor (systemd/launchd/wrapper) restarts it.

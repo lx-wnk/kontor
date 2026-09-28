@@ -35,9 +35,19 @@
 | Shared UI component types (client) | `src/components/ui/selectOption.ts` | `SelectOption<T>` |
 | Workspace layout rules (client) | `src/features/workspace/layout.ts` | `GRID_COLUMNS`, `ZENTRALE_PAGE_ID`, `PAGE_ID_PATTERN`, `WIDGET_ID_PATTERN`, `DEFAULT_LAYOUT` |
 | Workspace layout rules (server, hand-kept parity with the client) | `server/internal/settings/workspace_layout.go` | `workspaceColumns`, `workspacePageID`, `workspaceWidgetID`, caps |
-| Widget catalogue (titles, spans, minimums) | `src/features/workspace/widgetSpecs.ts` | `WIDGET_SPECS` |
+| Widget catalogue (titles, spans, minimums) | `src/features/workspace/widgetSpecs.ts` | `WIDGET_SPECS`, `HUB_WIDGET` |
 | Widget components | `src/features/workspace/widgetRegistry.ts` | `WIDGETS`, `widgetIds()` |
 | Needs-you placement rule | `src/composables/needsYouPlacement.ts` | `needsYouPlacement` |
+| Hub geometry constants | `src/features/hub/hubGeometry.ts` | `R0`, `R_MAX`, `RINGS`, `agentRingPx`, `planSectors`, `DAY_MS`, `SECTOR_PALETTE_SIZE`, `sectorColour` |
+| Hub world extent, incl. the minimap's own frame | `src/features/hub/hubGeometry.ts` | `WORLD_RADIUS`, `MINIMAP_RIM`, `MINIMAP_HALF` — the minimap derives its viewBox, never a second radius |
+| Hub camera thresholds | `src/features/hub/hubCamera.ts` | `LEVEL_TOPICS`, `LEVEL_NOTES`, `MIN_REL`, `MAX_REL`, `levelOf`, `launchersDocked` |
+| Hub graph notices | `src/features/hub/hubGraphNotices.ts` | `GRAPH_NOTICES`, `LIST_GRAPH_NOTICES` |
+| Hub launcher cap | `src/features/hub/hubLaunchers.ts` | `MAX_LAUNCHERS` |
+| Obsidian graph response type (client, hand-kept parity with `server/internal/api/obsidian/handler.go`) | `src/features/hub/graphApi.ts` | `GraphResponse` |
+| Shared 429 retry | `src/utils/fetchWithRateLimitRetry.ts` | `fetchWithRateLimitRetry` |
+| "Is the user typing" guard | `src/utils/isTypingTarget.ts` | `isTypingTarget` |
+| Nav item test id | `src/utils/navConfig.ts` | `navItemTestId`, `navItemSelector` |
+| View to page id mapping | `src/composables/useViewState.ts` | `pageIdOf`, `pageView` |
 
 **Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`.
 

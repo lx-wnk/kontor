@@ -49,7 +49,6 @@ const capability: NextThingItem = {
   projectName: '',
   stage: '',
   decision: { id: 'd1', capability: 'net.fetch', value: 'api.github.com', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T10:00:00Z' } as never,
-  title: 'net.fetch(api.github.com)',
   why: 'A run is paused until you allow or deny this capability.',
 }
 
@@ -95,8 +94,7 @@ describe('nextThing', () => {
     expect(mountNext(permission).get('[data-testid="mission-context"]').text()).toBe('Dashboard · implementation')
   })
 
-  // Reuses the triage band's own resolve call — no second, incompatible way
-  // to answer a capability ask.
+  // Reuses the triage band's own resolve call — no second, incompatible way to answer.
   it('shows the capability ask and resolves it the way the triage band does', async () => {
     vi.useFakeTimers()
     resolveCapability.mockResolvedValue({ outcome: 'applied' })
@@ -112,9 +110,7 @@ describe('nextThing', () => {
     vi.useRealTimers()
   })
 
-  // A server-truncated value or context must never read as complete — the
-  // queue is a global surface, so this is the only place some operators will
-  // ever see the ask before allowing or denying it.
+  // A truncated value/context must never read as complete — some operators only see this queue.
   it('marks a truncated value and context so a cut ask cannot look complete', () => {
     const truncated: NextThingItem = {
       ...capability,
@@ -122,10 +118,10 @@ describe('nextThing', () => {
     }
     const w = mountNext(truncated)
     const valueMark = w.get('[data-testid="mission-capability-value-elided"]')
-    expect(valueMark.text()).toBe('…')
+    expect(valueMark.text()).toBe('… (12 characters cut off)')
     expect(valueMark.attributes('title')).toBe('12 characters cut off')
     const contextMark = w.get('[data-testid="mission-capability-context-elided"]')
-    expect(contextMark.text()).toBe('…')
+    expect(contextMark.text()).toBe('… (3 characters cut off)')
     expect(contextMark.attributes('title')).toBe('3 characters cut off')
     w.unmount()
   })

@@ -109,11 +109,15 @@ const hasPendingApproval = computed(() =>
 
 // Prefer sessionId so suggestions reflect the running session's actual
 // CLAUDE_CONFIG_DIR (spawner-dependent); fall back to cwd for project-local commands.
-watch(() => [props.agent?.sessionId, props.agent?.cwd] as const, async ([sessionId, cwd]) => {
+async function loadCommands() {
+  const sessionId = props.agent?.sessionId
+  const cwd = props.agent?.cwd
   commandSet.value = (sessionId || cwd)
     ? await fetchDynamicCommands({ sessionId: sessionId || undefined, cwd: cwd || undefined })
     : emptyCommandSet()
-}, { immediate: true })
+}
+
+watch(() => [props.agent?.sessionId, props.agent?.cwd] as const, loadCommands, { immediate: true })
 
 const slashSuggestions = computed(() => {
   const val = promptInput.value.trim()
@@ -153,6 +157,12 @@ const showSuggestions = computed(() => slashSuggestions.value.length > 0)
 // the zero-match case — which is exactly when no suggestion renders.
 const isSlashQuery = computed(() => promptInput.value.trim().startsWith('/'))
 const showStaleNote = computed(() => isSlashQuery.value && commandSet.value.builtinsMayBeStale)
+
+// A command can be installed while this input stays mounted, so every reopen of the menu asks again — the fetch's own TTL caps the traffic.
+watch(isSlashQuery, (opened) => {
+  if (opened)
+    void loadCommands()
+})
 
 // Only a live-injectable session (pty broker or tmux) can receive a live prompt.
 // Any other session resumes as a NEW session (claude --resume) on send — surface

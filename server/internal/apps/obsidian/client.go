@@ -432,6 +432,61 @@ func (c *Client) SearchUnderRoot(ctx context.Context, query string) ([]SearchRes
 	return confined, nil
 }
 
+// JSONLogicHit is one note a JsonLogic search matched, with the query's value for it.
+type JSONLogicHit struct {
+	Filename string          `json:"filename"`
+	Result   json.RawMessage `json:"result"`
+}
+
+// SearchJSONLogic runs a JsonLogic query against every note; the REST API returns only non-falsy results.
+func (c *Client) SearchJSONLogic(ctx context.Context, logic string) ([]JSONLogicHit, error) {
+	u := *c.baseURL
+	u.Path = "/search/"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(logic))
+	if err != nil {
+		return nil, fmt.Errorf("obsidian: build jsonlogic search: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/vnd.olrapi.jsonlogic+json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("obsidian: jsonlogic search: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("obsidian: jsonlogic search: unexpected status %d", resp.StatusCode)
+	}
+	var hits []JSONLogicHit
+	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
+		return nil, fmt.Errorf("obsidian: jsonlogic search: decode response: %w", err)
+	}
+	return hits, nil
+}
+
+// OpenNote asks Obsidian to show the note; the REST API creates a missing note, so callers pass only paths they know exist.
+func (c *Client) OpenNote(ctx context.Context, notePath string) error {
+	resolved, err := resolveVaultPath(c.vaultRoot, notePath)
+	if err != nil {
+		return err
+	}
+	u := *c.baseURL
+	u.Path = "/open/" + resolved
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("obsidian: build open request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("obsidian: open: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("obsidian: open: unexpected status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // pathUnderRoot reports whether fullPath — a vault-relative path as returned
 // by Client.Search, which searches the whole vault — falls under root, and
 // if so returns the path relative to root that Read/Write/Delete expect.

@@ -50,11 +50,11 @@ type workspaceLayout struct {
 }
 
 func validWorkspaceLayout(raw string) error {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
 	if len(raw) > workspaceMaxRawBytes {
 		return fmt.Errorf("workspace.layout: value exceeds %d bytes", workspaceMaxRawBytes)
+	}
+	if strings.TrimSpace(raw) == "" {
+		return nil
 	}
 	var l workspaceLayout
 	dec := json.NewDecoder(strings.NewReader(raw))

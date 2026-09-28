@@ -1,6 +1,6 @@
 import type { MockInstance } from 'vitest'
 import type { WorkspaceLayout } from './layout'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_LAYOUT, serializeLayout } from './layout'
 
 function settingsResponse(value: string) {
@@ -25,9 +25,13 @@ function patchedValues(fetch: MockInstance<typeof globalThis.fetch>): string[] {
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0))
 
-async function fresh() {
+async function freshModule() {
   vi.resetModules()
-  return (await import('./useWorkspace')).useWorkspace()
+  return import('./useWorkspace')
+}
+
+async function fresh() {
+  return (await freshModule()).useWorkspace()
 }
 
 describe('useWorkspace', () => {
@@ -259,29 +263,84 @@ describe('useWorkspace', () => {
     expect(patchedValues(fetch)).toEqual([serializeLayout(DEFAULT_LAYOUT)])
   })
 
-  // Window events reach every module instance earlier tests imported, so these
-  // stay last and answer every request instead of queueing one-shot responses.
-  it('reads the layout again when the window regains focus or becomes visible', async () => {
+  it('returns the same layout ref across multiple useWorkspace() calls', async () => {
+    const mod = await freshModule()
+    const a = mod.useWorkspace()
+    const b = mod.useWorkspace()
+    expect(a.layout).toBe(b.layout)
+  })
+})
+
+describe('watchExternalChanges', () => {
+  let stop: (() => void) | undefined
+
+  beforeEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    stop?.()
+    stop = undefined
+  })
+
+  it('does not reread the layout on focus before it is installed', async () => {
     let stored = ''
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => settingsResponse(stored))
-    const ws = await fresh()
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => settingsResponse(stored))
+    const mod = await freshModule()
+    const ws = mod.useWorkspace()
     await ws.load()
     stored = serializeLayout(withoutFirst(1))
     window.dispatchEvent(new Event('focus'))
-    expect(await ws.save(withoutFirst(4))).toBe(false)
+    await settle()
+    expect(ws.layout.value).toEqual(DEFAULT_LAYOUT)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('rereads the layout on focus once installed', async () => {
+    let stored = ''
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => settingsResponse(stored))
+    const mod = await freshModule()
+    const ws = mod.useWorkspace()
+    await ws.load()
+    stop = mod.watchExternalChanges()
+    stored = serializeLayout(withoutFirst(1))
+    window.dispatchEvent(new Event('focus'))
     await vi.waitFor(() => expect(ws.layout.value).toEqual(withoutFirst(1)))
+  })
+
+  it('rereads the layout when the tab becomes visible once installed', async () => {
+    let stored = ''
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => settingsResponse(stored))
+    const mod = await freshModule()
+    const ws = mod.useWorkspace()
+    await ws.load()
+    stop = mod.watchExternalChanges()
     stored = serializeLayout(withoutFirst(2))
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
     document.dispatchEvent(new Event('visibilitychange'))
     await vi.waitFor(() => expect(ws.layout.value).toEqual(withoutFirst(2)))
   })
 
-  it('does not read the layout again while a write is pending', async () => {
+  it('stops rereading the layout on focus once the disposer runs', async () => {
+    let stored = ''
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => settingsResponse(stored))
+    const mod = await freshModule()
+    const ws = mod.useWorkspace()
+    await ws.load()
+    const disposer = mod.watchExternalChanges()
+    disposer()
+    stored = serializeLayout(withoutFirst(1))
+    window.dispatchEvent(new Event('focus'))
+    await settle()
+    expect(ws.layout.value).toEqual(DEFAULT_LAYOUT)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reread the layout on focus while a write is pending', async () => {
     const pending = deferred()
     let stored = ''
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => init?.method === 'PATCH' ? pending.promise : settingsResponse(stored))
-    const ws = await fresh()
+    const mod = await freshModule()
+    const ws = mod.useWorkspace()
     await ws.load()
+    stop = mod.watchExternalChanges()
     expect(await ws.save(withoutFirst(1))).toBe(true)
     stored = serializeLayout(withoutFirst(2))
     window.dispatchEvent(new Event('focus'))

@@ -30,8 +30,9 @@ test('workflows view toggle opens the four chart tabs', async ({ page }) => {
   // shell before switching to Workflows below.
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Zentrale')
 
-  // Switch to Workflows via the main view-mode toggle.
-  await page.getByRole('button', { name: 'Workflows' }).click()
+  // The sidebar item, by test id: the hub's launcher for the same view carries the same
+  // accessible name, so a role+name query matches both.
+  await page.getByTestId('nav-item-workflows').click()
 
   // The three session-independent tab buttons must be present (Session DAG
   // only renders once a session id is selected — asserted absent below).

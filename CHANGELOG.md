@@ -12,6 +12,117 @@ from [Conventional Commits](https://www.conventionalcommits.org/) by GoReleaser.
 
 Preparing the first public release.
 
+### Fixed
+
+- **A widget whose chunk failed once recovers after a successful reload.**
+  A tile that failed to load stayed recorded as failed even after a remount
+  loaded its chunk, so the hub kept the needs-you strip visible beside it and
+  kept refusing to open the Kontor tile. A successful load now clears the
+  record.
+- **The entry chunk cleared its bundle budget again.** The workspace widget
+  registry statically imported all nine widgets — and the cockpit, mission and
+  analytics code they pull in — so `App.vue`'s own static import of
+  `ApiKeySettings.vue`, the largest module reachable from the entry point, put
+  the chunk 5 KB over budget. Both now load through `defineAsyncComponent`.
+- **A stored `page:zentrale` no longer falls through oddly.** `resolveView`
+  folds it, and any stored page id that fails the page-id pattern, into the
+  core `zentrale` view instead of treating it as an ordinary page lookup; a
+  whitespace-only stored layout is now treated as empty on the server exactly
+  as `parseLayout` already treats it on the client.
+- **The Kontor overlay no longer re-places itself while you scroll inside
+  it.** Its capturing scroll listener ran `getBoundingClientRect` on every
+  scroll underneath it, including the session transcript's own scrolling; it
+  now skips scrolls the overlay itself contains.
+- **The Insights nav group no longer jumps as pages load in.** The
+  `+ New page` slot used to mount only once the layout had loaded, so the
+  bottom-anchored Insights group visibly shifted the moment it appeared; the
+  slot — and its button, disabled until then — now renders from first paint.
+  The Pages group's caption also duplicated the core groups' caption markup;
+  both now render through one shared `NavGroupCaption`.
+- **Only one Done button shows while editing a page, and edit mode ends when
+  you navigate away.** The topbar's `Edit layout` toggle and the edit bar's
+  own `Done` button both closed edit mode; the topbar button now hides while
+  editing instead. Edit mode also used to survive navigating to another view
+  and back, leaving a stale edit bar open over whatever the operator went to
+  next; `App.vue`'s existing `activeView` watcher now ends it on every
+  navigation. The delete confirmation stayed armed across a rename, so a
+  second click right after renaming the page could delete it instead of
+  confirming the new title; it now disarms as soon as the title input
+  changes or the rename is saved.
+- **A page created or deleted from the sidebar keeps focus, and choosing any
+  view lands focus in its content instead of stranding it on the nav button
+  just activated (SC 2.4.3).** `App.vue`'s `activeView` watcher is the sole,
+  declarative owner of post-navigation focus: `useViewState` gains
+  `focusAfterNavigation`, which a caller sets before navigating and the
+  watcher consumes once, falling back to `#main-content` only when nothing
+  was declared. Creating a page declares its own new nav item; deleting one
+  declares the Zentrale nav item, landing there even when the edit bar's
+  second confirmation removed the page from under the pointer.
+- **Edit layout and Done keep focus on a reachable control instead of
+  dropping it to `<body>`.** Entering edit mode hides the toggle button that
+  held focus, and Done unmounts the edit bar that held it after; each click
+  now moves focus itself — Edit layout to the edit bar's own Done button,
+  Done back to the toggle.
+- **A rate-limited project load no longer leaves the spawn picker empty.** A
+  429 on the boot `GET /api/projects` left the project list empty until the
+  60 s fallback poll, so the spawn dialog offered no project. The load now
+  retries through `fetchWithRateLimitRetry`, the same helper `useWorkspace`
+  already used for the layout.
+- **Ask Kontor keeps its prompt when the tile mounts with one already
+  pending.** `KontorTile`'s watch ran its `immediate` call during setup,
+  before the agent's own pane existed, so the first prompt was silently
+  consumed and lost. A prompt already pending at mount is now taken in
+  `onMounted` instead; a later one still arrives through the watch. Clicking
+  the hub's core with no prompt (an empty ask) no longer stages one either,
+  so it no longer wipes a draft already typed into an open overlay.
+- **The hub flies to a note or agent requested before its stage has a
+  size.** A focus request pending when the hub mounts — from a launcher, the
+  command palette, or a card's link — used to fly against a 1×1 stage and a
+  placeholder scale, landing on the wrong point or, under reduced motion,
+  losing the flight to the first resize. The camera now queues that flight
+  and applies it once the first real size arrives.
+- **Opening a card from the hub's list focuses it; closing one, or its
+  target disappearing, hands focus back to the stage.** The separate
+  agent-pid and note-path state a card was keyed on let a stale id reopen a
+  card whose target was already gone; one `openCard` value now makes at most
+  one card possible by construction.
+- **A widget whose chunk fails to load shows an error tile instead of a
+  blank one, and a failed hub chunk still shows the needs-you strip.**
+  `defineAsyncComponent` rendered nothing on a rejected loader — the case
+  when the server is rebuilt while a tab stays open — leaving a blank tile
+  with no way back. Each widget now renders the shell's `PageLoadError` on
+  that failure and records it in a reactive set, which `pageHasHub` also
+  checks, so a failed hub tile no longer hides what needs you.
+- **A whitespace-only `workspace.layout` no longer bypasses its 1 MiB size
+  cap.** The empty-value shortcut ran before the byte-length check, so a
+  value that was all whitespace skipped the cap regardless of size; the size
+  check now runs first.
+- **A note with a malformed `mtime` no longer blanks the whole hub graph.**
+  One bad value aborted the graph request entirely; that note is now skipped
+  and logged by path (never the raw value), the same handling a malformed
+  `links` value already got.
+- **A slash command installed mid-session appears without a reload.** The
+  prompt's command list was cached per session id for the life of the tab, so
+  a newly installed or enabled command stayed invisible and the cache kept one
+  entry per session id forever. Entries now expire after 60 seconds — the
+  lifetime the neighbouring graph caches already use — and writing one prunes
+  the expired ones.
+- **A tile dropped after the window changed size lands under the pointer.**
+  The workspace grid measured its rectangle once per drag, so a window resize,
+  an expanding sidebar or a scroll while a tile was held placed every
+  subsequent drop against the old geometry.
+- **Resizing the hub mid-flight still centres what was clicked.** A camera
+  flight fixed its target scale at launch, so a stage that changed size during
+  the 480 ms left the camera off the requested zoom level until the next
+  "fit"; a resize now cancels the flight and settles on its destination.
+- **The hub says so when the Kontor tile could not load, instead of
+  swallowing the question.** If the Kontor chunk 404s — the server was rebuilt
+  while the tab stayed open — the tile renders the page-load error and nothing
+  is left to receive a prompt. The hub's core and a note card's
+  "Ask Kontor about this" used to send one anyway and it vanished without a
+  trace; both are now disabled and name the reason, the same way they already
+  handle a layout with no Kontor tile at all.
+
 ### Changed
 
 - The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
@@ -29,8 +140,17 @@ Preparing the first public release.
 - The hook script and its secret file keep their old names in this release. The
   copy already installed in `~/.claude` has those paths baked in, so renaming
   them without reinstalling the script would stop it authenticating.
-
-### Changed
+- **Every Zentrale tile gets the same frame.** `CockpitPanel` renders an icon,
+  an uppercase label and, when a tile has one, a key figure shown large above
+  its body — the prototype's header, now shared by every tile instead of each
+  one drawing its own.
+- **Workspace widgets load lazily.** Each of the nine widgets is a
+  `defineAsyncComponent` loader keyed by a `WidgetId` union instead of a
+  static import, so the index chunk pulls in only the widget actually shown,
+  and unknown ids are rejected at the type level.
+- **The page is called Kontor.** The browser tab title, and the base the
+  needs-you count prefixes, now read `Kontor` instead of `Agent Dashboard —
+  Claude Code agent monitor`.
 - **The sidebar stops moving the item you are aiming at.** Hovering the icon rail expanded it, and two things that render only in the expanded state changed the geometry underneath the pointer: the group captions (`MONITOR`, `BUILD`, `INSIGHTS`) inserted three rows, and the footer laid its three action buttons out in a row instead of a column, making it ~80px shorter. Because the last nav group is bottom-anchored with `mt-auto`, that second one lifted every Insights item by that much. Measured against the running app: `Workflows`, `Cost` and `Eval` moved 76px the moment the panel opened — nearly two rows — so a click begun over one of them landed on its neighbour. The caption now sits in a fixed-height box present in both states (the icon rail keeps its centred rule inside it), and the footer keeps one column layout throughout. After the fix those three rows sit at the same offsets in both states; the top five move 3px, from the title block that still appears only when expanded, which is well inside a 40px row. Both invariants have tests that fail against the old markup.
 - **The Eval view draws its charts on the first paint, and stops rate-limiting itself on the way there.** Two defects on the same screen, both visible only in a running app. The nine metric cards sat blank because the draw was triggered by a watcher on `snapshots` alone, while the `<svg>` it draws into is gated by `isLoading` as well — the watcher fired while the element did not exist yet, `renderChart` found a null ref and returned, and nothing re-triggered it until the 60-second poll replaced `snapshots` again. The watcher now covers both gates. (The same line moved from `queueMicrotask` to `nextTick`, which is the primitive that actually orders after Vue's DOM patch; on its own it changed nothing measurable, and the test proves it — reverting only that stays green.) Separately, the view fetched one request per metric, so a single page load sent 21 API requests in one second against the server's own per-IP burst of 20 and answered itself `429 Failed to load eval data`. `/api/eval/metrics` returns every metric without a `metric` filter, so the client now makes one request and groups the rows itself: 13 requests per second instead of 21. The composable test that asserted "at least ten fetches" had written the fan-out down as a requirement; it now asserts one. `CostAnalyticsView` got the same `nextTick` for the same reason its own comment already gave, though its charts survived the old primitive because their cards use `v-show` and the refs exist from mount — no defect was observed there.
 - **Mission control surfaces an agent's own question, not only a pipeline permission.** Its empty state promises that agents will interrupt there, but the centre ranked permission requests and plans waiting for approval and nothing else — so an agent holding an AskUserQuestion on its terminal left the centre reading "Nothing needs you" while the needs-you band showed the question one view away. `question` joins the ranking between `permission` and `plan`: a permission blocks a tool call already in flight, a question blocks the turn around it, a plan blocks nothing until a human looks. The centre renders the same `QuestionCard` and `ConfirmCard` the band renders rather than growing a second way to answer, and the review/submit screen that closes a multi-question flow counts too — leaving it out would have let the centre fall silent at the last step of the flow it had just surfaced. The POST both places send is now one function, `sendQuestionAnswer`. The centre's context line also stopped printing a trailing separator for items that carry no stage.
@@ -54,6 +174,48 @@ Preparing the first public release.
 - **Pipeline stages renamed: `concept` is now `backlog`, `backlog` is now `ready`.** The holding pen where refinement chat runs is now called `backlog`, and the starting gun that auto-advances to implementation is now called `ready`. A one-shot data migration rewrites existing rows in `tasks.current_stage` and `stage_runs.stage` in collision-safe order (backlog→ready first, concept→backlog second). It also rewrote `task_schedules.current_stage` until that column was dropped — a routine never chose a stage, and nothing read the column. It runs exactly once, recorded in a new `applied_migrations` table, and it has to: the rename is chained, so a second pass would take the rows the first pass wrote as `backlog` and push them on to `ready` — every task parked in the refinement holding pen would start running by itself after a restart. The stored data cannot settle the question either, because a database holding no `concept` row is indistinguishable from a migrated one. `stage_runs.stage` is rewritten for all rows including terminal runs, because `GetLatestByTaskAndStage` lookups on non-terminal runs would break otherwise, and the rename is name normalization, not history falsification. The `refine.Concept` domain type, `inject_concept` tool name, and `conceptOutput`/`conceptJSON` variables are unchanged — they describe the domain object, not the pipeline stage.
 
 ### Added
+- **The hub.** The Zentrale's centre tile is a zoomable live map: an orbit of
+  every running agent grouped into sectors by project, and the Obsidian vault
+  drawn alongside it as the hub's *brain* — notes and links on the same
+  coordinate system, distance from the core standing for freshness. Three
+  semantic levels (Overview, Topics, Notes) switch at fixed zoom thresholds;
+  keyboard and pointer navigation (arrows, `+`/`-`/`0`, `F` to widen the tile
+  to the page's width, `L` for an accessible list view, `1`-`8` for
+  launchers, a minimap) reach every level without a mouse. `GET
+  /api/obsidian/graph` serves the vault's notes and links, confined to
+  `obsidian.vaultRoot`, cached for 60 s with one shared rebuild, gated by
+  `memory.read`; `POST /api/obsidian/open` opens a note in Obsidian, refusing
+  anything a freshly rebuilt graph does not list. A note card shows its
+  title, path, last change, link/backlink chips and **Ask Kontor about
+  this**, which opens the Kontor tile with the note's `[[wikilink]]`
+  prefilled; the memory tile lists recently touched notes, and the command
+  palette finds a note by title. Note labels and agent labels are both placed
+  greedily by priority — agents that need you first, then working ones — from
+  boxes measured in the DOM rather than estimated, and a label is dropped
+  rather than drawn over another label, over another agent's dot, or over a
+  sector name, because a sector name is the map's legend and has no fallback
+  while a dropped agent label returns on hover or keyboard focus and the agent
+  still has its dot, its accessible name and its row in the `L` list. An agent
+  label hangs radially, toward the core where there is room for it; a sector
+  carrying agents is given the arc its labels need instead of the bare
+  minimum; and the launcher ring is derived from the legend's radius so the
+  two never share a band. Where the launcher rail is docked it is fixed to the
+  screen while the map pans beneath it, so a sector name it would cover is
+  left undrawn rather than half-hidden, as is an agent's dot — it keeps its
+  row in the `L` list and its place on the minimap rather than being drawn
+  under opaque chrome that would swallow the click. The map holds still while
+  you read it: a sector's share of the circle is set by its notes and by the
+  distinct projects running in it, not by how many agents happen to be alive,
+  and a sector's colour comes from its own name rather than its position in
+  the list, so starting or stopping an agent no longer shifts the notes under
+  the camera or recolours the whole map. The legend stays clear of the
+  outermost ring of agents, and a vault of fifteen or more top-level folders
+  still gets a layout weighted by size rather than fifteen equal slices.
+- **Capability decisions answer from the needs-you queue.** A pending
+  capability decision now ranks between a question and a plan review instead
+  of being silently skipped, rendering the same Allow/Deny card the agent
+  triage band already offers; a server-truncated value or context is marked
+  with "…" instead of shown as whole.
 - **A Kontor session in the Mission tile.** The Mission input talks to one interactive Claude session that can read and steer Kontor through the task API, with a short-lived key carrying every scope except `keys:manage`. Free text starts it as the first prompt or goes to the running session; so does a `/command` once a session runs. The tile shows the session's own terminal, its state, and **New**/**End**; `GET/POST/DELETE /api/kontor-session` and `POST /api/kontor-session/renew` serve it. "Nothing needs you" shrinks to one line so the tile gets the height.
 - **A mission-control view, and it is the new entry point.** `mission` joins `ACTIVE_VIEWS` (so the command palette offers it without a second list) and puts one thing in the centre: whatever is blocking a person right now, with the reason it is first stated in words rather than as a rank. Left of it, every running task with a stage bar — how far, which stage, nothing more; the rail reports and never asks. Right of it, the existing GitHub and memory panels, which already implement the five-state contract and are now exported from `@/features/cockpit` rather than reached into.
 - **The Zentrale.** One start page assembled from tiles on a twelve-column grid; *Edit layout* moves, resizes, swaps, adds and removes tiles, by pointer or keyboard; the layout is stored as the `workspace.layout` setting and validated by the server.

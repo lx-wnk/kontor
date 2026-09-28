@@ -393,8 +393,9 @@ already used, and reads back as `********` on every surface except
 `settings.Service.Secret`, the one accessor `buildObsidianClient` itself
 calls to decrypt it. `Client.Read`/`Write`/`Search`/`Delete` still take no
 capability repos and enforce nothing themselves — every production caller
-(the `POST /api/obsidian/index` trigger, and the four `obsidian_*` MCP
-tools below) authorizes through a `memory.Gate` before reaching the client,
+(the `POST /api/obsidian/index` trigger, `GET /api/obsidian/graph`,
+`POST /api/obsidian/open`, and the four `obsidian_*` MCP tools below)
+authorizes through a `memory.Gate` before reaching the client,
 so a future caller that reaches the client directly instead would bypass
 that gate entirely.
 
@@ -409,6 +410,40 @@ names and existence of notes outside the configured root to any holder of a
 single `obsidian.search` grant, even though reading them would still be
 refused. See [`PRIVACY.md`](../../PRIVACY.md) for what an indexing pass
 persists.
+
+**The hub's vault graph and its *Open in Obsidian* action are gated by
+`memory.read`.** `GET /api/obsidian/graph` and `POST /api/obsidian/open`
+(`server/internal/api/obsidian/handler.go`) both call
+`memory.Gate.Authorize(memory.read, "", global)` before the vault is
+contacted, through the same no-`Asker` gate the index trigger uses, so a
+missing grant is a `403`, never a held request. Only a refusal
+(`ErrDenied`/`ErrAskRequired`) is a `403`; a failed grant lookup answers
+`500` with a generic body instead, never `403` — the gate fails closed
+elsewhere (an unknown capability denies, `memory/authorize.go` ~101-103),
+but a grant lookup it cannot complete is a server error, not a refusal. The
+graph is built from two JsonLogic searches (`Client.Graph`,
+`server/internal/apps/obsidian/graph.go`): each note's modification time and
+its resolved outgoing links — **no note body is requested or returned** (the
+REST plugin may read note content to evaluate the JsonLogic query, but
+neither search asks for it back). Both searches are vault-wide upstream, so every note and every
+link target is confined to `obsidian.vaultRoot` (`pathUnderRoot`) before it is
+returned; a note outside the root, and a link to or from one, never appears.
+The graph is cached for 60 seconds and rebuilt once for all concurrent
+callers. An upstream failure answers `502` with a fixed message, never the
+upstream error text, which can carry the vault URL. **The open route refuses
+any path the graph does not list** (`404`): Obsidian's `POST /open/{path}`
+creates a note that does not exist, so passing a client-chosen path through
+would let the dashboard create files in the vault. The check runs against a
+**freshly built** graph, not the cached one — a note deleted or renamed in
+Obsidian within the last 60 seconds would otherwise still be listed, and
+opening it would recreate it empty under the old name. The fresh graph joins
+a rebuild already in flight and replaces the cached one. A sub-second window
+remains between that check and the open call, because Obsidian's REST API has
+no open-only-if-it-exists call. A path containing `#` is refused with `400`
+before anything else: Obsidian reads `#` as a heading inside a link, so
+`a.md#x` would open, or create, a different note than the one checked. A
+listed path is resolved inside `obsidian.vaultRoot` again
+(`resolveVaultPath`) before the request is built.
 
 ### GitHub's token and repository boundary
 

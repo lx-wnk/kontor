@@ -25,6 +25,7 @@ function add() {
 
 function rename(event: Event) {
   const input = event.target as HTMLInputElement
+  confirmingDelete.value = false
   emit('rename', input.value)
   // A refused title reverts here; an accepted one re-renders with the stored title.
   input.value = props.page.title
@@ -35,7 +36,7 @@ function rename(event: Event) {
   <div data-testid="workspace-edit-bar" class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-[12.5px]">
     <label v-if="ownPage" class="flex items-center gap-1.5 font-medium text-fg">
       Editing
-      <input data-testid="workspace-rename" :value="page.title" aria-label="Page title" class="rounded-md border border-line-strong bg-app px-2 py-1 font-normal" @change="rename">
+      <input data-testid="workspace-rename" :value="page.title" aria-label="Page title" class="rounded-md border border-line-strong bg-app px-2 py-1 font-normal" @input="confirmingDelete = false" @change="rename">
     </label>
     <span v-else class="font-medium text-fg">Editing {{ page.title }}</span>
     <span class="text-fg-mute">Arrows move · Shift+arrows resize · Delete removes</span>

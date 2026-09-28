@@ -1,4 +1,5 @@
 import { computed, readonly, ref, watch } from 'vue'
+import { isTypingTarget } from '@/utils/isTypingTarget'
 
 const storedPinned = typeof localStorage !== 'undefined'
   ? localStorage.getItem('agent-sidebar-pinned') === 'true'
@@ -50,9 +51,7 @@ function collapseAfterSelect() {
 
 function handleShortcut(e: KeyboardEvent) {
   if (e.key === 'b' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-    const target = e.target as HTMLElement | null
-    const tag = target?.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable)
+    if (isTypingTarget(e.target))
       return
     e.preventDefault()
     togglePinned()

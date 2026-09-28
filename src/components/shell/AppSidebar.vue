@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { ActiveView } from '../../composables/useViewState'
+import type { ActiveView, CoreView } from '../../composables/useViewState'
 import { computed, nextTick, ref, watch } from 'vue'
 import { addPage, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
 import { useSidebar } from '../../composables/useSidebar'
-import { useViewState } from '../../composables/useViewState'
-import { NAV_GROUPS, NAV_ITEMS } from '../../utils/navConfig'
+import { pageView, useViewState } from '../../composables/useViewState'
+import { NAV_GROUPS, NAV_ITEMS, navItemSelector, navItemTestId } from '../../utils/navConfig'
+import NavGroupCaption from './NavGroupCaption.vue'
 import NavItem from './NavItem.vue'
 import SidebarFooter from './SidebarFooter.vue'
 
@@ -24,7 +25,7 @@ const emit = defineEmits<{
 }>()
 
 const { expanded, pinned, togglePinned, setHovering, setFocused, collapseAfterSelect, newPageRequests } = useSidebar()
-const { activeView } = useViewState()
+const { activeView, focusAfterNavigation, editAfterNavigation } = useViewState()
 
 const grouped = computed(() =>
   NAV_GROUPS.map(group => ({ group, items: NAV_ITEMS.filter(i => i.group === group) })))
@@ -33,8 +34,9 @@ const workspace = useWorkspace()
 const ownPages = computed(() => workspace.layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const creatingPage = ref(false)
 const newPageSlot = ref<HTMLElement | null>(null)
+const newPageDisabled = computed(() => !workspace.loaded.value || !!workspace.locked.value)
 
-function badgeFor(view: ActiveView): number | null {
+function badgeFor(view: CoreView): number | null {
   if (view === 'dashboard')
     return props.attentionCount > 0 ? props.attentionCount : props.agentCount
   if (view === 'pipeline')
@@ -42,7 +44,7 @@ function badgeFor(view: ActiveView): number | null {
   return null
 }
 
-function badgeDanger(view: ActiveView): boolean {
+function badgeDanger(view: CoreView): boolean {
   return view === 'dashboard' && props.attentionCount > 0
 }
 
@@ -62,6 +64,10 @@ function selectView(view: ActiveView): void {
 }
 
 async function startNewPage(): Promise<void> {
+  // The nav button itself is a disabled <button> and never fires 'select', but
+  // the hub's launcher reaches here through requestNewPage() regardless of that state.
+  if (newPageDisabled.value)
+    return
   creatingPage.value = true
   await nextTick()
   newPageSlot.value?.querySelector('input')?.focus()
@@ -89,8 +95,12 @@ async function createPage(event: KeyboardEvent): Promise<void> {
   }
   if (!await workspace.save(r.value.layout))
     return
-  workspace.editing.value = true
-  selectView(`page:${r.value.pageId}`)
+  // App.vue's watcher owns focus/edit-mode after navigation — declare the target here
+  // rather than racing it with a focus()/editing.value call of our own.
+  focusAfterNavigation.value = navItemSelector(pageView(r.value.pageId))
+  editAfterNavigation.value = true
+  selectView(pageView(r.value.pageId))
+  creatingPage.value = false
   // Blur before the input unmounts: a removed input fires no focusout, which would hold the nav open.
   input.blur()
 }
@@ -155,29 +165,11 @@ async function createPage(event: KeyboardEvent): Promise<void> {
                render only when expanded, so hovering inserted three rows and
                pushed every nav item down by a different amount per group —
                you aimed at an icon and clicked whatever slid under the cursor. -->
-          <div
-            data-testid="nav-group-slot"
-            class="relative h-7 shrink-0 overflow-hidden"
-          >
-            <span
-              class="absolute inset-0 flex items-center px-2 text-[9px] uppercase tracking-wider text-fg-faint font-bold whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none"
-              :class="expanded ? 'opacity-100 delay-75' : 'opacity-0 delay-0'"
-            >
-              {{ g.group }}
-            </span>
-            <span
-              v-if="gi > 0"
-              aria-hidden="true"
-              data-testid="nav-group-divider"
-              class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 motion-reduce:transition-none"
-              :class="expanded ? 'opacity-0 delay-0' : 'opacity-100 delay-75'"
-            >
-              <span class="h-px w-6 bg-line" />
-            </span>
-          </div>
+          <NavGroupCaption :label="g.group" :show-divider="gi > 0" :expanded="expanded" />
           <NavItem
             v-for="item in g.items"
             :key="item.view"
+            :data-testid="navItemTestId(item.view)"
             :icon="item.icon"
             :label="item.label"
             :active="activeView === item.view"
@@ -196,36 +188,19 @@ async function createPage(event: KeyboardEvent): Promise<void> {
         </div>
 
         <div class="flex flex-col gap-0.5" data-testid="nav-pages">
-          <div data-testid="nav-group-slot" class="relative h-7 shrink-0 overflow-hidden">
-            <span
-              class="absolute inset-0 flex items-center px-2 text-[9px] uppercase tracking-wider text-fg-faint font-bold whitespace-nowrap transition-opacity duration-150 motion-reduce:transition-none"
-              :class="expanded ? 'opacity-100 delay-75' : 'opacity-0 delay-0'"
-            >
-              Pages
-            </span>
-            <span
-              aria-hidden="true"
-              data-testid="nav-group-divider"
-              class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 motion-reduce:transition-none"
-              :class="expanded ? 'opacity-0 delay-0' : 'opacity-100 delay-75'"
-            >
-              <span class="h-px w-6 bg-line" />
-            </span>
-          </div>
+          <NavGroupCaption label="Pages" :show-divider="true" :expanded="expanded" />
           <NavItem
             v-for="p in ownPages"
             :key="p.id"
-            :data-testid="`nav-page-${p.id}`"
+            :data-testid="navItemTestId(pageView(p.id))"
             icon="▢"
             :label="p.title"
-            :active="activeView === `page:${p.id}`"
+            :active="activeView === pageView(p.id)"
             :expanded="expanded"
-            @select="selectView(`page:${p.id}`)"
+            @select="selectView(pageView(p.id))"
           />
-          <!-- The input takes the button's place in the same box, so no row moves.
-               It only opens from a click or key on the button, i.e. while expanded. -->
+          <!-- The input takes the button's place in the same box, so no row moves. -->
           <div
-            v-if="workspace.loaded.value && !workspace.locked.value"
             ref="newPageSlot"
             data-testid="nav-new-page-slot"
             class="h-10 shrink-0"
@@ -250,6 +225,7 @@ async function createPage(event: KeyboardEvent): Promise<void> {
               label="New page"
               :active="false"
               :expanded="expanded"
+              :disabled="newPageDisabled"
               @select="startNewPage"
             />
           </div>

@@ -1,8 +1,14 @@
+import type { GraphStatus, HubNote } from '@/features/hub/composables/useObsidianGraph'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
+import { toast } from '@/composables/useToast'
 import { DEFAULT_LAYOUT, useWorkspace } from '@/features/workspace'
 import SpotlightSearch from './SpotlightSearch.vue'
+
+vi.mock('@/composables/useToast', () => ({
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
+}))
 
 const activeView = ref('dashboard')
 let searchBody: unknown = { tasks: [], agents: [] }
@@ -18,6 +24,16 @@ vi.mock('@/composables/useViewState', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/composables/useViewState')>()
   return { ...actual, useViewState: () => ({ activeView }) }
 })
+
+const graphStatus = ref<GraphStatus>('idle')
+const graphNotes = shallowRef<HubNote[]>([])
+const recentNotesSpy = vi.fn((count: number) => [...graphNotes.value].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, count))
+const focusInHub = vi.fn((_target: unknown) => true)
+vi.mock('@/features/hub', () => ({
+  useObsidianGraph: () => ({ status: graphStatus, notes: graphNotes, recentNotes: (c: number) => recentNotesSpy(c) }),
+  focusInHub: (t: unknown) => focusInHub(t),
+  NO_HUB_PAGE_MESSAGE: 'No page shows the Zentrale hub; add the hub tile to a page.',
+}))
 
 const mockFetch = vi.fn(async () => ({
   ok: true,
@@ -48,6 +64,11 @@ beforeEach(() => {
   refresh.mockReset().mockImplementation(async () => {})
   kontorError.value = ''
   kontorPid.value = null
+  graphStatus.value = 'idle'
+  graphNotes.value = []
+  recentNotesSpy.mockClear()
+  focusInHub.mockClear()
+  vi.mocked(toast.info).mockClear()
 })
 
 afterEach(() => {
@@ -224,6 +245,50 @@ describe('spotlightSearch commands and hand-off', () => {
     expect(send).not.toHaveBeenCalled()
     expect(activeView.value).toBe('pipeline')
     expect(document.querySelector('[data-testid="spotlight-problem"]')?.textContent).toContain('Kontor has no tile')
+    wrapper.unmount()
+  })
+})
+
+describe('spotlightSearch notes', () => {
+  beforeEach(() => {
+    graphStatus.value = 'ready'
+    graphNotes.value = [
+      { index: 0, path: 'alpha/One.md', title: 'One', mtimeMs: 1000, links: [], backlinks: [] },
+      { index: 1, path: 'Two.md', title: 'Two', mtimeMs: 2000, links: [], backlinks: [] },
+    ]
+  })
+
+  it('offers a note entry for a matching title, with its folder as the hint, and flies to it in the hub', async () => {
+    const wrapper = await openSpotlight('one')
+    const option = document.querySelector('[data-testid="spotlight-note:alpha/One.md"]')
+    expect(option?.textContent).toContain('One')
+    expect(option?.textContent).toContain('alpha')
+    ;(option as HTMLElement).click()
+    await flushPromises()
+    expect(focusInHub).toHaveBeenCalledWith({ kind: 'note', path: 'alpha/One.md' })
+    wrapper.unmount()
+  })
+
+  it('offers no note entries while the vault is not ready', async () => {
+    graphStatus.value = 'unconfigured'
+    const wrapper = await openSpotlight('one')
+    expect(document.querySelector('[data-testid^="spotlight-note:"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('caps the notes fed to the matcher at the 2,000 most recent', async () => {
+    const wrapper = await openSpotlight('one')
+    expect(recentNotesSpy).toHaveBeenCalledWith(2000)
+    wrapper.unmount()
+  })
+
+  it('toasts when no page shows the hub, instead of failing silently', async () => {
+    focusInHub.mockReturnValueOnce(false)
+    const wrapper = await openSpotlight('one')
+    const option = document.querySelector('[data-testid="spotlight-note:alpha/One.md"]')
+    ;(option as HTMLElement).click()
+    await flushPromises()
+    expect(toast.info).toHaveBeenCalledWith('No page shows the Zentrale hub; add the hub tile to a page.')
     wrapper.unmount()
   })
 })

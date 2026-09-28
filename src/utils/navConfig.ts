@@ -28,3 +28,12 @@ export function viewTitle(view: ActiveView, pages: ReadonlyArray<{ id: string, t
     return pages.find(p => p.id === id)?.title ?? ''
   return NAV_ITEMS.find(i => i.view === view)?.label ?? 'Dashboard'
 }
+
+export function navItemTestId(view: ActiveView): string {
+  const id = pageIdOf(view)
+  return id !== null ? `nav-page-${id}` : `nav-item-${view}`
+}
+
+export function navItemSelector(view: ActiveView): string {
+  return `[data-testid="${navItemTestId(view)}"]`
+}

@@ -129,6 +129,48 @@ describe('promptInput drift notice', () => {
   })
 })
 
+describe('promptInput command refresh', () => {
+  // Only Date is faked: flushPromises awaits a real timer, which a full fake
+  // clock would leave pending forever.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function commandFetches(): number {
+    return vi.mocked(globalThis.fetch).mock.calls.length
+  }
+
+  it('lists a command installed after mount once the cache has expired, and not before', async () => {
+    commandsResponse = { commands: [], builtinsMayBeStale: false }
+    const w = mount(PromptInput, { props: { agent: makeAgent() } })
+    await flushPromises()
+    expect(commandFetches()).toBe(1)
+
+    commandsResponse = {
+      commands: [{ name: '/installed-later', description: 'Installed after mount' }],
+      builtinsMayBeStale: false,
+    }
+    const input = w.find('input[role="combobox"]')
+
+    await input.setValue('/installed-later')
+    await flushPromises()
+    expect(commandFetches()).toBe(1)
+    expect(w.findAll('[role="option"]')).toHaveLength(0)
+
+    await input.setValue('')
+    vi.setSystemTime(Date.now() + 61_000)
+    await input.setValue('/installed-later')
+    await flushPromises()
+
+    expect(commandFetches()).toBe(2)
+    expect(w.find('[role="listbox"]').text()).toContain('/installed-later')
+  })
+})
+
 describe('promptInput argument hints', () => {
   // A hint can come from an installed plugin's frontmatter, so the row must not
   // be stretchable by its content — the server cap is not the only guard.

@@ -2,7 +2,7 @@ import type { ComputedRef, Ref, ShallowRef } from 'vue'
 import type { Camera, HubLevel } from '../hubCamera'
 import { useEventListener, usePreferredReducedMotion, useResizeObserver } from '@vueuse/core'
 import { computed, onUnmounted, readonly, ref, shallowRef } from 'vue'
-import { clampScale, fitScale, FLY_MS, flyFrame, levelOf, toWorld, zoomAt } from '../hubCamera'
+import { centredOn, clampScale, fitScale, FLY_MS, flyFrame, levelOf, toWorld, zoomAt } from '../hubCamera'
 
 export interface HubCameraOptions {
   /** A click that did not move the pointer more than 3 px, in stage coordinates. */
@@ -33,6 +33,8 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
   const size = ref({ width: 0, height: 0 })
   const dragging = ref(false)
   let sized = false
+  // The destination of a flight that has not landed — before the first measure there is nothing to fly through, and a resize mid-flight settles on it rather than finishing against the old stage.
+  let pendingFlight: { wx: number, wy: number, rel: number } | null = null
 
   const rel = computed(() => cam.value.k / k0.value)
   const level = computed<HubLevel>(() => levelOf(rel.value))
@@ -41,6 +43,7 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
   let rafId: number | null = null
 
   function cancelFlight() {
+    pendingFlight = null
     if (rafId !== null) {
       cancelAnimationFrame(rafId)
       rafId = null
@@ -63,9 +66,14 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
 
   function flyTo(wx: number, wy: number, relTarget: number) {
     cancelFlight()
+    pendingFlight = { wx, wy, rel: relTarget }
+    // Before the first measure k0 and the stage centre are placeholders; the first resize lands it.
+    if (!sized)
+      return
     const from = cam.value
     const to = { wx, wy, k: clampScale(k0.value * relTarget, k0.value) }
     if (reducedMotion.value === 'reduce') {
+      pendingFlight = null
       cam.value = flyFrame(from, to, size.value.width, size.value.height, 1)
       return
     }
@@ -74,6 +82,8 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
       const p = (now - start) / FLY_MS
       cam.value = flyFrame(from, to, size.value.width, size.value.height, p)
       rafId = p < 1 ? requestAnimationFrame(step) : null
+      if (rafId === null)
+        pendingFlight = null
     }
     rafId = requestAnimationFrame(step)
   }
@@ -89,6 +99,12 @@ export function useHubCamera(stage: Ref<HTMLElement | null>, options?: HubCamera
     sized = true
     size.value = { width, height }
     k0.value = fitScale(width, height)
+    if (pendingFlight) {
+      const { wx, wy, rel: relTarget } = pendingFlight
+      cancelFlight()
+      cam.value = centredOn(wx, wy, clampScale(k0.value * relTarget, k0.value), width, height)
+      return
+    }
     const k = k0.value * relCurrent
     cam.value = { k, tx: width / 2 - cx * k, ty: height / 2 - cy * k }
   })

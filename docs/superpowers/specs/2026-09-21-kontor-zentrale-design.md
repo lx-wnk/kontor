@@ -1,6 +1,6 @@
 # The Zentrale — Design
 
-Status: slices 1-5 implemented on feat/kontor-zentrale (2026-09-22); slices 6-11 open
+Status: slices 1-8 implemented on feat/kontor-zentrale (2026-09-22); slices 9-11 open
 Date: 2026-09-21
 Extends: `2026-09-20-composable-workspace-design.md` — the anchored grid, the
 collision rule, edit mode, own pages and the server-side layout store stay exactly
@@ -317,7 +317,13 @@ This order replaces the base spec's slice table.
 ## Open questions
 
 1. *Open in Obsidian* needs the vault's name for an `obsidian://open` link. Derive
-   it from the REST API or add a setting? Answered in slice 8 against the live API.
+   it from the REST API or add a setting? **Answered:** neither — the REST API's
+   own `POST /open/{filename}` (`OpenNote` in `server/internal/apps/obsidian/client.go`)
+   opens a note by its vault-relative path alone; no vault name is needed.
 2. Which folder depth makes a good sector for a vault whose top level is one large
    private folder (5,371 of 5,691 notes sit under `Privat/`)? The rule above keeps
    it one sector; slice 8 checks it on screen before anything more is built.
+   **Answered** with the measured split on the operator's vault: `Privat/` holds
+   its 5,371 notes as one sector (≈ 213° of the 360° ring, off the 24° floor), and
+   the remaining folders share the rest — one level was enough, no deeper split
+   was needed.

@@ -1,5 +1,6 @@
-import type { Locator, Page } from '@playwright/test'
+import type { APIRequestContext, Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { APP_BASE_URL } from './servers'
 
 /**
  * Mock /api/me so the app never redirects to the LoginPage — mirrors the
@@ -20,6 +21,19 @@ export async function stubAuthDisabled(page: Page): Promise<void> {
  */
 export async function parkPointerOffNav(page: Page): Promise<void> {
   await page.mouse.move(640, 360)
+}
+
+export async function storeLayout(request: APIRequestContext, baseURL: string | undefined, value: string): Promise<void> {
+  const res = await request.patch('/api/settings/workspace.layout', {
+    headers: { Origin: baseURL ?? APP_BASE_URL },
+    data: { value },
+  })
+  expect(res.ok(), `store layout request (HTTP ${res.status()})`).toBe(true)
+}
+
+export function waitForLayoutPatch(page: Page) {
+  return page.waitForResponse(resp =>
+    resp.url().includes('/api/settings/workspace.layout') && resp.request().method() === 'PATCH')
 }
 
 /** Stubs a GET endpoint to return a fixed JSON body. */

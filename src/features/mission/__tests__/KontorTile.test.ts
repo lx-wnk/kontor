@@ -211,6 +211,18 @@ describe('kontorTile', () => {
     w.unmount()
   })
 
+  it('forwards a prompt already pending when it mounts with a listed session', async () => {
+    session.pid.value = 1234
+    session.status.value = 'running'
+    agents.value = [{ pid: 1234 }]
+    session.pendingPrompt.value = '[[notes/a]] '
+    const w = mount(KontorTile)
+    await flushPromises()
+    expect(paneprefillMock).toHaveBeenCalledWith('[[notes/a]] ')
+    expect(session.pendingPrompt.value).toBeNull()
+    w.unmount()
+  })
+
   it('hands unsent text from its own input to the pane once the agent appears, and clears the own input', async () => {
     const w = mount(KontorTile)
     session.pendingPrompt.value = '[[notes/a]] '

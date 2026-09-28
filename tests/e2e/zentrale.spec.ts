@@ -1,30 +1,5 @@
-import type { APIRequestContext, APIResponse, Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
-
-// The client itself retries a 429 (useWorkspace's fetchWithRateLimitRetry), so an
-// in-between 429 is not a save's outcome — skip it and wait for the response that
-// actually settles the request.
-function patched(page: Page) {
-  return page.waitForResponse(resp =>
-    resp.url().includes('/api/settings/workspace.layout') && resp.request().method() === 'PATCH' && resp.status() !== 429)
-}
-
-// Origin must match the server's own host (see 'Task API needs Origin header'
-// in .agent-context/memory). The browser under test shares the server's per-IP
-// rate limiter, so a 429 is retried — an ignored one leaves a seeded layout in
-// place for the next test.
-async function storeLayout(request: APIRequestContext, baseURL: string | undefined, value: string) {
-  let res: APIResponse | undefined
-  for (let attempt = 0; attempt < 5 && (!res || res.status() === 429); attempt++) {
-    if (res)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    res = await request.patch('/api/settings/workspace.layout', {
-      headers: { Origin: baseURL ?? 'http://localhost:13199' },
-      data: { value },
-    })
-  }
-  expect(res?.ok(), `store layout request (HTTP ${res?.status()})`).toBe(true)
-}
+import { waitForLayoutPatch as patched, storeLayout } from './helpers'
 
 // The stored layout is shared server-side state, not per-test-context state —
 // reset it after every test so a mutation here can never leak into the next
@@ -76,7 +51,7 @@ test('pages are offered in the command palette on a view that holds no workspace
   }
   await storeLayout(request, baseURL, JSON.stringify(layout))
 
-  // One boot, straight into the Dashboard: a second boot's burst drains the shared per-IP rate limiter.
+  // Set the view before the first boot: the Dashboard has to be the view the app opens on, not one it navigates to.
   await page.addInitScript(() => localStorage.setItem('agent-active-view', 'dashboard'))
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dashboard')
@@ -84,13 +59,14 @@ test('pages are offered in the command palette on a view that holds no workspace
 
   await page.keyboard.press('ControlOrMeta+k')
   await page.getByPlaceholder('Search tasks and agents…').fill('Morning')
-  // The load retries a 429 up to 3 times, up to 5 s apart (useWorkspace), so the entry may land late.
-  await expect(page.getByTestId('spotlight-command-view:page:p-morning')).toContainText('Go to Morning', { timeout: 20_000 })
+  await expect(page.getByTestId('spotlight-command-view:page:p-morning')).toContainText('Go to Morning')
 })
 
 test('a moved tile stays moved after a reload', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.getByTestId('workspace-edit-toggle').click()
+  // One Done button while editing: the topbar toggle hides in favour of the edit bar's own.
+  await expect(page.getByTestId('workspace-edit-toggle')).toHaveCount(0)
   await page.getByTestId('workspace-tile-cost-today').focus()
   // Each keypress saves through a fire-and-forget fetch (useWorkspace's
   // `write`, chained one save after the other), so reloading right after can
@@ -102,9 +78,55 @@ test('a moved tile stays moved after a reload', async ({ page }) => {
   const secondSaved = patched(page)
   await page.keyboard.press('ArrowDown')
   expect((await secondSaved).ok(), 'second save (move) request').toBe(true)
-  await page.getByTestId('workspace-edit-toggle').click()
+  await page.getByTestId('workspace-done').click()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('workspace-tile-cost-today')).toHaveAttribute('style', /--row: 11/)
+})
+
+test('opening and closing edit mode by keyboard keeps focus on a reachable control', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.getByTestId('workspace-edit-toggle').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('workspace-done')).toBeFocused()
+
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('workspace-edit-toggle')).toBeFocused()
+})
+
+test('edit mode ends on navigation and does not survive coming back', async ({ page, request, baseURL }) => {
+  const layout = {
+    version: 1,
+    pages: [
+      { id: 'zentrale', title: 'Zentrale', tiles: [] },
+      { id: 'p-morning', title: 'Morning', tiles: [] },
+    ],
+  }
+  await storeLayout(request, baseURL, JSON.stringify(layout))
+  await page.addInitScript(() => localStorage.setItem('agent-active-view', 'page:p-morning'))
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.getByTestId('workspace-edit-toggle').click()
+  await expect(page.getByTestId('workspace-edit-bar')).toBeVisible()
+
+  await page.getByTestId('nav-item-dashboard').click()
+  await expect(page.getByTestId('workspace-edit-bar')).toHaveCount(0)
+
+  await page.locator('[data-testid^="nav-page-"]', { hasText: 'Morning' }).click()
+  await expect(page.getByTestId('workspace-edit-bar')).toHaveCount(0)
+  await expect(page.getByTestId('workspace-edit-toggle')).toBeVisible()
+})
+
+// SC 2.4.3: choosing a view lands focus in its content, not stuck on the nav button just activated.
+test('choosing a view from the sidebar still lands focus on #main-content', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  // The hub's launchers mirror the sidebar's views; resolve the nav only once they are on screen.
+  await expect(page.getByTestId('hub-launcher-dashboard')).toBeVisible()
+
+  await page.getByTestId('nav-item-dashboard').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('#main-content')).toBeFocused()
+
+  await page.getByTestId('nav-item-pipeline').click()
+  await expect(page.locator('#main-content')).toBeFocused()
 })
 
 test('"/" opens the Kontor tile and Escape closes it', async ({ page }) => {
@@ -173,13 +195,12 @@ test('a pointer drag on the resize handle resizes the cost-today tile and the ne
   await expect(page.getByTestId('workspace-tile-cost-today')).toHaveAttribute('style', /--row-span: 4\b/)
   expect((await saved).ok(), 'save (resize) request').toBe(true)
 
-  await page.getByTestId('workspace-edit-toggle').click()
+  await page.getByTestId('workspace-done').click()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('workspace-tile-cost-today')).toHaveAttribute('style', /--row-span: 4\b/)
 })
 
-// A reload reads the layout from the server exactly as a restart does: the
-// layout lives only in the settings table.
+// A reload reads the layout from the server exactly as a restart does — it lives only in the settings table.
 test('a page of my own survives a reload', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.getByTestId('nav-new-page').click()
@@ -188,6 +209,10 @@ test('a page of my own survives a reload', async ({ page }) => {
   await page.getByTestId('nav-new-page-input').press('Enter')
   expect((await created).ok(), 'save (new page) request').toBe(true)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Morning')
+  // Edit mode survived the navigation watcher, and focus landed on the new page's
+  // own nav item rather than being pulled back to #main-content by App.vue's watcher.
+  await expect(page.getByTestId('workspace-edit-bar')).toBeVisible()
+  await expect(page.locator('[data-testid^="nav-page-"]', { hasText: 'Morning' })).toBeFocused()
 
   await page.getByTestId('workspace-add').selectOption('github')
   const filled = patched(page)
@@ -221,11 +246,22 @@ test('a page of my own is renamed and deleted in its edit mode', async ({ page, 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dawn')
   await expect(page.getByTestId('nav-page-p-morning')).toContainText('Dawn')
 
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Dawn')
+  await expect(page.getByTestId('nav-page-p-morning')).toContainText('Dawn')
+  await page.getByTestId('workspace-edit-toggle').click()
+
   await page.getByTestId('workspace-delete-page').click()
   await expect(page.getByTestId('workspace-delete-confirm')).toHaveText('Delete Dawn and its tiles?')
   const removed = patched(page)
   await page.getByTestId('workspace-delete-confirm').click()
   expect((await removed).ok(), 'save (delete page) request').toBe(true)
+  await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
+  await expect(page.getByTestId('nav-page-p-morning')).toHaveCount(0)
+  // Focus landed on the Zentrale nav item, not pulled back to #main-content by the navigation watcher.
+  await expect(page.getByTestId('nav-item-zentrale')).toBeFocused()
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
   await expect(page.getByTestId('nav-page-p-morning')).toHaveCount(0)
 })
@@ -243,11 +279,11 @@ test('the layout cannot be edited before it has loaded', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
   await expect(page.getByTestId('workspace-edit-toggle')).toHaveCount(0)
-  await expect(page.getByTestId('nav-new-page')).toHaveCount(0)
+  await expect(page.getByTestId('nav-new-page')).toBeDisabled()
 
   release()
   await expect(page.getByTestId('workspace-edit-toggle')).toBeVisible()
-  await expect(page.getByTestId('nav-new-page')).toBeVisible()
+  await expect(page.getByTestId('nav-new-page')).toBeEnabled()
 })
 
 // A stale tab after a server upgrade asks for a page chunk the server no longer has.
@@ -319,8 +355,10 @@ test('Escape on the hub with the Kontor overlay open collapses only the overlay'
   const stage = page.getByTestId('hub-stage')
   const camera = () => stage.locator('svg g').first().getAttribute('transform')
 
+  const before = await camera()
   await stage.press('+')
   const zoomed = await camera()
+  expect(zoomed).not.toBe(before)
   await page.getByTestId('hub-core').click()
   await expect(page.getByTestId('kontor-expanded')).toBeVisible()
   // The overlay focuses its own input; the operator going back to the map leaves it open.

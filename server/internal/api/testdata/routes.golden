@@ -51,6 +51,7 @@ GET /api/memory/injections
 GET /api/memory/spaces
 GET /api/notifications/config
 GET /api/notifications/preferences
+GET /api/obsidian/graph
 GET /api/pipeline/config
 GET /api/pipeline/recommendation
 GET /api/plugins
@@ -133,6 +134,7 @@ POST /api/kontor-session/renew
 POST /api/memory/entries
 POST /api/memory/spaces
 POST /api/obsidian/index
+POST /api/obsidian/open
 POST /api/permission-requests
 POST /api/permission-requests/bulk
 POST /api/permission-requests/bulk-resolve

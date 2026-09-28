@@ -102,13 +102,11 @@ async function send(text: string): Promise<boolean> {
   return sendMessage(pid.value, text)
 }
 
-/** Requests the tile to open with `prefill` staged in its prompt — any view can call this. */
 function ask(prefill = ''): void {
-  pendingPrompt.value = prefill
+  pendingPrompt.value = prefill || null
   openRequested.value = true
 }
 
-/** Consumes the staged prompt once, so a second caller does not see it again. */
 function takePendingPrompt(): string | null {
   const text = pendingPrompt.value
   pendingPrompt.value = null
@@ -157,7 +155,6 @@ export function useKontorSession() {
   return { pid, status, error, refresh, start, send, end, renew, openRequested, pendingPrompt, ask, takePendingPrompt, overlayOpen: readonly(overlayOpen), setOverlayOpen }
 }
 
-/** The agents-stream entry for the Kontor session's pid, shared by every caller. */
 export function useKontorAgent(): ComputedRef<Agent | null> {
   const { agents } = useAgents({ autoStart: false })
   return computed(() => (pid.value === null ? null : agents.value.find(a => a.pid === pid.value) ?? null))

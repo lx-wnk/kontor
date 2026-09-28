@@ -3,31 +3,23 @@ import type { Camera } from '../hubCamera'
 import type { Launcher } from '../hubLaunchers'
 import { useTimeoutFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
-import { toScreen } from '../hubCamera'
-import { LAUNCHER_RING_RADIUS, polar } from '../hubGeometry'
-import { launcherSlotDeg } from '../hubLaunchers'
+import { launcherPoint } from '../hubLaunchers'
 
-const props = defineProps<{ launchers: Launcher[], cam: Camera, docked: boolean }>()
+const props = defineProps<{ launchers: Launcher[], cam: Camera, docked: boolean, agentRingPx: number }>()
 defineEmits<{ launch: [launcher: Launcher] }>()
-
-const DOCK_X = 30
-const DOCK_TOP = 150
-const DOCK_STEP = 46
 
 // Eased only across a dock switch: a standing transition would trail every pan and zoom frame.
 const easing = ref(false)
-const { start: stopEasing } = useTimeoutFn(() => {
+const { start: scheduleEasingOff } = useTimeoutFn(() => {
   easing.value = false
 }, 420, { immediate: false })
 watch(() => props.docked, () => {
   easing.value = true
-  stopEasing()
+  scheduleEasingOff()
 })
 
 function at(i: number) {
-  const [x, y] = props.docked
-    ? [DOCK_X, DOCK_TOP + i * DOCK_STEP]
-    : toScreen(props.cam, ...polar(LAUNCHER_RING_RADIUS, launcherSlotDeg(i)))
+  const [x, y] = launcherPoint(i, props.docked, props.cam, props.agentRingPx)
   return { transform: `translate(${x}px, ${y}px)` }
 }
 </script>

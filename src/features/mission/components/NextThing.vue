@@ -85,8 +85,7 @@ async function decide(decision: PermissionDecision) {
   }
 }
 
-// Mirrors AgentTriageBand's handleCapabilityDecision: the same three
-// outcomes (applied, already-resolved, error) read the same way here.
+// Mirrors AgentTriageBand's handleCapabilityDecision: same three outcomes, read the same way.
 async function decideCapability(choice: 'allow' | 'deny') {
   const n = props.next
   if (!n?.decision || capabilityBusy.value || guarding.value)
@@ -149,7 +148,7 @@ async function answer(intent: AnswerIntent) {
             v-if="next.decision?.contextElided"
             data-testid="mission-capability-context-elided"
             :title="elidedTitle(next.decision.contextElided)"
-          >…</span></template>
+          >…<span class="sr-only"> ({{ elidedTitle(next.decision.contextElided) }})</span></span></template>
           <template v-else>{{ [next.projectName || next.taskTitle, next.stage].filter(Boolean).join(' · ') }}</template>
         </span>
       </div>
@@ -163,7 +162,7 @@ async function answer(intent: AnswerIntent) {
             v-if="next.decision.valueElided"
             data-testid="mission-capability-value-elided"
             :title="elidedTitle(next.decision.valueElided)"
-          >…</span>)</span>
+          >…<span class="sr-only"> ({{ elidedTitle(next.decision.valueElided) }})</span></span>)</span>
         </template>
         <template v-else>
           {{ next.title }}

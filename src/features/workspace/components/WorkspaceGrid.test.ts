@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 
 vi.mock('../widgetRegistry', () => ({
@@ -70,6 +70,65 @@ describe('workspaceGrid keyboard on the resize handle', () => {
     const w = mount(WorkspaceGrid, { props: { page: editablePage, editing: true } })
     await w.get('[data-testid="workspace-swap-agents"]').trigger('keydown', { key: 'ArrowDown' })
     expect(w.emitted('change')).toBeFalsy()
+    w.unmount()
+  })
+})
+
+describe('workspaceGrid drag geometry', () => {
+  class MockResizeObserver {
+    static instances: MockResizeObserver[] = []
+    callback: ResizeObserverCallback
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+      MockResizeObserver.instances.push(this)
+    }
+  }
+
+  const draggablePage = {
+    id: 'zentrale',
+    title: 'Zentrale',
+    tiles: [{ widget: 'agents', col: 1, row: 1, colSpan: 4, rowSpan: 2 }],
+  }
+
+  function rect(width: number): DOMRect {
+    return { left: 0, top: 0, width, height: 240, right: width, bottom: 240, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+  }
+
+  function pointer(type: string, clientX: number) {
+    return new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX, clientY: 50 })
+  }
+
+  beforeEach(() => {
+    MockResizeObserver.instances = []
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // 12 columns, 12px gaps: a tile grabbed at x=50 and dropped at x=260 lands in column 3 against a 1200px grid and column 6 against a 600px one.
+  it('drops against the geometry the grid has after a mid-drag resize', async () => {
+    const w = mount(WorkspaceGrid, { props: { page: draggablePage, editing: true }, attachTo: document.body })
+    await flushPromises()
+    const grid = w.get('[data-testid="workspace-grid"]').element
+    grid.getBoundingClientRect = () => rect(1200)
+    const tile = w.get('[data-testid="workspace-tile-agents"]').element
+
+    tile.dispatchEvent(pointer('pointerdown', 50))
+    grid.getBoundingClientRect = () => rect(600)
+    const observer = MockResizeObserver.instances.at(-1)!
+    observer.callback([{ contentRect: { width: 600, height: 240 } } as ResizeObserverEntry], observer as unknown as ResizeObserver)
+    tile.dispatchEvent(pointer('pointermove', 260))
+    tile.dispatchEvent(pointer('pointerup', 260))
+    await flushPromises()
+
+    const changed = w.emitted('change')
+    expect(changed, 'the drop emitted a change').toBeTruthy()
+    expect((changed![0][0] as typeof draggablePage).tiles[0]).toMatchObject({ col: 6, row: 1 })
     w.unmount()
   })
 })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Agent } from '@/types'
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppChip from '@/components/ui/AppChip.vue'
 import { useAgents } from '@/features/agents'
@@ -13,10 +13,14 @@ const emit = defineEmits<{ close: [] }>()
 const { selectAgent } = useAgents({ autoStart: false })
 const name = computed(() => friendlyProjectName(props.agent.projectName))
 const state = computed(() => agentDisplayStatus(props.agent))
+const panel = ref<HTMLElement | null>(null)
+
+onMounted(() => panel.value?.querySelector('button')?.focus())
 </script>
 
 <template>
   <div
+    ref="panel"
     data-hub-layer
     role="dialog"
     :aria-label="name"
