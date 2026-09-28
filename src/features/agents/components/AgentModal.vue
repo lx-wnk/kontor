@@ -131,6 +131,11 @@ watch(() => props.agent?.sessionId, (sessionId) => {
           </button>
           <span class="font-mono text-fg-mute">Subagent {{ openSubagent.id.substring(0, 16) }}</span>
           <AppBadge :variant="openSubagent.status" />
+          <span class="text-fg-faint">{{ openSubagent.type }}</span>
+          <span data-testid="subagent-metrics" class="ml-auto flex items-center gap-3 text-fg-faint">
+            <span>{{ formatTokens(openSubagent.tokensUsed) }} tokens</span>
+            <span>{{ formatUptime(openSubagent.durationSeconds) }}</span>
+          </span>
         </div>
         <AgentChatStream
           :agent="null"
@@ -138,6 +143,9 @@ watch(() => props.agent?.sessionId, (sessionId) => {
           data-testid="subagent-transcript"
           class="flex-1 min-h-0 overflow-y-auto p-4"
         />
+        <p data-testid="subagent-readonly" class="flex-shrink-0 border-t border-line px-4 py-3 text-[11px] text-fg-faint">
+          A subagent runs inside its parent's process and has no channel of its own. Go back to the session to send anything.
+        </p>
       </template>
       <template v-else>
         <!-- Session context: what you read while reading the transcript. -->
@@ -157,8 +165,8 @@ watch(() => props.agent?.sessionId, (sessionId) => {
           :local-messages="localMessages"
           class="flex-1 min-h-0 overflow-y-auto p-4"
         />
+        <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" />
       </template>
-      <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" />
       <PluginSlot name="agent-modal-footer" :ctx="{ agent }" />
     </template>
   </AppModal>

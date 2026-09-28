@@ -300,3 +300,25 @@ func TestResourceDeleteAllowsLocal(t *testing.T) {
 		t.Error("row still present after a successful delete")
 	}
 }
+
+// Three writers project rows into `application` (the plugin reconciler, the MCP
+// application reconciler and the built-in apps), and a plugin manifest carries
+// no required name, so a nameless row reached the cockpit and rendered as a
+// blank line nobody could identify. The slug is always present, so it is what a
+// row falls back to.
+func TestResourceUpsertFallsBackToSlugWhenNameIsEmpty(t *testing.T) {
+	r, ctx := newResourceRepo(t)
+
+	res, err := r.Upsert(ctx, repo.UpsertResourceInput{
+		Kind:  repo.ResourceKindApplication,
+		Slug:  "voice-whisper",
+		Name:  "",
+		Scope: repo.GlobalScope(),
+	})
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if res.Name != "voice-whisper" {
+		t.Errorf("name = %q, want the slug as the fallback label", res.Name)
+	}
+}

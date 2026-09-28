@@ -352,7 +352,11 @@ func (m *Merger) GetAgents(ctx context.Context, opts GetAgentsOpts) ([]sdk.Agent
 				proc := processes[i]
 				session, extra, err := m.resolveSession(proc, claimed, scan)
 				if err != nil {
-					continue // no matching session; zero value left at agents[i]
+					session = provisionalSession(proc, claimed)
+					if session == nil {
+						continue // no matching session; zero value left at agents[i]
+					}
+					extra = resolveExtra{}
 				}
 				agents[i] = m.buildAgent(proc, session, extra, opts.BaselinePerSessionCostUSD)
 				sessionPaths[i] = session.Path
@@ -563,4 +567,37 @@ func buildSubagents(session *parser.SessionData) []sdk.SubAgent {
 		return lastActivity[ai.ID].After(lastActivity[aj.ID])
 	})
 	return out
+}
+
+// provisionalSession answers for a process that names its own session on its
+// command line but whose transcript is not on disk yet. Claude writes nothing
+// until a turn closes, so an agent whose opening move is a question has no file
+// — and dropping it hides the one session actually waiting for an answer. The
+// pty broker already holds that question; this is what gives it an agent to
+// hang on.
+//
+// Returns nil for a process that names no session, which keeps the list as it
+// was for everything else: an unnamed `claude`, an internal daemon, or a second
+// process claiming a session another one already took.
+func provisionalSession(proc scanner.ProcessInfo, claimed map[string]bool) *parser.SessionData {
+	// --session-id is a Claude CLI flag; another provider's id is not named there.
+	if proc.Provider != "" && proc.Provider != sdk.ProviderClaude {
+		return nil
+	}
+	id := parser.SessionIDFromArgs(proc.Command)
+	if id == "" || claimed[id] {
+		return nil
+	}
+	if claimed != nil {
+		claimed[id] = true
+	}
+	return &parser.SessionData{
+		SessionID:  id,
+		Entrypoint: sdk.EntrypointCLI,
+		// Process start, not zero: a status derived from the zero time reads as
+		// long idle for a session that began seconds ago.
+		LastActivity: time.Now().Add(-time.Duration(proc.Uptime) * time.Second),
+		// It is mid-turn by construction — the turn is what has not closed.
+		TurnOpen: true,
+	}
 }

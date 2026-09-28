@@ -96,6 +96,26 @@ describe('appSidebar', () => {
     expect(w.text()).not.toContain('Monitor')
   })
 
+  // Expanding must not change how many rows sit above any nav item. The caption
+  // used to render only when expanded, so hovering inserted three rows and slid
+  // every item down by a different amount per group — the pointer was already
+  // travelling toward an icon and landed on its neighbour.
+  it('reserves the group caption row in both states, so nothing slides', async () => {
+    const { AppSidebar, useSidebar } = await load()
+
+    const collapsed = mount(AppSidebar, { props })
+    const collapsedSlots = collapsed.findAll('[data-testid="nav-group-slot"]').length
+    expect(collapsedSlots).toBeGreaterThan(0)
+
+    useSidebar().togglePinned()
+    const expanded = mount(AppSidebar, { props })
+    expect(expanded.findAll('[data-testid="nav-group-slot"]')).toHaveLength(collapsedSlots)
+
+    // Same box, same height class, whichever state it is in.
+    for (const slot of [...collapsed.findAll('[data-testid="nav-group-slot"]'), ...expanded.findAll('[data-testid="nav-group-slot"]')])
+      expect(slot.classes()).toContain('h-7')
+  })
+
   it('drops the rules again once the captions are back', async () => {
     const { AppSidebar, useSidebar } = await load()
     useSidebar().togglePinned()

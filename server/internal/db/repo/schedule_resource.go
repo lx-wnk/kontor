@@ -6,19 +6,17 @@ import (
 	"log/slog"
 
 	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskschedule"
 )
 
 // ReconcileScheduleResources gives every task_schedule row a registry identity.
-// Mirrors ReconcilePluginResources line for line: queries schedules with an empty
-// resource_id, upserts a resource row for each, and backlinks.
-//
-// Idempotent: a schedule that already carries a resource_id is skipped, so this
-// runs on every boot and returns 0 once the tree is settled.
+// Mirrors ReconcilePluginResources line for line, including its sweep over every
+// row rather than only the unlinked ones: the registry row carries the
+// schedule's name, and skipping linked rows left a renamed routine labelled with
+// whatever the first boot saw. The return value counts newly linked schedules.
 func ReconcileScheduleResources(ctx context.Context, resources ResourceRepo, client *ent.Client) (int, error) {
-	rows, err := client.TaskSchedule.Query().Where(taskschedule.ResourceIDEQ("")).All(ctx)
+	rows, err := client.TaskSchedule.Query().All(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("reconcile schedules: query unlinked: %w", err)
+		return 0, fmt.Errorf("reconcile schedules: query: %w", err)
 	}
 
 	linked, skipped := 0, 0
@@ -29,8 +27,9 @@ func ReconcileScheduleResources(ctx context.Context, resources ResourceRepo, cli
 			slog.Warn("reconcile schedule: skipped", "schedule_id", s.ID, "err", err)
 			continue
 		}
-		_ = resID
-		linked++
+		if s.ResourceID != resID {
+			linked++
+		}
 	}
 	if skipped > 0 {
 		slog.Warn("reconcile schedules: some schedules were not linked", "linked", linked, "skipped", skipped)

@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import TaskOverviewTab from '@/features/pipeline/components/task/TaskOverviewTab.vue'
 import { TaskDetailsKey, TaskRefKey } from '@/features/pipeline/composables/taskModalContext'
@@ -126,53 +126,75 @@ describe('taskOverviewTab — autonomy selector', () => {
 })
 
 describe('taskOverviewTab — concept viewer', () => {
-  beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
-  })
+  // The concept viewer now reads spec/plan off a dedicated GET /api/tasks/{id}
+  // fetch (the list response that populates the injected task strips
+  // metadata) — stub fetch to answer that single-task GET with the given
+  // metadata, and any other request (e.g. the approve_spec POST) with ok:true.
+  function stubTaskFetch(metadata: Record<string, unknown> | null) {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url === '/api/tasks/task-1') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ metadata }) } as Response)
+      }
+      return Promise.resolve({ ok: true } as Response)
+    }))
+  }
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('renders nothing for concept viewer when metadata has no spec or plan', () => {
+  it('renders nothing for concept viewer when metadata has no spec or plan', async () => {
+    stubTaskFetch(null)
     const wrapper = mountTab({ metadata: null })
+    await flushPromises()
     expect(wrapper.find('[data-testid="concept-viewer"]').exists()).toBe(false)
   })
 
-  it('renders the concept block when metadata has a spec', () => {
-    const wrapper = mountTab({ metadata: { spec: 'This is the spec text.' } })
+  it('renders the concept block when metadata has a spec', async () => {
+    stubTaskFetch({ spec: 'This is the spec text.' })
+    const wrapper = mountTab()
+    await flushPromises()
     expect(wrapper.find('[data-testid="concept-viewer"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('This is the spec text.')
     expect(wrapper.text()).toContain('Spec')
   })
 
-  it('renders the concept block when metadata has a plan', () => {
-    const wrapper = mountTab({ metadata: { plan: '1. Step one\n2. Step two' } })
+  it('renders the concept block when metadata has a plan', async () => {
+    stubTaskFetch({ plan: '1. Step one\n2. Step two' })
+    const wrapper = mountTab()
+    await flushPromises()
     expect(wrapper.find('[data-testid="concept-viewer"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('1. Step one')
     expect(wrapper.text()).toContain('Plan')
   })
 
-  it('renders both spec and plan sections when both are present', () => {
-    const wrapper = mountTab({ metadata: { spec: 'The spec', plan: 'The plan' } })
+  it('renders both spec and plan sections when both are present', async () => {
+    stubTaskFetch({ spec: 'The spec', plan: 'The plan' })
+    const wrapper = mountTab()
+    await flushPromises()
     const viewer = wrapper.find('[data-testid="concept-viewer"]')
     expect(viewer.text()).toContain('The spec')
     expect(viewer.text()).toContain('The plan')
   })
 
-  it('hides Approve Spec button when refineStatus is not draft_ready', () => {
-    const wrapper = mountTab({ metadata: { spec: 'Some spec' }, refineStatus: 'done' })
+  it('hides Approve Spec button when refineStatus is not draft_ready', async () => {
+    stubTaskFetch({ spec: 'Some spec' })
+    const wrapper = mountTab({ refineStatus: 'done' })
+    await flushPromises()
     expect(wrapper.find('[data-testid="approve-spec-btn"]').exists()).toBe(false)
   })
 
-  it('shows Approve Spec button when refineStatus is draft_ready', () => {
-    const wrapper = mountTab({ metadata: { spec: 'Some spec' }, refineStatus: 'draft_ready' })
+  it('shows Approve Spec button when refineStatus is draft_ready', async () => {
+    stubTaskFetch({ spec: 'Some spec' })
+    const wrapper = mountTab({ refineStatus: 'draft_ready' })
+    await flushPromises()
     expect(wrapper.find('[data-testid="approve-spec-btn"]').exists()).toBe(true)
   })
 
   it('calls runAction approve_spec when Approve Spec is clicked', async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response)
-    const wrapper = mountTab({ metadata: { spec: 'Some spec' }, refineStatus: 'draft_ready' })
+    stubTaskFetch({ spec: 'Some spec' })
+    const wrapper = mountTab({ refineStatus: 'draft_ready' })
+    await flushPromises()
     await wrapper.find('[data-testid="approve-spec-btn"]').trigger('click')
     await flushPromises()
     expect(fetch).toHaveBeenCalledWith(

@@ -309,7 +309,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 		r.Use(RequireSameOriginForMutations)
 		// F-SEC-010: per-IP rate limit on all protected endpoints — catches
 		// bulk-resolve, permission-request creation, and any other high-cost
-		// pipeline paths. 10 r/s burst 20 is well above normal UI usage.
+		// pipeline paths. The burst is sized from a measured cold start (see
+		// IPRateLimiterConfig): the SPA's own boot peaks at 20 requests in a
+		// second, and every local client shares one bucket because the server
+		// is loopback-only, so a burst of 20 throttled the app itself.
 		r.Use(authRateLimiter)
 		if !deps.Config.BypassAuth {
 			r.Use(authpkg.RequireAuth(deps.Config.JWTSecret))

@@ -197,6 +197,13 @@ export interface PipelineTask {
   // gate refuses to spawn a new run while this is true; surface in UI so
   // the user sees WHY their task is parked.
   blockedByPendingPermissions?: boolean
+  // True whenever the task has unresolved permission_requests and is not
+  // cancelled — regardless of whether the agent that asked is still alive.
+  // The agent files its request as it parks on awaiting_user and its process
+  // usually dies seconds later, so blockedByPendingPermissions alone misses
+  // the window in between. The orchestrator is gated on that narrower flag,
+  // not on this one; this is the "someone owes an answer" signal.
+  hasPendingPermissions?: boolean
   // Project and spawner associations (Projects/Folders/Spawners feature).
   projectId?: string | null
   spawnerId?: string | null

@@ -1,10 +1,15 @@
 {
   "$schema": "../../plugin-sdk/plugin.schema.json",
   "id": "office365-oauth",
+  "name": "Office 365 OAuth",
   "version": "1.0.0",
-  "capabilities": ["auth_provider"],
+  "capabilities": [
+    "auth_provider"
+  ],
   "addr": "127.0.0.1:19002",
-  "command": ["./office365-oauth"],
+  "command": [
+    "./office365-oauth"
+  ],
   "env": [
     "AZURE_CLIENT_ID",
     "AZURE_CLIENT_SECRET",

@@ -14,7 +14,11 @@ BIN=bin/agent-dashboard
 E2E_PORT="${E2E_PORT:-13199}"
 E2E_DB="${E2E_DB_PATH:-$PWD/.e2e/dashboard-e2e.db}"
 
-if [[ ! -x "$BIN" ]] || [[ -n "$(find server sdk src -type f \( -name '*.go' -o -name '*.vue' -o -name '*.ts' \) -newer "$BIN" -print -quit 2>/dev/null)" ]]; then
+# The scanned set must cover everything that ends up in the embedded bundle, not
+# just the languages: a change to index.html, a stylesheet or a file in public/
+# would otherwise leave the old SPA embedded, and the suite would report a green
+# run against a bundle that never contained the change.
+if [[ ! -x "$BIN" ]] || [[ -n "$(find server sdk src public index.html -type f \( -name '*.go' -o -name '*.vue' -o -name '*.ts' -o -name '*.css' -o -name '*.html' -o -name '*.js' \) -newer "$BIN" -print -quit 2>/dev/null)" ]]; then
   echo "e2e-server: building (missing or stale binary)…"
   task build:all
 fi

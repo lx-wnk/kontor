@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import type { NextThing } from '../composables/useNextThing'
 import type { PermissionDecision } from '@/features/pipeline'
+import type { AnswerIntent } from '@/utils/answerKeys'
 import { ref } from 'vue'
+import ConfirmCard from '@/components/ConfirmCard.vue'
+import QuestionCard from '@/components/QuestionCard.vue'
 import { toast } from '@/composables/useToast'
 import { resolvePermissionRequest } from '@/features/pipeline'
+import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { errorMessage } from '@/utils/errorMessage'
 
 const props = defineProps<{ next: NextThing | null, remaining: number }>()
 const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
 
 const busy = ref<PermissionDecision | null>(null)
+const answering = ref(false)
 const problem = ref('')
 
 // The four decisions the needs-you band already offers. The centre must not
@@ -38,6 +43,24 @@ async function decide(decision: PermissionDecision) {
     busy.value = null
   }
 }
+
+async function answer(intent: AnswerIntent) {
+  const n = props.next
+  if (n?.pid === undefined || answering.value)
+    return
+  answering.value = true
+  problem.value = ''
+  try {
+    await sendQuestionAnswer(n.pid, intent)
+  }
+  catch (e) {
+    problem.value = errorMessage(e, 'Couldn\'t send that answer')
+    toast.error(problem.value)
+  }
+  finally {
+    answering.value = false
+  }
+}
 </script>
 
 <template>
@@ -59,10 +82,12 @@ async function decide(decision: PermissionDecision) {
         <span class="font-mono text-[10px] uppercase rounded px-1.5 py-0.5 border border-warning-line text-warning-text">
           {{ next.kind }}
         </span>
-        <span class="text-[12.5px] text-fg-mute">{{ next.projectName || next.taskTitle }} · {{ next.stage }}</span>
+        <span data-testid="mission-context" class="text-[12.5px] text-fg-mute">
+          {{ [next.projectName || next.taskTitle, next.stage].filter(Boolean).join(' · ') }}
+        </span>
       </div>
 
-      <h2 class="text-[23px] font-medium leading-snug text-fg">
+      <h2 v-if="next.kind !== 'question'" class="text-[23px] font-medium leading-snug text-fg">
         <template v-if="next.kind === 'permission'">
           Let this agent run <span class="font-mono text-[20px] text-accent">{{ next.title }}</span>?
         </template>
@@ -79,7 +104,12 @@ async function decide(decision: PermissionDecision) {
         {{ problem }}
       </p>
 
-      <div v-if="next.kind === 'permission'" class="flex flex-wrap gap-2 pt-1">
+      <div v-if="next.kind === 'question'" data-testid="mission-question" :class="answering ? 'opacity-60 pointer-events-none' : ''">
+        <QuestionCard v-if="next.question" :detected-question="next.question" @answer="answer" />
+        <ConfirmCard v-else-if="next.confirm" :detected-confirm="next.confirm" @answer="answer" />
+      </div>
+
+      <div v-else-if="next.kind === 'permission'" class="flex flex-wrap gap-2 pt-1">
         <button
           v-for="d in DECISIONS"
           :key="d.value"

@@ -86,9 +86,13 @@ afterEach(() => {
 
 describe('useEvalMetrics', () => {
   it('fetches metrics and alerts on start', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => [],
+    // Non-empty on purpose: an empty window triggers a second, deliberate
+    // lookback probe for the "last recorded" hint, which would hide the count
+    // this test is about.
+    const mockFetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('/api/eval/metrics'))
+        return Promise.resolve({ ok: true, json: async () => [makeSnapshot('success_rate')] })
+      return Promise.resolve({ ok: true, json: async () => [] })
     })
     vi.stubGlobal('fetch', mockFetch)
 
@@ -97,15 +101,27 @@ describe('useEvalMetrics', () => {
     start()
     await flushPromises()
     expect(isLoading.value).toBe(false)
-    // 9 metric fetches + 1 alerts fetch
-    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(10)
+    // One metrics request. This used to assert at least ten — nine per-metric
+    // fetches plus alerts — which encoded the fan-out that put a single page
+    // load over the server's own per-IP burst of 20 and answered it 429.
+    const metricCalls = mockFetch.mock.calls.filter(c => String(c[0]).includes('/api/eval/metrics'))
+    expect(metricCalls).toHaveLength(1)
+    expect(String(metricCalls[0][0])).not.toContain('metric=')
   })
 
   it('populates snapshots grouped by metricKey', async () => {
+    // One response carrying every metric, which is what the endpoint returns
+    // without a `metric` filter. Grouping is the client's job now.
     const mockFetch = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes('/api/eval/metrics')) {
-        const key = new URL(url, 'http://x').searchParams.get('metric') ?? ''
-        return Promise.resolve({ ok: true, json: async () => [makeSnapshot(key)] })
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            makeSnapshot('success_rate'),
+            makeSnapshot('mean_tokens'),
+            makeSnapshot('not_a_metric_we_chart'),
+          ],
+        })
       }
       return Promise.resolve({ ok: true, json: async () => [] })
     })
@@ -116,6 +132,9 @@ describe('useEvalMetrics', () => {
     await flushPromises()
     expect(snapshots.value.success_rate).toHaveLength(1)
     expect(snapshots.value.success_rate[0].value).toBe(0.85)
+    expect(snapshots.value.mean_tokens).toHaveLength(1)
+    // A key the client does not chart must not land anywhere.
+    expect(Object.values(snapshots.value).flat()).toHaveLength(2)
   })
 
   it('populates openAlerts', async () => {

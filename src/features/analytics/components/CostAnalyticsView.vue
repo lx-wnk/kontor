@@ -4,7 +4,7 @@ import { axisBottom, axisLeft } from 'd3-axis'
 import { scaleBand, scaleLinear, scaleOrdinal, scalePoint } from 'd3-scale'
 import { select } from 'd3-selection'
 import { area, curveMonotoneX, line, stack } from 'd3-shape'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import { useHistoryImport } from '@/composables/useHistoryImport'
 import { useTheme } from '@/composables/useTheme'
@@ -287,8 +287,11 @@ onMounted(() => {
 })
 
 watch([summary, theme], () => {
-  // d3 needs the DOM updated; render after Vue applies summary.value swap.
-  queueMicrotask(() => {
+  // nextTick is what the comment here always meant: a microtask can run before
+  // Vue patches the DOM. These two charts survive that only because their
+  // cards use v-show, so the refs exist from mount — the moment one becomes a
+  // v-if they would go blank the way EvalView's did.
+  void nextTick(() => {
     renderStackedBar()
     renderWeeklyTrend()
   })

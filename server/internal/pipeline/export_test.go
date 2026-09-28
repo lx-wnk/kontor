@@ -159,3 +159,11 @@ const SharedContextForTest = sharedContext
 func (o *PipelineOrchestrator) SweepAwaitingUserRunsForTest(ctx context.Context, runs []*ent.StageRun) error {
 	return o.sweepAwaitingUserRuns(ctx, runs)
 }
+
+// FilePermissionRequestForTest exposes filePermissionRequest so the auto-grant
+// rule is asserted against the production path, not a copy of its condition.
+func (o *PipelineOrchestrator) FilePermissionRequestForTest(
+	ctx context.Context, task *ent.Task, stageRunID, tool, pattern, reason string,
+) *ent.PermissionRequest {
+	return o.filePermissionRequest(ctx, task, stageRunID, tool, pattern, reason)
+}

@@ -68,7 +68,7 @@ describe('agentModal subagent transcript', () => {
   function mountWithSubagent() {
     return mount(AgentModal, {
       props: { agent: { ...baseAgent, subagents: [subagent] } as Agent },
-      global: { stubs: { ...stubs, SubAgentList: false, PromptInput: { template: '<div />', methods: { focus() {} } } } },
+      global: { stubs: { ...stubs, SubAgentList: false, PromptInput: { name: 'PromptInput', template: '<div />', methods: { focus() {} } } } },
     })
   }
 
@@ -85,6 +85,34 @@ describe('agentModal subagent transcript', () => {
     await w.get('[data-testid="subagent-open"]').trigger('click')
     await w.get('[data-testid="subagent-back"]').trigger('click')
     expect(w.find('[data-testid="subagent-transcript"]').exists()).toBe(false)
+  })
+
+  // The input used to sit outside both branches: it stayed bound to the parent
+  // while a subagent transcript was on screen, so typing there answered the
+  // wrong session.
+  it('takes the reply box away while a subagent transcript is shown', async () => {
+    const w = mountWithSubagent()
+    expect(w.findComponent({ name: 'PromptInput' }).exists()).toBe(true)
+
+    await w.get('[data-testid="subagent-open"]').trigger('click')
+    expect(w.findComponent({ name: 'PromptInput' }).exists()).toBe(false)
+    expect(w.get('[data-testid="subagent-readonly"]').text()).toContain('no channel of its own')
+
+    await w.get('[data-testid="subagent-back"]').trigger('click')
+    expect(w.findComponent({ name: 'PromptInput' }).exists()).toBe(true)
+    expect(w.find('[data-testid="subagent-readonly"]').exists()).toBe(false)
+  })
+
+  it('names the subagent kind and what it spent', async () => {
+    const w = mount(AgentModal, {
+      props: { agent: { ...baseAgent, subagents: [{ ...subagent, type: 'Explore', tokensUsed: 12500, durationSeconds: 3725 }] } as Agent },
+      global: { stubs: { ...stubs, SubAgentList: false, PromptInput: { name: 'PromptInput', template: '<div />', methods: { focus() {} } } } },
+    })
+    await w.get('[data-testid="subagent-open"]').trigger('click')
+
+    const metrics = w.get('[data-testid="subagent-metrics"]').text()
+    expect(metrics).toContain('12.5k')
+    expect(metrics).toContain('1h 2m')
   })
 
   // The modal is reused across agents; a stale subagent would open on the wrong session.

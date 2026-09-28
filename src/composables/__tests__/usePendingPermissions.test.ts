@@ -75,6 +75,30 @@ describe('usePendingPermissions', () => {
     expect(fetchPendingMock).toHaveBeenCalledWith('task-1')
   })
 
+  it('surfaces a task that owes a decision but is not yet blocked', async () => {
+    fetchPendingMock.mockResolvedValue([makeRequest()])
+    const tasks = ref<PipelineTask[]>([
+      makeTask({ id: 'task-1', hasPendingPermissions: true, blockedByPendingPermissions: false }),
+    ])
+    const { items } = usePendingPermissions(tasks)
+    await flushPromises()
+
+    expect(fetchPendingMock).toHaveBeenCalledWith('task-1')
+    expect(items.value.map(i => i.taskId)).toEqual(['task-1'])
+  })
+
+  it('ignores a task with neither flag set', async () => {
+    fetchPendingMock.mockResolvedValue([makeRequest()])
+    const tasks = ref<PipelineTask[]>([
+      makeTask({ id: 'task-1', hasPendingPermissions: false, blockedByPendingPermissions: false }),
+    ])
+    const { items } = usePendingPermissions(tasks)
+    await flushPromises()
+
+    expect(fetchPendingMock).not.toHaveBeenCalled()
+    expect(items.value).toEqual([])
+  })
+
   it('derives projectName from the last cwd segment', async () => {
     fetchPendingMock.mockResolvedValue([makeRequest()])
     const tasks = ref<PipelineTask[]>([

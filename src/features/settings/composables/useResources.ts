@@ -49,9 +49,13 @@ export interface ResourceQuery {
 // that renders this (cf. useMemory's READ_DENIED_FALLBACK).
 const DENIED_FALLBACK = 'The registry route refused this read (HTTP 403) without giving a reason.'
 
-export function useResources() {
+// The kind is taken here rather than on the mount fetch because this composable
+// owns the one request it fires on mount. A caller that asked for its kind
+// afterwards issued a second request for a different kind, and the response that
+// landed last decided what the caller rendered.
+export function useResources(initialKind: ResourceKind = 'application') {
   const resources = ref<ResourceView[]>([])
-  const query = ref<ResourceQuery>({ kind: 'application', scopeKind: 'global', scopeRef: '' })
+  const query = ref<ResourceQuery>({ kind: initialKind, scopeKind: 'global', scopeRef: '' })
   const loading = ref(true)
   const error = ref<string | null>(null)
   // Held apart from `error`: `kind=memory_space` is gated on memory.read, so on

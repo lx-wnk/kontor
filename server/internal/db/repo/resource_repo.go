@@ -107,12 +107,19 @@ func (r *entResourceRepo) Upsert(ctx context.Context, in UpsertResourceInput) (*
 	if origin == "" {
 		origin = ResourceOriginLocal
 	}
+	// Every writer routes through here, and a plugin manifest is not required to
+	// carry a name yet, so a nameless row would reach the UI as a blank line no
+	// one can identify. The slug is always present and identifies the row.
+	name := in.Name
+	if name == "" {
+		name = in.Slug
+	}
 
 	err := r.client.Resource.Create().
 		SetID(uuid.New().String()).
 		SetKind(in.Kind).
 		SetSlug(in.Slug).
-		SetName(in.Name).
+		SetName(name).
 		SetScopeKind(string(scope.Kind)).
 		SetScopeRef(scope.Ref).
 		SetNodeID(DefaultNodeID).

@@ -96,13 +96,44 @@ const spawnerAssignOptions = computed(() => [
   ...spawners.value.map(s => ({ value: s.id, label: `${s.name}${s.builtIn ? ' (built-in)' : ''}` })),
 ])
 
-const conceptSpec = computed(() =>
-  typeof task.value?.metadata?.spec === 'string' ? task.value.metadata.spec : null,
-)
-const conceptPlan = computed(() =>
-  typeof task.value?.metadata?.plan === 'string' ? task.value.metadata.plan : null,
-)
+// The list fetch that populates the injected task strips metadata (it can run
+// into tens of KB per task); spec/plan are only ever needed here, in the
+// detail view, so fetch the single task on its own instead.
+const conceptSpec = ref<string | null>(null)
+const conceptPlan = ref<string | null>(null)
 const hasConcept = computed(() => !!conceptSpec.value || !!conceptPlan.value)
+
+async function loadConcept(taskId: string): Promise<void> {
+  try {
+    const res = await fetch(`/api/tasks/${taskId}`)
+    if (!res.ok) {
+      conceptSpec.value = null
+      conceptPlan.value = null
+      return
+    }
+    const full = await res.json() as PipelineTask
+    conceptSpec.value = typeof full.metadata?.spec === 'string' ? full.metadata.spec : null
+    conceptPlan.value = typeof full.metadata?.plan === 'string' ? full.metadata.plan : null
+  }
+  catch {
+    conceptSpec.value = null
+    conceptPlan.value = null
+  }
+}
+
+watch(
+  () => task.value?.id,
+  (id) => {
+    if (id) {
+      void loadConcept(id)
+    }
+    else {
+      conceptSpec.value = null
+      conceptPlan.value = null
+    }
+  },
+  { immediate: true },
+)
 const showApproveSpec = computed(() => task.value?.refineStatus === 'draft_ready')
 
 const isApprovingSpec = ref(false)
