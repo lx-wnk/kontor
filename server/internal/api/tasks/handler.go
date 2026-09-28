@@ -839,7 +839,7 @@ func (h *Handler) retry(w http.ResponseWriter, r *http.Request) error {
 		return apierr.ErrNotFound
 	}
 	latest, err := h.srRepo.GetLatestByTaskAndStage(r.Context(), id, t.CurrentStage)
-	if err != nil || latest == nil || latest.Status != "failed" {
+	if err != nil || latest == nil || (latest.Status != "failed" && latest.Status != "rate_limited") {
 		return apierr.NewAppError(http.StatusConflict, "task has no failed stage run to retry on its current stage")
 	}
 	var body struct {

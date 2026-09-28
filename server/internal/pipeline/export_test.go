@@ -166,11 +166,6 @@ func (o *PipelineOrchestrator) SweepAwaitingUserRunsForTest(ctx context.Context,
 	return o.sweepAwaitingUserRuns(ctx, runs)
 }
 
-// HandleFailedResultForTest exposes handleFailedResult for testing.
-func (o *PipelineOrchestrator) HandleFailedResultForTest(ctx context.Context, task *ent.Task, sr *ent.StageRun, result CompletionResult) {
-	o.handleFailedResult(ctx, task, sr, result)
-}
-
 // FilePermissionRequestForTest exposes filePermissionRequest so the auto-grant
 // rule is asserted against the production path, not a copy of its condition.
 func (o *PipelineOrchestrator) FilePermissionRequestForTest(

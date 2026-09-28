@@ -641,6 +641,37 @@ func TestPicker_RequeuedRun_NotPicked(t *testing.T) {
 	}
 }
 
+func TestPicker_RateLimitedRun_NotPicked(t *testing.T) {
+	ctx := context.Background()
+	orch, taskRepo, srRepo := makeOrchestratorWithSRRepo(t)
+
+	task := makePickerTask(t, ctx, taskRepo, "rate-limited-guard-test")
+
+	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{
+		TaskID:      task.ID,
+		Stage:       "implementation",
+		Iteration:   0,
+		SessionName: "rate-limited-guard-impl-0",
+	})
+	require.NoError(t, err)
+
+	future := time.Now().Add(5 * time.Minute)
+	retryCount := 1
+	_, err = srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+		Status:      strPtr("rate_limited"),
+		RetryCount:  &retryCount,
+		NextRetryAt: &future,
+	})
+	require.NoError(t, err)
+
+	orch.PickNextTasksForFreeSlots(ctx, nil)
+
+	runs, err := srRepo.ListForTask(ctx, task.ID)
+	require.NoError(t, err)
+	require.Len(t, runs, 1, "a rate_limited run in cooldown must not get a fresh iteration spawned")
+	require.Equal(t, "rate_limited", runs[0].Status)
+}
+
 func TestPicker_AfterSweepFlipsToPending_TaskIsPicked(t *testing.T) {
 	ctx := context.Background()
 	orch, taskRepo, srRepo := makeOrchestratorWithSRRepo(t)

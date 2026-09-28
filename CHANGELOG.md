@@ -519,7 +519,7 @@ Preparing the first public release.
 
 ### Fixed
 
-- **Rate-limited (429/529) stage runs no longer advance the pipeline or count as reviews.** A run that aborts on the Claude usage limit is now classified as `rate_limited`, automatically re-queued after the reset backoff (default 600 s, configurable via `rateLimitBackoffSeconds`), and retried up to `maxRateLimitRetries` times (default 36) before parking the task. A `self_review` output that lacks the required `passed` boolean field is now a validation error rather than an implicit failure, preventing a rate-limited run with stale requeue metadata from burning a review cycle.
+- **Rate-limited stage runs no longer advance the pipeline or count as reviews.** A run that aborts on a rate or usage limit (HTTP 429/529/503) is now shown as "Paused: Usage Limit" (`rate_limited`), re-queued after the backoff (default 600 s, configurable via `rateLimitBackoffSeconds`), and retried up to `maxRateLimitRetries` times (default 36) before it fails. A re-queued run no longer carries its requeue bookkeeping into the retry, where it was read as the stage's finished output. A `self_review` output without the required `passed` boolean now waits for the user instead of counting as a failed review. Retry Stage works on a paused run and starts it right away.
 - **Tasks created or changed through MCP reach the board without a reload.**
   MCP tools used to send a `task_changed` event the board ignores, so a task an
   agent created stayed invisible and opening it said "Task not found". They now
