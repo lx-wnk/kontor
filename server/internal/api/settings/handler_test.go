@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -153,4 +154,26 @@ func TestPatch_MasksSecretValueInResponse(t *testing.T) {
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, secretbox.MaskedSentinel, resp["value"])
+}
+
+func TestPatch_ValidationErrorMessageInResponse(t *testing.T) {
+	h, svc := newRouter(t)
+
+	// Register a pre-save hook that rejects a specific value.
+	svc.OnPreSave(func(_ context.Context, key, value string) error {
+		if key == "obsidian.vaultRoot" && value == "bad-root" {
+			return fmt.Errorf("folder %q not found in vault", value)
+		}
+		return nil
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings/obsidian.vaultRoot", strings.NewReader(`{"value":"bad-root"}`))
+	h.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Contains(t, body["error"], "bad-root")
+	assert.Contains(t, body["error"], "not found")
 }

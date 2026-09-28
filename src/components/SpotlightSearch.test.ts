@@ -106,7 +106,7 @@ describe('spotlightSearch', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        tasks: [{ id: 't1', title: 'Test Task', currentStage: 'implementation', slug: 'test-task', description: null, cwd: '/', worktreePath: null, sourceBranch: null, targetBranch: null, parentTaskId: null, maxIterations: 3, tokenBudget: null, costBudgetCents: null, stageTimeoutSeconds: 1800, createdAt: '', updatedAt: '', metadata: null, silverBullet: false, priority: 'medium', userId: null }],
+        tasks: [{ id: 't1', title: 'Test Task', currentStage: 'implementation', slug: 'test-task', description: null, cwd: '/', worktreePath: null, sourceBranch: null, targetBranch: null, parentTaskId: null, maxIterations: 3, tokenBudget: null, costBudgetCents: null, createdAt: '', updatedAt: '', metadata: null, silverBullet: false, priority: 'medium', userId: null }],
         agents: [],
       }),
     })

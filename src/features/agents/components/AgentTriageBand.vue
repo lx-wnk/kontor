@@ -10,6 +10,7 @@ import QuestionCard from '@/components/QuestionCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import { useCapabilityDecisions } from '@/composables/useCapabilityDecisions'
 import { useNow } from '@/composables/useNow'
+import { folderName } from '@/composables/usePendingPermissions'
 import { usePermissionResolve } from '@/composables/usePermissionResolve'
 import { toast } from '@/composables/useToast'
 import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity'
@@ -803,14 +804,14 @@ watch(() => props.focusedSessionId, (id) => {
               >
                 Deny
               </AppButton>
-              <label class="flex items-center gap-1 cursor-pointer select-none text-[11px] text-fg-faint ml-auto">
+              <label class="flex items-center gap-1 cursor-pointer select-none text-[11px] text-fg-faint ml-auto" :title="item.cwd">
                 <input
                   v-model="rememberPerTask[item.taskId]"
                   type="checkbox"
                   class="accent-success"
-                  :aria-label="`Don't ask again for ${item.projectName}`"
+                  :aria-label="`Don't ask again in folder ${folderName(item.cwd)}`"
                 >
-                <span class="font-mono">Don't ask again for {{ item.projectName }}</span>
+                <span class="font-mono">Don't ask again in {{ folderName(item.cwd) }}</span>
               </label>
             </div>
           </div>
@@ -972,9 +973,9 @@ watch(() => props.focusedSessionId, (id) => {
                     v-model="rememberPerAgent[agent.sessionId]"
                     type="checkbox"
                     class="accent-success"
-                    :aria-label="`Don't ask again for ${agent.projectName}`"
+                    aria-label="Don't ask again in this task's folder"
                   >
-                  <span class="font-mono">{{ friendlyProjectName(agent.projectName) }}</span>
+                  <span class="font-mono">Don't ask again in this task's folder</span>
                 </label>
               </template>
 

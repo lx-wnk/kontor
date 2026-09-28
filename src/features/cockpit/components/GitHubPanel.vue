@@ -48,6 +48,7 @@ const CHECK_MARKS: Record<GitHubChecks['state'], string> = {
   failure: 'X',
   pending: '...',
   none: '-',
+  not_tracked: '○',
 }
 
 function checkLabel(checks: GitHubChecks): string {
@@ -60,15 +61,19 @@ function checkLabel(checks: GitHubChecks): string {
       return `${checks.passed + checks.failed}/${checks.total}`
     case 'none':
       return 'no checks'
+    case 'not_tracked':
+      return 'not tracked'
   }
 }
 
 // "none" means the lookup found nothing OR failed -- the handler collapses
 // both, so the wording must not promise which one it was.
 function checkTitle(checks: GitHubChecks): string {
-  return checks.state === 'none'
-    ? 'No check runs reported for this pull request'
-    : `Checks ${checks.state}: ${checks.passed} passed, ${checks.failed} failed, ${checks.total} total`
+  if (checks.state === 'none')
+    return 'No check runs reported for this pull request'
+  if (checks.state === 'not_tracked')
+    return 'Checks not tracked: add this repository to github.repos in Settings → GitHub (applies after a server restart)'
+  return `Checks ${checks.state}: ${checks.passed} passed, ${checks.failed} failed, ${checks.total} total`
 }
 
 // A merge cannot be taken back, so it takes two deliberate clicks and the

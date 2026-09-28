@@ -4,12 +4,12 @@ package agentbroadcast
 import (
 	"context"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/merger"
 	"github.com/lx-wnk/kontor/server/internal/pathutil"
@@ -118,12 +118,9 @@ func attribute(
 		// reading.
 		return "", ""
 	}
-	dir := strings.TrimSpace(agent.ClaudeConfigDir)
-	if dir == "" {
-		// Read, and the variable is unset — the session runs on the user's
-		// default config dir, which is what a spawner without one targets.
-		dir = userDefaultConfigDir()
-	}
+	// Read, and possibly unset — then the session runs on the user's default
+	// config dir, which is what a spawner without one targets.
+	dir := claudeconfig.SessionDir(strings.TrimSpace(agent.ClaudeConfigDir), true)
 	if match, ok := byConfigDir[dirs.canonical(dir)]; ok {
 		return match.ID, sdk.SpawnerSourceEnv
 	}
@@ -165,18 +162,13 @@ func indexByConfigDir(rows []*ent.Spawner, dirs *dirResolver) map[string]*ent.Sp
 // userDefaultConfigDir is the config dir a session that sets no
 // CLAUDE_CONFIG_DIR runs on: always ~/.claude.
 //
-// Deliberately not the server process's own CLAUDE_CONFIG_DIR. That variable
-// says which dir this server was launched under — a different fact, and one
-// that already has an owner in parser.AllClaudeConfigDirs (which session trees
-// to scan). Reading it here made a server started under ~/.claude-work declare
-// that dir to be the user default, so a spawner targeting the default profile
-// claimed sessions on the work profile and lost the ones on ~/.claude.
+// Deliberately not the server's own configured dir (claudeconfig.ConfigDir).
+// That says which dir this server reads — a different fact. Using it made a
+// server started under ~/.claude-work declare that dir to be the user default,
+// so a spawner targeting the default profile claimed sessions on the work
+// profile and lost the ones on ~/.claude.
 func userDefaultConfigDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".claude")
+	return claudeconfig.DefaultDir()
 }
 
 // canonicalDir resolves ~, relative segments, and symlinks so that a spawner

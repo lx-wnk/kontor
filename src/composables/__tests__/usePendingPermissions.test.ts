@@ -1,4 +1,4 @@
-import type { PermissionRequest, PipelineTask } from '@/types'
+import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -29,7 +29,6 @@ function makeTask(overrides: Partial<PipelineTask> = {}): PipelineTask {
     maxIterations: 10,
     tokenBudget: null,
     costBudgetCents: null,
-    stageTimeoutSeconds: 300,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     metadata: null,
@@ -111,6 +110,19 @@ describe('usePendingPermissions', () => {
     expect(items.value).toHaveLength(1)
     expect(items.value[0]).toMatchObject({ taskId: 'task-1', title: 'Fix bug', projectName: 'My Cool Project', routineId: null })
     expect(items.value[0].requests).toHaveLength(1)
+  })
+
+  it('takes projectName from the agent working the task, like its card', async () => {
+    fetchPendingMock.mockResolvedValue([makeRequest()])
+    const tasks = ref<PipelineTask[]>([
+      makeTask({ id: 'task-1', cwd: '/home/user/agent-dashboard', blockedByPendingPermissions: true }),
+    ])
+    const agents = ref([{ pipelineTaskId: 'task-1', projectName: 'kontor' } as Agent])
+
+    const { items } = usePendingPermissions(tasks, agents)
+    await flushPromises()
+
+    expect(items.value[0]).toMatchObject({ projectName: 'Kontor', cwd: '/home/user/agent-dashboard' })
   })
 
   it('carries the task routineId through to the item', async () => {

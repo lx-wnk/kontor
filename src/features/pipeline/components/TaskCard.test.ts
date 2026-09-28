@@ -23,7 +23,6 @@ const baseTask: PipelineTask = {
   maxIterations: 3,
   tokenBudget: null,
   costBudgetCents: null,
-  stageTimeoutSeconds: 1800,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   metadata: null,
@@ -126,6 +125,22 @@ describe('taskCard', () => {
     expect(wrapper.emitted('openChat')).toBeTruthy()
     expect(wrapper.emitted('openChat')![0]).toEqual([task])
     expect(wrapper.emitted('select')).toBeFalsy()
+  })
+})
+
+describe('taskCard — PR error chip', () => {
+  it('shows the chip with the error as tooltip when metadata.pr_error is set', () => {
+    const task = { ...baseTask, metadata: { pr_error: 'gh: not logged in' } }
+    const wrapper = mount(TaskCard, { props: { task }, global: { stubs } })
+    const chip = wrapper.find('[data-testid="task-card-pr-error"]')
+    expect(chip.exists()).toBe(true)
+    expect(chip.text()).toContain('PR not created')
+    expect(chip.attributes('title')).toBe('gh: not logged in')
+  })
+
+  it('hides the chip without pr_error', () => {
+    const wrapper = mount(TaskCard, { props: { task: baseTask }, global: { stubs } })
+    expect(wrapper.find('[data-testid="task-card-pr-error"]').exists()).toBe(false)
   })
 })
 

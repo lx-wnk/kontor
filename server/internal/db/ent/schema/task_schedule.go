@@ -42,7 +42,6 @@ func (TaskSchedule) Fields() []ent.Field {
 		field.Int("max_iterations").Default(20),
 		field.Int("token_budget").Optional().Nillable(),
 		field.Int("cost_budget_cents").Optional().Nillable(),
-		field.Int("stage_timeout_seconds").Default(1800),
 		field.Bool("silver_bullet").Default(false),
 		field.String("project_id").Optional().Nillable(),
 		field.String("spawner_id").Optional().Nillable(),

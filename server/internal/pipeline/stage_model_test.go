@@ -74,14 +74,14 @@ func TestStageModelDefault_BalancedDefaults(t *testing.T) {
 
 			ctx := context.Background()
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                "model-default-" + tc.stage,
-				Title:               "Model default test",
-				Cwd:                 "/tmp",
-				CurrentStage:        tc.stage,
-				Priority:            "medium",
-				MaxIterations:       3,
-				StageTimeoutSeconds: 1800,
-				Kind:                tc.kind,
+				Slug:          "model-default-" + tc.stage,
+				Title:         "Model default test",
+				Cwd:           "/tmp",
+				CurrentStage:  tc.stage,
+				Priority:      "medium",
+				MaxIterations: 3,
+
+				Kind: tc.kind,
 			})
 			require.NoError(t, err)
 
@@ -108,13 +108,12 @@ func TestStageModelDefault_SpawnerModelOverrideWins(t *testing.T) {
 
 	spawnerModel := "claude-sonnet-4-6"
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "spawner-override",
-		Title:               "Spawner override test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "spawner-override",
+		Title:         "Spawner override test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -155,13 +154,12 @@ func TestStageModelDefault_DBConfigRowOverridesCoded(t *testing.T) {
 	orch.InvalidateConfigCache()
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "config-override",
-		Title:               "Config override test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "config-override",
+		Title:         "Config override test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 

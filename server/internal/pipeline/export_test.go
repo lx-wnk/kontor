@@ -29,6 +29,12 @@ func (o *PipelineOrchestrator) DecideCompletedTransitionForTest(
 	return o.decideCompletedTransition(ctx, task, run, output)
 }
 
+// FinalizationPushInFlightForTest reports whether taskID has a finalization push running.
+func (o *PipelineOrchestrator) FinalizationPushInFlightForTest(taskID string) bool {
+	_, ok := o.finalizationInFlight.Load(taskID)
+	return ok
+}
+
 // IsRateLimitErrorForTest exposes isRateLimitError for testing.
 var IsRateLimitErrorForTest = isRateLimitError
 
@@ -166,4 +172,17 @@ func (o *PipelineOrchestrator) FilePermissionRequestForTest(
 	ctx context.Context, task *ent.Task, stageRunID, tool, pattern, reason string,
 ) *ent.PermissionRequest {
 	return o.filePermissionRequest(ctx, task, stageRunID, tool, pattern, reason)
+}
+
+// ResolveBaseForTest exposes resolveBase for testing.
+var ResolveBaseForTest = resolveBase
+
+// BuildPRBodyForTest exposes buildPRBody for testing.
+var BuildPRBodyForTest = buildPRBody
+
+// DeriveConventionalTitleForTest exposes deriveConventionalTitle for testing.
+var DeriveConventionalTitleForTest = deriveConventionalTitle
+
+func (o *PipelineOrchestrator) RegisterSpawnCleanupForTest(stageRunID string, cleanup func()) {
+	o.spawnCleanups.register(stageRunID, cleanup)
 }

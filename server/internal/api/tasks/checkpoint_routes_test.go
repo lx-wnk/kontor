@@ -65,13 +65,12 @@ func newCheckpointHandler(t *testing.T, svc tasks.CheckpointServiceIface) (repo.
 func seedWorktreeTask(t *testing.T, taskRepo repo.TaskRepo) string {
 	t.Helper()
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                "cp-task",
-		Title:               "cp task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "cp-task",
+		Title:         "cp task",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)
@@ -122,13 +121,12 @@ func TestRevertCheckpoint_NoWorktree(t *testing.T) {
 	svc := &fakeCheckpointSvc{}
 	taskRepo, r := newCheckpointHandler(t, svc)
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                "cp-no-wt",
-		Title:               "no wt",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "cp-no-wt",
+		Title:         "no wt",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)

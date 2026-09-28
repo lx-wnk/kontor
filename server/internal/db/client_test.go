@@ -64,8 +64,8 @@ func TestOpen_DropsBareWebFetchGrants(t *testing.T) {
 
 	// Insert a task so the FK constraint on task_permissions is satisfied.
 	_, err = bundle1.DB.Exec(
-		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, created_at, updated_at)
-		 VALUES ('t1','bare-wf-test','Test','','backlog','medium',20,1800,0,datetime('now'),datetime('now'))`,
+		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		 VALUES ('t1','bare-wf-test','Test','','backlog','medium',20,0,datetime('now'),datetime('now'))`,
 	)
 	require.NoError(t, err)
 
@@ -142,9 +142,9 @@ func TestOpen_FTS5TriggerRoundTrip(t *testing.T) {
 	defer func() { _ = bundle.Client.Close() }()
 
 	_, err = bundle.DB.Exec(
-		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-		"task-fts-1", "fts-roundtrip", "Observability Dashboard Feature", "/tmp/project", "backlog", "medium", 20, 1800, 0,
+		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+		"task-fts-1", "fts-roundtrip", "Observability Dashboard Feature", "/tmp/project", "backlog", "medium", 20, 0,
 	)
 	require.NoError(t, err)
 
@@ -352,8 +352,8 @@ func TestOpenTwiceWithResourceTable(t *testing.T) {
 func insertBackfillTask(t *testing.T, sqlDB *sql.DB, id string) {
 	t.Helper()
 	_, err := sqlDB.Exec(
-		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, created_at, updated_at)
-		 VALUES (?, ?, 'Test', '', 'backlog', 'medium', 20, 1800, 0, datetime('now'), datetime('now'))`,
+		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		 VALUES (?, ?, 'Test', '', 'backlog', 'medium', 20, 0, datetime('now'), datetime('now'))`,
 		id, id,
 	)
 	require.NoError(t, err)
@@ -728,6 +728,67 @@ func TestOpen_LegacyPreApprovedColumnSurvives(t *testing.T) {
 	defer func() { _ = bundle2.Close() }()
 }
 
+// TestOpen_LegacyStageTimeoutColumnsSurvive opens a DB in the current schema
+// plus the pre-removal stage_timeout_seconds columns, holding data; the columns
+// must survive auto-migrate and their DEFAULT must satisfy ent inserts that omit
+// them. The fixture comes from db.Open because a hand-written DDL that drifts
+// from the ent schema makes auto-migrate rebuild the table and lose the column.
+func TestOpen_LegacyStageTimeoutColumnsSurvive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stagetimeout.db")
+
+	seed, err := db.Open(path)
+	require.NoError(t, err)
+	for _, stmt := range []string{
+		`ALTER TABLE tasks ADD COLUMN stage_timeout_seconds integer NOT NULL DEFAULT (1800)`,
+		`ALTER TABLE task_schedules ADD COLUMN stage_timeout_seconds integer NOT NULL DEFAULT (1800)`,
+		`INSERT INTO tasks (id, slug, title, cwd, stage_timeout_seconds, created_at, updated_at)
+			VALUES ('t-legacy','legacy','Legacy','/repo',600,datetime('now'),datetime('now'))`,
+		`INSERT INTO task_schedules (id, name, cron_expr, slug_prefix, title, cwd, stage_timeout_seconds, created_at, updated_at)
+			VALUES ('s-legacy','Legacy','0 9 * * *','legacy','Legacy','/repo',600,datetime('now'),datetime('now'))`,
+	} {
+		_, err = seed.DB.Exec(stmt)
+		require.NoError(t, err)
+	}
+	require.NoError(t, seed.Close())
+
+	bundle, err := db.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = bundle.Close() }()
+	ctx := t.Context()
+
+	legacy, err := bundle.Client.Task.Get(ctx, "t-legacy")
+	require.NoError(t, err)
+	require.Equal(t, "Legacy", legacy.Title)
+	legacySchedule, err := bundle.Client.TaskSchedule.Get(ctx, "s-legacy")
+	require.NoError(t, err)
+	require.Equal(t, "Legacy", legacySchedule.Name)
+
+	_, err = bundle.Client.Task.Create().SetID("t-new").SetSlug("new").SetTitle("New").SetCwd("/repo").Save(ctx)
+	require.NoError(t, err)
+	created, err := bundle.Client.Task.Get(ctx, "t-new")
+	require.NoError(t, err)
+	require.Equal(t, "New", created.Title)
+	_, err = bundle.Client.TaskSchedule.Create().SetID("s-new").SetName("New").SetCronExpr("0 9 * * *").
+		SetSlugPrefix("new").SetTitle("New").SetCwd("/repo").Save(ctx)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ table, id string }{
+		{"tasks", "t-legacy"}, {"tasks", "t-new"},
+		{"task_schedules", "s-legacy"}, {"task_schedules", "s-new"},
+	} {
+		var timeout int
+		err = bundle.DB.QueryRow(
+			fmt.Sprintf(`SELECT stage_timeout_seconds FROM %s WHERE id = ?`, tc.table), tc.id,
+		).Scan(&timeout)
+		require.NoError(t, err, "%s.stage_timeout_seconds must survive auto-migrate", tc.table)
+		want := 1800
+		if tc.id == "t-legacy" || tc.id == "s-legacy" {
+			want = 600
+		}
+		require.Equal(t, want, timeout, "%s/%s", tc.table, tc.id)
+	}
+}
+
 func TestOpen_AppSettingGainsSecretColumns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "legacy.db")
 	raw, err := sql.Open("sqlite", path)
@@ -818,7 +879,7 @@ func TestOpen_ExistingRoutinesBecomePipelineOnce(t *testing.T) {
 	schedules := repo.NewTaskScheduleRepo(bundle0.Client)
 	old, err := schedules.Create(context.Background(), repo.CreateTaskScheduleInput{
 		Name: "old", CronExpr: "0 9 * * *", SlugPrefix: "old", Title: "Old",
-		Cwd: "/tmp", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Cwd: "/tmp", MaxIterations: 20,
 	})
 	require.NoError(t, err)
 	// The seeding Open already recorded the marker against the (then-empty)
@@ -836,7 +897,7 @@ func TestOpen_ExistingRoutinesBecomePipelineOnce(t *testing.T) {
 
 	newSched, err := repo.NewTaskScheduleRepo(bundle1.Client).Create(context.Background(), repo.CreateTaskScheduleInput{
 		Name: "new", CronExpr: "0 9 * * *", SlugPrefix: "new", Title: "New",
-		Cwd: "/tmp", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Cwd: "/tmp", MaxIterations: 20,
 	})
 	require.NoError(t, err)
 	require.NoError(t, bundle1.Close())
@@ -863,9 +924,9 @@ func TestOpen_RenameStagesRunsOnlyOnce(t *testing.T) {
 	bundle0, err := db.Open(path)
 	require.NoError(t, err)
 	_, err = bundle0.DB.Exec(
-		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, created_at, updated_at)
-		 VALUES ('t-concept', 't-concept', 'Test', '', 'concept', 'medium', 20, 1800, 0, datetime('now'), datetime('now')),
-		        ('t-backlog', 't-backlog', 'Test', '', 'backlog', 'medium', 20, 1800, 0, datetime('now'), datetime('now'))`,
+		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		 VALUES ('t-concept', 't-concept', 'Test', '', 'concept', 'medium', 20, 0, datetime('now'), datetime('now')),
+		        ('t-backlog', 't-backlog', 'Test', '', 'backlog', 'medium', 20, 0, datetime('now'), datetime('now'))`,
 	)
 	require.NoError(t, err)
 	// The seeding Open already recorded the marker, so clear it: the rows above

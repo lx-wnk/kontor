@@ -58,14 +58,14 @@ func TestJob_NeverCreatesWorktreeEvenWhenForced(t *testing.T) {
 
 	cwd := t.TempDir()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "job-task",
-		Title:               "Job task",
-		Cwd:                 cwd,
-		CurrentStage:        pipeline.StageJob,
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
-		Kind:                pipeline.TaskKindJob,
+		Slug:          "job-task",
+		Title:         "Job task",
+		Cwd:           cwd,
+		CurrentStage:  pipeline.StageJob,
+		Priority:      "medium",
+		MaxIterations: 3,
+
+		Kind: pipeline.TaskKindJob,
 	})
 	require.NoError(t, err)
 
@@ -89,13 +89,12 @@ func TestPipeline_StillCreatesWorktreeWhenForced(t *testing.T) {
 	ctx := context.Background()
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "pipeline-task",
-		Title:               "Pipeline task",
-		Cwd:                 t.TempDir(),
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "pipeline-task",
+		Title:         "Pipeline task",
+		Cwd:           t.TempDir(),
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -113,14 +112,14 @@ func TestJob_CompletedRunFinishesTheTask(t *testing.T) {
 	ctx := context.Background()
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "job-completed",
-		Title:               "Job completed",
-		Cwd:                 t.TempDir(),
-		CurrentStage:        pipeline.StageJob,
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
-		Kind:                pipeline.TaskKindJob,
+		Slug:          "job-completed",
+		Title:         "Job completed",
+		Cwd:           t.TempDir(),
+		CurrentStage:  pipeline.StageJob,
+		Priority:      "medium",
+		MaxIterations: 3,
+
+		Kind: pipeline.TaskKindJob,
 	})
 	require.NoError(t, err)
 

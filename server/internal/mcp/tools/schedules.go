@@ -26,7 +26,7 @@ type ScheduleDeps struct {
 	Repo       repo.TaskScheduleRepo
 	Translator ScheduleTranslator
 	Runner     ScheduleRunner
-	Broadcast  func(scheduleID string)
+	Broadcast  func(id string, s *ent.TaskSchedule)
 }
 
 // RegisterScheduleTools registers manage_schedule (tasks:write) and
@@ -232,7 +232,7 @@ func manageScheduleCreate(ctx context.Context, d ScheduleDeps, args map[string]a
 	if err != nil {
 		return nil, mcp.Fail("manage_schedule create: " + err.Error())
 	}
-	scheduleBroadcast(d, s.ID)
+	scheduleBroadcast(d, s.ID, s)
 	return mcp.OK(map[string]any{"action": "create", "schedule": s})
 }
 
@@ -306,7 +306,7 @@ func manageScheduleUpdate(ctx context.Context, d ScheduleDeps, args map[string]a
 	if err != nil {
 		return nil, mcp.Fail("manage_schedule update: " + err.Error())
 	}
-	scheduleBroadcast(d, id)
+	scheduleBroadcast(d, id, s)
 	return mcp.OK(map[string]any{"action": "update", "schedule": s})
 }
 
@@ -330,14 +330,14 @@ func manageScheduleSimple(ctx context.Context, d ScheduleDeps, args map[string]a
 		if err := d.Repo.Delete(ctx, id); err != nil {
 			return nil, mcp.Fail("manage_schedule delete: " + err.Error())
 		}
-		scheduleBroadcast(d, id)
+		scheduleBroadcast(d, id, nil)
 		return mcp.OK(map[string]any{"action": "delete", "id": id})
 	case "enable", "disable":
 		s, err := d.Repo.SetEnabled(ctx, id, action == "enable")
 		if err != nil {
 			return nil, mcp.Fail("manage_schedule " + action + ": " + err.Error())
 		}
-		scheduleBroadcast(d, id)
+		scheduleBroadcast(d, id, s)
 		return mcp.OK(map[string]any{"action": action, "schedule": s})
 	case "run_now":
 		if d.Runner == nil {
@@ -384,8 +384,8 @@ func scheduleOwnerID(ctx context.Context) string {
 	return ""
 }
 
-func scheduleBroadcast(d ScheduleDeps, id string) {
+func scheduleBroadcast(d ScheduleDeps, id string, s *ent.TaskSchedule) {
 	if d.Broadcast != nil {
-		d.Broadcast(id)
+		d.Broadcast(id, s)
 	}
 }

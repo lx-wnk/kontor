@@ -297,27 +297,6 @@ func (_u *TaskUpdate) ClearCostBudgetCents() *TaskUpdate {
 	return _u
 }
 
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (_u *TaskUpdate) SetStageTimeoutSeconds(v int) *TaskUpdate {
-	_u.mutation.ResetStageTimeoutSeconds()
-	_u.mutation.SetStageTimeoutSeconds(v)
-	return _u
-}
-
-// SetNillableStageTimeoutSeconds sets the "stage_timeout_seconds" field if the given value is not nil.
-func (_u *TaskUpdate) SetNillableStageTimeoutSeconds(v *int) *TaskUpdate {
-	if v != nil {
-		_u.SetStageTimeoutSeconds(*v)
-	}
-	return _u
-}
-
-// AddStageTimeoutSeconds adds value to the "stage_timeout_seconds" field.
-func (_u *TaskUpdate) AddStageTimeoutSeconds(v int) *TaskUpdate {
-	_u.mutation.AddStageTimeoutSeconds(v)
-	return _u
-}
-
 // SetSilverBullet sets the "silver_bullet" field.
 func (_u *TaskUpdate) SetSilverBullet(v bool) *TaskUpdate {
 	_u.mutation.SetSilverBullet(v)
@@ -777,12 +756,6 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.CostBudgetCentsCleared() {
 		_spec.ClearField(task.FieldCostBudgetCents, field.TypeInt)
-	}
-	if value, ok := _u.mutation.StageTimeoutSeconds(); ok {
-		_spec.SetField(task.FieldStageTimeoutSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedStageTimeoutSeconds(); ok {
-		_spec.AddField(task.FieldStageTimeoutSeconds, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.SilverBullet(); ok {
 		_spec.SetField(task.FieldSilverBullet, field.TypeBool, value)
@@ -1305,27 +1278,6 @@ func (_u *TaskUpdateOne) ClearCostBudgetCents() *TaskUpdateOne {
 	return _u
 }
 
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (_u *TaskUpdateOne) SetStageTimeoutSeconds(v int) *TaskUpdateOne {
-	_u.mutation.ResetStageTimeoutSeconds()
-	_u.mutation.SetStageTimeoutSeconds(v)
-	return _u
-}
-
-// SetNillableStageTimeoutSeconds sets the "stage_timeout_seconds" field if the given value is not nil.
-func (_u *TaskUpdateOne) SetNillableStageTimeoutSeconds(v *int) *TaskUpdateOne {
-	if v != nil {
-		_u.SetStageTimeoutSeconds(*v)
-	}
-	return _u
-}
-
-// AddStageTimeoutSeconds adds value to the "stage_timeout_seconds" field.
-func (_u *TaskUpdateOne) AddStageTimeoutSeconds(v int) *TaskUpdateOne {
-	_u.mutation.AddStageTimeoutSeconds(v)
-	return _u
-}
-
 // SetSilverBullet sets the "silver_bullet" field.
 func (_u *TaskUpdateOne) SetSilverBullet(v bool) *TaskUpdateOne {
 	_u.mutation.SetSilverBullet(v)
@@ -1815,12 +1767,6 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 	}
 	if _u.mutation.CostBudgetCentsCleared() {
 		_spec.ClearField(task.FieldCostBudgetCents, field.TypeInt)
-	}
-	if value, ok := _u.mutation.StageTimeoutSeconds(); ok {
-		_spec.SetField(task.FieldStageTimeoutSeconds, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedStageTimeoutSeconds(); ok {
-		_spec.AddField(task.FieldStageTimeoutSeconds, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.SilverBullet(); ok {
 		_spec.SetField(task.FieldSilverBullet, field.TypeBool, value)

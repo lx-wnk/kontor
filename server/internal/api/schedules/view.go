@@ -10,33 +10,32 @@ const isoFmt = time.RFC3339
 
 // scheduleBody is the create/update request shape (camelCase wire contract).
 type scheduleBody struct {
-	Name                string    `json:"name"`
-	Enabled             *bool     `json:"enabled"`
-	NLText              string    `json:"nlText"`
-	CronExpr            string    `json:"cronExpr"`
-	Timezone            string    `json:"timezone"`
-	Catchup             string    `json:"catchup"`
-	SlugPrefix          string    `json:"slugPrefix"`
-	Title               string    `json:"title"`
-	Description         *string   `json:"description"`
-	Cwd                 string    `json:"cwd"`
-	SourceBranch        *string   `json:"sourceBranch"`
-	TargetBranch        *string   `json:"targetBranch"`
-	Priority            string    `json:"priority"`
-	MaxIterations       int       `json:"maxIterations"`
-	TokenBudget         *int      `json:"tokenBudget"`
-	CostBudgetCents     *int      `json:"costBudgetCents"`
-	StageTimeoutSeconds int       `json:"stageTimeoutSeconds"`
-	SilverBullet        bool      `json:"silverBullet"`
-	ProjectID           string    `json:"projectId"`
-	SpawnerID           string    `json:"spawnerId"`
-	PermissionTemplate  *string   `json:"permissionTemplate"`
-	Applications        *[]string `json:"applications"`
-	RunMode             string    `json:"runMode"`
+	Name               string    `json:"name"`
+	Enabled            *bool     `json:"enabled"`
+	NLText             string    `json:"nlText"`
+	CronExpr           string    `json:"cronExpr"`
+	Timezone           string    `json:"timezone"`
+	Catchup            string    `json:"catchup"`
+	SlugPrefix         string    `json:"slugPrefix"`
+	Title              string    `json:"title"`
+	Description        *string   `json:"description"`
+	Cwd                string    `json:"cwd"`
+	SourceBranch       *string   `json:"sourceBranch"`
+	TargetBranch       *string   `json:"targetBranch"`
+	Priority           string    `json:"priority"`
+	MaxIterations      int       `json:"maxIterations"`
+	TokenBudget        *int      `json:"tokenBudget"`
+	CostBudgetCents    *int      `json:"costBudgetCents"`
+	SilverBullet       bool      `json:"silverBullet"`
+	ProjectID          string    `json:"projectId"`
+	SpawnerID          string    `json:"spawnerId"`
+	PermissionTemplate *string   `json:"permissionTemplate"`
+	Applications       *[]string `json:"applications"`
+	RunMode            string    `json:"runMode"`
 }
 
-// scheduleView is the JSON shape returned for a schedule.
-type scheduleView struct {
+// ScheduleView is the JSON shape returned for a schedule.
+type ScheduleView struct {
 	ID                 string   `json:"id"`
 	Name               string   `json:"name"`
 	Enabled            bool     `json:"enabled"`
@@ -66,8 +65,8 @@ type scheduleView struct {
 	UpdatedAt          string   `json:"updatedAt"`
 }
 
-func toView(s *ent.TaskSchedule) scheduleView {
-	v := scheduleView{
+func ToView(s *ent.TaskSchedule) ScheduleView {
+	v := ScheduleView{
 		ID:                 s.ID,
 		Name:               s.Name,
 		Enabled:            s.Enabled,

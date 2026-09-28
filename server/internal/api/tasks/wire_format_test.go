@@ -465,8 +465,8 @@ func TestTaskActions_WireFormat(t *testing.T) {
 	client, r := newTestHandlerWithRepos(t)
 	taskRepo := repo.NewTaskRepo(client)
 
-	want := []string{"id", "slug", "title", "description", "cwd", "worktreePath", "sourceBranch", "targetBranch", "currentStage", "priority", "autonomy", "userId", "parentTaskId", "projectId", "spawnerId", "maxIterations", "tokenBudget", "costBudgetCents", "stageTimeoutSeconds", "silverBullet", "planMode", "rank", "metadata", "createdAt", "updatedAt"}
-	forbidden := []string{"worktree_path", "source_branch", "target_branch", "current_stage", "parent_task_id", "project_id", "spawner_id", "max_iterations", "token_budget", "cost_budget_cents", "stage_timeout_seconds", "silver_bullet", "plan_mode", "user_id", "created_at", "updated_at", "edges"}
+	want := []string{"id", "slug", "title", "description", "cwd", "worktreePath", "sourceBranch", "targetBranch", "currentStage", "priority", "autonomy", "userId", "parentTaskId", "projectId", "spawnerId", "maxIterations", "tokenBudget", "costBudgetCents", "silverBullet", "planMode", "rank", "metadata", "createdAt", "updatedAt", "draftPrNumber", "draftPrUrl"}
+	forbidden := []string{"worktree_path", "source_branch", "target_branch", "current_stage", "parent_task_id", "project_id", "spawner_id", "max_iterations", "token_budget", "cost_budget_cents", "silver_bullet", "plan_mode", "user_id", "created_at", "updated_at", "edges", "stageTimeoutSeconds"}
 
 	newTask := func(t *testing.T, slug string) string {
 		t.Helper()
@@ -1042,4 +1042,85 @@ func TestExportTasksJSON_WireFormat(t *testing.T) {
 		[]string{"id", "taskId", "stage", "status", "iteration", "tokensUsed", "costCents", "startedAt", "endedAt"},
 		[]string{"task_id", "tokens_used", "cost_cents", "started_at", "ended_at", "edges"},
 	)
+}
+
+// TestTaskResponse_DraftPRFields asserts that pr_number and pr_url from task
+// metadata surface as draftPrNumber and draftPrUrl on the wire, and that tasks
+// without those metadata keys emit null.
+func TestTaskResponse_DraftPRFields(t *testing.T) {
+	client, r := newTestHandlerWithRepos(t)
+	taskRepo := repo.NewTaskRepo(client)
+
+	// Task with PR metadata.
+	meta := map[string]any{"pr_number": float64(42), "pr_url": "https://github.com/org/repo/pull/42"}
+	withPR, err := taskRepo.Create(testCtx(t), repo.CreateTaskInput{
+		Slug:          "draft-pr-wire-with",
+		Title:         "Draft PR Wire With",
+		Cwd:           t.TempDir(),
+		MaxIterations: 5,
+		Priority:      "normal",
+		CurrentStage:  "done",
+		Metadata:      meta,
+	})
+	if err != nil {
+		t.Fatalf("create task with PR: %v", err)
+	}
+
+	// Task without PR metadata.
+	withoutPR, err := taskRepo.Create(testCtx(t), repo.CreateTaskInput{
+		Slug:          "draft-pr-wire-without",
+		Title:         "Draft PR Wire Without",
+		Cwd:           t.TempDir(),
+		MaxIterations: 5,
+		Priority:      "normal",
+		CurrentStage:  "implementation",
+	})
+	if err != nil {
+		t.Fatalf("create task without PR: %v", err)
+	}
+
+	t.Run("with_pr_metadata", func(t *testing.T) {
+		req := withAuth(t, httptest.NewRequest(http.MethodGet, "/api/tasks/"+withPR.ID, nil))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var row map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &row); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if row["draftPrNumber"] != float64(42) {
+			t.Errorf("draftPrNumber = %v, want 42", row["draftPrNumber"])
+		}
+		if row["draftPrUrl"] != "https://github.com/org/repo/pull/42" {
+			t.Errorf("draftPrUrl = %v, want the PR URL", row["draftPrUrl"])
+		}
+	})
+
+	t.Run("without_pr_metadata", func(t *testing.T) {
+		req := withAuth(t, httptest.NewRequest(http.MethodGet, "/api/tasks/"+withoutPR.ID, nil))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var row map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &row); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if row["draftPrNumber"] != nil {
+			t.Errorf("draftPrNumber = %v, want nil", row["draftPrNumber"])
+		}
+		if row["draftPrUrl"] != nil {
+			t.Errorf("draftPrUrl = %v, want nil", row["draftPrUrl"])
+		}
+	})
+}
+
+func TestToTaskResponse_DropsNonHTTPPrURL(t *testing.T) {
+	resp := tasks.ToTaskResponse(&ent.Task{Metadata: map[string]any{"pr_url": "javascript:alert(1)"}})
+	if resp.DraftPrUrl != nil {
+		t.Fatalf("draftPrUrl = %q, want nil for a non-http(s) URL", *resp.DraftPrUrl)
+	}
 }

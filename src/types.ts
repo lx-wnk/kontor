@@ -151,7 +151,6 @@ export interface PipelineTask {
   maxIterations: number
   tokenBudget: number | null
   costBudgetCents: number | null
-  stageTimeoutSeconds: number
   createdAt: string
   updatedAt: string
   metadata: Record<string, unknown> | null
@@ -224,6 +223,8 @@ export interface PipelineTask {
     currentStage: string
     latestOutput: string
   } | null
+  draftPrNumber?: number | null
+  draftPrUrl?: string | null
 }
 
 export interface AvailableAction {

@@ -80,13 +80,12 @@ func TestApplyTransition_CommitFails_PostCommitEffectsDoNotFire(t *testing.T) {
 	require.NoError(t, err)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "commit-fail",
-		Title:               "Commit Fail",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "commit-fail",
+		Title:         "Commit Fail",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -206,13 +205,12 @@ func TestApplyTransition_NoTxBranch_ClosuresRunImmediately(t *testing.T) {
 	require.NoError(t, err)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "no-tx-branch",
-		Title:               "No Tx Branch",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "no-tx-branch",
+		Title:         "No Tx Branch",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -283,13 +281,12 @@ func TestApplyTransition_DoneCommits_RevokesTheCompletedRun(t *testing.T) {
 	require.NoError(t, err)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "revoke-on-done",
-		Title:               "Revoke On Done",
-		Cwd:                 "/tmp",
-		CurrentStage:        "finalization",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "revoke-on-done",
+		Title:         "Revoke On Done",
+		Cwd:           "/tmp",
+		CurrentStage:  "finalization",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -336,13 +333,12 @@ func TestApplyTransition_CommitFails_DoesNotRevoke(t *testing.T) {
 	require.NoError(t, err)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "revoke-commit-fail",
-		Title:               "Revoke Commit Fail",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "revoke-commit-fail",
+		Title:         "Revoke Commit Fail",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 

@@ -248,14 +248,14 @@ func TestSpawnerRepo_DeleteInUseByTask(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tr.Create(t.Context(), repo.CreateTaskInput{
-		Slug:                "uses-spawner",
-		Title:               "Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           &s.ID,
+		Slug:          "uses-spawner",
+		Title:         "Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
+
+		SpawnerID: &s.ID,
 	})
 	require.NoError(t, err)
 

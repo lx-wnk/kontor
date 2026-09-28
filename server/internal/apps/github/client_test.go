@@ -28,6 +28,12 @@ func TestParseReposAcceptsOwnerNamePairsAndRejectsEverythingElse(t *testing.T) {
 	}
 }
 
+func TestParseReposDropsCaseInsensitiveDuplicatesKeepingTheFirstSpelling(t *testing.T) {
+	got, err := github.ParseRepos("lx-wnk/kontor,LX-WNK/Kontor,a/b")
+	require.NoError(t, err)
+	require.Equal(t, []string{"lx-wnk/kontor", "a/b"}, got)
+}
+
 // TestParseReposRefusesPathTraversalShapedEntries is D4 at the parse level:
 // a repository name that could be read two ways must be refused outright,
 // never silently normalised into something else — the same lesson that
@@ -281,6 +287,13 @@ func TestChecksRefusesARepoOutsideTheAllowList(t *testing.T) {
 	require.False(t, *called)
 }
 
+func TestChecksRefusesAnEmptySHAWithoutCallingGitHub(t *testing.T) {
+	ts, _, called := newFakeGitHub(t)
+	_, err := newTestClient(t, ts).Checks(context.Background(), "lx-wnk/kontor", "")
+	require.Error(t, err)
+	require.False(t, *called)
+}
+
 // TestStatusErrorDistinguishesNotFoundFromForbidden proves a caller can tell
 // "no such repository/PR" (404) apart from "token lacks scope" (403) via
 // errors.As, instead of parsing the error string — the distinction Task 5/6
@@ -386,4 +399,48 @@ func TestSearchIssuesDropsAHitOutsideTheAllowList(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, hits, 1)
 	require.Equal(t, "lx-wnk/kontor", hits[0].Repo)
+}
+
+func TestAllowListMatchesRepositoryNamesCaseInsensitively(t *testing.T) {
+	ts, _, called := newFakeGitHub(t)
+	c, err := github.NewClient(github.Config{
+		Token: "ghp_test", BaseURL: ts.URL, AllowLoopback: true,
+		Repos: []string{"LX-Wnk/Kontor", "other/repo"},
+	})
+	require.NoError(t, err)
+
+	require.True(t, c.AllowsRepo("lx-wnk/kontor"))
+	require.True(t, c.AllowsRepo("OTHER/REPO"))
+	require.False(t, c.AllowsRepo("lx-wnk/kontor-fork"))
+
+	configured, ok := c.CanonicalRepo("lx-wnk/KONTOR")
+	require.True(t, ok)
+	require.Equal(t, "LX-Wnk/Kontor", configured)
+	require.Equal(t, []string{"LX-Wnk/Kontor", "other/repo"}, c.Repos())
+
+	prs, err := c.OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	require.True(t, *called)
+}
+
+func TestSearchHitsCarryTheConfiguredRepoSpelling(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[
+			{"number":1,"title":"listed","html_url":"https://x.test/1","repository_url":"https://api.github.com/repos/LX-WNK/Kontor"}
+		]}`))
+	}))
+	t.Cleanup(ts.Close)
+
+	c := newTestClient(t, ts)
+	hits, err := c.SearchIssues(context.Background(), "anything")
+	require.NoError(t, err)
+	require.Len(t, hits, 1)
+	require.Equal(t, "lx-wnk/kontor", hits[0].Repo)
+
+	involved, err := c.InvolvedPullRequests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, involved, 1)
+	require.Equal(t, "lx-wnk/kontor", involved[0].Repo)
 }

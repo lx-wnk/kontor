@@ -168,3 +168,73 @@ func TestGetPlanStatus_MCPTool_ReturnsGateState(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
 	require.Equal(t, "awaiting_user", payload["gate_state"])
 }
+
+func TestApprovePlan_BroadcastsTaskUpdated(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	var calls int
+	var gotEventType, gotTaskID string
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+		Revoke:    func(_ context.Context, _ string) error { return nil },
+		Broadcast: func(_ context.Context, eventType, taskID string) {
+			calls++
+			gotEventType = eventType
+			gotTaskID = taskID
+		},
+	})
+
+	_, err = registry["approve_plan"].Handler(ctx, map[string]any{"task_id": taskID})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
+	require.Equal(t, "task_updated", gotEventType)
+	require.Equal(t, taskID, gotTaskID)
+}
+
+func TestRejectPlan_BroadcastsTaskUpdated(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	var calls int
+	var gotEventType string
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(_ context.Context, _, _ string) error { return nil },
+		Broadcast: func(_ context.Context, eventType, _ string) {
+			calls++
+			gotEventType = eventType
+		},
+	})
+
+	_, err = registry["reject_plan"].Handler(ctx, map[string]any{
+		"task_id":  taskID,
+		"feedback": "needs more detail",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
+	require.Equal(t, "task_updated", gotEventType)
+}

@@ -232,6 +232,54 @@ func TestGrantPermissionTool_RecordsDecidedBy(t *testing.T) {
 	require.NotNil(t, grants[0].DecidedAt)
 }
 
+func TestGrantPermission_BroadcastsTaskUpdated(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	client := bundle.Client
+	ctx := context.Background()
+
+	taskRepo := repo.NewTaskRepo(client)
+	permRepo := repo.NewPermissionRepo(client)
+
+	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
+		Slug:          "mcp-grant-broadcast",
+		Title:         "MCP Grant Broadcast",
+		Cwd:           t.TempDir(),
+		MaxIterations: 3,
+		Priority:      "normal",
+		CurrentStage:  "implementation",
+	})
+	require.NoError(t, err)
+
+	var calls int
+	var gotEventType, gotTaskID string
+	registry := mcp.ToolRegistry{}
+	RegisterControlTools(registry, ControlDeps{
+		TaskRepo: taskRepo,
+		PermRepo: permRepo,
+		Broadcast: func(_ context.Context, eventType, taskID string) {
+			calls++
+			gotEventType = eventType
+			gotTaskID = taskID
+		},
+	})
+
+	tool, ok := registry["grant_permission"]
+	require.True(t, ok)
+
+	_, err = tool.Handler(ctx, map[string]any{
+		"task_id": task.ID,
+		"tool":    "Bash",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
+	require.Equal(t, "task_updated", gotEventType)
+	require.Equal(t, task.ID, gotTaskID)
+}
+
 // stubOrchestrator satisfies ControlOrchestrator for MCP tool tests.
 type stubOrchestrator struct {
 	requeueFn func(taskID string)

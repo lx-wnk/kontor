@@ -30,8 +30,8 @@ func kindFilterRouter(t *testing.T) *chi.Mux {
 	if _, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
 		Slug: "pipe", Title: "pipe", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Kind: "pipeline",
+		MaxIterations: 20,
+		Kind:          "pipeline",
 	}); err != nil {
 		t.Fatalf("seed pipe: %v", err)
 	}
@@ -39,8 +39,8 @@ func kindFilterRouter(t *testing.T) *chi.Mux {
 	if _, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
 		Slug: "job-r1", Title: "job-r1", Cwd: "/tmp",
 		CurrentStage: "job", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Kind: "job", RoutineID: &r1,
+		MaxIterations: 20,
+		Kind:          "job", RoutineID: &r1,
 	}); err != nil {
 		t.Fatalf("seed job-r1: %v", err)
 	}
@@ -48,8 +48,8 @@ func kindFilterRouter(t *testing.T) *chi.Mux {
 	if _, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
 		Slug: "job-r2", Title: "job-r2", Cwd: "/tmp",
 		CurrentStage: "job", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Kind: "job", RoutineID: &r2,
+		MaxIterations: 20,
+		Kind:          "job", RoutineID: &r2,
 	}); err != nil {
 		t.Fatalf("seed job-r2: %v", err)
 	}

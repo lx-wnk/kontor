@@ -47,8 +47,6 @@ const (
 	FieldTokenBudget = "token_budget"
 	// FieldCostBudgetCents holds the string denoting the cost_budget_cents field in the database.
 	FieldCostBudgetCents = "cost_budget_cents"
-	// FieldStageTimeoutSeconds holds the string denoting the stage_timeout_seconds field in the database.
-	FieldStageTimeoutSeconds = "stage_timeout_seconds"
 	// FieldSilverBullet holds the string denoting the silver_bullet field in the database.
 	FieldSilverBullet = "silver_bullet"
 	// FieldProjectID holds the string denoting the project_id field in the database.
@@ -105,7 +103,6 @@ var Columns = []string{
 	FieldMaxIterations,
 	FieldTokenBudget,
 	FieldCostBudgetCents,
-	FieldStageTimeoutSeconds,
 	FieldSilverBullet,
 	FieldProjectID,
 	FieldSpawnerID,
@@ -155,8 +152,6 @@ var (
 	DefaultRunMode string
 	// DefaultMaxIterations holds the default value on creation for the "max_iterations" field.
 	DefaultMaxIterations int
-	// DefaultStageTimeoutSeconds holds the default value on creation for the "stage_timeout_seconds" field.
-	DefaultStageTimeoutSeconds int
 	// DefaultSilverBullet holds the default value on creation for the "silver_bullet" field.
 	DefaultSilverBullet bool
 	// DefaultSkippedCount holds the default value on creation for the "skipped_count" field.
@@ -266,11 +261,6 @@ func ByTokenBudget(opts ...sql.OrderTermOption) OrderOption {
 // ByCostBudgetCents orders the results by the cost_budget_cents field.
 func ByCostBudgetCents(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCostBudgetCents, opts...).ToFunc()
-}
-
-// ByStageTimeoutSeconds orders the results by the stage_timeout_seconds field.
-func ByStageTimeoutSeconds(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldStageTimeoutSeconds, opts...).ToFunc()
 }
 
 // BySilverBullet orders the results by the silver_bullet field.

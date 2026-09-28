@@ -2,6 +2,7 @@ package serverapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
 	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
@@ -78,7 +80,8 @@ func bootObsidianClient(ctx context.Context, settingsSvc *settings.Service) *obs
 // watchObsidianSettings rebuilds the vault client whenever an obsidian.* setting
 // is saved. The Settings panel saves the keys one at a time, so a partial trio
 // is a normal intermediate state: it turns the vault off instead of failing the save.
-func watchObsidianSettings(settingsSvc *settings.Service, clients *obsidian.ClientHolder) {
+func watchObsidianSettings(settingsSvc *settings.Service, clients *obsidian.ClientHolder, notifier *mcp.Notifier) {
+	validateVaultRootOnSave(settingsSvc, clients)
 	settingsSvc.OnChange(func(ctx context.Context, key string) {
 		if !strings.HasPrefix(key, "obsidian.") {
 			return
@@ -88,6 +91,35 @@ func watchObsidianSettings(settingsSvc *settings.Service, clients *obsidian.Clie
 			slog.Info("obsidian: vault off until its settings are complete", "err", err)
 		}
 		clients.Set(client)
+		// The tool set changed: a configured vault adds obsidian_* tools, an
+		// unconfigured one removes them. Notify SSE subscribers per the MCP spec.
+		if notifier != nil {
+			notifier.NotifyToolsChanged()
+		}
+	})
+}
+
+// validateVaultRootOnSave rejects a non-existent folder; an unreachable vault is allowed through.
+func validateVaultRootOnSave(settingsSvc *settings.Service, clients *obsidian.ClientHolder) {
+	settingsSvc.OnPreSave(func(ctx context.Context, key, value string) error {
+		if key != "obsidian.vaultRoot" || value == "" {
+			return nil
+		}
+		client := clients.Get()
+		if client == nil {
+			// Vault not configured yet — can't probe, don't block.
+			return nil
+		}
+		err := client.ProbeFolder(ctx, value)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, obsidian.ErrNotFound) {
+			return fmt.Errorf("folder %q not found in vault", value)
+		}
+		// Network/TLS error: vault unreachable — don't block the save.
+		slog.Warn("obsidian: could not verify vault root", "root", value, "err", err)
+		return nil
 	})
 }
 

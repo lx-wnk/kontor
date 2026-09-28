@@ -40,8 +40,14 @@ func githubScope() repo.Scope { return repo.GlobalScope() }
 // `extra ...capability.Context` already accepts them, so when that lands these
 // four call sites take the same one-line edit as the Obsidian ones.
 func (d GitHubDeps) authorize(ctx context.Context, capName, repoName string) error {
-	if repoName != "" && !d.Client.AllowsRepo(repoName) {
-		return mcp.Fail(fmt.Sprintf("%s is not in the configured github.repos allow-list", repoName))
+	if repoName != "" {
+		configured, ok := d.Client.CanonicalRepo(repoName)
+		if !ok {
+			return mcp.Fail(fmt.Sprintf("%s is not in the configured github.repos allow-list", repoName))
+		}
+		// The gate matches grant patterns on the configured spelling, so a
+		// case variant cannot slip past a deny grant.
+		repoName = configured
 	}
 	if err := d.Gate.Authorize(ctx, capName, repoName, githubScope()); err != nil {
 		return mcp.Fail(err.Error())

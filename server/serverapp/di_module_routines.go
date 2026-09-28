@@ -101,17 +101,16 @@ func createModuleRoutine(ctx context.Context, schedules repo.TaskScheduleRepo, m
 		return
 	}
 	if _, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		OwnerModule:         moduleID,
-		Name:                def.Name,
-		Enabled:             &disabled,
-		CronExpr:            def.CronExpr,
-		Timezone:            def.Timezone,
-		SlugPrefix:          slugPrefix,
-		Title:               def.Title,
-		Description:         &description,
-		Cwd:                 home,
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		OwnerModule:   moduleID,
+		Name:          def.Name,
+		Enabled:       &disabled,
+		CronExpr:      def.CronExpr,
+		Timezone:      def.Timezone,
+		SlugPrefix:    slugPrefix,
+		Title:         def.Title,
+		Description:   &description,
+		Cwd:           home,
+		MaxIterations: 20,
 	}); err != nil {
 		slog.Warn("module routine not created", "module", moduleID, "routine", def.Name, "err", err)
 		return

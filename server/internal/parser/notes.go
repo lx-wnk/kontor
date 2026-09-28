@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/url"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/lx-wnk/kontor/sdk"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // NoteWindow is how far back an agent's note touches are kept.
@@ -34,14 +36,7 @@ var mcpNoteKinds = map[string]sdk.NoteTouchKind{
 	"edit_note":   sdk.NoteTouchKindWrite,
 }
 
-var (
-	shellDefaultRe = regexp.MustCompile(`\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}`)
-	shellSegmentRe = regexp.MustCompile(`&&|\|\||[;|\n]`)
-	vaultURLRe     = regexp.MustCompile("/vault/([^\\s\"'`?#\\\\]+)")
-	writeMethodRe  = regexp.MustCompile(`(?:-X|--request)\s*['"]?(?:PUT|POST|PATCH)\b`)
-	shellAssignRe  = regexp.MustCompile(`(^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s;&|"']*))`)
-	shellVarRe     = regexp.MustCompile(`\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))`)
-)
+var vaultURLRe = regexp.MustCompile("/vault/([^\\s\"'`?#\\\\]+)")
 
 func noteTouchesOf(m Message) []NoteTouch {
 	if m.Role != "assistant" || len(m.Content) == 0 || m.Content[0] != '[' {
@@ -90,21 +85,66 @@ func toolNoteTouches(name string, input json.RawMessage) []NoteTouch {
 	return curlNoteTouches(in.Command)
 }
 
-// Only ${NAME:-default} is knowable without the agent's environment; any other variable drops the URL.
+// curlNoteTouches reads the vault notes the command's curl calls name. Words
+// resolve against the command's own earlier assignments; only ${NAME:-default}
+// is knowable without the agent's environment, so any other variable drops
+// the URL. A command the shell parser rejects yields no touches.
 func curlNoteTouches(command string) []NoteTouch {
 	if !strings.Contains(command, "/vault/") {
 		return nil
 	}
-	expanded := shellDefaultRe.ReplaceAllString(command, "$1")
-	expanded = strings.ReplaceAll(expanded, "\\\n", " ")
-	expanded = expandShellAssignments(expanded)
+	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(command), "")
+	if err != nil {
+		return nil
+	}
+	vars := map[string]string{}
 	var out []NoteTouch
-	for _, segment := range shellSegmentRe.Split(expanded, -1) {
-		kind := sdk.NoteTouchKindRead
-		if writeMethodRe.MatchString(segment) {
+	syntax.Walk(file, func(node syntax.Node) bool {
+		switch n := node.(type) {
+		case *syntax.DeclClause:
+			assignAll(vars, n.Args)
+		case *syntax.CallExpr:
+			// Prefix assignments of a command only reach that command's environment.
+			if len(n.Args) == 0 {
+				assignAll(vars, n.Assigns)
+			} else if path.Base(resolveWord(vars, n.Args[0])) == "curl" {
+				out = append(out, curlCallTouches(vars, n.Args[1:])...)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+func assignAll(vars map[string]string, assigns []*syntax.Assign) {
+	for _, a := range assigns {
+		if a.Name != nil && !a.Naked && !a.Append && a.Index == nil && a.Array == nil {
+			vars[a.Name.Value] = resolveWord(vars, a.Value)
+		}
+	}
+}
+
+func curlCallTouches(vars map[string]string, words []*syntax.Word) []NoteTouch {
+	args := make([]string, len(words))
+	for i, w := range words {
+		args[i] = resolveWord(vars, w)
+	}
+	kind := sdk.NoteTouchKindRead
+	for i, arg := range args {
+		method, isMethod := strings.CutPrefix(arg, "-X")
+		if arg == "--request" {
+			isMethod = true
+		}
+		if isMethod && (method == "" || arg == "--request") && i+1 < len(args) {
+			method = args[i+1]
+		}
+		if isMethod && (method == "PUT" || method == "POST" || method == "PATCH") {
 			kind = sdk.NoteTouchKindWrite
 		}
-		for _, match := range vaultURLRe.FindAllStringSubmatch(segment, -1) {
+	}
+	var out []NoteTouch
+	for _, arg := range args {
+		for _, match := range vaultURLRe.FindAllStringSubmatch(arg, -1) {
 			notePath, err := url.PathUnescape(match[1])
 			if err != nil || strings.Contains(notePath, "$") || !isNotePath(notePath) {
 				continue
@@ -115,35 +155,52 @@ func curlNoteTouches(command string) []NoteTouch {
 	return out
 }
 
-// Assignments are dropped so a URL counts where it is used, not where it is named.
-func expandShellAssignments(command string) string {
-	vars := map[string]string{}
-	substitute := func(s string) string {
-		return shellVarRe.ReplaceAllStringFunc(s, func(ref string) string {
-			m := shellVarRe.FindStringSubmatch(ref)
-			if v, ok := vars[m[1]+m[2]]; ok {
-				return v
-			}
-			return ref
-		})
+// resolveWord renders anything it cannot know as "$", which drops a note path containing it.
+func resolveWord(vars map[string]string, w *syntax.Word) string {
+	if w == nil {
+		return ""
 	}
 	var b strings.Builder
-	last := 0
-	for _, loc := range shellAssignRe.FindAllStringSubmatchIndex(command, -1) {
-		b.WriteString(substitute(command[last:loc[3]]))
-		name := command[loc[4]:loc[5]]
-		switch {
-		case loc[6] >= 0:
-			vars[name] = substitute(command[loc[6]:loc[7]])
-		case loc[8] >= 0:
-			vars[name] = command[loc[8]:loc[9]]
-		default:
-			vars[name] = substitute(command[loc[10]:loc[11]])
-		}
-		last = loc[1]
-	}
-	b.WriteString(substitute(command[last:]))
+	resolveParts(&b, vars, w.Parts)
 	return b.String()
+}
+
+func resolveParts(b *strings.Builder, vars map[string]string, parts []syntax.WordPart) {
+	for _, part := range parts {
+		switch p := part.(type) {
+		case *syntax.Lit:
+			b.WriteString(p.Value)
+		case *syntax.SglQuoted:
+			b.WriteString(p.Value)
+		case *syntax.DblQuoted:
+			resolveParts(b, vars, p.Parts)
+		case *syntax.ParamExp:
+			b.WriteString(resolveParam(vars, p))
+		default:
+			b.WriteString("$")
+		}
+	}
+}
+
+func resolveParam(vars map[string]string, p *syntax.ParamExp) string {
+	if p.Param == nil || p.Excl || p.Length || p.Index != nil || p.Slice != nil || p.Repl != nil || p.Names != 0 {
+		return "$"
+	}
+	value, known := vars[p.Param.Value]
+	if p.Exp == nil {
+		if known {
+			return value
+		}
+		return "$"
+	}
+	switch p.Exp.Op {
+	case syntax.DefaultUnset, syntax.DefaultUnsetOrNull, syntax.AssignUnset, syntax.AssignUnsetOrNull:
+		if known && value != "" {
+			return value
+		}
+		return resolveWord(vars, p.Exp.Word)
+	}
+	return "$"
 }
 
 // maxNotePathLen keeps a truncation from ever pointing at the wrong note.

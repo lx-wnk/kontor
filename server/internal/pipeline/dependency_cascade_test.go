@@ -16,13 +16,12 @@ func makeCascadeTask(t *testing.T, taskRepo repo.TaskRepo, slug string) string {
 	t.Helper()
 	ctx := context.Background()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               slug,
-		Cwd:                 "/tmp",
-		CurrentStage:        "ready",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         slug,
+		Cwd:           "/tmp",
+		CurrentStage:  "ready",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	return task.ID

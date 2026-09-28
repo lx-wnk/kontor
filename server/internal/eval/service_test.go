@@ -30,15 +30,14 @@ func TestService_Scan_DetectsDrift(t *testing.T) {
 
 	// Seed a task; the stage_runs will have created_at ≈ real wall time, inside [recentFrom, now].
 	task, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "svc-test-task",
-		Title:               "Service Test Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implement",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("sp-test"),
-		Metadata:            map[string]any{"model": "claude-sonnet"},
+		Slug:          "svc-test-task",
+		Title:         "Service Test Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "implement",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("sp-test"),
+		Metadata:      map[string]any{"model": "claude-sonnet"},
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)

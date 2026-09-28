@@ -38,7 +38,7 @@ func makeAwaitingRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, 
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: slug, Title: slug, Cwd: "/tmp", CurrentStage: "plan_review",
-		Priority: "medium", MaxIterations: 3, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "plan_review", SessionName: slug + "-0"})

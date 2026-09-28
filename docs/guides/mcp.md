@@ -1,6 +1,6 @@
 # MCP Endpoint
 
-The dashboard exposes a stateless StreamableHTTP MCP server at `POST /api/mcp` for external agent control. Each request is self-contained — there is no server-side session map.
+The dashboard exposes a stateless StreamableHTTP MCP server at `POST /api/mcp` for external agent control. Each request is self-contained — there is no server-side session map. `GET /api/mcp` (same bearer auth) opens a Server-Sent-Events stream that carries `notifications/tools/list_changed`; `initialize` declares this as `capabilities.tools.listChanged: true`. The stream sends a `: heartbeat` comment every 30 seconds (`sse.HeartbeatInterval`).
 
 ## Authentication
 
@@ -62,6 +62,9 @@ The four `obsidian_*` tools reach the vault configured under **Settings → Obsi
 `tools/list` or callable via `tools/call`, rather than being offered and always failing. That check
 is live, not a startup snapshot: a vault configured (or reconfigured, or turned off) while the
 server is running changes what the very next `tools/list` or `tools/call` sees — no restart needed.
+Every `obsidian.*` settings save also sends `notifications/tools/list_changed` on the `GET /api/mcp`
+stream, so a connected client re-reads its tool list without polling. Module (plugin) tools do not
+send it yet.
 `obsidian_write` and `obsidian_delete` are irreversible: a write overwrites any existing note at
 that path, and a delete cannot be undone.
 

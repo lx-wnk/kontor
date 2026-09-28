@@ -4,7 +4,10 @@ package settings
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
+
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 )
 
 // Type is the value type of a setting; the stored value is always a string.
@@ -107,6 +110,18 @@ func nonNegativeFloat(key string) func(string) error {
 	}
 }
 
+// absolutePathOrEmpty accepts "" (unset), an absolute path, or one starting
+// with ~/ — a relative path would resolve against the server's cwd, which is
+// / for an app opened from Finder.
+func absolutePathOrEmpty(key string) func(string) error {
+	return func(raw string) error {
+		if raw == "" || filepath.IsAbs(pathutil.ExpandLeadingTilde(raw)) {
+			return nil
+		}
+		return fmt.Errorf("%s: must be an absolute path or start with ~/", key)
+	}
+}
+
 // definitions is the SSOT for every DB-backed setting.
 var definitions = func() map[string]Definition {
 	list := []Definition{
@@ -132,6 +147,7 @@ var definitions = func() map[string]Definition {
 		{Key: "usage.budget.session", Type: TypeInt, Default: "0", Apply: ApplyLive, Category: "usage", validate: nonNegativeInt("usage.budget.session")},
 		{Key: "usage.budget.weekly", Type: TypeInt, Default: "0", Apply: ApplyLive, Category: "usage", validate: nonNegativeInt("usage.budget.weekly")},
 		{Key: "onboarding.completed", Type: TypeBool, Default: "false", Apply: ApplyLive, Category: "onboarding"},
+		{Key: "claude.configDir", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "claude", validate: absolutePathOrEmpty("claude.configDir")},
 		// workspace.layout is the operator's arrangement of pages and tiles, as
 		// JSON. Empty means the built-in layout. Edited on the page itself, never
 		// in the settings list (AppSettings hides the category).

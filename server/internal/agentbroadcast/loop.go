@@ -13,11 +13,6 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
-// heartbeatInterval is the maximum time between SSE frames. A comment frame
-// (SSE `: heartbeat`) is sent when no data frame has been broadcast within
-// this window, preventing reverse-proxies from closing idle connections.
-const heartbeatInterval = 30 * time.Second
-
 // emptyTrend is a pre-allocated empty slice used in every broadcast frame to
 // avoid a per-tick heap allocation for the "trend" field. (F-PERF-014)
 var emptyTrend = []any{}
@@ -115,7 +110,7 @@ func Run(ctx context.Context, opts RunOptions) {
 	ticker := time.NewTicker(opts.Interval)
 	defer ticker.Stop()
 
-	heartbeat := time.NewTicker(heartbeatInterval)
+	heartbeat := time.NewTicker(sse.HeartbeatInterval)
 	defer heartbeat.Stop()
 
 	var lastHash uint64
@@ -166,8 +161,8 @@ func Run(ctx context.Context, opts RunOptions) {
 			if opts.Broadcaster.SubscriberCount() == 0 {
 				continue
 			}
-			if t.Sub(lastBroadcast) >= heartbeatInterval {
-				opts.Broadcaster.BroadcastComment([]byte("heartbeat"))
+			if t.Sub(lastBroadcast) >= sse.HeartbeatInterval {
+				opts.Broadcaster.BroadcastComment(sse.HeartbeatComment)
 				lastBroadcast = t
 			}
 

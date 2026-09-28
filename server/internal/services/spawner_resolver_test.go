@@ -61,15 +61,14 @@ func setupResolver(t *testing.T) *resolverFixture {
 func createTaskWith(t *testing.T, f *resolverFixture, slug string, projectID, spawnerID *string) string {
 	t.Helper()
 	task, err := f.tasks.Create(t.Context(), repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               "T",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		ProjectID:           projectID,
-		SpawnerID:           spawnerID,
+		Slug:          slug,
+		Title:         "T",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
+		ProjectID:     projectID,
+		SpawnerID:     spawnerID,
 	})
 	require.NoError(t, err)
 	return task.ID

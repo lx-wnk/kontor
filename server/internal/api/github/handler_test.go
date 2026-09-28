@@ -50,6 +50,11 @@ func defaultUpstream(called *bool) http.HandlerFunc {
 // a test can tell deny from ask by the error text alone.
 func newEnvWithUpstream(t *testing.T, upstream http.HandlerFunc) (http.Handler, repo.GrantRepo, context.Context) {
 	t.Helper()
+	return newEnvWithRepos(t, upstream, []string{testRepo})
+}
+
+func newEnvWithRepos(t *testing.T, upstream http.HandlerFunc, repos []string) (http.Handler, repo.GrantRepo, context.Context) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -65,7 +70,7 @@ func newEnvWithUpstream(t *testing.T, upstream http.HandlerFunc) (http.Handler, 
 
 	client, err := githubapp.NewClient(githubapp.Config{
 		Token: "ghp_supersecret", BaseURL: srv.URL,
-		Repos: []string{testRepo}, AllowLoopback: true,
+		Repos: repos, AllowLoopback: true,
 	})
 	require.NoError(t, err)
 
@@ -552,4 +557,149 @@ func TestUpstreamUnauthorizedReadsAsAConfigurationProblem(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "github.token", "the answer must name the setting to fix")
 	require.NotContains(t, rec.Body.String(), "ghp_supersecret")
+}
+
+// TestSummaryNotTrackedForSearchOnlyPROutsideAllowList proves that a pull
+// request the involves:@me search found in a repository outside the
+// configured allow-list gets checks.state="not_tracked", not "none", while an
+// allow-listed pull request still gets its real check state.
+func TestSummaryNotTrackedForSearchOnlyPROutsideAllowList(t *testing.T) {
+	h, grants, ctx := newEnvWithUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/pulls"):
+			_ = json.NewEncoder(w).Encode([]map[string]any{summaryPullFixture(1, "allow-listed", "sha-1")})
+		case strings.HasSuffix(r.URL.Path, "/search/issues"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{
+				"number": 99, "title": "external", "html_url": "https://example.test/external/99",
+				"repository_url": "https://api.github.com/repos/other/repo",
+				"updated_at":     "2026-09-02T00:00:00Z",
+			}}})
+		case strings.Contains(r.URL.Path, "/check-runs"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_count": 1,
+				"check_runs":  []map[string]any{{"status": "completed", "conclusion": "success"}},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		}
+	})
+	allowGlobally(t, grants, ctx, githubapp.CapabilityRead)
+
+	rec := do(t, h, http.MethodGet, "/api/github/summary", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Repos []struct {
+			Repo         string        `json:"repo"`
+			PullRequests []checksField `json:"pullRequests"`
+		} `json:"repos"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	byRepo := map[string][]checksField{}
+	for _, repo := range body.Repos {
+		byRepo[repo.Repo] = repo.PullRequests
+	}
+
+	require.Len(t, byRepo[testRepo], 1)
+	require.Equal(t, "success", byRepo[testRepo][0].Checks.State, "allow-listed PR must have real checks")
+
+	require.Len(t, byRepo["other/repo"], 1)
+	require.Equal(t, "not_tracked", byRepo["other/repo"][0].Checks.State, "non-allow-listed PR must show not_tracked, not none")
+}
+
+// TestSummaryMatchesSearchHitsToTheAllowListCaseInsensitively proves a search
+// hit whose repository_url differs from github.repos only in case lands in the
+// configured repository's group, is deduped against its own listing, and is
+// never marked not_tracked.
+func TestSummaryMatchesSearchHitsToTheAllowListCaseInsensitively(t *testing.T) {
+	h, grants, ctx := newEnvWithUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/pulls"):
+			_ = json.NewEncoder(w).Encode([]map[string]any{summaryPullFixture(1, "listed", "sha-1")})
+		case strings.HasSuffix(r.URL.Path, "/search/issues"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{
+				{
+					"number": 1, "title": "listed", "html_url": "https://example.test/listed",
+					"repository_url": "https://api.github.com/repos/LX-WNK/Kontor",
+					"updated_at":     "2026-09-01T10:00:00Z",
+				},
+				{
+					"number": 2, "title": "search-only", "html_url": "https://example.test/search-only",
+					"repository_url": "https://api.github.com/repos/Lx-Wnk/KONTOR",
+					"updated_at":     "2026-09-02T00:00:00Z",
+				},
+			}})
+		case strings.Contains(r.URL.Path, "/check-runs"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"total_count": 1,
+				"check_runs":  []map[string]any{{"status": "completed", "conclusion": "success"}},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		}
+	})
+	allowGlobally(t, grants, ctx, githubapp.CapabilityRead)
+
+	rec := do(t, h, http.MethodGet, "/api/github/summary", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Repos []struct {
+			Repo         string        `json:"repo"`
+			PullRequests []checksField `json:"pullRequests"`
+		} `json:"repos"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Repos, 1, rec.Body.String())
+	require.Equal(t, testRepo, body.Repos[0].Repo)
+	require.Len(t, body.Repos[0].PullRequests, 2, "PR #1 must not be duplicated by its search hit")
+	for _, pr := range body.Repos[0].PullRequests {
+		require.NotEqual(t, "not_tracked", pr.Checks.State, "PR #%d is in an allow-listed repository", pr.Number)
+	}
+}
+
+func TestSummaryListsARepoConfiguredTwiceInDifferentCaseOnce(t *testing.T) {
+	repos, err := githubapp.ParseRepos(testRepo + ", LX-WNK/Kontor")
+	require.NoError(t, err)
+	h, grants, ctx := newEnvWithRepos(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/pulls") {
+			_ = json.NewEncoder(w).Encode([]map[string]any{})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{})
+	}, repos)
+	allowGlobally(t, grants, ctx, githubapp.CapabilityRead)
+
+	rec := do(t, h, http.MethodGet, "/api/github/summary", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Repos []struct {
+			Repo string `json:"repo"`
+		} `json:"repos"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Repos, 1, rec.Body.String())
+	require.Equal(t, testRepo, body.Repos[0].Repo)
+}
+
+// TestGateMatchesGrantPatternsOnTheConfiguredRepoSpelling proves a repository
+// named in a different case is checked against grants in its configured
+// spelling, so an exact-pattern grant or deny covers every case variant.
+func TestGateMatchesGrantPatternsOnTheConfiguredRepoSpelling(t *testing.T) {
+	h, grants, ctx := newEnvWithUpstream(t, func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"merged": true, "sha": "deadbeef"})
+	})
+	_, err := grants.Create(ctx, repo.CreateGrantInput{
+		CapabilityName: githubapp.CapabilityMerge,
+		Context:        repo.GrantContextFor(repo.GrantContextGlobal, ""),
+		Pattern:        testRepo,
+		Mode:           repo.GrantModeAllow,
+		GrantedBy:      "test",
+	})
+	require.NoError(t, err)
+
+	rec := do(t, h, http.MethodPost, "/api/github/merge", `{"repo":"LX-WNK/Kontor","number":42}`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }

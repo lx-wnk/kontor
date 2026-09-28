@@ -44,14 +44,14 @@ func (s *stubModuleTools) Call(_ context.Context, moduleID, tool string, _ map[s
 	return "from the module", nil
 }
 
-func rpc(t *testing.T, h http.HandlerFunc, method string, params any) map[string]any {
+func rpc(t *testing.T, h http.Handler, method string, params any) map[string]any {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	rr := httptest.NewRecorder()
-	h(rr, httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body)))
 	var out map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal %q: %v", rr.Body.String(), err)
@@ -79,7 +79,7 @@ func TestMCPHandler_ListsModuleToolsUnderTheirNamespace(t *testing.T) {
 	src := &stubModuleTools{tools: []mcp.ModuleTool{
 		{ModuleID: "obsidian", Name: "search", Description: "search the vault"},
 	}}
-	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}})
+	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}}, nil)
 
 	names := toolNames(t, rpc(t, h, "tools/list", map[string]any{}))
 	if len(names) != 1 || names[0] != "obsidian__search" {
@@ -94,7 +94,7 @@ func TestMCPHandler_ListsModuleToolsUnderTheirNamespace(t *testing.T) {
 
 func TestMCPHandler_RoutesAModuleToolCall(t *testing.T) {
 	src := &stubModuleTools{tools: []mcp.ModuleTool{{ModuleID: "obsidian", Name: "search"}}}
-	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}})
+	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}}, nil)
 
 	resp := rpc(t, h, "tools/call", map[string]any{"name": "obsidian__search", "arguments": map[string]any{"q": "x"}})
 	if resp["error"] != nil {
@@ -108,7 +108,7 @@ func TestMCPHandler_RoutesAModuleToolCall(t *testing.T) {
 // A qualified name whose module is not listed must read as an unknown tool,
 // not as a call attempted against nothing.
 func TestMCPHandler_UnknownModuleToolIsNotFound(t *testing.T) {
-	h := mcp.MCPHandler(mcp.ToolRegistry{}, &stubModuleTools{}, stubGate{})
+	h := mcp.MCPHandler(mcp.ToolRegistry{}, &stubModuleTools{}, stubGate{}, nil)
 	resp := rpc(t, h, "tools/call", map[string]any{"name": "gone__search"})
 	if resp["error"] == nil {
 		t.Fatal("a tool nobody offers must be reported as not found")
@@ -120,7 +120,7 @@ func TestMCPHandler_UnknownModuleToolIsNotFound(t *testing.T) {
 // coarse permission this avoids.
 func TestMCPHandler_ModuleToolIsDeniedWithoutItsOwnScope(t *testing.T) {
 	src := &stubModuleTools{tools: []mcp.ModuleTool{{ModuleID: "obsidian", Name: "write"}}}
-	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}})
+	h := mcp.MCPHandler(mcp.ToolRegistry{}, src, stubGate{allowed: map[string]bool{"module:obsidian:search": true}}, nil)
 
 	if names := toolNames(t, rpc(t, h, "tools/list", map[string]any{})); len(names) != 0 {
 		t.Errorf("tools = %v, want none: the caller may search, not write", names)

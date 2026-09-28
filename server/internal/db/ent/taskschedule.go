@@ -52,8 +52,6 @@ type TaskSchedule struct {
 	TokenBudget *int `json:"token_budget,omitempty"`
 	// CostBudgetCents holds the value of the "cost_budget_cents" field.
 	CostBudgetCents *int `json:"cost_budget_cents,omitempty"`
-	// StageTimeoutSeconds holds the value of the "stage_timeout_seconds" field.
-	StageTimeoutSeconds int `json:"stage_timeout_seconds,omitempty"`
 	// SilverBullet holds the value of the "silver_bullet" field.
 	SilverBullet bool `json:"silver_bullet,omitempty"`
 	// ProjectID holds the value of the "project_id" field.
@@ -98,7 +96,7 @@ func (*TaskSchedule) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case taskschedule.FieldEnabled, taskschedule.FieldSilverBullet:
 			values[i] = new(sql.NullBool)
-		case taskschedule.FieldMaxIterations, taskschedule.FieldTokenBudget, taskschedule.FieldCostBudgetCents, taskschedule.FieldStageTimeoutSeconds, taskschedule.FieldSkippedCount:
+		case taskschedule.FieldMaxIterations, taskschedule.FieldTokenBudget, taskschedule.FieldCostBudgetCents, taskschedule.FieldSkippedCount:
 			values[i] = new(sql.NullInt64)
 		case taskschedule.FieldID, taskschedule.FieldName, taskschedule.FieldNlText, taskschedule.FieldCronExpr, taskschedule.FieldTimezone, taskschedule.FieldCatchup, taskschedule.FieldSlugPrefix, taskschedule.FieldTitle, taskschedule.FieldDescription, taskschedule.FieldCwd, taskschedule.FieldSourceBranch, taskschedule.FieldTargetBranch, taskschedule.FieldPriority, taskschedule.FieldRunMode, taskschedule.FieldProjectID, taskschedule.FieldSpawnerID, taskschedule.FieldPermissionTemplate, taskschedule.FieldLastTaskID, taskschedule.FieldResourceID, taskschedule.FieldOwnerModule, taskschedule.FieldUserID:
 			values[i] = new(sql.NullString)
@@ -232,12 +230,6 @@ func (_m *TaskSchedule) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CostBudgetCents = new(int)
 				*_m.CostBudgetCents = int(value.Int64)
-			}
-		case taskschedule.FieldStageTimeoutSeconds:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field stage_timeout_seconds", values[i])
-			} else if value.Valid {
-				_m.StageTimeoutSeconds = int(value.Int64)
 			}
 		case taskschedule.FieldSilverBullet:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -445,9 +437,6 @@ func (_m *TaskSchedule) String() string {
 		builder.WriteString("cost_budget_cents=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("stage_timeout_seconds=")
-	builder.WriteString(fmt.Sprintf("%v", _m.StageTimeoutSeconds))
 	builder.WriteString(", ")
 	builder.WriteString("silver_bullet=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SilverBullet))

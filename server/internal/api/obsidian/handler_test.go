@@ -173,9 +173,11 @@ func TestIndex_GrantedRunReturnsIndexedCount(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body struct {
 		Indexed int `json:"indexed"`
+		Matched int `json:"matched"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, 1, body.Indexed)
+	assert.Equal(t, 1, body.Matched)
 }
 
 // TestIndex_ConcurrentRunsAreSerialized pins fix-round finding BLOCKING 2:

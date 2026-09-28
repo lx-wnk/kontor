@@ -13,7 +13,7 @@ function req(id: string, at: string, over: Partial<PermissionRequest> = {}): Per
 }
 
 function item(taskId: string, requests: PermissionRequest[]): PermissionItem {
-  return { taskId, title: `task ${taskId}`, projectName: 'Dashboard', routineId: null, requests }
+  return { taskId, title: `task ${taskId}`, projectName: 'Dashboard', cwd: '/repo/dashboard', routineId: null, requests }
 }
 
 function agent(pid: number, over: Partial<Agent> = {}): Agent {

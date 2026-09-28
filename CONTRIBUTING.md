@@ -10,6 +10,9 @@ Real-time monitoring dashboard for locally running Claude Code agents. Go 1.26 b
 | Task runner | `brew install go-task/tap/go-task` |
 | air (hot-reload) | `go install github.com/air-verse/air@latest` |
 | Node.js 22+ + pnpm | [pnpm.io/installation](https://pnpm.io/installation) |
+| GitHub CLI (`gh`, logged in) — optional | `brew install gh && gh auth login` |
+
+`gh` is only needed when pipeline tasks may push (`git.allowPush`): finalization then opens a draft PR through it. Without it the task still reaches done and records the error as `pr_error` in its metadata.
 
 **Platform:** macOS and Linux. Windows is unsupported.
 
@@ -60,6 +63,7 @@ Build the SPA **before** the binary — `go:embed` bakes the compiled frontend i
 | `task lint` | Run golangci-lint and the formatter check (sdk, server, every plugin) |
 | `task generate` | Run ent schema + tygo TS code generation |
 | `task fmt` | Format with the same formatter `task lint` checks (sdk, server, plugins) |
+| `task changelog:check` | Fail on a repeated release heading or `###` heading within one `CHANGELOG.md` release section |
 
 ### Frontend (Vue)
 
@@ -112,7 +116,7 @@ Three non-obvious build requirements the `desktop:*` tasks encapsulate — a bar
 - **`-ldflags "-extldflags '-framework UniformTypeIdentifiers'"`** — wails v2 references `UTType` on the macOS 15 SDK; a plain `go build` fails to link it (`Undefined symbols: _OBJC_CLASS_$_UTType`).
 - **the SPA must be built first** (`task build:frontend`) — the shell starts the dashboard server in-process, and that server (not the shell) embeds and serves `server/frontend/dist` via `go:embed`; an empty dist makes the webview hit a `/` → `./` redirect loop instead of the app.
 
-The `wails` CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0`) is needed for `task dev:desktop` (wails hot-reload) and for producing a `.app`/`.dmg` bundle (`task desktop:dist` / `task desktop:dmg`); the plain `task build:desktop` above does not need it. See [docs/desktop-distribution.md](docs/desktop-distribution.md) for packaging plus the full signing and notarization steps.
+The `wails` CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0`) is needed for `task dev:desktop` (wails hot-reload) and for producing a `.app`/`.dmg` bundle (`task desktop:dist` / `task desktop:dmg`); the plain `task build:desktop` above does not need it. See [docs/desktop-distribution.md](docs/desktop-distribution.md) for packaging plus the full signing and notarization steps. For day-to-day rebuilds, `task desktop:bundle` swaps a fresh binary into that `.app` and signs it with a stable identity so macOS privacy grants survive — setup in [docs/code-signing.md](docs/code-signing.md).
 
 ### CI matrices and the Go toolchain
 
@@ -141,6 +145,7 @@ Two single sources feed CI, so neither has to be edited per module:
    - `task test` passes (race detector included)
    - `task lint` passes
    - `pnpm typecheck` passes
+   - `task changelog:check` passes — add `CHANGELOG.md` entries to the existing `### Added` / `### Changed` / `### Fixed` subsections under `[Unreleased]`, never a second copy of a heading
 4. Write a clear PR description explaining what changed and why.
 
 ## Commit Convention

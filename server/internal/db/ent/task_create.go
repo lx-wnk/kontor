@@ -198,20 +198,6 @@ func (_c *TaskCreate) SetNillableCostBudgetCents(v *int) *TaskCreate {
 	return _c
 }
 
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (_c *TaskCreate) SetStageTimeoutSeconds(v int) *TaskCreate {
-	_c.mutation.SetStageTimeoutSeconds(v)
-	return _c
-}
-
-// SetNillableStageTimeoutSeconds sets the "stage_timeout_seconds" field if the given value is not nil.
-func (_c *TaskCreate) SetNillableStageTimeoutSeconds(v *int) *TaskCreate {
-	if v != nil {
-		_c.SetStageTimeoutSeconds(*v)
-	}
-	return _c
-}
-
 // SetSilverBullet sets the "silver_bullet" field.
 func (_c *TaskCreate) SetSilverBullet(v bool) *TaskCreate {
 	_c.mutation.SetSilverBullet(v)
@@ -477,10 +463,6 @@ func (_c *TaskCreate) defaults() {
 		v := task.DefaultMaxIterations
 		_c.mutation.SetMaxIterations(v)
 	}
-	if _, ok := _c.mutation.StageTimeoutSeconds(); !ok {
-		v := task.DefaultStageTimeoutSeconds
-		_c.mutation.SetStageTimeoutSeconds(v)
-	}
 	if _, ok := _c.mutation.SilverBullet(); !ok {
 		v := task.DefaultSilverBullet
 		_c.mutation.SetSilverBullet(v)
@@ -540,9 +522,6 @@ func (_c *TaskCreate) check() error {
 	}
 	if _, ok := _c.mutation.MaxIterations(); !ok {
 		return &ValidationError{Name: "max_iterations", err: errors.New(`ent: missing required field "Task.max_iterations"`)}
-	}
-	if _, ok := _c.mutation.StageTimeoutSeconds(); !ok {
-		return &ValidationError{Name: "stage_timeout_seconds", err: errors.New(`ent: missing required field "Task.stage_timeout_seconds"`)}
 	}
 	if _, ok := _c.mutation.SilverBullet(); !ok {
 		return &ValidationError{Name: "silver_bullet", err: errors.New(`ent: missing required field "Task.silver_bullet"`)}
@@ -656,10 +635,6 @@ func (_c *TaskCreate) createSpec() (*Task, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CostBudgetCents(); ok {
 		_spec.SetField(task.FieldCostBudgetCents, field.TypeInt, value)
 		_node.CostBudgetCents = &value
-	}
-	if value, ok := _c.mutation.StageTimeoutSeconds(); ok {
-		_spec.SetField(task.FieldStageTimeoutSeconds, field.TypeInt, value)
-		_node.StageTimeoutSeconds = value
 	}
 	if value, ok := _c.mutation.SilverBullet(); ok {
 		_spec.SetField(task.FieldSilverBullet, field.TypeBool, value)
@@ -1056,24 +1031,6 @@ func (u *TaskUpsert) AddCostBudgetCents(v int) *TaskUpsert {
 // ClearCostBudgetCents clears the value of the "cost_budget_cents" field.
 func (u *TaskUpsert) ClearCostBudgetCents() *TaskUpsert {
 	u.SetNull(task.FieldCostBudgetCents)
-	return u
-}
-
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (u *TaskUpsert) SetStageTimeoutSeconds(v int) *TaskUpsert {
-	u.Set(task.FieldStageTimeoutSeconds, v)
-	return u
-}
-
-// UpdateStageTimeoutSeconds sets the "stage_timeout_seconds" field to the value that was provided on create.
-func (u *TaskUpsert) UpdateStageTimeoutSeconds() *TaskUpsert {
-	u.SetExcluded(task.FieldStageTimeoutSeconds)
-	return u
-}
-
-// AddStageTimeoutSeconds adds v to the "stage_timeout_seconds" field.
-func (u *TaskUpsert) AddStageTimeoutSeconds(v int) *TaskUpsert {
-	u.Add(task.FieldStageTimeoutSeconds, v)
 	return u
 }
 
@@ -1566,27 +1523,6 @@ func (u *TaskUpsertOne) UpdateCostBudgetCents() *TaskUpsertOne {
 func (u *TaskUpsertOne) ClearCostBudgetCents() *TaskUpsertOne {
 	return u.Update(func(s *TaskUpsert) {
 		s.ClearCostBudgetCents()
-	})
-}
-
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (u *TaskUpsertOne) SetStageTimeoutSeconds(v int) *TaskUpsertOne {
-	return u.Update(func(s *TaskUpsert) {
-		s.SetStageTimeoutSeconds(v)
-	})
-}
-
-// AddStageTimeoutSeconds adds v to the "stage_timeout_seconds" field.
-func (u *TaskUpsertOne) AddStageTimeoutSeconds(v int) *TaskUpsertOne {
-	return u.Update(func(s *TaskUpsert) {
-		s.AddStageTimeoutSeconds(v)
-	})
-}
-
-// UpdateStageTimeoutSeconds sets the "stage_timeout_seconds" field to the value that was provided on create.
-func (u *TaskUpsertOne) UpdateStageTimeoutSeconds() *TaskUpsertOne {
-	return u.Update(func(s *TaskUpsert) {
-		s.UpdateStageTimeoutSeconds()
 	})
 }
 
@@ -2274,27 +2210,6 @@ func (u *TaskUpsertBulk) UpdateCostBudgetCents() *TaskUpsertBulk {
 func (u *TaskUpsertBulk) ClearCostBudgetCents() *TaskUpsertBulk {
 	return u.Update(func(s *TaskUpsert) {
 		s.ClearCostBudgetCents()
-	})
-}
-
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (u *TaskUpsertBulk) SetStageTimeoutSeconds(v int) *TaskUpsertBulk {
-	return u.Update(func(s *TaskUpsert) {
-		s.SetStageTimeoutSeconds(v)
-	})
-}
-
-// AddStageTimeoutSeconds adds v to the "stage_timeout_seconds" field.
-func (u *TaskUpsertBulk) AddStageTimeoutSeconds(v int) *TaskUpsertBulk {
-	return u.Update(func(s *TaskUpsert) {
-		s.AddStageTimeoutSeconds(v)
-	})
-}
-
-// UpdateStageTimeoutSeconds sets the "stage_timeout_seconds" field to the value that was provided on create.
-func (u *TaskUpsertBulk) UpdateStageTimeoutSeconds() *TaskUpsertBulk {
-	return u.Update(func(s *TaskUpsert) {
-		s.UpdateStageTimeoutSeconds()
 	})
 }
 

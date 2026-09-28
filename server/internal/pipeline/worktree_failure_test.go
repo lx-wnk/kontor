@@ -53,14 +53,14 @@ func TestOrchestrator_WorktreeFailureRecordedAsFailedRun(t *testing.T) {
 	)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "worktree-fail",
-		Title:               "Worktree Fail",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
-		SourceBranch:        strptr("feat/x"),
+		Slug:          "worktree-fail",
+		Title:         "Worktree Fail",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
+
+		SourceBranch: strptr("feat/x"),
 	})
 	require.NoError(t, err)
 
@@ -96,14 +96,14 @@ func TestOrchestrator_WorktreeSuccessPersistsPath(t *testing.T) {
 	)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "worktree-ok",
-		Title:               "Worktree OK",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
-		SourceBranch:        strptr("feat/x"),
+		Slug:          "worktree-ok",
+		Title:         "Worktree OK",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
+
+		SourceBranch: strptr("feat/x"),
 	})
 	require.NoError(t, err)
 

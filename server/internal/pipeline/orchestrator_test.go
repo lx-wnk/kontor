@@ -18,13 +18,12 @@ func TestOrchestrator_ReadyTransitionsToImplementation(t *testing.T) {
 	ctx := context.Background()
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "backlog-test",
-		Title:               "Backlog Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "ready",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "backlog-test",
+		Title:         "Backlog Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "ready",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -46,13 +45,12 @@ func TestOrchestrator_AsyncRunningTransition_RecordsPI(t *testing.T) {
 	})
 
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                "impl-test",
-		Title:               "Impl Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "impl-test",
+		Title:         "Impl Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -72,13 +70,12 @@ func TestOrchestrator_FailTransition_TaskStageUnchanged(t *testing.T) {
 	})
 
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                "fail-test",
-		Title:               "Fail Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "fail-test",
+		Title:         "Fail Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -129,13 +126,12 @@ func TestOrchestrator_RequeueTransition(t *testing.T) {
 	})
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-test",
-		Title:               "Requeue Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-test",
+		Title:         "Requeue Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -349,13 +345,12 @@ func TestDecideCompletedTransition_SelfReview_MaxCyclesReached(t *testing.T) {
 func makeRunningStageRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo, retryCount int) (*ent.Task, *ent.StageRun) {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "infra-test",
-		Title:               "Infra Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "infra-test",
+		Title:         "Infra Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -473,13 +468,12 @@ func TestFinalizeCompletedAsyncRuns_SchemaReject_Iter1_WaitsUser(t *testing.T) {
 	orch, taskRepo, srRepo := makeOrchestratorWithSRRepo(t)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "schema-iter1",
-		Title:               "Schema Iter1 Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "schema-iter1",
+		Title:         "Schema Iter1 Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -549,13 +543,12 @@ func TestFinalizeCompletedAsyncRuns_HardFail_NeitherInfraNorRetryable(t *testing
 func makePickerTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, slug string) *ent.Task {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               slug,
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         slug,
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	return task

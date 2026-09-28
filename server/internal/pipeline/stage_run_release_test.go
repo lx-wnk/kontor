@@ -35,13 +35,12 @@ func newReleaseOrch(t *testing.T, revokes *recordedRevokes) (*pipeline.PipelineO
 func seedRunningRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo, slug string) (string, string) {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               slug,
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         slug,
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{
@@ -170,13 +169,12 @@ func TestSpawnCleanup_RunsWhenTheRunIsReleased(t *testing.T) {
 	orch.SetHandlerOverride("implementation", pipeline.NewAgentStageHandlerForTest("implementation", spawnFn))
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "spawn-cleanup",
-		Title:               "Spawn cleanup",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "spawn-cleanup",
+		Title:         "Spawn cleanup",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 

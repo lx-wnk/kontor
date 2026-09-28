@@ -90,7 +90,7 @@ func TestKontorSessionKey_IsRefusedCreateAPIKey(t *testing.T) {
 				return mcp.OK(nil)
 			}})
 	}
-	h := mcp.McpAuthMiddleware(keys)(mcp.MCPHandler(registry, nil, nil))
+	h := mcp.McpAuthMiddleware(keys)(mcp.MCPHandler(registry, nil, nil, nil))
 	call := func(tool string) map[string]any {
 		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `","arguments":{}}}`
 		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewBufferString(body))

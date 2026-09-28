@@ -20,7 +20,7 @@ func TestTaskRepo_ListByRoutine(t *testing.T) {
 	mk := func(slug string, rid *string) {
 		_, err := r.Create(ctx, repo.CreateTaskInput{
 			Slug: slug, Title: slug, Cwd: "/tmp", CurrentStage: "job",
-			Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+			Priority: "medium", MaxIterations: 20,
 			Kind: "job", RoutineID: rid,
 		})
 		require.NoError(t, err)

@@ -29,13 +29,12 @@ func TestOrchestrator_UserRetryClearsStalePending(t *testing.T) {
 	})
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "retry-clears-stale",
-		Title:               "Retry Clears Stale Pending",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "retry-clears-stale",
+		Title:         "Retry Clears Stale Pending",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -183,13 +182,12 @@ func TestOrchestrator_LingeringPendingGate(t *testing.T) {
 			})
 
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                "gate-" + tc.name,
-				Title:               "Lingering Pending Gate Test",
-				Cwd:                 "/tmp",
-				CurrentStage:        "implementation",
-				Priority:            "medium",
-				MaxIterations:       3,
-				StageTimeoutSeconds: 1800,
+				Slug:          "gate-" + tc.name,
+				Title:         "Lingering Pending Gate Test",
+				Cwd:           "/tmp",
+				CurrentStage:  "implementation",
+				Priority:      "medium",
+				MaxIterations: 3,
 			})
 			require.NoError(t, err)
 
@@ -291,13 +289,12 @@ func TestOrchestrator_LingeringPendingGate_ThreeCases(t *testing.T) {
 			})
 
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                fmt.Sprintf("three-cases-%d", i),
-				Title:               "ThreeCases Gate Test",
-				Cwd:                 "/tmp",
-				CurrentStage:        "implementation",
-				Priority:            "medium",
-				MaxIterations:       3,
-				StageTimeoutSeconds: 1800,
+				Slug:          fmt.Sprintf("three-cases-%d", i),
+				Title:         "ThreeCases Gate Test",
+				Cwd:           "/tmp",
+				CurrentStage:  "implementation",
+				Priority:      "medium",
+				MaxIterations: 3,
 			})
 			require.NoError(t, err)
 

@@ -384,7 +384,10 @@ type Agent struct {
 	Provider    Provider `json:"provider"`
 	ProjectPath string   `json:"projectPath"`
 	ProjectName string   `json:"projectName"`
-	CWD         string   `json:"cwd"`
+	// ProjectID is the Kontor project the agent works for; empty when none
+	// matches, and ProjectName is then the cwd's folder name.
+	ProjectID string `json:"projectId,omitempty"`
+	CWD       string `json:"cwd"`
 	// ClaudeConfigDir is the value of CLAUDE_CONFIG_DIR detected in the running
 	// session's process env (empty when the session uses the default ~/.claude).
 	// Lets the dashboard resolve which config root a session's slash commands /

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
@@ -66,7 +67,7 @@ func ResolveRequestScope(ctx context.Context, sessionID, spawnerID, cwd string, 
 		if list, err := agents(ctx); err == nil {
 			for _, a := range list {
 				if a.SessionID == sessionID {
-					s := ResolveSessionScope(a.ClaudeConfigDir, a.CWD)
+					s := ResolveSessionScope(claudeconfig.SessionDir(a.ClaudeConfigDir, a.ClaudeConfigDirKnown), a.CWD)
 					s.Source = "session"
 					s.Label = "session:" + sessionID
 					return s

@@ -35,6 +35,14 @@ func TestRegistry_DefaultsAndValidation(t *testing.T) {
 	require.Error(t, h.Validate("0"))
 	require.NoError(t, h.Validate("1"))
 
+	// claude.configDir: unset, absolute or ~-rooted only
+	c, _ := Lookup("claude.configDir")
+	require.NoError(t, c.Validate(""))
+	require.NoError(t, c.Validate("/Users/me/.claude-personal"))
+	require.NoError(t, c.Validate("~/.claude-personal"))
+	require.Error(t, c.Validate(".claude-personal"))
+	require.Error(t, c.Validate(" /Users/me/.claude"))
+
 	_, ok = Lookup("nope")
 	assert.False(t, ok)
 }

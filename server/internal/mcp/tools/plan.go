@@ -16,6 +16,7 @@ type PlanDeps struct {
 	Advance   func(ctx context.Context, taskID string) error
 	Requeue   func(ctx context.Context, taskID, prompt string) error
 	Revoke    func(ctx context.Context, stageRunID string) error
+	Broadcast func(ctx context.Context, eventType, taskID string)
 }
 
 // RegisterPlanTools registers the plan gate MCP tools into the registry.
@@ -51,6 +52,7 @@ func registerApprovePlan(registry mcp.ToolRegistry, d PlanDeps) {
 			if err != nil {
 				return nil, mcp.Fail("approve_plan: " + err.Error())
 			}
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			return mcp.OK(map[string]any{"task": task})
 		},
 	})
@@ -85,6 +87,7 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 			}, taskID, feedback); err != nil {
 				return nil, mcp.Fail("reject_plan: " + err.Error())
 			}
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			return mcp.OK(map[string]any{"status": "requeued"})
 		},
 	})

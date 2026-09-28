@@ -37,6 +37,18 @@ func TestStageKeyIssuer_IssuedKeyResolvesAndCarriesAttribution(t *testing.T) {
 	require.WithinDuration(t, time.Now().Add(30*time.Minute+mcp.StageKeyTTLBuffer), *row.ExpiresAt, time.Minute)
 }
 
+func TestStageKeyIssuer_ZeroTimeoutStillExpires(t *testing.T) {
+	issuer, keys, ctx := newIssuer(t)
+
+	token, err := issuer.Issue(ctx, "sr-1", 0)
+	require.NoError(t, err)
+
+	row, err := keys.GetByHash(ctx, mcp.HashToken(token))
+	require.NoError(t, err)
+	require.NotNil(t, row.ExpiresAt)
+	require.WithinDuration(t, time.Now().Add(mcp.MaxStageKeyTTL), *row.ExpiresAt, time.Minute)
+}
+
 // The scope set is fixed by design (spec D3). keys:manage is excluded on
 // purpose: an agent that can mint keys can mint one with no stage run and
 // escape its own attribution.

@@ -31,6 +31,7 @@ const { items, loading, refetch, update } = useSettings()
 
 const form = ref<ObsidianFormState>({ baseURL: '', vaultRoot: '', apiKey: '', tlsMode: 'verify' })
 const saving = ref(false)
+const vaultRootError = ref<string | null>(null)
 
 const tlsModeOptions = computed(() => {
   const enumValues = items.value.find(i => i.key === KEY_TLS_MODE)?.enum ?? FALLBACK_TLS_MODES
@@ -99,6 +100,7 @@ async function save() {
   if (!trioComplete.value)
     return
   saving.value = true
+  vaultRootError.value = null
   try {
     // obsidian.apiKey always reads back as the mask sentinel once it is set;
     // sending it back untouched is how the server knows to leave it alone,
@@ -114,9 +116,18 @@ async function save() {
 
     let applied: 'live' | 'restart' = 'live'
     for (const [key, value] of pairs) {
-      const result = await update(key, value)
-      if (result === 'restart')
-        applied = 'restart'
+      try {
+        const result = await update(key, value)
+        if (result === 'restart')
+          applied = 'restart'
+      }
+      catch (e) {
+        if (key === KEY_VAULT_ROOT) {
+          vaultRootError.value = errorMessage(e, 'Invalid vault root')
+          return
+        }
+        throw e
+      }
     }
     toast.success(applied === 'restart' ? 'Saved — applies after a server restart.' : 'Saved.')
     await fetchStatus()
@@ -210,8 +221,8 @@ async function runIndex() {
       const body = await res.json().catch(() => ({})) as { error?: string }
       throw new Error(body.error ?? `HTTP ${res.status}`)
     }
-    const data = await res.json() as { indexed: number }
-    indexMessage.value = `Indexed ${data.indexed} note${data.indexed === 1 ? '' : 's'}.`
+    const data = await res.json() as { indexed: number, matched: number }
+    indexMessage.value = `Indexed ${data.indexed} new note${data.indexed === 1 ? '' : 's'} (${data.matched} found).`
   }
   catch (e) {
     toast.error(errorMessage(e, 'Failed to run indexing'))
@@ -266,8 +277,13 @@ async function runIndex() {
             data-testid="obsidian-vaultroot"
             type="text"
             placeholder="claude-memory"
-            class="w-full bg-card border border-line rounded px-2.5 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent"
+            class="w-full bg-card border rounded px-2.5 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent"
+            :class="vaultRootError ? 'border-danger-text' : 'border-line'"
+            @input="vaultRootError = null"
           >
+          <p v-if="vaultRootError" data-testid="obsidian-vaultroot-error" class="mt-1 text-xs text-danger-text">
+            {{ vaultRootError }}
+          </p>
         </div>
         <div>
           <label class="block text-[10px] font-semibold uppercase tracking-wider text-fg-mute mb-1" for="obsidian-apikey">API key</label>

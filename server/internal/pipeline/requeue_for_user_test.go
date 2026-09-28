@@ -25,13 +25,12 @@ func TestRequeueForUser_FailedRun_CreatesNewPendingRun(t *testing.T) {
 	srRepo := repo.NewStageRunRepo(bundle.Client)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-failed",
-		Title:               "Requeue Failed Run",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-failed",
+		Title:         "Requeue Failed Run",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -73,13 +72,12 @@ func TestRequeueForUser_AwaitingUserDeadPID_ReapsAndCreatesNewRun(t *testing.T) 
 	srRepo := repo.NewStageRunRepo(bundle.Client)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-await-dead",
-		Title:               "Requeue Awaiting Dead PID",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-await-dead",
+		Title:         "Requeue Awaiting Dead PID",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -121,13 +119,12 @@ func TestRequeueForUser_TerminalStage_ReturnsNil(t *testing.T) {
 			orch, taskRepo := makeOrchFromBundle(t, bundle)
 
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                "requeue-terminal-" + stage,
-				Title:               "Terminal Stage",
-				Cwd:                 "/tmp",
-				CurrentStage:        stage,
-				Priority:            "medium",
-				MaxIterations:       5,
-				StageTimeoutSeconds: 1800,
+				Slug:          "requeue-terminal-" + stage,
+				Title:         "Terminal Stage",
+				Cwd:           "/tmp",
+				CurrentStage:  stage,
+				Priority:      "medium",
+				MaxIterations: 5,
 			})
 			require.NoError(t, err)
 
@@ -148,13 +145,12 @@ func TestRequeueForUser_NoFailedOrRequeuedRun_ReturnsNil(t *testing.T) {
 	srRepo := repo.NewStageRunRepo(bundle.Client)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-no-failed",
-		Title:               "No Failed Run",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-no-failed",
+		Title:         "No Failed Run",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -182,13 +178,12 @@ func TestRequeueForUser_RequeuedRun_CreatesNewPendingRun(t *testing.T) {
 	srRepo := repo.NewStageRunRepo(bundle.Client)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-from-requeued",
-		Title:               "Requeue From Requeued",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-from-requeued",
+		Title:         "Requeue From Requeued",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -226,13 +221,12 @@ func TestPicker_AfterRequeueForUser_TaskIsEligible(t *testing.T) {
 	})
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "picker-after-requeue",
-		Title:               "Picker After Requeue",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "picker-after-requeue",
+		Title:         "Picker After Requeue",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -327,13 +321,12 @@ func TestSpawnPath_ConsumesPersistedPromptAndDerivesResumeSession(t *testing.T) 
 	orch, taskRepo, srRepo, _ := makeOrchWithCaptureSpawn(t, capture)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "spawn-path-test",
-		Title:               "Spawn Path Test",
-		Cwd:                 cwd,
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "spawn-path-test",
+		Title:         "Spawn Path Test",
+		Cwd:           cwd,
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -402,13 +395,12 @@ func TestSpawnPath_NoSessionFile_FreshSpawn(t *testing.T) {
 	orch, taskRepo, srRepo, _ := makeOrchWithCaptureSpawn(t, capture)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "spawn-fresh-test",
-		Title:               "Spawn Fresh Test",
-		Cwd:                 cwd,
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "spawn-fresh-test",
+		Title:         "Spawn Fresh Test",
+		Cwd:           cwd,
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 
@@ -461,13 +453,12 @@ func TestSpawnPath_NoSessionID_FreshSpawn(t *testing.T) {
 	orch, taskRepo, srRepo, _ := makeOrchWithCaptureSpawn(t, capture)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "spawn-no-sid-test",
-		Title:               "Spawn No SessionID Test",
-		Cwd:                 cwd,
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 1800,
+		Slug:          "spawn-no-sid-test",
+		Title:         "Spawn No SessionID Test",
+		Cwd:           cwd,
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	require.NoError(t, err)
 

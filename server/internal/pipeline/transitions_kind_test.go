@@ -17,7 +17,7 @@ func TestApplyTransition_KindJobRefusesPipelineStage(t *testing.T) {
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "job-refuses-pipeline-stage", Title: "t", Cwd: "/tmp", CurrentStage: "job", Kind: "job",
-		Priority: "medium", MaxIterations: 3, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "job", SessionName: "jrp-0"})
@@ -45,7 +45,7 @@ func TestApplyTransition_KindPipelineRefusesJobStage(t *testing.T) {
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "pipeline-refuses-job-stage", Title: "t", Cwd: "/tmp", CurrentStage: "ready",
-		Priority: "medium", MaxIterations: 3, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "ready", SessionName: "prj-0"})
@@ -69,7 +69,7 @@ func TestApplyTransition_KindPipelineAllowsPipelineStage(t *testing.T) {
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "pipeline-allows-pipeline-stage", Title: "t", Cwd: "/tmp", CurrentStage: "ready",
-		Priority: "medium", MaxIterations: 3, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "ready", SessionName: "pap-0"})

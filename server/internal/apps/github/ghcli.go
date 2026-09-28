@@ -9,12 +9,24 @@ import (
 	"time"
 )
 
-// ghTokenTimeout bounds the credential lookup. It reads a local credential
-// store, so it is either fast or broken.
+// ghTokenTimeout bounds one credential lookup attempt. A locked keychain can
+// outlast it while macOS asks to unlock, so a timed-out attempt is retried once.
 var ghTokenTimeout = 5 * time.Second
 
 // ErrGhNotFound reports that the GitHub CLI is not on PATH.
 var ErrGhNotFound = errors.New("the GitHub CLI (gh) is not on PATH")
+
+// runGhAuthToken executes `gh auth token` under its own ghTokenTimeout and
+// reports whether that deadline ended the attempt.
+func runGhAuthToken(ctx context.Context) (out []byte, timedOut bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, ghTokenTimeout)
+	defer cancel()
+	// #nosec G204 -- every argument is a constant in this file; nothing from a
+	// setting, a request or the environment reaches the command line, and
+	// exec.CommandContext passes argv without a shell.
+	out, err = exec.CommandContext(ctx, "gh", "auth", "token").Output()
+	return out, err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded), err
+}
 
 // TokenFromGhCLI returns the token the GitHub CLI is authenticated with, so the
 // dashboard can reach GitHub without a personal access token stored in its own
@@ -29,14 +41,15 @@ var ErrGhNotFound = errors.New("the GitHub CLI (gh) is not on PATH")
 // invoke `gh` itself, so this narrows what is *stored*, not what an agent on
 // this machine can *reach*.
 func TokenFromGhCLI(ctx context.Context) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, ghTokenTimeout)
-	defer cancel()
-
-	// #nosec G204 -- every argument is a constant in this file; nothing from a
-	// setting, a request or the environment reaches the command line, and
-	// exec.CommandContext passes argv without a shell.
-	cmd := exec.CommandContext(ctx, "gh", "auth", "token")
-	out, err := cmd.Output()
+	out, timedOut, err := runGhAuthToken(ctx)
+	if timedOut && ctx.Err() == nil {
+		out, timedOut, err = runGhAuthToken(ctx)
+	}
+	if timedOut {
+		// A killed gh exits with "signal: killed" and no stderr, which says
+		// nothing about why; name the timeout instead.
+		return "", fmt.Errorf("gh auth token timed out after %s; is the keychain locked?", ghTokenTimeout)
+	}
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {

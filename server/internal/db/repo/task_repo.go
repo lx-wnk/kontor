@@ -36,57 +36,55 @@ type TaskRepo interface {
 }
 
 type CreateTaskInput struct {
-	ID                  string
-	Slug                string
-	Title               string
-	Description         *string
-	Cwd                 string
-	WorktreePath        *string
-	SourceBranch        *string
-	TargetBranch        *string
-	ParentTaskID        *string
-	UserID              *string
-	MaxIterations       int
-	TokenBudget         *int
-	CostBudgetCents     *int
-	StageTimeoutSeconds int
-	SilverBullet        bool
-	PlanMode            *bool
-	Priority            string
-	CurrentStage        string
-	Autonomy            *string
-	Metadata            map[string]any
-	ProjectID           *string
-	SpawnerID           *string
-	RoutineID           *string
-	Kind                string
-	Applications        []string
-	Rank                *float64
+	ID              string
+	Slug            string
+	Title           string
+	Description     *string
+	Cwd             string
+	WorktreePath    *string
+	SourceBranch    *string
+	TargetBranch    *string
+	ParentTaskID    *string
+	UserID          *string
+	MaxIterations   int
+	TokenBudget     *int
+	CostBudgetCents *int
+	SilverBullet    bool
+	PlanMode        *bool
+	Priority        string
+	CurrentStage    string
+	Autonomy        *string
+	Metadata        map[string]any
+	ProjectID       *string
+	SpawnerID       *string
+	RoutineID       *string
+	Kind            string
+	Applications    []string
+	Rank            *float64
 }
 
 type UpdateTaskInput struct {
-	Title               *string
-	Description         *string
-	CurrentStage        *string
-	Priority            *string
-	SilverBullet        *bool
-	PlanMode            *bool
-	MaxIterations       *int
-	TokenBudget         *int
-	CostBudgetCents     *int
-	StageTimeoutSeconds *int
-	Metadata            map[string]any
-	MetadataClear       bool
-	WorktreePath        *string
-	SourceBranch        *string
-	TargetBranch        *string
-	ProjectID           *string
-	SpawnerID           *string
-	Rank                *float64
-	ClearProjectID      bool
-	ClearSpawnerID      bool
-	ClearWorktreePath   bool
-	Autonomy            *string
+	Title             *string
+	Description       *string
+	CurrentStage      *string
+	Priority          *string
+	SilverBullet      *bool
+	PlanMode          *bool
+	MaxIterations     *int
+	TokenBudget       *int
+	CostBudgetCents   *int
+	Metadata          map[string]any
+	MetadataClear     bool
+	WorktreePath      *string
+	SourceBranch      *string
+	TargetBranch      *string
+	ProjectID         *string
+	SpawnerID         *string
+	Rank              *float64
+	ClearProjectID    bool
+	ClearSpawnerID    bool
+	ClearWorktreePath bool
+	Autonomy          *string
 }
 
 // rankGap is the spacing applied when a card is dropped at the top or bottom of
@@ -112,7 +110,6 @@ func (r *entTaskRepo) Create(ctx context.Context, in CreateTaskInput) (*ent.Task
 		SetCurrentStage(in.CurrentStage).
 		SetPriority(in.Priority).
 		SetMaxIterations(in.MaxIterations).
-		SetStageTimeoutSeconds(in.StageTimeoutSeconds).
 		SetSilverBullet(in.SilverBullet).
 		SetNillablePlanMode(in.PlanMode)
 	if in.Description != nil {
@@ -201,9 +198,6 @@ func (r *entTaskRepo) Update(ctx context.Context, id string, in UpdateTaskInput)
 	}
 	if in.MaxIterations != nil {
 		q = q.SetMaxIterations(*in.MaxIterations)
-	}
-	if in.StageTimeoutSeconds != nil {
-		q = q.SetStageTimeoutSeconds(*in.StageTimeoutSeconds)
 	}
 	if in.TokenBudget != nil {
 		q = q.SetTokenBudget(*in.TokenBudget)

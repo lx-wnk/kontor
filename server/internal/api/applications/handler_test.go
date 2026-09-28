@@ -291,8 +291,8 @@ func attachRoutine(t *testing.T, schedules repo.TaskScheduleRepo, name, resource
 	_, err := schedules.Create(context.Background(), repo.CreateTaskScheduleInput{
 		Name: name, CronExpr: "*/5 * * * *", SlugPrefix: name,
 		Title: name, Cwd: "/tmp", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Applications: []string{resourceID},
+		MaxIterations: 20,
+		Applications:  []string{resourceID},
 	})
 	require.NoError(t, err)
 }

@@ -2,6 +2,8 @@ package settings
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -170,4 +172,82 @@ func TestService_OnChangeFiresOnlyAfterASuccessfulSet(t *testing.T) {
 	require.ErrorIs(t, svc.Set(t.Context(), "obsidian.apiKey", "secret"), ErrNoSecretBox)
 
 	assert.Equal(t, []string{"obsidian.baseURL"}, keys)
+}
+
+func TestService_OnPreSaveBlocksSave(t *testing.T) {
+	svc := New(newFakeRepo(), nil)
+	require.NoError(t, svc.Load(t.Context()))
+
+	svc.OnPreSave(func(_ context.Context, key, value string) error {
+		if key == "obsidian.vaultRoot" && value == "bad-root" {
+			return fmt.Errorf("folder %q not found in vault", value)
+		}
+		return nil
+	})
+
+	// Blocked by pre-save hook
+	err := svc.Set(t.Context(), "obsidian.vaultRoot", "bad-root")
+	require.Error(t, err)
+	var verr *ValidationError
+	require.True(t, errors.As(err, &verr), "pre-save error must be a ValidationError")
+	assert.Contains(t, err.Error(), "bad-root")
+
+	// Not blocked: different value
+	require.NoError(t, svc.Set(t.Context(), "obsidian.vaultRoot", "good-root"))
+	assert.Equal(t, "good-root", svc.String("obsidian.vaultRoot"))
+
+	// Not blocked: different key
+	require.NoError(t, svc.Set(t.Context(), "obsidian.baseURL", "https://127.0.0.1:27124"))
+}
+
+// TestService_OnPreSaveErrorReachesValidationErrorUnprefixed pins that a
+// hook's error message is what the client sees, not wrapped behind
+// "settings.Set: " — that internal prefix leaked into the HTTP response
+// obsidian.vaultRoot validation returns.
+func TestService_OnPreSaveErrorReachesValidationErrorUnprefixed(t *testing.T) {
+	svc := New(newFakeRepo(), nil)
+	require.NoError(t, svc.Load(t.Context()))
+
+	svc.OnPreSave(func(_ context.Context, _, _ string) error {
+		return fmt.Errorf("folder %q not found in vault", "bad-root")
+	})
+
+	err := svc.Set(t.Context(), "obsidian.vaultRoot", "bad-root")
+	require.Error(t, err)
+	var verr *ValidationError
+	require.True(t, errors.As(err, &verr), "pre-save error must still be a ValidationError")
+	assert.Equal(t, `folder "bad-root" not found in vault`, err.Error())
+}
+
+// TestSet_ValidationErrorMessageHasNoInternalPrefix pins that def.Validate
+// and unknown-key failures reach the client as-is, not wrapped behind the
+// internal "settings.Set: " prefix.
+func TestSet_ValidationErrorMessageHasNoInternalPrefix(t *testing.T) {
+	svc := New(newFakeRepo(), nil)
+	require.NoError(t, svc.Load(t.Context()))
+
+	var verr *ValidationError
+
+	err := svc.Set(t.Context(), "spawn.rateLimit", "abc")
+	require.True(t, errors.As(err, &verr), "invalid value must be a ValidationError")
+	assert.NotContains(t, err.Error(), "settings.Set:")
+
+	err = svc.Set(t.Context(), "no.such.key", "x")
+	require.True(t, errors.As(err, &verr), "unknown key must be a ValidationError")
+	assert.NotContains(t, err.Error(), "settings.Set:")
+}
+
+func TestService_OnPreSaveDoesNotFireOnValidationFailure(t *testing.T) {
+	svc := New(newFakeRepo(), nil)
+	require.NoError(t, svc.Load(t.Context()))
+
+	called := false
+	svc.OnPreSave(func(_ context.Context, _, _ string) error {
+		called = true
+		return nil
+	})
+
+	// Type validation fails before pre-save runs
+	_ = svc.Set(t.Context(), "spawn.rateLimit", "abc")
+	assert.False(t, called, "pre-save must not fire when type validation fails")
 }

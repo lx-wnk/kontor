@@ -209,19 +209,22 @@ export function sectorKeyFor(path: string, projects: readonly string[]): { key: 
 
 export interface SectorPlan { sectors: Sector[], sectorOfNote: Map<string, string>, sectorOfProject: Map<string, string> }
 
+// `key` identifies the project, `label` is its name, which is what a vault folder can match.
+export interface AgentProject { key: string, label: string }
+
 // `agentProjects` holds one entry per running agent, repeats included: a sector's weight counts the
-// distinct projects among them, its floor the instances.
-export function planSectors(notePaths: readonly string[], agentProjects: readonly string[]): SectorPlan {
-  const distinct = [...new Set(agentProjects)]
+// distinct projects among them, its floor the instances. `sectorOfProject` is keyed by project key.
+export function planSectors(notePaths: readonly string[], agentProjects: readonly AgentProject[]): SectorPlan {
+  const distinct = [...new Map(agentProjects.map(p => [p.key, p])).values()]
   const sectorOfNote = new Map<string, string>()
   const sectorOfProject = new Map<string, string>()
   const agentsOfProject = new Map<string, number>()
-  for (const p of agentProjects) agentsOfProject.set(p, (agentsOfProject.get(p) ?? 0) + 1)
+  for (const { key } of agentProjects) agentsOfProject.set(key, (agentsOfProject.get(key) ?? 0) + 1)
   if (notePaths.length === 0) {
-    for (const p of distinct) sectorOfProject.set(p, p)
-    return { sectors: buildSectors(distinct.map(p => ({ key: p, label: p, weight: 1, projects: 1, agents: agentsOfProject.get(p) }))), sectorOfNote, sectorOfProject }
+    for (const p of distinct) sectorOfProject.set(p.key, p.key)
+    return { sectors: buildSectors(distinct.map(p => ({ key: p.key, label: p.label, weight: 1, projects: 1, agents: agentsOfProject.get(p.key) }))), sectorOfNote, sectorOfProject }
   }
-  const wanted = new Set(distinct.map(p => p.toLowerCase()))
+  const wanted = new Set(distinct.map(p => p.label.toLowerCase()))
   const inputs = new Map<string, SectorInput>()
   for (const path of notePaths) {
     const { key, label } = sectorKeyForSet(path, wanted)
@@ -232,8 +235,8 @@ export function planSectors(notePaths: readonly string[], agentProjects: readonl
     else inputs.set(key, { key, label, weight: 1 })
   }
   for (const p of distinct) {
-    const match = [...inputs.values()].find(s => s.label.toLowerCase() === p.toLowerCase())
-    sectorOfProject.set(p, match?.key ?? OTHER_SECTOR_KEY)
+    const match = [...inputs.values()].find(s => s.label.toLowerCase() === p.label.toLowerCase())
+    sectorOfProject.set(p.key, match?.key ?? OTHER_SECTOR_KEY)
   }
   if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY))
     inputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })

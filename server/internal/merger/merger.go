@@ -16,6 +16,7 @@ import (
 
 	"github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/parser"
 	"github.com/lx-wnk/kontor/server/internal/provider"
 	"github.com/lx-wnk/kontor/server/internal/scanner"
@@ -426,7 +427,7 @@ func (m *Merger) resolveSession(proc scanner.ProcessInfo, claimed map[string]boo
 			PID:             proc.PID,
 			Command:         proc.Command,
 			UptimeSeconds:   proc.Uptime,
-			ClaudeConfigDir: proc.ClaudeConfigDir,
+			ClaudeConfigDir: claudeconfig.SessionDir(proc.ClaudeConfigDir, proc.ClaudeConfigDirKnown),
 		}, claimed)
 		return s, resolveExtra{}, err
 	}

@@ -40,8 +40,10 @@ export function useSettings() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value }),
     })
-    if (!res.ok)
-      throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      throw new Error(body.error || `HTTP ${res.status}`)
+    }
     const saved = await res.json() as { key: string, value: string, applied: 'live' | 'restart' }
     items.value = items.value.map(i => (i.key === saved.key ? { ...i, value: saved.value } : i))
     return saved.applied

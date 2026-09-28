@@ -9,9 +9,7 @@
 package cmdscope
 
 import (
-	"os"
-	"path/filepath"
-
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/pathutil"
 )
@@ -37,17 +35,10 @@ type Scope struct {
 	Label string
 }
 
-// defaultConfigDir returns the process-level config root: CLAUDE_CONFIG_DIR if
-// set, else ~/.claude. Returns "" only when the home directory is unknown.
+// defaultConfigDir is the server's configured config root (claude.configDir
+// setting, else CLAUDE_CONFIG_DIR, else ~/.claude).
 func defaultConfigDir() string {
-	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
-		return dir
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return ""
-	}
-	return filepath.Join(home, ".claude")
+	return claudeconfig.ConfigDir()
 }
 
 // ResolveSpawnerScope builds a Scope from a spawner row and optional project cwd.

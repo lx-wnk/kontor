@@ -30,8 +30,8 @@ func metadataStripRouter(t *testing.T) (*chi.Mux, string) {
 	task, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
 		Slug: "metadata-strip", Title: "Metadata Strip", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Kind: "pipeline",
+		MaxIterations: 20,
+		Kind:          "pipeline",
 		Metadata: map[string]any{
 			"spec": "a spec long enough to matter",
 			"plan": "a plan long enough to matter",

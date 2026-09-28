@@ -46,14 +46,13 @@ func newRoutineResourceMux(t *testing.T, bypassAuth bool) (*chi.Mux, repo.TaskSc
 func mkScheduleWithUser(t *testing.T, r repo.TaskScheduleRepo, name string, enabled bool, userID *string) string {
 	t.Helper()
 	s, err := r.Create(context.Background(), repo.CreateTaskScheduleInput{
-		Name:                name,
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          name,
-		Title:               name,
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		UserID:              userID,
+		Name:          name,
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    name,
+		Title:         name,
+		Cwd:           "/tmp",
+		MaxIterations: 20,
+		UserID:        userID,
 	})
 	require.NoError(t, err)
 	if !enabled {

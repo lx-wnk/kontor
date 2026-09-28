@@ -149,10 +149,7 @@ func (b *Broadcaster) LastFrame() []byte {
 // all subscribers. Comment frames are used as heartbeats to prevent idle
 // connections from being closed by reverse-proxies. (F-PERF-006)
 func (b *Broadcaster) BroadcastComment(text []byte) {
-	frame := make([]byte, 0, 2+len(text)+2)
-	frame = append(frame, ':', ' ')
-	frame = append(frame, text...)
-	frame = append(frame, '\n', '\n')
+	frame := CommentFrame(text)
 	for _, s := range b.snapshot() {
 		send(s, frame)
 	}
@@ -163,4 +160,12 @@ func (b *Broadcaster) SubscriberCount() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return len(b.subscribers)
+}
+
+// CommentFrame renders text as an SSE comment frame (": <text>\n\n").
+func CommentFrame(text []byte) []byte {
+	frame := make([]byte, 0, 2+len(text)+2)
+	frame = append(frame, ':', ' ')
+	frame = append(frame, text...)
+	return append(frame, '\n', '\n')
 }

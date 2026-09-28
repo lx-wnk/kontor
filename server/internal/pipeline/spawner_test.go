@@ -8,10 +8,35 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBuildSpawnEnv_ClaudeConfigDir(t *testing.T) {
+	opts := func(sp *ent.Spawner) pipeline.SpawnAgentOptions {
+		return pipeline.SpawnAgentOptions{Task: &ent.Task{}, StageRun: &ent.StageRun{}, Spawner: sp}
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", "/env")
+
+	t.Run("configured dir reaches the child", func(t *testing.T) {
+		t.Cleanup(claudeconfig.SetConfigDirProvider(func() string { return "/configured" }))
+		require.Contains(t, pipeline.BuildSpawnEnv(opts(&ent.Spawner{})), "CLAUDE_CONFIG_DIR=/configured")
+	})
+	t.Run("spawner profile outranks the server's dir", func(t *testing.T) {
+		t.Cleanup(claudeconfig.SetConfigDirProvider(func() string { return "/configured" }))
+		sp := &ent.Spawner{Env: map[string]string{"CLAUDE_CONFIG_DIR": "/work"}}
+		require.Contains(t, pipeline.BuildSpawnEnv(opts(sp)), "CLAUDE_CONFIG_DIR=/work")
+	})
+	t.Run("nothing set passes nothing", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", "")
+		t.Cleanup(claudeconfig.SetConfigDirProvider(nil))
+		for _, e := range pipeline.BuildSpawnEnv(opts(nil)) {
+			require.False(t, strings.HasPrefix(e, "CLAUDE_CONFIG_DIR=/"), e)
+		}
+	})
+}
 
 func TestBuildAllowList_ExcludesGitPushByDefault(t *testing.T) {
 	pattern := "git push origin HEAD"

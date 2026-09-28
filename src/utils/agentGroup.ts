@@ -86,10 +86,16 @@ function bucketBy(list: Agent[], keyOf: (agent: Agent) => { key: string, label: 
   return Array.from(seen.values())
 }
 
+// Project names are free text and need not be unique, so the Kontor project ID
+// is the identity; an agent outside every project falls back to its folder name.
+export function agentProjectKey(agent: Agent): string {
+  return agent.projectId || agent.projectName
+}
+
 export function groupAgents(list: Agent[], groupBy: AgentGroup): AgentGrouping[] {
   if (groupBy === 'project') {
     return bucketBy(list, agent => ({
-      key: agent.projectName,
+      key: agentProjectKey(agent),
       label: friendlyProjectName(agent.projectName),
     }))
   }

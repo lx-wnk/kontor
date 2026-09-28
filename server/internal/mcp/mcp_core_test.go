@@ -93,7 +93,7 @@ func doRPCWithAuth(t *testing.T, handler http.Handler, body any, info *MCPAuthIn
 
 func TestMCPHandler_Initialize(t *testing.T) {
 	registry := make(ToolRegistry)
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 
 	resp := doRPC(t, handler, map[string]any{
 		"jsonrpc": "2.0",
@@ -126,7 +126,7 @@ func TestMCPHandler_ToolsList_ReturnsRegisteredTools(t *testing.T) {
 		},
 	})
 
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 	resp := doRPC(t, handler, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      2,
@@ -160,7 +160,7 @@ func TestMCPHandler_ToolsList_OmitsUnavailableTool(t *testing.T) {
 		Available: func() bool { return available },
 	})
 
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 	listNames := func() []any {
 		resp := doRPC(t, handler, map[string]any{
 			"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": map[string]any{},
@@ -192,7 +192,7 @@ func TestMCPHandler_ToolsCall_NoAuth_ReturnsScopeError(t *testing.T) {
 		},
 	})
 
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 	resp := doRPC(t, handler, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      3,
@@ -226,7 +226,7 @@ func TestMCPHandler_ToolsCall_WithScope_CallsHandler(t *testing.T) {
 		},
 	})
 
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 	auth := &MCPAuthInfo{
 		KeyID:  "test-key",
 		Scopes: ResolveScopes([]string{"tasks:read"}),
@@ -253,7 +253,7 @@ func TestMCPHandler_ToolsCall_WithScope_CallsHandler(t *testing.T) {
 
 func TestMCPHandler_UnknownMethod_Returns32601(t *testing.T) {
 	registry := make(ToolRegistry)
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 
 	resp := doRPC(t, handler, map[string]any{
 		"jsonrpc": "2.0",
@@ -273,7 +273,7 @@ func TestMCPHandler_UnknownMethod_Returns32601(t *testing.T) {
 
 func TestMCPHandler_UnknownTool_Returns32601(t *testing.T) {
 	registry := make(ToolRegistry)
-	handler := MCPHandler(registry, nil, nil)
+	handler := MCPHandler(registry, nil, nil, nil)
 
 	auth := &MCPAuthInfo{
 		KeyID:  "test-key",

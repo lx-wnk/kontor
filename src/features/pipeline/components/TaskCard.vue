@@ -70,6 +70,10 @@ function refreshCountdown() {
 }
 
 const isRequeued = computed(() => props.task.autoRetryCount != null)
+const prError = computed(() => {
+  const value = props.task.metadata?.pr_error
+  return typeof value === 'string' && value !== '' ? value : null
+})
 
 useIntervalFn(refreshCountdown, 1000, { immediate: true })
 
@@ -244,6 +248,21 @@ const activeChildOutputExpanded = ref(false)
       <WorktreePill v-if="task.worktreePath" :task-id="task.id" @open="$emit('select', task)" @click.stop />
       <AppChip v-if="task.sourceBranch" tone="neutral" mono>
         {{ task.sourceBranch }}
+      </AppChip>
+      <a
+        v-if="task.draftPrUrl"
+        :href="task.draftPrUrl"
+        target="_blank"
+        rel="noopener"
+        class="relative z-10"
+        @click.stop
+      >
+        <AppChip tone="success" mono>
+          PR #{{ task.draftPrNumber }}
+        </AppChip>
+      </a>
+      <AppChip v-if="prError" tone="warning" :title="prError" data-testid="task-card-pr-error">
+        &#9888; PR not created
       </AppChip>
       <AppChip v-if="task.parentTaskId" tone="info" mono title="Follow-up task">
         ↳

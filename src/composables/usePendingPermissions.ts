@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { PermissionRequest, PipelineTask } from '../types'
+import type { Agent, PermissionRequest, PipelineTask } from '../types'
 import type { PermissionDecision } from '@/features/pipeline/composables/useTasks'
 import { computed, ref, watch } from 'vue'
 import { bulkResolvePermissionRequests, fetchPendingPermissionRequests } from '@/features/pipeline/composables/useTasks'
@@ -9,6 +9,8 @@ export interface PermissionItem {
   taskId: string
   title: string
   projectName: string
+  // The folder "Don't ask again" saves its preset for.
+  cwd: string
   routineId: string | null
   requests: PermissionRequest[]
 }
@@ -19,12 +21,18 @@ function awaitsDecision(task: PipelineTask): boolean {
   return Boolean(task.hasPendingPermissions || task.blockedByPendingPermissions)
 }
 
-function projectNameFromTask(task: PipelineTask): string {
-  const lastSegment = task.cwd.split('/').filter(Boolean).pop() ?? task.cwd
-  return friendlyProjectName(lastSegment)
+export function folderName(cwd: string): string {
+  return cwd.split('/').filter(Boolean).pop() ?? cwd
 }
 
-export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
+// The agent working the task carries the resolved Kontor project name, so the
+// item matches the agent card; without one, the task folder is all there is.
+function projectNameFromTask(task: PipelineTask, agents: readonly Agent[]): string {
+  const agent = agents.find(a => a.pipelineTaskId === task.id)
+  return friendlyProjectName(agent?.projectName ?? folderName(task.cwd))
+}
+
+export function usePendingPermissions(tasks: Ref<PipelineTask[]>, agents: Ref<Agent[]> = ref([])) {
   // Map of taskId → fetched requests (only for tasks awaiting a decision)
   const cache = ref<Map<string, PermissionRequest[]>>(new Map())
   // Track which task IDs are currently being fetched to avoid duplicate requests
@@ -73,7 +81,8 @@ export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
       result.push({
         taskId: task.id,
         title: task.title,
-        projectName: projectNameFromTask(task),
+        projectName: projectNameFromTask(task, agents.value),
+        cwd: task.cwd,
         routineId: task.routineId ?? null,
         requests,
       })

@@ -74,7 +74,7 @@ func TestManageSchedule_EnableDisableDelete(t *testing.T) {
 
 	s, err := r.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: "s", CronExpr: "0 9 * * *", SlugPrefix: "s", Title: "S", Cwd: "/tmp",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -164,7 +164,7 @@ func TestManageSchedule_UpdateInvalidRunModeFails(t *testing.T) {
 
 	s, err := r.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: "u", CronExpr: "0 9 * * *", SlugPrefix: "u", Title: "U", Cwd: "/tmp",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -180,7 +180,7 @@ func TestManageSchedule_UpdateToPipelineOutsideGitFails(t *testing.T) {
 
 	s, err := r.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: "g", CronExpr: "0 9 * * *", SlugPrefix: "g", Title: "G", Cwd: t.TempDir(),
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -203,7 +203,7 @@ func TestManageSchedule_TimezoneOnlyUpdatePersists(t *testing.T) {
 
 	s, err := r.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: "tz", CronExpr: "0 9 * * *", Timezone: "UTC", SlugPrefix: "tz", Title: "TZ", Cwd: "/tmp",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 

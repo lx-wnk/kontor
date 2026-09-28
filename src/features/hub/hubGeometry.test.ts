@@ -350,24 +350,35 @@ describe('sectorKeyFor', () => {
   })
 })
 
+function byName(names: readonly string[]) {
+  return names.map(n => ({ key: n, label: n }))
+}
+
 describe('planSectors', () => {
+  it('keys sectors by project key and matches the vault by label', () => {
+    const projects = [{ key: 'p-1', label: 'Website' }, { key: 'p-2', label: 'Website' }]
+    expect(planSectors([], projects).sectors.map(s => [s.key, s.label])).toEqual([['p-1', 'Website'], ['p-2', 'Website']])
+    const p = planSectors(['Website/a.md', 'Misc/b.md'], projects)
+    expect(p.sectorOfProject.get('p-1')).toBe('Website')
+    expect(p.sectorOfProject.get('p-2')).toBe('Website')
+  })
   it('without notes, gives every agent project its own sector', () => {
-    const p = planSectors([], ['kontor', 'shop', 'kontor'])
+    const p = planSectors([], byName(['kontor', 'shop', 'kontor']))
     expect(p.sectors.map(s => s.key)).toEqual(['kontor', 'shop'])
     expect(p.sectorOfProject.get('shop')).toBe('shop')
   })
   it('with notes, maps agents to a matching sector or to Other', () => {
-    const p = planSectors(['Privat/a.md', 'Privat/b.md', 'claude-memory/x/kontor/c.md'], ['kontor', 'shop'])
+    const p = planSectors(['Privat/a.md', 'Privat/b.md', 'claude-memory/x/kontor/c.md'], byName(['kontor', 'shop']))
     expect(p.sectorOfNote.get('Privat/a.md')).toBe('Privat')
     expect(p.sectorOfProject.get('kontor')).toBe('claude-memory/x/kontor')
     expect(p.sectorOfProject.get('shop')).toBe(OTHER_SECTOR_KEY)
     expect(p.sectors.map(s => s.key)).toContain(OTHER_SECTOR_KEY)
   })
   it('adds no Other sector when every agent has one', () => {
-    expect(planSectors(['kontor/a.md'], ['kontor']).sectors.map(s => s.key)).toEqual(['kontor'])
+    expect(planSectors(['kontor/a.md'], byName(['kontor'])).sectors.map(s => s.key)).toEqual(['kontor'])
   })
   it('gives a sector crowded with agents more arc than a quiet one', () => {
-    const p = planSectors(['Privat/a.md'], Array.from({ length: 7 }).fill('shop') as string[])
+    const p = planSectors(['Privat/a.md'], byName(Array.from({ length: 7 }).fill('shop') as string[]))
     expect(span(p.sectors.find(s => s.key === OTHER_SECTOR_KEY)!)).toBeGreaterThan(span(p.sectors.find(s => s.key === 'Privat')!))
   })
 })
@@ -379,23 +390,23 @@ describe('planSectors on a roster change', () => {
 
   it('leaves every sector exactly where it was when a second agent joins a project already on the map', () => {
     const notes = [...Array.from({ length: 100 }, (_, i) => `Privat/n${i}.md`), 'Misc/x.md']
-    const one = planSectors(notes, ['privat'])
-    expect(geometry(planSectors(notes, ['privat', 'privat']))).toEqual(geometry(one))
-    expect(notePoint('Privat/n7.md', planSectors(notes, ['privat', 'privat']).sectors[0], 30))
+    const one = planSectors(notes, byName(['privat']))
+    expect(geometry(planSectors(notes, byName(['privat', 'privat'])))).toEqual(geometry(one))
+    expect(notePoint('Privat/n7.md', planSectors(notes, byName(['privat', 'privat'])).sectors[0], 30))
       .toEqual(notePoint('Privat/n7.md', one.sectors[0], 30))
   })
 
   it('re-lays out the map for a genuinely new project', () => {
     const notes = [...Array.from({ length: 100 }, (_, i) => `Privat/n${i}.md`), 'Misc/x.md']
-    expect(geometry(planSectors(notes, ['privat', 'shop']))).not.toEqual(geometry(planSectors(notes, ['privat'])))
+    expect(geometry(planSectors(notes, byName(['privat', 'shop'])))).not.toEqual(geometry(planSectors(notes, byName(['privat']))))
   })
 
   // The cost of floating the floor on instances: a sector already at that floor still widens. The
   // audit measured 279–414 world units when the instance count fed the weight; this is what is left.
   it('widens a sector already at its agent floor by a fraction of what the weighting moved', () => {
     const seven = Array.from({ length: 7 }).fill('folder2') as string[]
-    const before = planSectors(vault, [...seven, ...oneEach])
-    const after = planSectors(vault, [...seven, 'folder2', ...oneEach])
+    const before = planSectors(vault, byName([...seven, ...oneEach]))
+    const after = planSectors(vault, byName([...seven, 'folder2', ...oneEach]))
     const crowded = (p: ReturnType<typeof planSectors>) => p.sectors.find(s => s.key === 'folder2')!
     expect(span(crowded(after))).toBeGreaterThan(span(crowded(before)))
 

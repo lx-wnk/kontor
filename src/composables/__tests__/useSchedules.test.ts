@@ -288,4 +288,55 @@ describe('useSchedules', () => {
 
     await expect(mod.createSchedule({ name: 'x', slugPrefix: 'x', title: 'x', cwd: '/tmp' })).rejects.toThrow('invalid body')
   })
+
+  it('schedule_changed with a payload for a listed schedule updates it without fetching', async () => {
+    const { result, wrapper } = withSetup(() => mod.useSchedules())
+    await Promise.resolve()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(result.schedules.value).toHaveLength(1)
+
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const updated = makeSchedule('s1', 'Daily Updated', { updatedAt: '2026-06-01T00:00:00Z' })
+    const es = MockEventSource.instances[0]
+    es.onmessage?.(new MessageEvent('message', {
+      data: JSON.stringify({ type: 'schedule_changed', taskId: 's1', payload: updated }),
+    }))
+
+    await nextTick()
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(result.schedules.value).toHaveLength(1)
+    expect(result.schedules.value[0].name).toBe('Daily Updated')
+    wrapper.unmount()
+  })
+
+  it('schedule_changed with a payload for an unlisted schedule re-fetches instead of inserting it', async () => {
+    const { result, wrapper } = withSetup(() => mod.useSchedules())
+    await Promise.resolve()
+    await Promise.resolve()
+    await nextTick()
+
+    const fetchRefetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([makeSchedule('s1', 'Daily')]),
+    })
+    vi.stubGlobal('fetch', fetchRefetch)
+
+    const es = MockEventSource.instances[0]
+    es.onmessage?.(new MessageEvent('message', {
+      data: JSON.stringify({ type: 'schedule_changed', taskId: 'foreign', payload: makeSchedule('foreign', 'Not mine') }),
+    }))
+
+    await Promise.resolve()
+    await Promise.resolve()
+    await nextTick()
+
+    expect(fetchRefetch).toHaveBeenCalledWith('/api/schedules')
+    expect(result.schedules.value.map(s => s.id)).toEqual(['s1'])
+    wrapper.unmount()
+  })
 })

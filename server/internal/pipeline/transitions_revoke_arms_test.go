@@ -53,13 +53,12 @@ func TestApplyTransition_EveryEndedRunArmRevokesIt(t *testing.T) {
 			require.NoError(t, err)
 
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                "revoke-arm-" + tc.name,
-				Title:               "Revoke Arm " + tc.name,
-				Cwd:                 "/tmp",
-				CurrentStage:        "implementation",
-				Priority:            "medium",
-				MaxIterations:       tc.maxIterations,
-				StageTimeoutSeconds: 1800,
+				Slug:          "revoke-arm-" + tc.name,
+				Title:         "Revoke Arm " + tc.name,
+				Cwd:           "/tmp",
+				CurrentStage:  "implementation",
+				Priority:      "medium",
+				MaxIterations: tc.maxIterations,
 			})
 			require.NoError(t, err)
 

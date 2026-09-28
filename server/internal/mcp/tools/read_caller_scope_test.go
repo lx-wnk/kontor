@@ -39,7 +39,7 @@ func newScopeFixture(t *testing.T) scopeFixture {
 		task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 			Slug: slug, Title: slug, Cwd: t.TempDir(),
 			CurrentStage: "implementation", Priority: "medium",
-			MaxIterations: 3, StageTimeoutSeconds: 60,
+			MaxIterations: 3,
 		})
 		require.NoError(t, err)
 		return task

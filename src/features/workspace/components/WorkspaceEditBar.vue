@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { WorkspacePage } from '../layout'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import { addTile, ZENTRALE_PAGE_ID } from '../layout'
 import { widgetIds, WIDGETS } from '../widgetRegistry'
@@ -11,10 +11,13 @@ const emit = defineEmits<{ change: [page: WorkspacePage], refuse: [reason: strin
 const choice = ref('')
 const confirmingDelete = ref(false)
 const ownPage = computed(() => props.page.id !== ZENTRALE_PAGE_ID)
-const addOptions = computed(() => [
-  { value: '', label: 'Add a tile…', disabled: true },
-  ...widgetIds().filter(id => !props.page.tiles.some(t => t.widget === id)).map(id => ({ value: id, label: WIDGETS[id].title })),
-])
+const addOptions = computed(() =>
+  widgetIds().filter(id => !props.page.tiles.some(t => t.widget === id)).map(id => ({ value: id, label: WIDGETS[id].title })),
+)
+watch(addOptions, (opts) => {
+  if (choice.value && !opts.some(o => o.value === choice.value))
+    choice.value = ''
+})
 
 function add() {
   if (!choice.value)
@@ -45,7 +48,7 @@ function rename(event: Event) {
     <span v-else class="font-medium text-fg">Editing {{ page.title }}</span>
     <span class="text-fg-mute">Arrows move · Shift+arrows resize · Delete removes</span>
     <span class="flex-grow" />
-    <AppSelect v-model="choice" :options="addOptions" data-testid="workspace-add" aria-label="Tile to add" size="compact" />
+    <AppSelect v-model="choice" :options="addOptions" data-testid="workspace-add" aria-label="Tile to add" size="compact" placeholder="Add a tile…" />
     <button type="button" data-testid="workspace-add-submit" class="rounded-md border border-line-strong px-2.5 py-1" :disabled="!choice" @click="add">
       Add
     </button>

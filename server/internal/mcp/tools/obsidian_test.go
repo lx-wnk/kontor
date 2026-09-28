@@ -198,7 +198,7 @@ func seedObsidianRun(t *testing.T, bundle *db.DBBundle, slug, routineID string) 
 	in := repo.CreateTaskInput{
 		Slug: slug, Title: slug, Cwd: "/tmp",
 		CurrentStage: "implementation", Priority: "medium",
-		MaxIterations: 5, StageTimeoutSeconds: 60,
+		MaxIterations: 5,
 	}
 	if routineID != "" {
 		in.RoutineID = &routineID
@@ -368,7 +368,7 @@ func TestObsidianToolsFollowClientHolderLiveness(t *testing.T) {
 	RegisterObsidianTools(registry, deps)
 	mustAllowMemoryGrant(t, grants, ctx, obsidianapp.CapabilityRead)
 
-	handler := mcp.MCPHandler(registry, nil, nil)
+	handler := mcp.MCPHandler(registry, nil, nil, nil)
 	auth := &mcp.MCPAuthInfo{KeyID: "test-key", Scopes: mcp.ResolveScopes([]string{"obsidian:read"})}
 
 	assert.False(t, listedTools(t, handler)["obsidian_read"], "obsidian_read must not be listed while the vault client is nil")
@@ -385,7 +385,7 @@ func TestObsidianToolsFollowClientHolderLiveness(t *testing.T) {
 }
 
 // listedTools posts tools/list and returns the set of tool names present.
-func listedTools(t *testing.T, handler http.HandlerFunc) map[string]bool {
+func listedTools(t *testing.T, handler http.Handler) map[string]bool {
 	t.Helper()
 	resp := postMCP(t, handler, nil, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": map[string]any{},
@@ -399,7 +399,7 @@ func listedTools(t *testing.T, handler http.HandlerFunc) map[string]bool {
 }
 
 // callToolRPC posts tools/call and returns the RPC error object, or nil on success.
-func callToolRPC(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, name string, args map[string]any) map[string]any {
+func callToolRPC(t *testing.T, handler http.Handler, auth *mcp.MCPAuthInfo, name string, args map[string]any) map[string]any {
 	t.Helper()
 	resp := postMCP(t, handler, auth, map[string]any{
 		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
@@ -409,7 +409,7 @@ func callToolRPC(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, 
 	return rpcErr
 }
 
-func postMCP(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, body map[string]any) map[string]any {
+func postMCP(t *testing.T, handler http.Handler, auth *mcp.MCPAuthInfo, body map[string]any) map[string]any {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -418,7 +418,7 @@ func postMCP(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, body
 		req = req.WithContext(mcp.ContextWithAuth(req.Context(), auth))
 	}
 	rec := httptest.NewRecorder()
-	handler(rec, req)
+	handler.ServeHTTP(rec, req)
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	return resp

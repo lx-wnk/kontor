@@ -73,9 +73,15 @@ func (h *Handler) ready() error {
 // caller tell "the dashboard refused you" from "GitHub refused the
 // dashboard".
 func (h *Handler) allow(r *http.Request, capName, repoName string) error {
-	if repoName != "" && !h.client.AllowsRepo(repoName) {
-		return apierr.NewAppError(http.StatusForbidden,
-			fmt.Sprintf("%s is not in the configured github.repos allow-list", repoName))
+	if repoName != "" {
+		configured, ok := h.client.CanonicalRepo(repoName)
+		if !ok {
+			return apierr.NewAppError(http.StatusForbidden,
+				fmt.Sprintf("%s is not in the configured github.repos allow-list", repoName))
+		}
+		// The gate matches grant patterns on the configured spelling, so a
+		// case variant cannot slip past a deny grant.
+		repoName = configured
 	}
 	if err := h.gate.Authorize(r.Context(), capName, repoName, githubScope()); err != nil {
 		if errors.Is(err, capability.ErrDenied) || errors.Is(err, capability.ErrAskRequired) {
@@ -149,7 +155,8 @@ type pullRequestView struct {
 // cockpit panel draws: a state plus the counts behind it. State is "none"
 // both when GitHub reports no checks for the commit and when the check-run
 // lookup itself failed — see summary(), which never lets that lookup turn a
-// working 200 summary into an error or blank the other pull requests.
+// working 200 summary into an error or blank the other pull requests. State is
+// "not_tracked" for a repository outside the allow-list, which is never looked up.
 type checksView struct {
 	State  string `json:"state"`
 	Passed int    `json:"passed"`
@@ -158,10 +165,16 @@ type checksView struct {
 	URL    string `json:"url"`
 }
 
-// noChecksView is the checksView every pull request starts with: "none",
-// pointing at the checks tab a human would open to look for themselves.
+// noChecksView is the checksView every allow-listed pull request starts with:
+// "none", pointing at the checks tab a human would open to look for themselves.
 func noChecksView(prURL string) checksView {
 	return checksView{State: string(githubapp.CheckStateNone), URL: prURL + "/checks"}
+}
+
+// notTrackedChecksView is the checksView for a pull request whose repository
+// is outside the configured allow-list: the check-run API was never called.
+func notTrackedChecksView(prURL string) checksView {
+	return checksView{State: string(githubapp.CheckStateNotTracked), URL: prURL + "/checks"}
 }
 
 // repoSummary carries one repository's open pull requests, or the reason that
@@ -274,17 +287,22 @@ func (h *Handler) summary(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	for _, m := range merged {
-		// A failed check-run lookup falls back to noChecksView rather than
-		// propagating the error: the PR this loop already has must not be
-		// dropped by a lookup that merely enriches it. A pull request the
-		// search found outside the allow-list lands in the same fallback,
-		// since Checks refuses it (checkRepo) before it ever needs the empty
-		// head SHA a search hit carries.
-		checks := noChecksView(m.pr.URL)
-		if summary, err := h.client.Checks(r.Context(), m.repo, m.pr.HeadSHA); err == nil {
-			checks = checksView{
-				State: string(summary.State), Passed: summary.Passed,
-				Failed: summary.Failed, Total: summary.Total, URL: m.pr.URL + "/checks",
+		// A repository outside the allow-list never gets a Checks call: the
+		// client would refuse it (checkRepo), and the search hit carries no
+		// head SHA anyway.
+		var checks checksView
+		if !h.client.AllowsRepo(m.repo) {
+			checks = notTrackedChecksView(m.pr.URL)
+		} else {
+			// A failed check-run lookup falls back to noChecksView rather
+			// than propagating the error: the PR this loop already has must
+			// not be dropped by a lookup that merely enriches it.
+			checks = noChecksView(m.pr.URL)
+			if summary, err := h.client.Checks(r.Context(), m.repo, m.pr.HeadSHA); err == nil {
+				checks = checksView{
+					State: string(summary.State), Passed: summary.Passed,
+					Failed: summary.Failed, Total: summary.Total, URL: m.pr.URL + "/checks",
+				}
 			}
 		}
 		byRepo[m.repo] = append(byRepo[m.repo], pullRequestView{

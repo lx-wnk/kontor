@@ -62,14 +62,13 @@ func mustCreateNotifyTask(t *testing.T, client *ent.Client, autonomy string) *en
 	taskRepo := repo.NewTaskRepo(client)
 	a := autonomy
 	tk, err := taskRepo.Create(testCtx(t), repo.CreateTaskInput{
-		Slug:                "notify-" + autonomy,
-		Title:               "Notify task",
-		Cwd:                 "/tmp",
-		MaxIterations:       1,
-		StageTimeoutSeconds: 60,
-		Priority:            "medium",
-		CurrentStage:        "implementation",
-		Autonomy:            &a,
+		Slug:          "notify-" + autonomy,
+		Title:         "Notify task",
+		Cwd:           "/tmp",
+		MaxIterations: 1,
+		Priority:      "medium",
+		CurrentStage:  "implementation",
+		Autonomy:      &a,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)

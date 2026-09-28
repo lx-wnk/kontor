@@ -132,13 +132,10 @@ function onKey(e: KeyboardEvent, index: number) {
 function swapOptions(index: number) {
   const t = props.page.tiles[index]
   const placed = new Set(props.page.tiles.map(p => p.widget))
-  return [
-    { value: '', label: '⇄ Swap…', disabled: true },
-    ...widgetIds().filter(id => !placed.has(id)).map((id) => {
-      const reason = fitsMinimum(id, t.colSpan, t.rowSpan)
-      return { value: id, label: reason ? `${WIDGETS[id].title} — ${reason}` : WIDGETS[id].title, disabled: !!reason }
-    }),
-  ]
+  return widgetIds().filter(id => !placed.has(id)).map((id) => {
+    const reason = fitsMinimum(id, t.colSpan, t.rowSpan)
+    return { value: id, label: reason ? `${WIDGETS[id].title} — ${reason}` : WIDGETS[id].title, disabled: !!reason }
+  })
 }
 </script>
 
@@ -166,6 +163,7 @@ function swapOptions(index: number) {
           :data-testid="`workspace-swap-${tile.widget}`"
           :aria-label="`Swap ${widgetTitle(tile)} for`"
           size="compact"
+          placeholder="⇄ Swap…"
           @update:model-value="apply(swapTile(page, index, $event))"
         />
         <button
