@@ -1,5 +1,6 @@
 {
   "$schema": "../../plugin-sdk/plugin.schema.json",
+  "contract": 1,
   "id": "anthropic-spawner",
   "name": "Anthropic Spawner",
   "version": "0.1.0",

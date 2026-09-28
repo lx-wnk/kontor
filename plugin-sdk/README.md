@@ -121,3 +121,18 @@ The dashboard loads addon modules via the plugin proxy — the module URL is
 | `route_extension`| Plugin routes are reverse-proxied via `/api/plugins/{id}/proxy/*`. | Live — no server restart needed. |
 | `ui_extension`   | Addon modules are loaded into dashboard slots.                      | Live — modules unload on browser refresh when disabled. |
 | `auth_provider`  | Replaces the built-in bypass-auth with a real OAuth flow.           | Needs a server restart. The dashboard UI surfaces a restart button when an `auth_provider` plugin is activated or deactivated. |
+
+## Referencing the schema from outside this repository
+
+A module that lives in its own repository cannot use the relative
+`../../plugin-sdk/plugin.schema.json` path the in-tree examples use — there is
+no such path beside it. Reference the published schema instead:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/lx-wnk/kontor/main/plugin-sdk/plugin.schema.json",
+  "contract": 1,
+  "id": "my-module",
+  "name": "My Module"
+}
+```

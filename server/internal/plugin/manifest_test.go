@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,4 +51,37 @@ func TestDescriptor_LegacySlotsAndPermissionsIgnored(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(raw), &d))
 	assert.Equal(t, "legacy-plugin", d.ID)
 	assert.Equal(t, []string{"route_extension"}, d.Capabilities)
+}
+
+// A module states which core contract it was built against. The field is
+// required and checked at load: every comparable plugin ecosystem shipped this
+// as optional first and retrofitted it under pressure, because a module that
+// cannot say what it expects fails at runtime instead of at install time.
+func TestDescriptor_Validate(t *testing.T) {
+	valid := Descriptor{Contract: CurrentContract, ID: "obsidian", Name: "Obsidian"}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("a complete manifest must validate: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		desc Descriptor
+		want string
+	}{
+		{"no contract", Descriptor{ID: "obsidian", Name: "Obsidian"}, "contract"},
+		{"future contract", Descriptor{Contract: CurrentContract + 1, ID: "obsidian", Name: "Obsidian"}, "contract"},
+		{"no name", Descriptor{Contract: CurrentContract, ID: "obsidian"}, "name"},
+		{"no id", Descriptor{Contract: CurrentContract, Name: "Obsidian"}, "id"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.desc.Validate()
+			if err == nil {
+				t.Fatalf("%s must be refused", c.name)
+			}
+			if !strings.Contains(err.Error(), c.want) {
+				t.Errorf("error %q does not name the offending field %q", err, c.want)
+			}
+		})
+	}
 }

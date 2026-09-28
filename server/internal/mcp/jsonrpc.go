@@ -33,8 +33,10 @@ type rpcError struct {
 
 // MCPHandler returns a chi-compatible http.HandlerFunc for POST /api/mcp.
 // It handles: initialize, tools/list, tools/call.
-func MCPHandler(registry ToolRegistry) http.HandlerFunc {
-	toolsList := buildToolsList(registry)
+// modules may be nil: a server built without a module source serves exactly the
+// core tools.
+func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToolAuthorizer) http.HandlerFunc {
+	coreTools := buildToolsList(registry)
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 		var req rpcRequest
@@ -59,7 +61,27 @@ func MCPHandler(registry ToolRegistry) http.HandlerFunc {
 			})
 
 		case "tools/list":
-			writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"tools": toolsList}})
+			// Core tools are fixed; a module's are asked for on every list,
+			// because a module that stopped must be absent rather than listed
+			// and then failing when called.
+			tools := coreTools
+			if modules != nil {
+				offered := modules.List(r.Context())
+				visible := moduleToolVisibility(r.Context(), moduleGate, offered)
+				for _, t := range offered {
+					// Listed only when the caller may call it: a tool an agent
+					// can see but never use is an invitation to keep trying.
+					if !visible[ModuleToolScope(t.ModuleID, t.Name)] {
+						continue
+					}
+					tools = append(tools, map[string]any{
+						"name":        t.QualifiedName(),
+						"description": t.Description,
+						"inputSchema": t.InputSchema,
+					})
+				}
+			}
+			writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"tools": tools}})
 
 		case "tools/call":
 			var p struct {
@@ -69,6 +91,14 @@ func MCPHandler(registry ToolRegistry) http.HandlerFunc {
 			if err := json.Unmarshal(req.Params, &p); err != nil {
 				writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{Code: -32602, Message: "invalid params"}})
 				return
+			}
+			if modules != nil {
+				if moduleID, tool, isQualified := SplitQualifiedName(p.Name); isQualified {
+					if _, known := registry[p.Name]; !known {
+						handleModuleToolCall(w, r, req.ID, modules, moduleGate, moduleID, tool, p.Arguments)
+						return
+					}
+				}
 			}
 			def, ok := registry[p.Name]
 			if !ok {
@@ -136,4 +166,57 @@ func buildToolsList(registry ToolRegistry) []map[string]any {
 		})
 	}
 	return out
+}
+
+// handleModuleToolCall forwards a namespaced call to the module that offers it.
+// The module is looked up in the live list rather than trusted from the name:
+// a call naming a module that is not currently offering the tool is an unknown
+// tool, which is what an agent can act on, not a failed round trip.
+func handleModuleToolCall(w http.ResponseWriter, r *http.Request, id any, modules ModuleTools, moduleGate ModuleToolAuthorizer, moduleID, tool string, args map[string]any) {
+	offered := false
+	for _, t := range modules.List(r.Context()) {
+		if t.ModuleID == moduleID && t.Name == tool {
+			offered = true
+			break
+		}
+	}
+	if !offered {
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: -32601, Message: "tool not found: " + moduleID + NamespaceSeparator + tool}})
+		return
+	}
+	capName := ModuleToolScope(moduleID, tool)
+	// Fail closed: a handler built without an authorizer refuses every module
+	// tool rather than serving them ungoverned.
+	if moduleGate == nil {
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: -32003, Message: "not permitted: " + capName}})
+		return
+	}
+	if err := moduleGate.Authorize(r.Context(), capName); err != nil {
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: -32003, Message: "not permitted: " + capName + ": " + err.Error()}})
+		return
+	}
+	out, err := modules.Call(r.Context(), moduleID, tool, args)
+	if err != nil {
+		writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: id, Result: map[string]any{
+			"content": []map[string]any{{"type": "text", "text": err.Error()}},
+			"isError": true,
+		}})
+		return
+	}
+	writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: id, Result: map[string]any{
+		"content": []map[string]any{{"type": "text", "text": out}},
+	}})
+}
+
+// moduleToolVisibility asks once for every offered tool. Nil authorizer means
+// nothing is visible, the same refusal the call path makes.
+func moduleToolVisibility(ctx context.Context, gate ModuleToolAuthorizer, offered []ModuleTool) map[string]bool {
+	if gate == nil || len(offered) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(offered))
+	for _, t := range offered {
+		names = append(names, ModuleToolScope(t.ModuleID, t.Name))
+	}
+	return gate.Visible(ctx, names)
 }

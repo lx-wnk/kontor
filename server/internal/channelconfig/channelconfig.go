@@ -58,14 +58,23 @@ const (
 // ChannelServerName is the mcpServers key of the stdio channel bridge every
 // spawn gets. Paired with mcp.ServerName (the HTTP task API) it names the two
 // entries the dashboard owns.
-const ChannelServerName = "dashboard-channel"
+const ChannelServerName = "kontor-channel"
+
+// LegacyChannelServerName is the pre-rename key. Reserved for the same reason
+// the current one is — see reservedServerNames below.
+const LegacyChannelServerName = "dashboard-channel"
 
 // reservedServerNames are the entries the dashboard writes itself. A user-scope
 // server registered under one of these names is dropped instead of merged:
 // `claude mcp add --scope user` registers dashboard-tasks with the broad,
 // long-lived onboarding credential, and letting that through would hand every
 // spawned stage agent back the scopes the per-stage-run key deliberately omits.
-var reservedServerNames = map[string]bool{ChannelServerName: true, mcp.ServerName: true}
+var reservedServerNames = map[string]bool{
+	ChannelServerName:       true,
+	mcp.ServerName:          true,
+	LegacyChannelServerName: true,
+	mcp.LegacyServerName:    true,
+}
 
 func IsReservedServerName(name string) bool { return reservedServerNames[name] }
 

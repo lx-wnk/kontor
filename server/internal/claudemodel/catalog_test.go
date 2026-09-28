@@ -72,9 +72,16 @@ func TestIDs_MatchFrontendList(t *testing.T) {
 // The anthropic-spawner plugin is its own Go module and cannot import this
 // package, so its fallback model is a literal that must track the newest Opus.
 func TestAnthropicSpawnerDefault_IsLatestOpus(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("..", "..", "..", "plugins", "anthropic-spawner", "main.go"))
+	// Reaches across a module boundary on purpose, and tolerates the module
+	// being absent: a module may live in its own repository, and this suite
+	// must not fail because one that happens to be in-tree today is not.
+	path := filepath.Join("..", "..", "..", "plugins", "anthropic-spawner", "main.go")
+	src, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		t.Skip("anthropic-spawner is not in this tree")
+	}
 	if err != nil {
-		t.Fatalf("read plugins/anthropic-spawner/main.go: %v", err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	m := regexp.MustCompile(`const defaultModel = "([^"]+)"`).FindSubmatch(src)
 	if m == nil {

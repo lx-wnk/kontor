@@ -49,8 +49,8 @@ func TestBuildAllowList_FiltersDenied(t *testing.T) {
 
 func TestBuildAllowList_IncludesChannelTools(t *testing.T) {
 	allow := pipeline.BuildAllowList("manual", nil, true, false, nil)
-	require.Contains(t, allow, "mcp__dashboard-channel__request_permission")
-	require.Contains(t, allow, "mcp__dashboard-channel__dashboard_reply")
+	require.Contains(t, allow, "mcp__kontor-channel__request_permission")
+	require.Contains(t, allow, "mcp__kontor-channel__dashboard_reply")
 }
 
 func TestBuildSpawnArgs_Basic(t *testing.T) {
@@ -545,7 +545,7 @@ func TestSpawnStageAgent_TaskAPITokenReachesWrittenConfig(t *testing.T) {
 		} `json:"mcpServers"`
 	}
 	require.NoError(t, json.Unmarshal(data, &parsed))
-	tasksEntry, ok := parsed.MCPServers["dashboard-tasks"]
+	tasksEntry, ok := parsed.MCPServers["kontor-tasks"]
 	require.True(t, ok, "config must carry a dashboard-tasks entry when TaskAPIToken is set")
 	require.Equal(t, "Bearer reachtest-tok", tasksEntry.Headers["Authorization"],
 		"the minted token must reach the written config, not just buildTaskAPI's return value")
@@ -648,7 +648,7 @@ func TestSpawnStageAgent_CarriesUserScopeServersIntoTheSpawnConfig(t *testing.T)
 	require.Contains(t, servers, "context7",
 		"--strict-mcp-config makes this file the agent's whole MCP surface, so the "+
 			"operator's own servers must be carried into it")
-	require.Contains(t, servers, "dashboard-channel")
+	require.Contains(t, servers, "kontor-channel")
 }
 
 // TestSpawnStageAgent_UserScopeDashboardTasksCannotOverrideTheSpawnCredential
@@ -657,22 +657,28 @@ func TestSpawnStageAgent_CarriesUserScopeServersIntoTheSpawnConfig(t *testing.T)
 // The spawn's own per-stage-run entry must win under that name, or the agent
 // gets back exactly the scopes StageRunScopes leaves out.
 func TestSpawnStageAgent_UserScopeDashboardTasksCannotOverrideTheSpawnCredential(t *testing.T) {
+	// Both spellings are seeded: the rename must not have opened a door under
+	// the old name, which an installation that predates it still carries.
 	_, servers := spawnRecording(t,
-		`{"mcpServers":{"dashboard-tasks":{"type":"http","url":"http://127.0.0.1:13120/api/mcp",`+
+		`{"mcpServers":{"kontor-tasks":{"type":"http","url":"http://127.0.0.1:13120/api/mcp",`+
 			`"headers":{"Authorization":"Bearer onboarding-broad-key"}},`+
+			`"dashboard-tasks":{"type":"http","url":"http://127.0.0.1:13120/api/mcp",`+
+			`"headers":{"Authorization":"Bearer legacy-broad-key"}},`+
 			`"dashboard-channel":{"command":"/somewhere/else","args":["channel"]}}}`,
 		pipeline.SpawnAgentOptions{TaskAPIToken: "stagerun-tok", MCPUrl: "http://127.0.0.1:13120"})
 
-	require.Contains(t, string(servers["dashboard-tasks"]), "Bearer stagerun-tok",
+	require.Contains(t, string(servers["kontor-tasks"]), "Bearer stagerun-tok",
 		"the per-stage-run credential must win")
-	require.NotContains(t, string(servers["dashboard-tasks"]), "onboarding-broad-key",
+	require.NotContains(t, string(servers["kontor-tasks"]), "onboarding-broad-key",
 		"the broad user-scope credential must never reach a spawned stage agent")
-	require.NotContains(t, string(servers["dashboard-channel"]), "/somewhere/else",
+	require.NotContains(t, string(servers["dashboard-tasks"]), "legacy-broad-key",
+		"a user-scope entry under the pre-rename name must not reach it either")
+	require.NotContains(t, string(servers["kontor-channel"]), "/somewhere/else",
 		"the dashboard's own channel bridge entry must win too")
 }
 
 func TestSpawnStageAgent_MalformedUserConfigStillSpawns(t *testing.T) {
 	_, servers := spawnRecording(t, "{ not json at all", pipeline.SpawnAgentOptions{})
-	require.Contains(t, servers, "dashboard-channel",
+	require.Contains(t, servers, "kontor-channel",
 		"a ~/.claude.json the dashboard does not own must never break a spawn")
 }

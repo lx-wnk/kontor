@@ -2,7 +2,12 @@ package channelconfig
 
 // ServerName is the MCP server name the bridge registers under, and the middle
 // segment of the `mcp__<server>__<tool>` identifier the spawning CLI expects.
-const ServerName = "dashboard-channel"
+// One value, not two: this is the same name the bridge is registered under in
+// channelconfig.go. Held apart, a rename moves one and leaves the other, and a
+// spawn's allow-list then names tools the bridge does not offer — which nothing
+// reports, because an unavailable tool looks exactly like one that was never
+// offered.
+const ServerName = ChannelServerName
 
 // Tool names the bridge registers. They are declared here rather than at the
 // registration site because a spawn runs with --allowedTools: a tool that the

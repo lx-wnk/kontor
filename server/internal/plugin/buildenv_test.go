@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -62,5 +63,58 @@ func TestBuildPluginEnv_AllBlocklistNamesAreBlocked(t *testing.T) {
 		if _, found := byKey[k]; found {
 			t.Errorf("%s must not appear in plugin env", k)
 		}
+	}
+}
+
+// stubIssuer records what it was asked for and hands back a fixed token.
+type stubIssuer struct {
+	scopes  []string
+	revoked []string
+}
+
+func (s *stubIssuer) Issue(_ context.Context, _ string, scopes []string) (string, error) {
+	s.scopes = scopes
+	return "mcp_moduletoken", nil
+}
+
+func (s *stubIssuer) Revoke(_ context.Context, moduleID string) error {
+	s.revoked = append(s.revoked, moduleID)
+	return nil
+}
+
+// A module is handed a credential of its own, carrying exactly the
+// capabilities its manifest declares. Without it the module can be called but
+// can call nothing back — the shared MCP token is blocked from its environment
+// on purpose.
+func TestAppendModuleTokenEnv_CarriesTheManifestsUses(t *testing.T) {
+	issuer := &stubIssuer{}
+	r := New(t.TempDir())
+	r.SetCredentialIssuer(issuer)
+
+	env := r.appendModuleTokenEnv(context.Background(), []string{"PATH=/usr/bin"}, Descriptor{
+		ID:   "obsidian",
+		Uses: []string{"memory.read", "memory.write"},
+	})
+
+	var found string
+	for _, kv := range env {
+		if after, ok := strings.CutPrefix(kv, ModuleTokenEnvVar+"="); ok {
+			found = after
+		}
+	}
+	if found != "mcp_moduletoken" {
+		t.Fatalf("%s = %q, want the issued token", ModuleTokenEnvVar, found)
+	}
+	if len(issuer.scopes) != 2 || issuer.scopes[0] != "memory.read" {
+		t.Errorf("scopes = %v, want the manifest's uses list", issuer.scopes)
+	}
+}
+
+// A registry without an issuer still starts modules; they simply get no token.
+func TestAppendModuleTokenEnv_WithoutAnIssuerAddsNothing(t *testing.T) {
+	r := New(t.TempDir())
+	env := r.appendModuleTokenEnv(context.Background(), []string{"PATH=/usr/bin"}, Descriptor{ID: "obsidian"})
+	if len(env) != 1 {
+		t.Errorf("env = %v, want it untouched", env)
 	}
 }

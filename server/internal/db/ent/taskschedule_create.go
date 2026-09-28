@@ -381,6 +381,20 @@ func (_c *TaskScheduleCreate) SetNillableResourceID(v *string) *TaskScheduleCrea
 	return _c
 }
 
+// SetOwnerModule sets the "owner_module" field.
+func (_c *TaskScheduleCreate) SetOwnerModule(v string) *TaskScheduleCreate {
+	_c.mutation.SetOwnerModule(v)
+	return _c
+}
+
+// SetNillableOwnerModule sets the "owner_module" field if the given value is not nil.
+func (_c *TaskScheduleCreate) SetNillableOwnerModule(v *string) *TaskScheduleCreate {
+	if v != nil {
+		_c.SetOwnerModule(*v)
+	}
+	return _c
+}
+
 // SetApplications sets the "applications" field.
 func (_c *TaskScheduleCreate) SetApplications(v []string) *TaskScheduleCreate {
 	_c.mutation.SetApplications(v)
@@ -509,6 +523,10 @@ func (_c *TaskScheduleCreate) defaults() {
 	if _, ok := _c.mutation.ResourceID(); !ok {
 		v := taskschedule.DefaultResourceID
 		_c.mutation.SetResourceID(v)
+	}
+	if _, ok := _c.mutation.OwnerModule(); !ok {
+		v := taskschedule.DefaultOwnerModule
+		_c.mutation.SetOwnerModule(v)
 	}
 	if _, ok := _c.mutation.Applications(); !ok {
 		v := taskschedule.DefaultApplications
@@ -748,6 +766,10 @@ func (_c *TaskScheduleCreate) createSpec() (*TaskSchedule, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ResourceID(); ok {
 		_spec.SetField(taskschedule.FieldResourceID, field.TypeString, value)
 		_node.ResourceID = value
+	}
+	if value, ok := _c.mutation.OwnerModule(); ok {
+		_spec.SetField(taskschedule.FieldOwnerModule, field.TypeString, value)
+		_node.OwnerModule = value
 	}
 	if value, ok := _c.mutation.Applications(); ok {
 		_spec.SetField(taskschedule.FieldApplications, field.TypeJSON, value)
@@ -1282,6 +1304,24 @@ func (u *TaskScheduleUpsert) UpdateResourceID() *TaskScheduleUpsert {
 // ClearResourceID clears the value of the "resource_id" field.
 func (u *TaskScheduleUpsert) ClearResourceID() *TaskScheduleUpsert {
 	u.SetNull(taskschedule.FieldResourceID)
+	return u
+}
+
+// SetOwnerModule sets the "owner_module" field.
+func (u *TaskScheduleUpsert) SetOwnerModule(v string) *TaskScheduleUpsert {
+	u.Set(taskschedule.FieldOwnerModule, v)
+	return u
+}
+
+// UpdateOwnerModule sets the "owner_module" field to the value that was provided on create.
+func (u *TaskScheduleUpsert) UpdateOwnerModule() *TaskScheduleUpsert {
+	u.SetExcluded(taskschedule.FieldOwnerModule)
+	return u
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (u *TaskScheduleUpsert) ClearOwnerModule() *TaskScheduleUpsert {
+	u.SetNull(taskschedule.FieldOwnerModule)
 	return u
 }
 
@@ -1921,6 +1961,27 @@ func (u *TaskScheduleUpsertOne) UpdateResourceID() *TaskScheduleUpsertOne {
 func (u *TaskScheduleUpsertOne) ClearResourceID() *TaskScheduleUpsertOne {
 	return u.Update(func(s *TaskScheduleUpsert) {
 		s.ClearResourceID()
+	})
+}
+
+// SetOwnerModule sets the "owner_module" field.
+func (u *TaskScheduleUpsertOne) SetOwnerModule(v string) *TaskScheduleUpsertOne {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.SetOwnerModule(v)
+	})
+}
+
+// UpdateOwnerModule sets the "owner_module" field to the value that was provided on create.
+func (u *TaskScheduleUpsertOne) UpdateOwnerModule() *TaskScheduleUpsertOne {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.UpdateOwnerModule()
+	})
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (u *TaskScheduleUpsertOne) ClearOwnerModule() *TaskScheduleUpsertOne {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.ClearOwnerModule()
 	})
 }
 
@@ -2734,6 +2795,27 @@ func (u *TaskScheduleUpsertBulk) UpdateResourceID() *TaskScheduleUpsertBulk {
 func (u *TaskScheduleUpsertBulk) ClearResourceID() *TaskScheduleUpsertBulk {
 	return u.Update(func(s *TaskScheduleUpsert) {
 		s.ClearResourceID()
+	})
+}
+
+// SetOwnerModule sets the "owner_module" field.
+func (u *TaskScheduleUpsertBulk) SetOwnerModule(v string) *TaskScheduleUpsertBulk {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.SetOwnerModule(v)
+	})
+}
+
+// UpdateOwnerModule sets the "owner_module" field to the value that was provided on create.
+func (u *TaskScheduleUpsertBulk) UpdateOwnerModule() *TaskScheduleUpsertBulk {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.UpdateOwnerModule()
+	})
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (u *TaskScheduleUpsertBulk) ClearOwnerModule() *TaskScheduleUpsertBulk {
+	return u.Update(func(s *TaskScheduleUpsert) {
+		s.ClearOwnerModule()
 	})
 }
 

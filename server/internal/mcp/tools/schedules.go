@@ -70,6 +70,39 @@ func resolveScheduleCron(ctx context.Context, t ScheduleTranslator, nlText, cron
 	return expr, nil
 }
 
+// ensureModuleOwnsRoutine refuses a module acting on a routine it does not own.
+// A caller that is not a module passes through: it is governed by scopes and
+// grants like every other caller, and this rule exists only to keep one module
+// out of another's — and out of the operator's.
+func ensureModuleOwnsRoutine(ctx context.Context, ownerModule string) error {
+	auth := mcp.AuthFromContext(ctx)
+	if auth == nil || auth.ModuleID == "" {
+		return nil
+	}
+	if auth.ModuleID != ownerModule {
+		return mcp.Fail("this routine belongs to " + routineOwnerLabel(ownerModule) + "; a module may only manage its own")
+	}
+	return nil
+}
+
+// callerModuleID names the module behind the request, empty for every other
+// caller.
+func callerModuleID(ctx context.Context) string {
+	if auth := mcp.AuthFromContext(ctx); auth != nil {
+		return auth.ModuleID
+	}
+	return ""
+}
+
+// routineOwnerLabel names the owner in a refusal without pretending a routine
+// a human created has a module behind it.
+func routineOwnerLabel(ownerModule string) string {
+	if ownerModule == "" {
+		return "no module"
+	}
+	return "module " + ownerModule
+}
+
 func registerManageSchedule(registry mcp.ToolRegistry, d ScheduleDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name: "manage_schedule",
@@ -157,17 +190,21 @@ func manageScheduleCreate(ctx context.Context, d ScheduleDeps, args map[string]a
 	if tz == "" {
 		tz = "UTC"
 	}
+	// A module's routine is stamped with the module that created it, taken
+	// from the credential rather than from the arguments: ownership a caller
+	// could name is ownership a caller could claim.
 	in := repo.CreateTaskScheduleInput{
-		Name:       name,
-		CronExpr:   cronExpr,
-		Timezone:   tz,
-		Catchup:    mcp.OptionalString(args, "catchup"),
-		SlugPrefix: slugPrefix,
-		Title:      title,
-		Cwd:        cwd,
-		RunMode:    runMode,
-		Priority:   mcp.OptionalString(args, "priority"),
-		NextRunAt:  scheduleNextRunPtr(cronExpr, tz),
+		OwnerModule: callerModuleID(ctx),
+		Name:        name,
+		CronExpr:    cronExpr,
+		Timezone:    tz,
+		Catchup:     mcp.OptionalString(args, "catchup"),
+		SlugPrefix:  slugPrefix,
+		Title:       title,
+		Cwd:         cwd,
+		RunMode:     runMode,
+		Priority:    mcp.OptionalString(args, "priority"),
+		NextRunAt:   scheduleNextRunPtr(cronExpr, tz),
 	}
 	if v := mcp.OptionalString(args, "nlText"); v != "" {
 		in.NLText = &v
@@ -207,6 +244,9 @@ func manageScheduleUpdate(ctx context.Context, d ScheduleDeps, args map[string]a
 	existing, err := d.Repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, mcp.Fail("schedule not found: " + id)
+	}
+	if err := ensureModuleOwnsRoutine(ctx, existing.OwnerModule); err != nil {
+		return nil, err
 	}
 	in := repo.UpdateTaskScheduleInput{}
 	runMode := mcp.OptionalString(args, "runMode")
@@ -273,6 +313,16 @@ func manageScheduleUpdate(ctx context.Context, d ScheduleDeps, args map[string]a
 func manageScheduleSimple(ctx context.Context, d ScheduleDeps, args map[string]any, action string) (*mcp.ToolResult, error) {
 	id, err := mcp.StringArg(args, "id")
 	if err != nil {
+		return nil, err
+	}
+	// Ownership is checked before the verb, not inside each branch: delete,
+	// disable and run_now are equally consequential for a routine somebody
+	// else owns.
+	existing, err := d.Repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, mcp.Fail("schedule not found: " + id)
+	}
+	if err := ensureModuleOwnsRoutine(ctx, existing.OwnerModule); err != nil {
 		return nil, err
 	}
 	switch action {

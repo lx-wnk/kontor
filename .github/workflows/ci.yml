@@ -55,7 +55,12 @@ jobs:
       - id: lists
         run: |
           WORKSPACE_MODULES='["server", "sdk"]'
-          PLUGINS='["anthropic-spawner", "github-oauth", "oauthkit", "office365-oauth", "voice-webspeech", "voice-whisper"]'
+          # Derived from what is on disk, not from a list kept in step with it.
+          # A module added or removed in plugins/ must not also have to be
+          # remembered here, and a module that lives outside this repository
+          # simply is not found — which is the point of the module contract.
+          PLUGINS=$(find plugins -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/go.mod' \; -print \
+            | sed 's|^plugins/||' | sort | jq -Rnc '[inputs]')
           {
             echo "workspace_modules=$WORKSPACE_MODULES"
             echo "plugins=$PLUGINS"

@@ -71,6 +71,8 @@ const (
 	FieldSkippedCount = "skipped_count"
 	// FieldResourceID holds the string denoting the resource_id field in the database.
 	FieldResourceID = "resource_id"
+	// FieldOwnerModule holds the string denoting the owner_module field in the database.
+	FieldOwnerModule = "owner_module"
 	// FieldApplications holds the string denoting the applications field in the database.
 	FieldApplications = "applications"
 	// FieldUserID holds the string denoting the user_id field in the database.
@@ -115,6 +117,7 @@ var Columns = []string{
 	FieldLastSkippedAt,
 	FieldSkippedCount,
 	FieldResourceID,
+	FieldOwnerModule,
 	FieldApplications,
 	FieldUserID,
 	FieldCreatedAt,
@@ -160,6 +163,8 @@ var (
 	DefaultSkippedCount int
 	// DefaultResourceID holds the default value on creation for the "resource_id" field.
 	DefaultResourceID string
+	// DefaultOwnerModule holds the default value on creation for the "owner_module" field.
+	DefaultOwnerModule string
 	// DefaultApplications holds the default value on creation for the "applications" field.
 	DefaultApplications []string
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
@@ -316,6 +321,11 @@ func BySkippedCount(opts ...sql.OrderTermOption) OrderOption {
 // ByResourceID orders the results by the resource_id field.
 func ByResourceID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResourceID, opts...).ToFunc()
+}
+
+// ByOwnerModule orders the results by the owner_module field.
+func ByOwnerModule(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOwnerModule, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.

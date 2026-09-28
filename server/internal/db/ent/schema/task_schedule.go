@@ -58,6 +58,13 @@ func (TaskSchedule) Fields() []ent.Field {
 		field.Int("skipped_count").Default(0),
 
 		field.String("resource_id").Optional().Default(""),
+
+		// owner_module names the module that created this routine, empty for
+		// one a human created. It is a column rather than a metadata key
+		// because it decides who may change the row: a module may act on its
+		// own routines and on no others, and a permission that lives in a JSON
+		// blob anything can write is not a permission.
+		field.String("owner_module").Optional().Default(""),
 		field.JSON("applications", []string{}).
 			Default([]string{}).
 			Annotations(entsql.Default("[]")),

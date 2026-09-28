@@ -552,6 +552,26 @@ func (_u *TaskScheduleUpdate) ClearResourceID() *TaskScheduleUpdate {
 	return _u
 }
 
+// SetOwnerModule sets the "owner_module" field.
+func (_u *TaskScheduleUpdate) SetOwnerModule(v string) *TaskScheduleUpdate {
+	_u.mutation.SetOwnerModule(v)
+	return _u
+}
+
+// SetNillableOwnerModule sets the "owner_module" field if the given value is not nil.
+func (_u *TaskScheduleUpdate) SetNillableOwnerModule(v *string) *TaskScheduleUpdate {
+	if v != nil {
+		_u.SetOwnerModule(*v)
+	}
+	return _u
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (_u *TaskScheduleUpdate) ClearOwnerModule() *TaskScheduleUpdate {
+	_u.mutation.ClearOwnerModule()
+	return _u
+}
+
 // SetApplications sets the "applications" field.
 func (_u *TaskScheduleUpdate) SetApplications(v []string) *TaskScheduleUpdate {
 	_u.mutation.SetApplications(v)
@@ -814,6 +834,12 @@ func (_u *TaskScheduleUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.ResourceIDCleared() {
 		_spec.ClearField(taskschedule.FieldResourceID, field.TypeString)
+	}
+	if value, ok := _u.mutation.OwnerModule(); ok {
+		_spec.SetField(taskschedule.FieldOwnerModule, field.TypeString, value)
+	}
+	if _u.mutation.OwnerModuleCleared() {
+		_spec.ClearField(taskschedule.FieldOwnerModule, field.TypeString)
 	}
 	if value, ok := _u.mutation.Applications(); ok {
 		_spec.SetField(taskschedule.FieldApplications, field.TypeJSON, value)
@@ -1375,6 +1401,26 @@ func (_u *TaskScheduleUpdateOne) ClearResourceID() *TaskScheduleUpdateOne {
 	return _u
 }
 
+// SetOwnerModule sets the "owner_module" field.
+func (_u *TaskScheduleUpdateOne) SetOwnerModule(v string) *TaskScheduleUpdateOne {
+	_u.mutation.SetOwnerModule(v)
+	return _u
+}
+
+// SetNillableOwnerModule sets the "owner_module" field if the given value is not nil.
+func (_u *TaskScheduleUpdateOne) SetNillableOwnerModule(v *string) *TaskScheduleUpdateOne {
+	if v != nil {
+		_u.SetOwnerModule(*v)
+	}
+	return _u
+}
+
+// ClearOwnerModule clears the value of the "owner_module" field.
+func (_u *TaskScheduleUpdateOne) ClearOwnerModule() *TaskScheduleUpdateOne {
+	_u.mutation.ClearOwnerModule()
+	return _u
+}
+
 // SetApplications sets the "applications" field.
 func (_u *TaskScheduleUpdateOne) SetApplications(v []string) *TaskScheduleUpdateOne {
 	_u.mutation.SetApplications(v)
@@ -1667,6 +1713,12 @@ func (_u *TaskScheduleUpdateOne) sqlSave(ctx context.Context) (_node *TaskSchedu
 	}
 	if _u.mutation.ResourceIDCleared() {
 		_spec.ClearField(taskschedule.FieldResourceID, field.TypeString)
+	}
+	if value, ok := _u.mutation.OwnerModule(); ok {
+		_spec.SetField(taskschedule.FieldOwnerModule, field.TypeString, value)
+	}
+	if _u.mutation.OwnerModuleCleared() {
+		_spec.ClearField(taskschedule.FieldOwnerModule, field.TypeString)
 	}
 	if value, ok := _u.mutation.Applications(); ok {
 		_spec.SetField(taskschedule.FieldApplications, field.TypeJSON, value)

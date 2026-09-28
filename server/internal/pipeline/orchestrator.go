@@ -212,6 +212,25 @@ func (o *PipelineOrchestrator) SetHandlerOverride(stage string, h StageHandler) 
 	o.handlerOverrides.Store(stage, h)
 }
 
+// RegisterStageKind makes a module's stage kind resolvable. It shares the
+// override map with the test seam above but carries a different rule: a module
+// adds kinds of stage, it never redefines one of the core's. The core stages
+// carry the lifecycle every task depends on, so a module taking one over would
+// change what that stage means for every task at once — which is why this
+// refuses rather than wins.
+func (o *PipelineOrchestrator) RegisterStageKind(kind string, h StageHandler) error {
+	for _, core := range StageOrder {
+		if kind == core {
+			return fmt.Errorf("stage kind %q is a core stage and cannot be redefined", kind)
+		}
+	}
+	if _, isCore := o.handlers[kind]; isCore {
+		return fmt.Errorf("stage kind %q is a core stage and cannot be redefined", kind)
+	}
+	o.handlerOverrides.Store(kind, h)
+	return nil
+}
+
 // baseContext returns the context passed to Run, or context.Background() when
 // Run has never been called (sync tests, DI without a live tick loop).
 func (o *PipelineOrchestrator) baseContext() context.Context {

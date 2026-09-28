@@ -88,7 +88,10 @@ func main() {
 	root.AddCommand(serve)
 
 	if err := root.Execute(); err != nil {
-		slog.Error("startup failed", "err", err)
+		// cobra has already printed "Error: <err>" for the command that
+		// failed. Repeating it as "startup failed" mislabels every subcommand
+		// — nothing was starting up when `module add` rejected a manifest —
+		// so the exit code carries the failure and the message does not lie.
 		os.Exit(1)
 	}
 }

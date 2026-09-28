@@ -1,5 +1,6 @@
 {
   "$schema": "../../plugin-sdk/plugin.schema.json",
+  "contract": 1,
   "id": "voice-whisper",
   "name": "Voice (Whisper)",
   "version": "0.1.0",
