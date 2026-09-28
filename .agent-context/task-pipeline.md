@@ -11,7 +11,7 @@ The Task Pipeline subsystem (`server/internal/pipeline/`, `server/internal/api/t
 - `completion_detector.go` — converts a dead PID + session JSONL into a next/retry/fail decision. Strict per-stage schema validators (`ValidateStageOutput`) with injectable dependencies for tests.
 - `session_reader.go` — reads the last assistant turn from a session JSONL, extracts the `` ```json `` block, falls back to newest-by-mtime session discovery when the stage_run has no `session_id` yet. Scans all known `CLAUDE_CONFIG_DIR` directories.
 - `session_manager.go` — lightweight wrapper for stage_run mutations; the core `IsPidAlive` check has been extracted to `proc.IsPidAlive` (see [ADR-0009](../docs/architecture/adr/0009-proc-leaf.md)).
-- `types.go` — `StageTransition` sealed interface (concrete types: `NextTransition`, `DoneTransition`, `FailTransition`, `WaitUserTransition`, `IterateTransition`, `OnHoldTransition`, `AsyncRunningTransition`, `RequeueTransition`), `StageContext` with injected side-effect callbacks.
+- `types.go` — `StageTransition` sealed interface (concrete types: `NextTransition`, `DoneTransition`, `FailTransition`, `WaitUserTransition`, `IterateTransition`, `OnHoldTransition`, `AsyncRunningTransition`, `RequeueTransition`, `RateLimitedTransition`), `StageContext` with injected side-effect callbacks.
 
 ## Orchestrator Collaborators (Dependencies Injected into PipelineOrchestrator)
 
@@ -56,7 +56,7 @@ Infra-class stage-run failures are automatically requeued instead of parking on 
 | Schema | stage output fails schema validation | iterate → wait_user (existing path, unchanged) |
 | Hard (budget exhausted) | `retry_count >= maxAutoRetries` | hard `failed` → needsUser |
 
-**Stage-run status `requeued`:** the run is updated in place (same row, no new iteration) with incremented `retry_count` and a `next_retry_at` cooldown timestamp. It is non-blocking — `needsUser` excludes `requeued` runs.
+**Stage-run statuses `requeued` / `rate_limited`:** the run is updated in place (same row, no new iteration) with incremented `retry_count` and a `next_retry_at` cooldown timestamp. A rate-limit error (429/529/503) parks the run as `rate_limited` with the `rateLimitBackoffSeconds` backoff and the `maxRateLimitRetries` budget; any other infra failure parks it as `requeued`. Both are non-blocking — `needsUser` excludes them — and both are listed once in `cooldownStageRunStatuses` (`stage_run_service.go`).
 
 **Lifecycle:**
 
@@ -71,7 +71,7 @@ requeued  ──(cooldown elapsed, sweep promotes)──►  pending  ──(pic
 failed  →  needsUser
 ```
 
-**Tick order (required):** finalize completed runs → awaiting-user sweep → orphan sweep → requeue sweep (`sweepRequeueableRuns`) → picker. The requeue sweep promotes cooldown-elapsed `requeued` runs back to `pending`, clearing `started_at`/`pid`/`next_retry_at` (keeping `retry_count`). The picker skips `requeued` runs during cooldown.
+**Tick order (required):** finalize completed runs → awaiting-user sweep → orphan sweep → requeue sweep (`sweepRequeueableRuns`) → picker. The requeue sweep promotes cooldown-elapsed `requeued` / `rate_limited` runs back to `pending`, clearing `started_at`/`pid`/`next_retry_at`/`output` (keeping `retry_count`). Clearing `output` matters: `DetectCompletion` treats a non-empty output as a tool-written stage result, so leftover requeue bookkeeping would otherwise complete the respawned run and advance the task. The picker skips both statuses during cooldown.
 
 **Config keys:**
 
@@ -84,7 +84,7 @@ failed  →  needsUser
 
 All keys are readable via `GET /api/pipeline/config` and writable via `PUT /api/pipeline/config`. Validation enforces sensible bounds.
 
-**UI:** a distinct "Retrying N/max · next retry in Xs" chip is shown while a run is in `requeued` status.
+**UI:** a distinct "Retrying N/max · next retry in Xs" chip is shown while a run is in `requeued` or `rate_limited` status.
 
 ## Spawner Resolution
 
@@ -165,6 +165,7 @@ The following `pipeline/` symbols may be imported at runtime from `api/*` and `m
 | `ReadLastStageJsonOutput` | `session_reader.go` | `api/tasks/cost_stage_routes.go` |
 | `SessionFileExists` | `session_reader.go` | `api/tasks/handler.go` |
 | `ValidateStageOutput` | `completion_detector.go` | `api/agents/channel_stage_output.go` |
+| `StageOutputSubmittedKey` | `completion_detector.go` | `api/agents/channel_stage_output.go` (writes the marker), `api/plan/service.go` (strips it from the live plan) |
 
 These are session-reader and process-monitor helpers — they do not touch the state machine (orchestrator, stage handlers, completion detector). New `pipeline/` imports from `api/*` or `mcp/*` require an explicit justification in this table before being added.
 

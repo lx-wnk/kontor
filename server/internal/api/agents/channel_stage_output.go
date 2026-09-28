@@ -101,6 +101,7 @@ func (h *ChannelStageOutputHandler) Post(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	output[pipeline.StageOutputSubmittedKey] = true
 	if _, err := h.stageRuns.Update(r.Context(), sr.ID, repo.UpdateStageRunInput{Output: output}); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "failed to persist output")
 		return

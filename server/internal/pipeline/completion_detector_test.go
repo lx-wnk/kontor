@@ -158,9 +158,10 @@ func TestDetectCompletion_ToolOutput_UsedDirectly(t *testing.T) {
 		Stage: "implementation",
 		Pid:   ptr(1),
 		Output: map[string]any{
-			"summary":   "from tool",
-			"commits":   []any{},
-			"openItems": []any{},
+			pipeline.StageOutputSubmittedKey: true,
+			"summary":                        "from tool",
+			"commits":                        []any{},
+			"openItems":                      []any{},
 		},
 	}
 	deps := pipeline.CompletionDeps{
@@ -180,6 +181,52 @@ func TestDetectCompletion_ToolOutput_UsedDirectly(t *testing.T) {
 // sr.Output containing "synthetic_session_file" is NOT short-circuited as
 // tool output — it must fall through to the synthetic-file handling path.
 // With a non-existent path and no session found, the result must be "failed".
+func TestDetectCompletion_BookkeepingOutput_NotTreatedAsToolOutput(t *testing.T) {
+	sr := &ent.StageRun{
+		ID:    "sr-3",
+		Stage: "implementation",
+		Pid:   ptr(1),
+		Output: map[string]any{
+			"requeue_reason": "rate_limited",
+			"agentMessage":   "usage limit reached",
+		},
+	}
+	now := time.Now()
+	sr.StartedAt = &now
+	scraped := false
+	deps := pipeline.CompletionDeps{
+		IsPidAlive: func(int) bool { return false },
+		ReadOutput: func(string, string) (pipeline.StageOutputRead, error) {
+			scraped = true
+			return pipeline.StageOutputRead{}, nil
+		},
+		FindSession: func(string, string) (string, error) { return "sess", nil },
+	}
+	res, err := pipeline.DetectCompletion(sr, "/tmp", deps)
+	require.NoError(t, err)
+	require.True(t, scraped, "bookkeeping output must fall through to the transcript read")
+	require.NotEqual(t, "completed", res.Kind)
+}
+
+func TestDetectCompletion_ToolOutput_MarkerStripped(t *testing.T) {
+	sr := &ent.StageRun{
+		ID:    "sr-4",
+		Stage: "implementation",
+		Pid:   ptr(1),
+		Output: map[string]any{
+			pipeline.StageOutputSubmittedKey: true,
+			"summary":                        "from tool",
+		},
+	}
+	deps := pipeline.CompletionDeps{IsPidAlive: func(int) bool { return false }}
+	res, err := pipeline.DetectCompletion(sr, "/tmp", deps)
+	require.NoError(t, err)
+	require.Equal(t, "completed", res.Kind)
+	require.Equal(t, "from tool", res.Output["summary"])
+	require.NotContains(t, res.Output, pipeline.StageOutputSubmittedKey)
+	require.Contains(t, sr.Output, pipeline.StageOutputSubmittedKey, "the stored run must not be mutated")
+}
+
 func TestDetectCompletion_SyntheticMarker_NotTreatedAsToolOutput(t *testing.T) {
 	sr := &ent.StageRun{
 		ID:    "sr-2",

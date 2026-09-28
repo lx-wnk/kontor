@@ -16,6 +16,9 @@ var terminalStageRunStatuses = map[string]bool{
 	"done": true, "failed": true, "cancelled": true,
 }
 
+// cooldownStageRunStatuses park a run until sweepRequeueableRuns promotes it back to pending.
+var cooldownStageRunStatuses = []string{"requeued", "rate_limited"}
+
 // stageRunService is the orchestrator's seam onto repo.StageRunRepo — all
 // stage_run persistence goes through here instead of opts.StageRunRepo directly.
 type stageRunService struct {

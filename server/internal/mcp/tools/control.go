@@ -276,7 +276,7 @@ func registerRetryTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if err != nil {
 				return nil, mcp.Fail("retry_task: could not fetch stage run: " + err.Error())
 			}
-			if latest == nil || latest.Status != "failed" {
+			if latest == nil || (latest.Status != "failed" && latest.Status != "rate_limited") {
 				return nil, mcp.Fail("Task has no failed stage run to retry on its current stage")
 			}
 

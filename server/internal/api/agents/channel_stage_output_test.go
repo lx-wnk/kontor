@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,6 +89,9 @@ func TestChannelStageOutput_ValidImplementation_Persists(t *testing.T) {
 	}
 	if fake.capturedInput.Output["summary"] != "did it" {
 		t.Errorf("unexpected output: %v", fake.capturedInput.Output)
+	}
+	if fake.capturedInput.Output[pipeline.StageOutputSubmittedKey] != true {
+		t.Errorf("persisted output lacks the submission marker: %v", fake.capturedInput.Output)
 	}
 }
 

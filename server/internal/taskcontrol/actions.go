@@ -203,6 +203,16 @@ func agentStageActions(s TaskState) []Action {
 			disabled(ActionApproveAllPending, "task is on hold"),
 		}
 
+	case "rate_limited":
+		// Waiting for API usage reset; will auto-requeue after cooldown.
+		return []Action{
+			enabled(ActionRetry, false),
+			enabled(ActionCancel, false),
+			disabled(ActionAdvance, "paused: usage limit — auto-requeue pending"),
+			disabled(ActionResume, "paused: usage limit — auto-requeue pending"),
+			disabled(ActionApproveAllPending, "no pending permissions"),
+		}
+
 	case "requeued", "pending":
 		// Auto-requeue or pending spawn — agent will pick it up; wait or cancel.
 		return []Action{

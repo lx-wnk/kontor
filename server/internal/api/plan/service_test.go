@@ -2,6 +2,7 @@ package plan_test
 
 import (
 	"context"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"testing"
 
 	"github.com/lx-wnk/kontor/server/internal/api/plan"
@@ -206,7 +207,7 @@ func TestPlanStatus_ReturnsLivePlanBeforeApproval(t *testing.T) {
 	taskID, runID := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
 
 	// Seed a live plan output into the stage_run — no approvedPlan metadata yet.
-	livePlan := map[string]any{"summary": "LIVE_PLAN_SENTINEL", "steps": []any{"step1"}}
+	livePlan := map[string]any{"summary": "LIVE_PLAN_SENTINEL", "steps": []any{"step1"}, pipeline.StageOutputSubmittedKey: true}
 	_, err = srRepo.Update(ctx, runID, repo.UpdateStageRunInput{Output: livePlan})
 	require.NoError(t, err)
 
@@ -220,6 +221,7 @@ func TestPlanStatus_ReturnsLivePlanBeforeApproval(t *testing.T) {
 	require.NotNil(t, status.ApprovedPlan, "live plan must be surfaced before approval")
 	require.Equal(t, "LIVE_PLAN_SENTINEL", status.ApprovedPlan["summary"],
 		"ApprovedPlan must contain the live stage_run output before approval")
+	require.NotContains(t, status.ApprovedPlan, pipeline.StageOutputSubmittedKey)
 }
 
 func TestPlanStatus_FrozenPlanAfterApproval(t *testing.T) {

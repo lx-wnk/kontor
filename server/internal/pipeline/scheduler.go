@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
@@ -83,7 +84,7 @@ func (s *scheduler) Pick(ctx context.Context, allRunning []*ent.StageRun) []*ent
 		// Only skip if the latest run is specifically on the current stage and blocking.
 		// If the latest run is for a different stage, no run exists for currentStage yet.
 		if latest := latestByTask[t.ID]; latest != nil && latest.Stage == t.CurrentStage &&
-			(latest.Status == "awaiting_user" || latest.Status == "failed" || latest.Status == "requeued") {
+			(latest.Status == "awaiting_user" || latest.Status == "failed" || slices.Contains(cooldownStageRunStatuses, latest.Status)) {
 			continue
 		}
 		// Dependency gate: skip unless all upstream deps are satisfied.

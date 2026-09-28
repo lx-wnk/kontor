@@ -215,3 +215,32 @@ func TestRetry_PassesAdditionalPrompt(t *testing.T) {
 		t.Fatalf("expected prompt forwarded, got %q", orch.requeuePrompt)
 	}
 }
+
+// TestRetry_RateLimitedRun_Returns202 covers the Retry action taskcontrol
+// enables while a run waits out a usage-limit cooldown.
+func TestRetry_RateLimitedRun_Returns202(t *testing.T) {
+	cwd := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	orch := &captureOrchestrator{}
+	client, r := newRetryHandler(t, orch)
+	taskID := seedFailedRun(t, client, cwd, "implementation", "", false)
+
+	ctx := context.Background()
+	srRepo := repo.NewStageRunRepo(client)
+	latest, err := srRepo.GetLatestByTaskAndStage(ctx, taskID, "implementation")
+	if err != nil {
+		t.Fatalf("latest run: %v", err)
+	}
+	rateLimited := "rate_limited"
+	if _, err := srRepo.Update(ctx, latest.ID, repo.UpdateStageRunInput{Status: &rateLimited}); err != nil {
+		t.Fatalf("update run: %v", err)
+	}
+
+	w := postRetry(t, r, taskID)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 Accepted, got %d: %s", w.Code, w.Body.String())
+	}
+	if orch.requeueTaskID != taskID {
+		t.Fatalf("expected RequeueForUser called with taskID=%q, got %q", taskID, orch.requeueTaskID)
+	}
+}

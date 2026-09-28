@@ -32,6 +32,8 @@ export const RUN_STATUS_LABELS: Record<StageRunStatus, string> = {
   done: 'Done',
   failed: 'Failed',
   requeued: 'Requeued',
+  rate_limited: 'Paused: Usage Limit',
+  cancelled: 'Cancelled',
 }
 
 export function runStatusLabel(status: StageRunStatus): string {
@@ -44,7 +46,8 @@ export function runStatusTone(status: StageRunStatus | string): ChipTone {
     case 'done': return 'success'
     case 'failed': return 'danger'
     case 'on_hold':
-    case 'awaiting_user': return 'warning'
+    case 'awaiting_user':
+    case 'rate_limited': return 'warning'
     default: return 'neutral'
   }
 }
