@@ -1,18 +1,18 @@
 #!/usr/bin/env sh
-# install.sh — download the latest Agent Dashboard release binary for this platform.
+# install.sh — download the latest Kontor release binary for this platform.
 #
-#   curl -fsSL https://raw.githubusercontent.com/lx-wnk/Agent-Dashboard/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/lx-wnk/kontor/main/install.sh | sh
 #
 # Environment overrides:
-#   AGENT_DASHBOARD_VERSION   pin a specific tag (default: latest release)
-#   AGENT_DASHBOARD_BIN_DIR   install directory (default: ~/.local/bin, or /usr/local/bin if writable)
+#   KONTOR_VERSION   pin a specific tag (default: latest release)
+#   KONTOR_BIN_DIR   install directory (default: ~/.local/bin, or /usr/local/bin if writable)
 #
-# Agent Dashboard reads your local Claude Code sessions and binds to 127.0.0.1 only.
-# See https://github.com/lx-wnk/Agent-Dashboard/blob/main/docs/guides/security.md
+# Kontor reads your local Claude Code sessions and binds to 127.0.0.1 only.
+# See https://github.com/lx-wnk/kontor/blob/main/docs/guides/security.md
 set -eu
 
-REPO="lx-wnk/Agent-Dashboard"
-BINARY="agent-dashboard"
+REPO="lx-wnk/kontor"
+BINARY="kontor"
 
 info() { printf '\033[36m==>\033[0m %s\n' "$1"; }
 err()  { printf '\033[31merror:\033[0m %s\n' "$1" >&2; exit 1; }
@@ -48,12 +48,12 @@ case "$arch" in
 esac
 
 # --- resolve version -------------------------------------------------------
-version="${AGENT_DASHBOARD_VERSION:-}"
+version="${KONTOR_VERSION:-}"
 if [ -z "$version" ]; then
   info "Resolving latest release…"
   version=$(dl "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name":' | head -1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-  [ -n "$version" ] || err "could not determine latest version (GitHub API rate-limited? set AGENT_DASHBOARD_VERSION)"
+  [ -n "$version" ] || err "could not determine latest version (GitHub API rate-limited? set KONTOR_VERSION)"
 fi
 ver_no_v="${version#v}"
 
@@ -91,7 +91,7 @@ tar -xzf "${tmp}/${asset}" -C "$tmp"
 chmod +x "${tmp}/${BINARY}"
 
 # --- choose install dir ----------------------------------------------------
-bindir="${AGENT_DASHBOARD_BIN_DIR:-}"
+bindir="${KONTOR_BIN_DIR:-}"
 if [ -z "$bindir" ]; then
   if [ -w /usr/local/bin ] 2>/dev/null; then bindir="/usr/local/bin"; else bindir="${HOME}/.local/bin"; fi
 fi
@@ -103,7 +103,7 @@ elif command -v sudo >/dev/null 2>&1; then
   info "Installing to ${bindir} (requires sudo)…"
   sudo mv "${tmp}/${BINARY}" "${bindir}/${BINARY}"
 else
-  err "cannot write to ${bindir} and sudo is unavailable — set AGENT_DASHBOARD_BIN_DIR to a writable path"
+  err "cannot write to ${bindir} and sudo is unavailable — set KONTOR_BIN_DIR to a writable path"
 fi
 
 info "Installed ${BINARY} ${version} → ${bindir}/${BINARY}"

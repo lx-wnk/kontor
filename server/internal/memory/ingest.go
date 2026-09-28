@@ -5,8 +5,8 @@ package memory
 import (
 	"errors"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sanitize"
+	"github.com/lx-wnk/kontor/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/sanitize"
 )
 
 // ErrEmptyAfterSanitize is returned when sanitizing summary or content leaves

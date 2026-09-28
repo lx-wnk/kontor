@@ -3,12 +3,12 @@ package tools
 import (
 	"context"
 
-	tasksapi "github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/permissions"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
+	tasksapi "github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/permissions"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 )
 
 // ControlOrchestrator is the orchestrator interface needed by control tools.

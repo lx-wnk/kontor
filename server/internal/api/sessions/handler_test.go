@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/sessions"
+	"github.com/lx-wnk/kontor/server/internal/api/sessions"
 )
 
 // TestSessionsList_DoesNotPanic is a smoke test that the List handler does not panic

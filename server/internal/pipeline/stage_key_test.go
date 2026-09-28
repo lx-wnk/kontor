@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // newFakeStageRunRepo constructs the package's existing fake repo.StageRunRepo

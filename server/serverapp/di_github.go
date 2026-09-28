@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // buildGitHubClient returns nil, nil when GitHub is unconfigured: the

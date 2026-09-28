@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
-	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
-	"github.com/lx-wnk/agent-dashboard/server/internal/taskcontrol"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/proc"
+	"github.com/lx-wnk/kontor/server/internal/taskcontrol"
 )
 
 // runProgressTaskLocked is the core of ProgressTask — called with the per-task

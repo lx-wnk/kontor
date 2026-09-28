@@ -7,9 +7,9 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/systemprompt"
-	"github.com/lx-wnk/agent-dashboard/server/internal/domainerr"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/systemprompt"
+	"github.com/lx-wnk/kontor/server/internal/domainerr"
 )
 
 // SystemPromptRepo defines CRUD for SystemPrompt entities.

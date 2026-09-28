@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/merger"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // heartbeatInterval is the maximum time between SSE frames. A comment frame

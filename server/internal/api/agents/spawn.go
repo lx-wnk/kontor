@@ -11,13 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/envsec"
-	"github.com/lx-wnk/agent-dashboard/server/internal/httputil"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/envsec"
+	"github.com/lx-wnk/kontor/server/internal/httputil"
+	"github.com/lx-wnk/kontor/server/internal/services"
 	"io"
 	"log/slog"
 	"net/http"
@@ -998,7 +998,7 @@ func resolveSpawnEnv(s *ent.Spawner) []string {
 		}
 		k, v := kv[:i], kv[i+1:]
 		merged[k] = v
-		if strings.HasPrefix(k, "DASHBOARD_") || strings.HasPrefix(k, "CLAUDE_") {
+		if strings.HasPrefix(k, "DASHBOARD_") || strings.HasPrefix(k, "KONTOR_") || strings.HasPrefix(k, "CLAUDE_") {
 			dashboard[k] = v
 		}
 	}

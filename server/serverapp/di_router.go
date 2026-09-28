@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api"
-	authpkg "github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/config"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/api"
+	authpkg "github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/config"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // resolveBypassAuth derives the auth-bypass decision from settings.

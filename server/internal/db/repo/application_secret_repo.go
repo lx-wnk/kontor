@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/applicationsecret"
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/applicationsecret"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
 )
 
 var ErrSecretsUnavailable = errors.New("application secrets: no encryption key is configured")

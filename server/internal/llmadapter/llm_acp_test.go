@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	sdkacp "github.com/coder/acp-go-sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/acp"
+	"github.com/lx-wnk/kontor/server/internal/acp"
 	"github.com/stretchr/testify/require"
 )
 

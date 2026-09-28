@@ -183,8 +183,8 @@ Each tool becomes a capability named the way Claude Code names it, `mcp__<server
 Refresh before granting — the grants API rejects capability names it does not know. Then:
 
 ```bash
-agent-dashboard grants add mcp__mail__search_emails --scope routine:<schedule id> --mode allow
-agent-dashboard grants add mcp__mail__send_email --scope global --mode deny
+kontor grants add mcp__mail__search_emails --scope routine:<schedule id> --mode allow
+kontor grants add mcp__mail__send_email --scope global --mode deny
 ```
 
 Grants resolve from the most specific context: task, routine, project (the task's working directory), global. An allow lands in the run's `--allowedTools`, a deny in `--disallowedTools`.
@@ -221,7 +221,7 @@ method available in the key dialog.
 3. In the token-reveal dialog, find the **CLI command** block — it shows a ready-to-run command
    like:
    ```sh
-   claude mcp add --scope user --transport http agent-dashboard \
+   claude mcp add --scope user --transport http kontor \
      http://127.0.0.1:13120/api/mcp \
      --header "Authorization: Bearer mcp_<your-token>"
    ```
@@ -238,14 +238,14 @@ instead.
 > `--scope <local|user|project>`, `--header`) as of Claude Code 2025. If a flag name differs, adapt
 > accordingly and update this doc.
 
-### Make the session controllable (`agent-dashboard live`)
+### Make the session controllable (`kontor live`)
 
 The MCP connection above lets a session **report to** the dashboard (task tools, replies,
 permission requests). To also **control** a session from the dashboard — answer its
 AskUserQuestion prompts, inject prompts, drive it from the Terminal tab — start it with:
 
 ```sh
-agent-dashboard live -- <your usual claude args>
+kontor live -- <your usual claude args>
 ```
 
 `live` runs your normal, interactive Claude session (it proxies your real terminal, so you use it
@@ -258,7 +258,7 @@ can push prompts to it. Add `--yolo` to skip permission prompts.
 Sessions the dashboard **spawns** for you already run this way. A plain `claude` you started
 yourself (not via `live`, not in tmux) is monitor-only — the dashboard can see it but has no input
 path. This cannot be retrofitted onto an already-running session (a session's terminal is owned at
-launch); relaunch it via `agent-dashboard live` to make it controllable.
+launch); relaunch it via `kontor live` to make it controllable.
 
 ### Manual / JSON config alternative
 
@@ -268,7 +268,7 @@ or `~/.claude.json` (user-scoped):
 ```json
 {
   "mcpServers": {
-    "agent-dashboard": {
+    "kontor": {
       "type": "http",
       "url": "http://127.0.0.1:13120/api/mcp",
       "headers": {

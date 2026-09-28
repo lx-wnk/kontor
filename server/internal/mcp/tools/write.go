@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/permissions"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
-	"github.com/lx-wnk/agent-dashboard/server/internal/taskcontrol"
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/permissions"
+	"github.com/lx-wnk/kontor/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/taskcontrol"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // WriteDeps holds the repositories required by the write tools.

@@ -1,8 +1,8 @@
 package serverapp
 
 import (
-	"github.com/lx-wnk/agent-dashboard/server/internal/config"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/config"
+	"github.com/lx-wnk/kontor/server/internal/db"
 )
 
 func provideDB(cfg config.Config) (*db.DBBundle, error) {

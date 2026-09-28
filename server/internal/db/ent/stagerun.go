@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/stagerun"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/stagerun"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
 )
 
 // StageRun is the model entity for the StageRun schema.

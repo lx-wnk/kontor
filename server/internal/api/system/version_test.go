@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/version"
+	"github.com/lx-wnk/kontor/server/internal/version"
 )
 
 // The health endpoint is the only runtime answer to "which build am I looking

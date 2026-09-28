@@ -8,8 +8,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskdependency"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskdependency"
 )
 
 // TaskDependency is the model entity for the TaskDependency schema.

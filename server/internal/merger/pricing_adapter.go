@@ -1,9 +1,9 @@
 package merger
 
 import (
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
-	"github.com/lx-wnk/agent-dashboard/server/internal/provider"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/provider"
 )
 
 // PricingAdapter returns the parser-backed pricing implementation for the

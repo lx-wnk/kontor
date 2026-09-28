@@ -6,8 +6,8 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/permissionpreset"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/permissionpreset"
 )
 
 // PermissionPresetRepo is the data-access interface for permission presets.

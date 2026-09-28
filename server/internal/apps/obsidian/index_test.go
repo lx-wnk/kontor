@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // fakeVault is a minimal stand-in for Obsidian's Local REST API: a mutable

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudeconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 )
 
 func setDebounce(t *testing.T, d time.Duration) {

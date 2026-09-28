@@ -3,8 +3,8 @@ package pipeline
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudemodel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/claudemodel"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // Per-stage model config key prefix (e.g. stageModelKeyPrefix+"implementation").

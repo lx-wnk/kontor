@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 func TestRegistry_EmptyDir_LoadsNothing(t *testing.T) {

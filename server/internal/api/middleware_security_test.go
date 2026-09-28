@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api"
+	"github.com/lx-wnk/kontor/server/internal/api"
 )
 
 // okHandler returns 200 OK to confirm the request passed through.

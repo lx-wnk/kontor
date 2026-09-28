@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudeconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 )
 
 func writeConfigFile(t *testing.T, dir, content string, mode os.FileMode) string {

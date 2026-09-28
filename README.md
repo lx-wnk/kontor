@@ -1,6 +1,6 @@
 <div align="center">
 
-# Agent Dashboard
+# Kontor
 
 **A real-time monitoring and control plane for locally running Claude Code agents.**
 
@@ -10,15 +10,15 @@ See every running agent at a glance — tokens, cost, status, tools, tasks, and 
 [![Go 1.26](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Vue 3](https://img.shields.io/badge/vue-3-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![Status](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/lx-wnk/Agent-Dashboard)
+[![Status](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/lx-wnk/kontor)
 
 </div>
 
 <p align="center">
-  <img src="docs/assets/hero.png" alt="Agent Dashboard — live agent roster with permission triage band, per-agent cost, and system footer" width="900">
+  <img src="docs/assets/hero.png" alt="Kontor — live agent roster with permission triage band, per-agent cost, and system footer" width="900">
 </p>
 
-## Why Agent Dashboard
+## Why Kontor
 
 Most agent monitors require you to wire hooks or wrappers into every project. This one doesn't — it reads what Claude Code already writes to disk and watches the processes you already run.
 
@@ -49,7 +49,7 @@ A live-injectable session's agent modal has a **Terminal** tab — a real `xterm
 
 **Extend** — authenticated MCP control plane with scoped tokens; in-dashboard `~/.claude` config explorer and git-worktree panel; frontend plugin slots and pluggable LLM adapters (OpenAI-compatible, Ollama, `anthropic`); Web Push, webhook, and email notifications. Plugins are enabled and disabled **live** from **Settings → Plugins** via `POST /api/plugins/{id}/activate` and `/deactivate` — no server restart needed for most plugins. Exception: plugins with the `auth_provider` capability are boot-wired (they affect server startup) and require a restart to take effect — after toggling one, the panel shows a "Restart required to apply" badge and a **Restart server** button; clicking it triggers the restart and a reconnect overlay polls until the server is back, then reloads the page automatically. Per-plugin settings with schema-defined fields (string, URL, integer, boolean, enum) are editable in the same panel; secret fields are masked and unchanged secrets are preserved on save. Route and UI extension plugins are reverse-proxied through a single catch-all at `/api/plugins/{id}/proxy/*`; a stopped or crashed plugin returns HTTP 503 rather than silently disappearing. A system-owned **memory** store lets agents and you persist facts, preferences, and lessons that outlive one task (`memory_search`/`memory_write` MCP tools, `/api/memory/*` HTTP routes, both gated by the capability model above) — a budgeted, ranked extract is automatically appended to every stage's spawn prompt. **Settings → Registry** lists the registry's own rows — applications, routines, skills and memory spaces — by kind and scope, over a read-only `GET /api/resources`; the memory-spaces kind needs a `memory.read` grant in the scope being viewed, the same one `/api/memory/spaces` requires. Routines are the scheduled tasks, projected from `task_schedule` rather than mirrored into the registry table, and the id each row reports is the one a `--scope routine:<id>` grant names — today that grant decides the automatic memory push into the tasks that routine fires, plus any memory/obsidian MCP tool call a pipelined stage run for that task makes (see [Security](docs/guides/security.md#capabilities-and-the-permission-gate)). **Settings → Memory** browses the spaces in a scope, opens any one of them to list its entries, searches entries by text, and creates, supersedes and expires them — a space has to be openable because an empty search query deliberately returns nothing, so search alone could never show what a space holds; the task modal's **Stages** tab shows what each stage run's spawn actually received — entries pushed, characters spent against the budget, and how many candidates the ranker chose from — read from `GET /api/memory/injections`, which gates on `memory.read` at global scope. See [Privacy policy](./PRIVACY.md) for what it stores and how it's removed. An Obsidian vault is registered as a resource-registry **Application** (`server/internal/apps/obsidian`) with four gated capabilities (read/search/write/delete): configure it from **Settings → Obsidian**, then reach it through `POST /api/obsidian/index` (turns vault notes into memory pointers) or four capability-gated `obsidian_*` MCP tools that read, search, write, and delete notes directly — see [Obsidian vault](#obsidian-vault) below for what it takes to actually turn it on. GitHub is registered as a resource-registry **Application** (`server/internal/apps/github`) the same way, with four gated capabilities — `github.read`, `github.search`, `github.comment`, `github.merge` — of which `github.merge` is class `spend`, so it is denied outright without an explicit grant rather than surfaced as a prompt; configure it from **Settings → GitHub** (`github.token`, `github.repos`, `github.baseURL`), then reach it at `GET /api/github/summary`, `GET /api/github/search`, `POST /api/github/comment`, `POST /api/github/merge`, or as the four capability-gated `github_*` MCP tools. The cockpit's GitHub panel shows each open pull request's check-run state and offers a **Merge** button behind a confirmation that names the pull request; it calls the same gated route, so it needs a `github.merge` grant like any other caller — see [GitHub](#github) below for the allow-list, the grant commands, and the GHE-on-LAN limitation.
 
-**Supported agents / providers** — Claude Code is monitored by default. Codex CLI, Gemini CLI, and Junie CLI can be monitored too, but are opt-in. Enable or disable them from **Settings → Providers** in the dashboard UI — the change is persisted and takes effect within a few seconds without a restart. You can also set `DASHBOARD_PROVIDERS_ENABLED` to a comma-separated list of ids (`codex`, `gemini`, `junie`) as a fallback when no database row exists, or drop your own descriptor YAML files in a directory pointed to by `DASHBOARD_PROVIDER_DIR`. Agents using a local Ollama-served model show a cost of **$0** ("local") instead of "unknown".
+**Supported agents / providers** — Claude Code is monitored by default. Codex CLI, Gemini CLI, and Junie CLI can be monitored too, but are opt-in. Enable or disable them from **Settings → Providers** in the dashboard UI — the change is persisted and takes effect within a few seconds without a restart. You can also set `KONTOR_PROVIDERS_ENABLED` to a comma-separated list of ids (`codex`, `gemini`, `junie`) as a fallback when no database row exists, or drop your own descriptor YAML files in a directory pointed to by `KONTOR_PROVIDER_DIR`. Agents using a local Ollama-served model show a cost of **$0** ("local") instead of "unknown".
 
 See [`docs/`](docs/README.md) for the full feature reference.
 
@@ -61,17 +61,17 @@ See [`docs/`](docs/README.md) for the full feature reference.
 
 **One-liner (macOS / Linux):**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/lx-wnk/Agent-Dashboard/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/lx-wnk/kontor/main/install.sh | sh
 ```
 
 Or use Homebrew (macOS):
 ```sh
-brew install lx-wnk/tap/agent-dashboard
+brew install lx-wnk/tap/kontor
 ```
 
 Then:
 ```sh
-agent-dashboard serve
+kontor serve
 ```
 
 Open **http://localhost:13120** — any running Claude Code agents appear automatically. On loopback with no OAuth configured, the dashboard runs in local-trust mode (no login). See [Security](docs/guides/security.md) before exposing it anywhere.
@@ -87,8 +87,8 @@ On first launch, a guided setup flow opens automatically and walks you through t
 Requires Go 1.26+, [Task](https://taskfile.dev), [air](https://github.com/air-verse/air), Node.js 22+, and [pnpm](https://pnpm.io/installation).
 
 ```bash
-git clone https://github.com/lx-wnk/Agent-Dashboard.git
-cd Agent-Dashboard
+git clone https://github.com/lx-wnk/kontor.git
+cd Kontor
 pnpm install        # frontend dependencies (Go deps are fetched on first build)
 task dev            # Go backend (air hot-reload) + Vite — serves on :13120
 ```
@@ -97,7 +97,7 @@ When iterating on the UI, run `pnpm dev` in a second terminal for HMR on `:5173`
 
 ## Desktop app (macOS)
 
-A native macOS shell (`desktop/`, [wails](https://wails.io) v2) wraps the same dashboard as one binary — no separate server process, no sidecar. It starts the dashboard HTTP server in-process on `127.0.0.1:13120` and opens a native WKWebView window pointed at it, so it's the identical Vue SPA you get in a browser tab, just packaged as an app. Other platforms keep running `agent-dashboard serve` in a browser; the desktop shell is macOS-only.
+A native macOS shell (`desktop/`, [wails](https://wails.io) v2) wraps the same dashboard as one binary — no separate server process, no sidecar. It starts the dashboard HTTP server in-process on `127.0.0.1:13120` and opens a native WKWebView window pointed at it, so it's the identical Vue SPA you get in a browser tab, just packaged as an app. Other platforms keep running `kontor serve` in a browser; the desktop shell is macOS-only.
 
 Build and run it for a smoke test (requires macOS + Xcode command-line tools; no `wails` CLI needed for this):
 
@@ -122,27 +122,27 @@ notarization steps are documented in [docs/desktop-distribution.md](docs/desktop
 
 **Activating an `auth_provider` plugin requires a restart to apply** (auth is boot-wired, not live-reloadable).
 
-**Default (`DASHBOARD_RESTART_MODE=reexec`):** the process re-execs itself in place — same PID, no supervisor needed. Works with plain `./bin/agent-dashboard serve`.
+**Default (`KONTOR_RESTART_MODE=reexec`):** the process re-execs itself in place — same PID, no supervisor needed. Works with plain `./bin/agent-dashboard serve`.
 
 **Rebuilding first.** A plain restart re-execs the *same binary on disk*, so it never picks up a merged change. Send `{"rebuild": true}` — or use **Rebuild and restart** in **Settings → Server** — and the server builds first and only relaunches if that succeeded. A failed build answers **500** with the last 40 lines of output and leaves the running binary untouched. The build command is fixed in Go; nothing from the request reaches it.
 
 The status bar warns when the running build is older than the source it was built from, comparing the binary's stamped version against `git describe` in the server's working directory. If either is unknown, no warning is shown.
 
-**Supervised (`DASHBOARD_RESTART_MODE=exit`):** the process exits cleanly so the supervisor relaunches it.
+**Supervised (`KONTOR_RESTART_MODE=exit`):** the process exits cleanly so the supervisor relaunches it.
 
 | Supervisor | Required config |
 |---|---|
 | systemd | `Restart=always` in the service unit |
 | launchd | `KeepAlive` in the plist |
-| Wrapper loop | `while true; do ./bin/agent-dashboard serve; done` |
+| Wrapper loop | `while true; do ./bin/kontor serve; done` |
 
 ## Locked out?
 
 A bad `auth.mode` or a broken `auth_provider` plugin can lock you out of the UI. The CLI edits the SQLite database directly, so it works even while the server is down:
 
 ```bash
-agent-dashboard settings set auth.mode none   # reset auth, then restart the server
-agent-dashboard grants add memory.read --pattern '*' --scope global --mode allow
+kontor settings set auth.mode none   # reset auth, then restart the server
+kontor grants add memory.read --pattern '*' --scope global --mode allow
 ```
 
 See [Configuration](docs/guides/configuration.md) for the full settings/grants/plugins CLI reference.
@@ -163,9 +163,9 @@ into searchable memory pointers — but only once the `obsidian.read`, `obsidian
 `memory.write` capability grants exist. A fresh install denies the run otherwise:
 
 ```bash
-agent-dashboard grants add obsidian.read --pattern '*' --scope global --mode allow
-agent-dashboard grants add obsidian.search --pattern '*' --scope global --mode allow
-agent-dashboard grants add memory.write --pattern '*' --scope global --mode allow
+kontor grants add obsidian.read --pattern '*' --scope global --mode allow
+kontor grants add obsidian.search --pattern '*' --scope global --mode allow
+kontor grants add memory.write --pattern '*' --scope global --mode allow
 ```
 
 (or the same three from **Settings → Grants**). Agents can also reach the vault directly — read,
@@ -198,8 +198,8 @@ Once configured, the cockpit's **GitHub** panel reads open pull requests from
 MCP tool, is gated by one of four capabilities. A fresh install denies all four by default:
 
 ```bash
-agent-dashboard grants add github.read --pattern '*' --scope global --mode allow
-agent-dashboard grants add github.search --pattern '*' --scope global --mode allow
+kontor grants add github.read --pattern '*' --scope global --mode allow
+kontor grants add github.search --pattern '*' --scope global --mode allow
 ```
 
 `github.comment` and `github.merge` are deliberately not on that list. Posting a comment is public
@@ -242,7 +242,7 @@ task lint           # golangci-lint
 pnpm typecheck      # vue-tsc
 ```
 
-Found a bug or have an idea? [Open an issue](https://github.com/lx-wnk/Agent-Dashboard/issues/new/choose).
+Found a bug or have an idea? [Open an issue](https://github.com/lx-wnk/kontor/issues/new/choose).
 
 ## License
 

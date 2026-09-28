@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/checkpoint"
 )
 
 func TestCheckpointer_FiresOnWrite(t *testing.T) {

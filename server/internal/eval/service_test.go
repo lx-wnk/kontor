@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // TestService_Scan_DetectsDrift seeds baseline snapshots and recent stage_runs that

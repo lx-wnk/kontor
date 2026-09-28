@@ -1,4 +1,4 @@
-# Releasing Agent Dashboard
+# Releasing Kontor
 
 This document is for repository maintainers. End users: see [docs/guides/install.md](guides/install.md).
 
@@ -16,8 +16,8 @@ These steps are done once and do not repeat per release.
 Create a public GitHub repository named `homebrew-tap` under the `lx-wnk` org:
 `https://github.com/lx-wnk/homebrew-tap`
 
-GoReleaser pushes the generated Homebrew **cask** (`Casks/agent-dashboard.rb`) to this repo. It must
-be public for `brew install lx-wnk/tap/agent-dashboard` to work. Homebrew Cask is macOS-only — Linux
+GoReleaser pushes the generated Homebrew **cask** (`Casks/kontor.rb`) to this repo. It must
+be public for `brew install lx-wnk/tap/kontor` to work. Homebrew Cask is macOS-only — Linux
 users install via the binary one-liner or Docker (see install guide).
 
 ### 2. Create a `HOMEBREW_TAP_TOKEN` secret
@@ -26,18 +26,18 @@ The cask push needs a Personal Access Token (PAT) with write access to `lx-wnk/h
 
 1. Create a PAT at **GitHub → Settings → Developer settings → Personal access tokens (classic)**.
    Scopes: `repo` (full repo access, allows push to `homebrew-tap`).
-2. Add it as a repository secret in `Agent-Dashboard`:
+2. Add it as a repository secret in `Kontor`:
    **Settings → Secrets and variables → Actions → New repository secret**
    Name: `HOMEBREW_TAP_TOKEN`
 
 ### 3. Verify GHCR is enabled
 
-`ghcr.io/lx-wnk/agent-dashboard` images are pushed using the `GITHUB_TOKEN` (no extra secret needed)
+`ghcr.io/lx-wnk/kontor` images are pushed using the `GITHUB_TOKEN` (no extra secret needed)
 because `.github/workflows/release.yml` has `permissions.packages: write` and a `docker/login-action`
 step that logs in to GHCR.
 
 After the first image is pushed, the package visibility may default to private. Set it to public at:
-`https://github.com/lx-wnk?tab=packages` → `agent-dashboard` → **Package settings → Change visibility → Public**.
+`https://github.com/lx-wnk?tab=packages` → `kontor` → **Package settings → Change visibility → Public**.
 
 ## Release steps (per release)
 
@@ -53,18 +53,18 @@ After the first image is pushed, the package visibility may default to private. 
    git push origin v0.1.0
    ```
 
-4. **Watch the Release workflow** at `https://github.com/lx-wnk/Agent-Dashboard/actions`.
+4. **Watch the Release workflow** at `https://github.com/lx-wnk/kontor/actions`.
    It runs GoReleaser, which:
    - Builds four binaries (darwin/linux × amd64/arm64)
    - Creates four `.tar.gz` archives + `checksums.txt` → GitHub release assets
    - Pushes the Homebrew cask to `lx-wnk/homebrew-tap`
-   - Builds and pushes the multi-arch Docker image `ghcr.io/lx-wnk/agent-dashboard:{version}` and
+   - Builds and pushes the multi-arch Docker image `ghcr.io/lx-wnk/kontor:{version}` and
      `:latest` (a single manifest covering `linux/amd64` + `linux/arm64`)
 
 5. **Verify:**
    - GitHub release page shows four archives, `checksums.txt`, and the `install.sh` one-liner works
-   - `brew install lx-wnk/tap/agent-dashboard` succeeds on macOS (allow a few minutes for the tap to propagate)
-   - `docker pull ghcr.io/lx-wnk/agent-dashboard:latest` succeeds
+   - `brew install lx-wnk/tap/kontor` succeeds on macOS (allow a few minutes for the tap to propagate)
+   - `docker pull ghcr.io/lx-wnk/kontor:latest` succeeds
 
 ## Dry-run before tagging (recommended)
 
@@ -102,7 +102,7 @@ multi-arch manifest is only assembled on a real (push) release. Check that all f
 
 ## Security reminder
 
-`agent-dashboard serve` binds to `127.0.0.1` only. The Docker run command in all docs publishes
+`kontor serve` binds to `127.0.0.1` only. The Docker run command in all docs publishes
 with `-p 127.0.0.1:13120:13120` — never omit the loopback host on the published port. Inside the
 container the server is told to bind `0.0.0.0` (`-e DASHBOARD_HOST=0.0.0.0 -e DASHBOARD_REMOTES_ENABLED=true`)
 so the published loopback port can reach it; this stays private precisely because the host-side

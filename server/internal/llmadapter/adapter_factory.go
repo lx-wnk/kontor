@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/acp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/acp"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // NewLLMSpawnerFromSpawner constructs the LLMSpawner adapter that corresponds

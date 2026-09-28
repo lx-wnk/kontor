@@ -6,7 +6,7 @@
 task dev           # Start Go backend + Vite frontend in parallel (recommended)
 task dev:go        # Go backend only (air hot-reload on :13120)
 task dev:frontend  # Vite dev server only (HMR on :5173)
-task build         # Compile binary → bin/agent-dashboard
+task build         # Compile binary → bin/kontor
 task test          # Run all tests (sdk + server, race detector)
 task lint          # golangci-lint (sdk + server)
 task generate      # Regenerate ent schemas + tygo TS types (no DI codegen — DI is hand-written in cmd/serve/di.go)

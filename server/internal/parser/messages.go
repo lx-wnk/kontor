@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 // Message is the decoded shape of one entry line from a Claude session JSONL file.

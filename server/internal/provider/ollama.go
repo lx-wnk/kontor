@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/ollamaclient"
+	"github.com/lx-wnk/kontor/server/internal/ollamaclient"
 )
 
 // OllamaClassifier decides whether a model is a locally-served (zero-cost)

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/capability"
 )
 
 func TestDecideSpecificityAndDenyPrecedence(t *testing.T) {

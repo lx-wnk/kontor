@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
+	"github.com/lx-wnk/kontor/server/internal/proc"
 	"github.com/stretchr/testify/require"
 )
 

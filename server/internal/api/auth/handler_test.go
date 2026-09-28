@@ -14,11 +14,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	apiauth "github.com/lx-wnk/agent-dashboard/server/internal/api/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	authpkg "github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	apiauth "github.com/lx-wnk/kontor/server/internal/api/auth"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	authpkg "github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 func TestHandler_LoginRedirect_NoProvider(t *testing.T) {

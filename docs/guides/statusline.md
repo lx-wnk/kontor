@@ -6,14 +6,14 @@
 # zsh — add to ~/.zshrc
 _agent_status() {
     local out
-    out=$(python3 /path/to/agent-dashboard/scripts/statusline.py 2>/dev/null)
+    out=$(python3 /path/to/kontor/scripts/statusline.py 2>/dev/null)
     [[ -n "$out" ]] && echo " [$out]"
 }
 PROMPT='%n@%m %~$(_agent_status) %# '
 
 # bash — add to ~/.bashrc
 _agent_status() {
-    python3 /path/to/agent-dashboard/scripts/statusline.py 2>/dev/null
+    python3 /path/to/kontor/scripts/statusline.py 2>/dev/null
 }
 PROMPT_COMMAND='export PS1="\u@\h \w [$(_agent_status)] \$ "'
 ```

@@ -12,11 +12,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	apiplugins "github.com/lx-wnk/agent-dashboard/server/internal/api/plugins"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
-	"github.com/lx-wnk/agent-dashboard/server/internal/serverask"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	apiplugins "github.com/lx-wnk/kontor/server/internal/api/plugins"
+	"github.com/lx-wnk/kontor/server/internal/merger"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/serverask"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // stubPluginController satisfies the unexported controller interface consumed by

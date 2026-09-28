@@ -3,7 +3,7 @@ package scanner
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 	"github.com/stretchr/testify/assert"
 )
 

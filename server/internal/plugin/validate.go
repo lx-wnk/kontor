@@ -1,6 +1,6 @@
 package plugin
 
-import "github.com/lx-wnk/agent-dashboard/server/internal/validation"
+import "github.com/lx-wnk/kontor/server/internal/validation"
 
 // ValidID reports whether id is a well-formed plugin id. Plugin ids are slugs
 // and use the canonical rule — validation.SlugRE — rather than a local copy.

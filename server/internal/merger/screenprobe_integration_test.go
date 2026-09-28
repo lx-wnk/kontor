@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
-	"github.com/lx-wnk/agent-dashboard/server/internal/testsupport/fakespawn"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/merger"
+	"github.com/lx-wnk/kontor/server/internal/testsupport/fakespawn"
 )
 
 // TestGetAgents_PendingQuestion_InjectableAgentUsesProbe verifies an

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	apirefine "github.com/lx-wnk/agent-dashboard/server/internal/api/refine"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/refinementturn"
-	"github.com/lx-wnk/agent-dashboard/server/internal/refine"
+	apirefine "github.com/lx-wnk/kontor/server/internal/api/refine"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/refinementturn"
+	"github.com/lx-wnk/kontor/server/internal/refine"
 )
 
 // TestInjectConcept_RoundTripsViaExtractConcept verifies that InjectConcept persists

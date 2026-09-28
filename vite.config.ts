@@ -54,8 +54,8 @@ export default defineConfig(({ mode }) => ({
       filename: 'sw.ts',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Agent Dashboard',
-        short_name: 'Agents',
+        name: 'Kontor',
+        short_name: 'Kontor',
         description: 'Real-time monitoring dashboard for Claude Code agents',
         theme_color: '#1e293b',
         background_color: '#0f172a',

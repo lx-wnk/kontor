@@ -11,8 +11,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // Slug identifies the GitHub application resource in the registry.

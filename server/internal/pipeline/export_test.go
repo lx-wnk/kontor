@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // ExportedWriteSettingsFile exposes writeSettingsFile for spawner tests.

@@ -5,7 +5,7 @@
 # so go:embed (server/frontend/embed.go) bakes the real frontend into each binary.
 version: 2
 
-project_name: agent-dashboard
+project_name: kontor
 
 before:
   hooks:
@@ -13,10 +13,10 @@ before:
     - pnpm build
 
 builds:
-  - id: agent-dashboard
+  - id: kontor
     dir: server
     main: ./cmd/serve
-    binary: agent-dashboard
+    binary: kontor
     env:
       - CGO_ENABLED=0
     goos:
@@ -47,9 +47,9 @@ checksum:
 # Homebrew Cask (macOS only — Homebrew Cask is not supported on Linux;
 # Linux users install via the binary one-liner or Docker).
 homebrew_casks:
-  - name: agent-dashboard
+  - name: kontor
     binaries:
-      - agent-dashboard
+      - kontor
     repository:
       owner: lx-wnk
       name: homebrew-tap
@@ -57,30 +57,30 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    commit_msg_template: 'chore: update agent-dashboard cask to {{ .Tag }}'
-    homepage: 'https://github.com/lx-wnk/Agent-Dashboard'
+    commit_msg_template: 'chore: update kontor cask to {{ .Tag }}'
+    homepage: 'https://github.com/lx-wnk/kontor'
     description: Real-time monitoring dashboard for locally running Claude Code agents
     skip_upload: auto
     caveats: |
-      Agent Dashboard binds to 127.0.0.1:13120 and reads ~/.claude session data.
+      Kontor binds to 127.0.0.1:13120 and reads ~/.claude session data.
       Never expose the dashboard port to non-loopback networks.
 
       Start the dashboard:
-        agent-dashboard serve
+        kontor serve
       Then open http://localhost:13120
     # Strip the Gatekeeper quarantine attribute so the downloaded binary runs.
     hooks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/agent-dashboard"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kontor"]
           end
 
 dockers_v2:
-  - id: agent-dashboard
+  - id: kontor
     dockerfile: Dockerfile.goreleaser
     images:
-      - ghcr.io/lx-wnk/agent-dashboard
+      - ghcr.io/lx-wnk/kontor
     tags:
       - '{{ .Version }}'
       - latest
@@ -89,7 +89,7 @@ dockers_v2:
       - linux/arm64
     labels:
       org.opencontainers.image.version: '{{ .Version }}'
-      org.opencontainers.image.source: 'https://github.com/lx-wnk/Agent-Dashboard'
+      org.opencontainers.image.source: 'https://github.com/lx-wnk/kontor'
     sbom: false
 
 snapshot:
@@ -120,7 +120,7 @@ changelog:
 release:
   github:
     owner: lx-wnk
-    name: Agent-Dashboard
+    name: kontor
   draft: false
   prerelease: auto
   footer: |
@@ -128,9 +128,9 @@ release:
 
     **One-liner (macOS / Linux):**
     ```sh
-    curl -fsSL https://raw.githubusercontent.com/lx-wnk/Agent-Dashboard/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/lx-wnk/kontor/main/install.sh | sh
     ```
 
-    Or download the archive for your platform below, extract it, and move `agent-dashboard` onto your `PATH`.
+    Or download the archive for your platform below, extract it, and move `kontor` onto your `PATH`.
 
-    > Agent Dashboard reads your local Claude Code sessions — it binds to `127.0.0.1` only. See the [security model](https://github.com/lx-wnk/Agent-Dashboard/blob/main/docs/guides/security.md).
+    > Kontor reads your local Claude Code sessions — it binds to `127.0.0.1` only. See the [security model](https://github.com/lx-wnk/kontor/blob/main/docs/guides/security.md).

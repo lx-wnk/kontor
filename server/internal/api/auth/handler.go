@@ -11,10 +11,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	serverauth "github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	serverauth "github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // Deps holds all dependencies for the auth handler.

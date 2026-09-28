@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/cmdscope"
+	"github.com/lx-wnk/kontor/server/internal/cmdscope"
 )
 
 // maxConfigFileBytes caps both the read response and the accepted write payload.

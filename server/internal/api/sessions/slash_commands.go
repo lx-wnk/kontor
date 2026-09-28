@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/cmdscope"
+	"github.com/lx-wnk/kontor/server/internal/cmdscope"
 )
 
 // CommandsHandler serves slash-command enumeration scoped to a spawner or a live

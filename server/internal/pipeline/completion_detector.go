@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/proc"
 )
 
 const agentMessageMaxChars = 2000

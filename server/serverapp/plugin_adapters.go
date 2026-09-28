@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 // pluginSettingRepoAdapter maps the ent-backed PluginSettingRepo onto the

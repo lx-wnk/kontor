@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	settingsapi "github.com/lx-wnk/agent-dashboard/server/internal/api/settings"
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
-	settingssvc "github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	settingsapi "github.com/lx-wnk/kontor/server/internal/api/settings"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
+	settingssvc "github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 type memRepo struct {

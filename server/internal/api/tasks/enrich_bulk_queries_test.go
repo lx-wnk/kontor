@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	rawrepo "github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	rawrepo "github.com/lx-wnk/kontor/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // countingBulk wraps a real StageRunBulkRepo and counts LatestPerTask calls.

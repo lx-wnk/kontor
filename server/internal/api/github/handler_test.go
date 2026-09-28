@@ -11,14 +11,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	githubapi "github.com/lx-wnk/agent-dashboard/server/internal/api/github"
-	githubapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	githubapi "github.com/lx-wnk/kontor/server/internal/api/github"
+	githubapp "github.com/lx-wnk/kontor/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
-const testRepo = "lx-wnk/agent-dashboard"
+const testRepo = "lx-wnk/kontor"
 
 // defaultUpstream is the fake GitHub every ordinary test runs against: one
 // open pull request, one successful merge, one successful comment, an empty

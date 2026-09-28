@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/envsec"
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/envsec"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // Registry discovers, starts, and health-checks plugins from a directory.
@@ -832,6 +832,7 @@ func buildDashboardSecretEnv() map[string]bool {
 		m[k] = true
 	}
 	m["DASHBOARD_MCP_TOKEN"] = true
+	m["KONTOR_MCP_TOKEN"] = true
 	return m
 }
 

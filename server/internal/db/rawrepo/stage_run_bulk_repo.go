@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/proc"
 )
 
 // StageRunBulkRepo provides bulk raw-SQL helpers for stage_runs that cannot

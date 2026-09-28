@@ -3,8 +3,8 @@ package agentbroadcast
 import (
 	"context"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/merger"
 )
 
 // PermissionBridgeReader is the read side of the hook permission bridge.

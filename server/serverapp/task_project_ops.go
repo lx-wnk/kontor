@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
 )
 
 // taskProjectOps adapts the ent client to api/projects.TaskProjectOps so the

@@ -3,8 +3,8 @@ package refine
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/refinementturn"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/refinementturn"
 )
 
 func turn(role, content string, phase *string) *ent.RefinementTurn {

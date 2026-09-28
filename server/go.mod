@@ -1,8 +1,8 @@
-module github.com/lx-wnk/agent-dashboard/server
+module github.com/lx-wnk/kontor/server
 
 go 1.26
 
-replace github.com/lx-wnk/agent-dashboard/sdk => ../sdk
+replace github.com/lx-wnk/kontor/sdk => ../sdk
 
 require (
 	entgo.io/ent v0.14.6
@@ -20,7 +20,7 @@ require (
 	github.com/knadh/koanf/providers/env v1.1.0
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.6
-	github.com/lx-wnk/agent-dashboard/sdk v0.0.0-00010101000000-000000000000
+	github.com/lx-wnk/kontor/sdk v0.0.0-00010101000000-000000000000
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2

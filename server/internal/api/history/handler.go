@@ -9,9 +9,9 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	histsvc "github.com/lx-wnk/agent-dashboard/server/internal/history"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	histsvc "github.com/lx-wnk/kontor/server/internal/history"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // client is a registered SSE consumer for a user's import progress.

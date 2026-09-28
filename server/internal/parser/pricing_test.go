@@ -3,9 +3,9 @@ package parser_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudemodel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/claudemodel"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 	"github.com/stretchr/testify/require"
 )
 

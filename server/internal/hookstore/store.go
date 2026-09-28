@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 // defaultPerSessionCap is used when New receives a non-positive cap.

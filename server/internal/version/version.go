@@ -7,7 +7,7 @@
 package version
 
 // Version is stamped at build time with
-// -ldflags "-X github.com/lx-wnk/agent-dashboard/server/internal/version.Version=<tag>".
+// -ldflags "-X github.com/lx-wnk/kontor/server/internal/version.Version=<tag>".
 // "dev" means an unstamped local build, which is a useful answer in itself.
 var Version = "dev"
 

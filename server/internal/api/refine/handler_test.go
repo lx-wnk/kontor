@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	apirefine "github.com/lx-wnk/agent-dashboard/server/internal/api/refine"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/refinementturn"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/refine"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
+	apirefine "github.com/lx-wnk/kontor/server/internal/api/refine"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/refinementturn"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/refine"
+	"github.com/lx-wnk/kontor/server/internal/services"
 )
 
 const testJWTSecret = "test-secret-32-chars-minimum-here"

@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/grantusage"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/predicate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/grantusage"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/predicate"
 )
 
 // GrantUsageUpdate is the builder for updating GrantUsage entities.

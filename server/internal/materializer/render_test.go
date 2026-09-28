@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/materializer"
+	"github.com/lx-wnk/kontor/server/internal/materializer"
 )
 
 func TestRenderClaudeSkill_Golden(t *testing.T) {

@@ -6,7 +6,7 @@ package restart
 import (
 	"context"
 	"errors"
-	"github.com/lx-wnk/agent-dashboard/server/internal/version"
+	"github.com/lx-wnk/kontor/server/internal/version"
 	"log/slog"
 	"os"
 	"os/exec"

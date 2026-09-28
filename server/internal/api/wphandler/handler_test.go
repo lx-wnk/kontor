@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/wphandler"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/webpush"
+	"github.com/lx-wnk/kontor/server/internal/api/wphandler"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/webpush"
 )
 
 const testJWTSecret = "wphandler-test-secret"

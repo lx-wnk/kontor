@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/refine"
+	"github.com/lx-wnk/kontor/server/internal/refine"
 )
 
 func TestInjectConceptEndpoint_ReturnsStatusDraftReady(t *testing.T) {

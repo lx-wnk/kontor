@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	wpservice "github.com/lx-wnk/agent-dashboard/server/internal/webpush"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	wpservice "github.com/lx-wnk/kontor/server/internal/webpush"
 )
 
 type pushPermissionNotifier struct{ svc *wpservice.Service }

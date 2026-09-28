@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskpermission"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskpermission"
 )
 
 // TaskPermission is the model entity for the TaskPermission schema.

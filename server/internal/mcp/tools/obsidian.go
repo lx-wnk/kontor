@@ -3,10 +3,10 @@ package tools
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // ObsidianDeps holds the dependencies required by the Obsidian vault MCP

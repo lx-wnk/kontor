@@ -16,15 +16,25 @@ import (
 	"path/filepath"
 )
 
-//go:embed dashboard-permission.sh
+//go:embed kontor-permission.sh
 var script []byte
 
 // Dir is where the script is materialised, relative to the Claude config dir.
-const Dir = "dashboard-hooks"
+const Dir = "kontor-hooks"
+
+// LegacyDir and LegacyName are what the directory and the script were called
+// before the rename. They are not written any more, but an installation that
+// ran an older binary has an entry in its settings file pointing at them, and
+// the installer has to recognise it as its own — otherwise it appends a second
+// entry and the permission hook fires twice.
+const (
+	LegacyDir  = "dashboard-hooks"
+	LegacyName = "dashboard-permission.sh"
+)
 
 // Name is the script's filename. It doubles as the marker that identifies the
 // entries `hooks install` owns.
-const Name = "dashboard-permission.sh"
+const Name = "kontor-permission.sh"
 
 // Install writes the script under configDir and returns its absolute path.
 // Rewriting on every install is deliberate: it is how an upgraded binary

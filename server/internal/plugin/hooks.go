@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	authpkg "github.com/lx-wnk/agent-dashboard/server/internal/auth"
+	authpkg "github.com/lx-wnk/kontor/server/internal/auth"
 )
 
 // Hooks allows callers to react to capabilities discovered during Load.

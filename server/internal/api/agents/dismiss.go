@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 // DismissChannel handles DELETE /api/agents/{pid}/channel. It forgets a FINISHED

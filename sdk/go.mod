@@ -1,3 +1,3 @@
-module github.com/lx-wnk/agent-dashboard/sdk
+module github.com/lx-wnk/kontor/sdk
 
 go 1.26

@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookscript"
+	"github.com/lx-wnk/kontor/server/internal/hookscript"
 	"github.com/spf13/cobra"
 )
 
@@ -254,13 +254,16 @@ func writeSettings(path string, settings map[string]any) error {
 // somebody's own fork of the script carries it too, and treating that as ours
 // meant uninstall deleted it and install reported "already installed" for a
 // script this command never wrote.
-const hookMarker = hookscript.Name
+var hookMarkers = []string{hookscript.Name, hookscript.LegacyName}
 
 // ownedDir is the path fragment this command does own. Everything it installs
 // lives in the directory it creates next to the settings file, so a stale entry
 // from an older install is still recognisable there and can be repaired, while
 // a marker match anywhere else is somebody else's file.
-var ownedDir = hookscript.Dir + string(os.PathSeparator) + hookscript.Name
+var ownedDirs = []string{
+	hookscript.Dir + string(os.PathSeparator) + hookscript.Name,
+	hookscript.LegacyDir + string(os.PathSeparator) + hookscript.LegacyName,
+}
 
 type hooksOutcome int
 
@@ -420,15 +423,27 @@ func entryCommand(entry any, want string) (cmd string, ours, foreign bool) {
 			continue
 		}
 		c, _ := hm["command"].(string)
-		if c == "" || !strings.Contains(c, hookMarker) {
+		if c == "" || !containsAny(c, hookMarkers) {
 			continue
 		}
 		// want is the exact command being installed, which for a --script
 		// override is the only thing identifying it.
-		if c == want || strings.Contains(c, ownedDir) {
+		if c == want || containsAny(c, ownedDirs) {
 			return c, true, false
 		}
 		return c, false, true
 	}
 	return "", false, false
+}
+
+// containsAny reports whether s contains any of the fragments. Both the marker
+// and the owned directory exist in a current and a pre-rename spelling, and an
+// entry written by either is this command's to repair.
+func containsAny(s string, fragments []string) bool {
+	for _, f := range fragments {
+		if strings.Contains(s, f) {
+			return true
+		}
+	}
+	return false
 }

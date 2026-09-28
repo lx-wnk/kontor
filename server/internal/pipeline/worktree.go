@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/worktree"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/worktree"
 )
 
 // gitRunner runs git for worktree mutations with a bounded timeout.

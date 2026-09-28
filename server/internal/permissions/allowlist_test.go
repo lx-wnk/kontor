@@ -3,7 +3,7 @@ package permissions_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/permissions"
+	"github.com/lx-wnk/kontor/server/internal/permissions"
 )
 
 // TestIsWriteTool_ContainsExpectedEntries is the CQ-01 SSOT sync test.

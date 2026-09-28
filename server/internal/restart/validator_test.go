@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
-	"github.com/lx-wnk/agent-dashboard/server/internal/restart"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/restart"
 )
 
 type fakeHealth struct{ entries map[string]plugin.Entry }

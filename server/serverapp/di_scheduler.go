@@ -3,12 +3,12 @@ package serverapp
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/schedules"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/scheduler"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/api/schedules"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/scheduler"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // provideScheduler wires the schedule firing engine and its REST handler. It

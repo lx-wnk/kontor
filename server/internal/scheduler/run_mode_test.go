@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/scheduler"
+	"github.com/lx-wnk/kontor/server/internal/scheduler"
 )
 
 func TestCheckRunMode(t *testing.T) {

@@ -12,11 +12,11 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/predicate"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/stagerun"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskdependency"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskpermission"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/predicate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/stagerun"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskdependency"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskpermission"
 )
 
 // TaskUpdate is the builder for updating Task entities.

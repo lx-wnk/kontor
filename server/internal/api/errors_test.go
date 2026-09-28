@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api"
+	"github.com/lx-wnk/kontor/server/internal/api"
 	"github.com/stretchr/testify/require"
 )
 

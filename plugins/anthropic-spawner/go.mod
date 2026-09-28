@@ -1,4 +1,4 @@
-module github.com/lx-wnk/agent-dashboard-plugin-anthropic-spawner
+module github.com/lx-wnk/kontor-plugin-anthropic-spawner
 
 go 1.26
 

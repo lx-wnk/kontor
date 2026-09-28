@@ -1,4 +1,4 @@
-# agent-dashboard Plugin SDK
+# kontor Plugin SDK
 
 A plugin is an independent HTTP sidecar process plus a `plugin.json` descriptor, and an
 optional vanilla-ESM UI addon module. The dashboard discovers plugins at startup,

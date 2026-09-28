@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/providersetting"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/providersetting"
 )
 
 // ProviderSetting is the model entity for the ProviderSetting schema.

@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/grantusage"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/grantusage"
 )
 
 // GrantUsage is the model entity for the GrantUsage schema.

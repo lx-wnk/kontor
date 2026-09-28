@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/worktree"
+	"github.com/lx-wnk/kontor/server/internal/worktree"
 )
 
 func TestIsGitWorkTree(t *testing.T) {

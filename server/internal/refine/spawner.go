@@ -10,8 +10,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/llmadapter"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/llmadapter"
 )
 
 // SpawnConfig holds the parameters for a single refinement turn.

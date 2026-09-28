@@ -34,7 +34,7 @@ func TestBuildGitHubClient_TokenWithoutReposIsAnError(t *testing.T) {
 
 func TestBuildGitHubClient_ReposWithoutTokenIsAnError(t *testing.T) {
 	svc := newSettingsServiceForTest(t)
-	require.NoError(t, svc.Set(t.Context(), "github.repos", "lx-wnk/agent-dashboard"))
+	require.NoError(t, svc.Set(t.Context(), "github.repos", "lx-wnk/kontor"))
 	_, err := buildGitHubClient(t.Context(), svc)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "github.token")
@@ -65,11 +65,11 @@ func TestBuildGitHubClient_ErrorsNeverCarryTheToken(t *testing.T) {
 func TestBuildGitHubClient_FullyConfiguredBuildsAClient(t *testing.T) {
 	svc := newSettingsServiceForTest(t)
 	require.NoError(t, svc.Set(t.Context(), "github.token", "ghp_x"))
-	require.NoError(t, svc.Set(t.Context(), "github.repos", "lx-wnk/agent-dashboard, golang/go"))
+	require.NoError(t, svc.Set(t.Context(), "github.repos", "lx-wnk/kontor, golang/go"))
 	client, err := buildGitHubClient(t.Context(), svc)
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	assert.Equal(t, []string{"lx-wnk/agent-dashboard", "golang/go"}, client.Repos(),
+	assert.Equal(t, []string{"lx-wnk/kontor", "golang/go"}, client.Repos(),
 		"the allow-list must keep its configured order — the summary panel lists repositories in it")
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/permissionpreset"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/permissionpreset"
 )
 
 // PermissionPreset is the model entity for the PermissionPreset schema.

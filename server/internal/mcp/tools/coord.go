@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // CoordDeps holds the repositories required by the coordination tools.

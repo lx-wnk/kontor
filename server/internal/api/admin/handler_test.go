@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/admin"
+	"github.com/lx-wnk/kontor/server/internal/api/admin"
 )
 
 type fakeValidator struct{ err error }

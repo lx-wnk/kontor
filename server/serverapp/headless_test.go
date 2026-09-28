@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 // TestDispatchHeadless_GuiPathNeverHijacked asserts DispatchHeadless leaves the

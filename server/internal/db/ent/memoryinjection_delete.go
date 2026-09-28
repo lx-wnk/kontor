@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/memoryinjection"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/predicate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/memoryinjection"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/predicate"
 )
 
 // MemoryInjectionDelete is the builder for deleting a MemoryInjection entity.

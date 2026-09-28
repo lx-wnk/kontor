@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 // cgnatBlock is the 100.64.0.0/10 CGNAT range (RFC 6598).

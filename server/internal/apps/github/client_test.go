@@ -10,13 +10,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/apps/github"
 )
 
 func TestParseReposAcceptsOwnerNamePairsAndRejectsEverythingElse(t *testing.T) {
-	got, err := github.ParseRepos(" lx-wnk/agent-dashboard , golang/go ")
+	got, err := github.ParseRepos(" lx-wnk/kontor , golang/go ")
 	require.NoError(t, err)
-	require.Equal(t, []string{"lx-wnk/agent-dashboard", "golang/go"}, got)
+	require.Equal(t, []string{"lx-wnk/kontor", "golang/go"}, got)
 
 	empty, err := github.ParseRepos("")
 	require.NoError(t, err)
@@ -49,11 +49,11 @@ func newFakeGitHub(t *testing.T) (*httptest.Server, *http.Request, *bool) {
 	var last http.Request
 	called := false
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/lx-wnk/agent-dashboard/pulls", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/lx-wnk/kontor/pulls", func(w http.ResponseWriter, r *http.Request) {
 		called, last = true, *r
 		_ = json.NewEncoder(w).Encode([]map[string]any{{
 			"number": 42, "title": "Add the cockpit", "draft": false,
-			"html_url":   "https://github.com/lx-wnk/agent-dashboard/pull/42",
+			"html_url":   "https://github.com/lx-wnk/kontor/pull/42",
 			"updated_at": "2026-09-01T10:00:00Z",
 			"user":       map[string]any{"login": "lx-wnk"},
 		}})
@@ -62,16 +62,16 @@ func newFakeGitHub(t *testing.T) (*httptest.Server, *http.Request, *bool) {
 		called, last = true, *r
 		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{
 			"number": 7, "title": "Flaky test",
-			"html_url":       "https://github.com/lx-wnk/agent-dashboard/issues/7",
-			"repository_url": "https://api.github.com/repos/lx-wnk/agent-dashboard",
+			"html_url":       "https://github.com/lx-wnk/kontor/issues/7",
+			"repository_url": "https://api.github.com/repos/lx-wnk/kontor",
 		}}})
 	})
-	mux.HandleFunc("/repos/lx-wnk/agent-dashboard/issues/42/comments", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/lx-wnk/kontor/issues/42/comments", func(w http.ResponseWriter, r *http.Request) {
 		called, last = true, *r
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(map[string]any{"html_url": "https://github.com/lx-wnk/agent-dashboard/pull/42#issuecomment-1"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"html_url": "https://github.com/lx-wnk/kontor/pull/42#issuecomment-1"})
 	})
-	mux.HandleFunc("/repos/lx-wnk/agent-dashboard/pulls/42/merge", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/lx-wnk/kontor/pulls/42/merge", func(w http.ResponseWriter, r *http.Request) {
 		called, last = true, *r
 		_ = json.NewEncoder(w).Encode(map[string]any{"merged": true, "sha": "deadbeef"})
 	})
@@ -85,7 +85,7 @@ func newTestClient(t *testing.T, ts *httptest.Server) *github.Client {
 	c, err := github.NewClient(github.Config{
 		Token:   "ghp_test",
 		BaseURL: ts.URL,
-		Repos:   []string{"lx-wnk/agent-dashboard"},
+		Repos:   []string{"lx-wnk/kontor"},
 		// The fake server listens on loopback, which validation.SafeDialContext
 		// refuses by design. Tests opt out of the guard; production never does.
 		AllowLoopback: true,
@@ -105,7 +105,7 @@ func clientWithRepos(t *testing.T, repos ...string) *github.Client {
 
 func TestOpenPullRequestsSendsTheTokenAndParsesTheAnswer(t *testing.T) {
 	ts, last, _ := newFakeGitHub(t)
-	prs, err := newTestClient(t, ts).OpenPullRequests(context.Background(), "lx-wnk/agent-dashboard", 5)
+	prs, err := newTestClient(t, ts).OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
 	require.NoError(t, err)
 	require.Len(t, prs, 1)
 	require.Equal(t, 42, prs[0].Number)
@@ -133,7 +133,7 @@ func TestEveryRepoScopedCallRefusesARepoOutsideTheAllowList(t *testing.T) {
 
 	require.False(t, *called, "no request may reach GitHub for a repository outside the allow-list")
 	require.False(t, c.AllowsRepo("evil/repo"))
-	require.True(t, c.AllowsRepo("lx-wnk/agent-dashboard"))
+	require.True(t, c.AllowsRepo("lx-wnk/kontor"))
 }
 
 func TestCommentAndMergeReturnTheirResultURLs(t *testing.T) {
@@ -141,12 +141,12 @@ func TestCommentAndMergeReturnTheirResultURLs(t *testing.T) {
 	c := newTestClient(t, ts)
 	ctx := context.Background()
 
-	url, err := c.Comment(ctx, "lx-wnk/agent-dashboard", 42, "looks good")
+	url, err := c.Comment(ctx, "lx-wnk/kontor", 42, "looks good")
 	require.NoError(t, err)
 	require.Contains(t, url, "issuecomment")
 	require.Equal(t, http.MethodPost, last.Method)
 
-	sha, err := c.MergePullRequest(ctx, "lx-wnk/agent-dashboard", 42, "squash")
+	sha, err := c.MergePullRequest(ctx, "lx-wnk/kontor", 42, "squash")
 	require.NoError(t, err)
 	require.Equal(t, "deadbeef", sha)
 	require.Equal(t, http.MethodPut, last.Method)
@@ -157,7 +157,7 @@ func TestSearchIssuesReportsTheOwningRepository(t *testing.T) {
 	hits, err := newTestClient(t, ts).SearchIssues(context.Background(), "is:open flaky")
 	require.NoError(t, err)
 	require.Len(t, hits, 1)
-	require.Equal(t, "lx-wnk/agent-dashboard", hits[0].Repo)
+	require.Equal(t, "lx-wnk/kontor", hits[0].Repo)
 	require.Equal(t, 7, hits[0].Number)
 	require.Contains(t, last.URL.Query().Get("q"), "flaky")
 }
@@ -170,10 +170,10 @@ func TestClientErrorsNeverCarryTheToken(t *testing.T) {
 		_, _ = w.Write([]byte(`{"message":"Bad credentials"}`))
 	}))
 	t.Cleanup(ts.Close)
-	c, err := github.NewClient(github.Config{Token: "ghp_supersecret", BaseURL: ts.URL, Repos: []string{"lx-wnk/agent-dashboard"}, AllowLoopback: true})
+	c, err := github.NewClient(github.Config{Token: "ghp_supersecret", BaseURL: ts.URL, Repos: []string{"lx-wnk/kontor"}, AllowLoopback: true})
 	require.NoError(t, err)
 
-	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/agent-dashboard", 5)
+	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
 	require.Error(t, err)
 	require.False(t, strings.Contains(err.Error(), "ghp_supersecret"), "the token must never appear in an error: %v", err)
 }
@@ -194,10 +194,10 @@ func TestNewClientRequiresLoopbackOptOut(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	c, err := github.NewClient(github.Config{Token: "t", BaseURL: ts.URL, Repos: []string{"lx-wnk/agent-dashboard"}})
+	c, err := github.NewClient(github.Config{Token: "t", BaseURL: ts.URL, Repos: []string{"lx-wnk/kontor"}})
 	require.NoError(t, err)
 
-	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/agent-dashboard", 5)
+	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
 	require.Error(t, err)
 }
 
@@ -205,7 +205,7 @@ func TestNewClientRequiresLoopbackOptOut(t *testing.T) {
 // failed run makes the whole commit "failure", and the counts are exact.
 func TestChecksSummarisesMixedCheckRuns(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/repos/lx-wnk/agent-dashboard/commits/deadbeef/check-runs", r.URL.Path)
+		require.Equal(t, "/repos/lx-wnk/kontor/commits/deadbeef/check-runs", r.URL.Path)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"total_count": 3,
 			"check_runs": []map[string]any{
@@ -217,7 +217,7 @@ func TestChecksSummarisesMixedCheckRuns(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	summary, err := newTestClient(t, ts).Checks(context.Background(), "lx-wnk/agent-dashboard", "deadbeef")
+	summary, err := newTestClient(t, ts).Checks(context.Background(), "lx-wnk/kontor", "deadbeef")
 	require.NoError(t, err)
 	require.Equal(t, github.CheckStateFailure, summary.State)
 	require.Equal(t, 1, summary.Passed)
@@ -234,7 +234,7 @@ func TestChecksReportsNoneWhenGitHubHasNoCheckRuns(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	summary, err := newTestClient(t, ts).Checks(context.Background(), "lx-wnk/agent-dashboard", "deadbeef")
+	summary, err := newTestClient(t, ts).Checks(context.Background(), "lx-wnk/kontor", "deadbeef")
 	require.NoError(t, err)
 	require.Equal(t, github.CheckStateNone, summary.State)
 	require.Zero(t, summary.Total)
@@ -261,16 +261,16 @@ func TestStatusErrorDistinguishesNotFoundFromForbidden(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"message": "test message"})
 	}))
 	t.Cleanup(ts.Close)
-	c, err := github.NewClient(github.Config{Token: "t", BaseURL: ts.URL, Repos: []string{"lx-wnk/agent-dashboard"}, AllowLoopback: true})
+	c, err := github.NewClient(github.Config{Token: "t", BaseURL: ts.URL, Repos: []string{"lx-wnk/kontor"}, AllowLoopback: true})
 	require.NoError(t, err)
 
-	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/agent-dashboard", 5)
+	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
 	var notFound *github.StatusError
 	require.ErrorAs(t, err, &notFound)
 	require.Equal(t, http.StatusNotFound, notFound.StatusCode)
 
 	status = http.StatusForbidden
-	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/agent-dashboard", 5)
+	_, err = c.OpenPullRequests(context.Background(), "lx-wnk/kontor", 5)
 	var forbidden *github.StatusError
 	require.ErrorAs(t, err, &forbidden)
 	require.Equal(t, http.StatusForbidden, forbidden.StatusCode)
@@ -286,7 +286,7 @@ func TestStatusErrorDistinguishesNotFoundFromForbidden(t *testing.T) {
 // reaches a repository the allow-list never named. Appending cannot bound a
 // query that is free to widen itself.
 func TestBoundQueryRefusesACallerSuppliedScopeQualifier(t *testing.T) {
-	c := clientWithRepos(t, "lx-wnk/agent-dashboard")
+	c := clientWithRepos(t, "lx-wnk/kontor")
 
 	for _, query := range []string{
 		"secret repo:othercorp/private",
@@ -307,29 +307,29 @@ func TestBoundQueryRefusesACallerSuppliedScopeQualifier(t *testing.T) {
 }
 
 func TestBoundQueryAppendsEveryAllowedRepository(t *testing.T) {
-	c := clientWithRepos(t, "lx-wnk/agent-dashboard", "lx-wnk/other")
+	c := clientWithRepos(t, "lx-wnk/kontor", "lx-wnk/other")
 
 	got, err := c.BoundQuery("crash on startup")
 	require.NoError(t, err)
-	require.Equal(t, "crash on startup repo:lx-wnk/agent-dashboard repo:lx-wnk/other", got)
+	require.Equal(t, "crash on startup repo:lx-wnk/kontor repo:lx-wnk/other", got)
 }
 
 // A bare word that merely contains a qualifier's letters is not a qualifier —
 // the check is per whitespace-separated field, so "superuser:x" would be a
 // false positive and "repository" must not trip it either.
 func TestBoundQueryDoesNotRefuseAnOrdinaryWord(t *testing.T) {
-	c := clientWithRepos(t, "lx-wnk/agent-dashboard")
+	c := clientWithRepos(t, "lx-wnk/kontor")
 
 	got, err := c.BoundQuery("repository refactor")
 	require.NoError(t, err)
-	require.Equal(t, "repository refactor repo:lx-wnk/agent-dashboard", got)
+	require.Equal(t, "repository refactor repo:lx-wnk/kontor", got)
 }
 
 // A qualifier naming a repository the operator already listed narrows a
 // multi-repo search rather than widening it — the commonest refinement there
 // is — so refusing it would be a usability regression with no security gain.
 func TestBoundQueryAllowsNarrowingToAnAllowedRepository(t *testing.T) {
-	c := clientWithRepos(t, "lx-wnk/agent-dashboard", "lx-wnk/other")
+	c := clientWithRepos(t, "lx-wnk/kontor", "lx-wnk/other")
 
 	got, err := c.BoundQuery("bug repo:lx-wnk/other")
 	require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestSearchIssuesDropsAHitOutsideTheAllowList(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"items":[
-			{"number":1,"title":"listed","html_url":"https://x.test/1","repository_url":"https://api.github.com/repos/lx-wnk/agent-dashboard"},
+			{"number":1,"title":"listed","html_url":"https://x.test/1","repository_url":"https://api.github.com/repos/lx-wnk/kontor"},
 			{"number":2,"title":"NOT listed","html_url":"https://x.test/2","repository_url":"https://api.github.com/repos/othercorp/private"}
 		]}`))
 	}))
@@ -354,5 +354,5 @@ func TestSearchIssuesDropsAHitOutsideTheAllowList(t *testing.T) {
 	hits, err := newTestClient(t, ts).SearchIssues(context.Background(), "anything")
 	require.NoError(t, err)
 	require.Len(t, hits, 1)
-	require.Equal(t, "lx-wnk/agent-dashboard", hits[0].Repo)
+	require.Equal(t, "lx-wnk/kontor", hits[0].Repo)
 }

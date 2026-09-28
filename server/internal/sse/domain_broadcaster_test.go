@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // readFrame waits up to 1 second for an SSE frame and returns the JSON payload,

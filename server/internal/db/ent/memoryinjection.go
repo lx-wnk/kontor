@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/memoryinjection"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/memoryinjection"
 )
 
 // MemoryInjection is the model entity for the MemoryInjection schema.

@@ -3,7 +3,7 @@ package mcpapps_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 )
 
 func TestIsApplicationTool(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // EngineResult is the parsed output of one session file: the SessionData the

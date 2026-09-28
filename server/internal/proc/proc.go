@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/platform"
+	"github.com/lx-wnk/kontor/server/internal/platform"
 )
 
 func isPidZombie(pid int) bool {

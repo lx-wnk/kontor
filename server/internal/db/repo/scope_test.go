@@ -3,7 +3,7 @@ package repo_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 func TestScopeNormalize(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // DefaultAllowedCommands are the bare command names always permitted in the

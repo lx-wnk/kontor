@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 func TestSanitizeForStoreRedactsSecrets(t *testing.T) {

@@ -4,9 +4,9 @@ package agentbroadcast
 import (
 	"context"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookstore"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/hookstore"
+	"github.com/lx-wnk/kontor/server/internal/merger"
 )
 
 // NewHookEventEnricher returns a merger.Enricher that annotates each agent with

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 func TestChainEnrichers_NilWhenNoneActive(t *testing.T) {

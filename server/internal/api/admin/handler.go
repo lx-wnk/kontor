@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/restart"
+	"github.com/lx-wnk/kontor/server/internal/restart"
 )
 
 // buildOutputLines is how many trailing lines of build output the 500

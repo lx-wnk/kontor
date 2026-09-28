@@ -11,7 +11,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/lx-wnk/agent-dashboard/server/serverapp"
+	"github.com/lx-wnk/kontor/server/serverapp"
 )
 
 func main() {

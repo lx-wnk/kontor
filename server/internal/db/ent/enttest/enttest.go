@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	// required by schema hooks.
-	_ "github.com/lx-wnk/agent-dashboard/server/internal/db/ent/runtime"
+	_ "github.com/lx-wnk/kontor/server/internal/db/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/migrate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/migrate"
 )
 
 type (

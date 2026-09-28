@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/cli"
-	versionpkg "github.com/lx-wnk/agent-dashboard/server/internal/version"
-	"github.com/lx-wnk/agent-dashboard/server/serverapp"
+	"github.com/lx-wnk/kontor/server/internal/channel"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/cli"
+	versionpkg "github.com/lx-wnk/kontor/server/internal/version"
+	"github.com/lx-wnk/kontor/server/serverapp"
 )
 
 // version is the dashboard version. It defaults to "dev" for local builds and is
@@ -32,8 +32,8 @@ func main() {
 	var cfgFile string
 
 	root := &cobra.Command{
-		Use:     "agent-dashboard",
-		Short:   "Claude Code agent monitoring dashboard",
+		Use:     "kontor",
+		Short:   "Monitor and orchestrate local coding agents",
 		Version: version,
 	}
 

@@ -5,7 +5,7 @@ launch-ready → amplify). Each item lists status and the exact command or
 steps. Items marked **OPERATOR** require a human decision, an account/credential,
 or a design asset and cannot be automated from the codebase.
 
-Repo: `lx-wnk/Agent-Dashboard` · License: MIT · Release tooling: GoReleaser
+Repo: `lx-wnk/kontor` · License: MIT · Release tooling: GoReleaser
 (`.goreleaser.yml` + `.github/workflows/release.yml`) — pushing a `v*` tag cuts a
 release with notes generated from Conventional Commits.
 
@@ -28,7 +28,7 @@ release with notes generated from Conventional Commits.
 |---|---|---|
 | Description | ✅ set | "Real-time monitoring and control dashboard for locally running Claude Code agents" |
 | Topics | ✅ set (10) | `agent-monitoring, ai-agents, claude, claude-code, dashboard, developer-tools, mcp, pwa, self-hosted, sse` |
-| Homepage URL | ❌ empty | **OPERATOR:** decide the URL. This is a local-first app with no hosted instance — point it at the docs site if one exists, else leave empty. `gh repo edit lx-wnk/Agent-Dashboard --homepage "https://..."` |
+| Homepage URL | ❌ empty | **OPERATOR:** decide the URL. This is a local-first app with no hosted instance — point it at the docs site if one exists, else leave empty. `gh repo edit lx-wnk/kontor --homepage "https://..."` |
 | License detection | ✅ MIT | `gh repo view --json licenseInfo` → `mit` |
 
 ---
@@ -92,7 +92,7 @@ Submit to lists where this fits; each has its own contribution format:
 ### Launch posts — **OPERATOR (accounts + timing)**
 Draft copy (tune before posting):
 
-> **Show HN / Reddit r/selfhosted title:** "Agent Dashboard — a local-first,
+> **Show HN / Reddit r/selfhosted title:** "Kontor — a local-first,
 > real-time monitor & control plane for Claude Code agents"
 >
 > Body: Runs entirely on `127.0.0.1`, reads your local `~/.claude` session logs
@@ -105,7 +105,7 @@ Suggested venues: Hacker News (Show HN), r/selfhosted, r/LocalLLaMA, the Anthrop
 / Claude community channels, X/Mastodon dev threads.
 
 ### Name consistency (optional)
-Repo is `Agent-Dashboard`; product name in UI/README is "Agent Dashboard". Keep the
+Repo is `Kontor`; product name in UI/README is "Kontor". Keep the
 hyphenless display name consistent across the release title, posts, and any listing.
 
 ---

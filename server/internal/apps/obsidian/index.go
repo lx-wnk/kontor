@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // summaryMaxRunes bounds the pointer summary derived from a note's first

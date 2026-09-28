@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/restart"
+	"github.com/lx-wnk/kontor/server/internal/restart"
 )
 
 type fakeRestarter struct{ reexec, exit int }

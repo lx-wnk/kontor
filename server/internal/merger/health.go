@@ -3,7 +3,7 @@ package merger
 import (
 	"math"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // Health-score component weights (sum to 1.0). Fixed in source — not user-configurable.

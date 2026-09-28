@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // buildBenchSession writes n assistant JSONL lines into a temp file and returns its path.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 	"github.com/stretchr/testify/require"
 )
 

@@ -3,14 +3,14 @@ package serverapp
 import (
 	"database/sql"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/checkpoint"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 func provideTaskHandler(client *ent.Client, db *sql.DB, orch *pipeline.PipelineOrchestrator, tb *sse.TaskBroadcaster, refineReader tasks.RefineStatusReader, allowGitPull, bypassAuth bool, checkpointSvc *checkpoint.Service, notifier tasks.PermissionNotifier) *tasks.Handler {

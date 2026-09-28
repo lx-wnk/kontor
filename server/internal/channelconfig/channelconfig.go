@@ -1,5 +1,5 @@
 // Package channelconfig builds the MCP config file that claude CLI reads to discover
-// the dashboard-channel MCP server. The config points to the `agent-dashboard channel`
+// the dashboard-channel MCP server. The config points to the `kontor channel`
 // binary (same executable, "channel" subcommand) so Claude Code spawns it via stdio.
 package channelconfig
 
@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // mcpServerEntry mirrors the claude CLI's mcpServers JSON shape. A stdio
@@ -215,7 +215,7 @@ func sweepOrphanedConfigsIn(dir string, maxAge time.Duration, now time.Time) (in
 }
 
 // SelfBinaryPath returns the absolute path of the currently running binary.
-// Used by the spawner to locate the agent-dashboard binary for the channel config.
+// Used by the spawner to locate the kontor binary for the channel config.
 func SelfBinaryPath() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {

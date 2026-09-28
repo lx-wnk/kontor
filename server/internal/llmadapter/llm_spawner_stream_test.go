@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/llmadapter"
+	"github.com/lx-wnk/kontor/server/internal/llmadapter"
 )
 
 // Compile-time guard: ensure the streaming interface is exported and shaped

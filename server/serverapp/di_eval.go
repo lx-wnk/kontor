@@ -3,8 +3,8 @@ package serverapp
 import (
 	"log/slog"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/eval"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/eval"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // evalOnDrift returns the onDrift callback wired to the task SSE broadcaster.

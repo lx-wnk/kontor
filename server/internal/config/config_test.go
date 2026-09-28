@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -205,4 +206,36 @@ func TestRestartModeExitAccepted(t *testing.T) {
 	cfg, err := Load("")
 	require.NoError(t, err)
 	assert.Equal(t, "exit", cfg.RestartMode)
+}
+
+// The rename keeps reading the old prefix: an installation's shell profile and
+// .env file carry DASHBOARD_* today, and a rename that stopped reading them
+// would change the configuration of every existing install silently.
+func TestLoad_PrefersKontorPrefixAndFallsBackToDashboard(t *testing.T) {
+	t.Setenv("DASHBOARD_PORT", "13500")
+	old, err := Load("")
+	require.NoError(t, err)
+	assert.Equal(t, 13500, old.Port, "the old prefix must still be read")
+
+	t.Setenv("KONTOR_PORT", "13600")
+	both, err := Load("")
+	require.NoError(t, err)
+	assert.Equal(t, 13600, both.Port, "the new prefix must win when both are set")
+}
+
+// A database is not copied behind the operator's back: when the file under the
+// old name exists and the new one does not, keep using the old file.
+func TestDefaults_KeepsAnExistingDatabaseUnderItsOldName(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".claude"), 0o700))
+
+	fresh := Defaults()
+	assert.Equal(t, filepath.Join(home, ".claude", "kontor-tasks.db"), fresh.DBPath,
+		"a fresh install uses the new name")
+
+	old := filepath.Join(home, ".claude", "dashboard-tasks.db")
+	require.NoError(t, os.WriteFile(old, []byte("not really sqlite"), 0o600))
+	assert.Equal(t, old, Defaults().DBPath,
+		"an existing database keeps being used under the name it already has")
 }

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/serverapp"
+	"github.com/lx-wnk/kontor/server/serverapp"
 )
 
 // freePort picks an unused loopback port and releases it, so the test can watch
