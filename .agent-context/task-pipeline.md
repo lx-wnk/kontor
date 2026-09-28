@@ -165,6 +165,7 @@ The following `pipeline/` symbols may be imported at runtime from `api/*` and `m
 | `ReadLastStageJsonOutput` | `session_reader.go` | `api/tasks/cost_stage_routes.go` |
 | `SessionFileExists` | `session_reader.go` | `api/tasks/handler.go` |
 | `ValidateStageOutput` | `completion_detector.go` | `api/agents/channel_stage_output.go` |
+| `StageOutputSubmittedKey` | `completion_detector.go` | `api/agents/channel_stage_output.go` (writes the marker), `api/plan/service.go` (strips it from the live plan) |
 
 These are session-reader and process-monitor helpers — they do not touch the state machine (orchestrator, stage handlers, completion detector). New `pipeline/` imports from `api/*` or `mcp/*` require an explicit justification in this table before being added.
 

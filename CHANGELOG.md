@@ -519,6 +519,7 @@ Preparing the first public release.
 
 ### Fixed
 
+- **A stage finishes only on a result the agent actually submitted.** The completion check used to accept any non-empty `stage_run.output` as the stage result, including notes the orchestrator writes into the same field (`requeue_reason`, `agentMessage`), so a restarted run could advance on its own bookkeeping. `set_stage_output` now stores a `stage_output_submitted` marker with the result; without it the check reads the session transcript instead. The marker is removed before the result is stored or shown in the plan preview.
 - **Rate-limited stage runs no longer advance the pipeline or count as reviews.** A run that aborts on a rate or usage limit (HTTP 429/529/503) is now shown as "Paused: Usage Limit" (`rate_limited`), re-queued after the backoff (default 600 s, configurable via `rateLimitBackoffSeconds`), and retried up to `maxRateLimitRetries` times (default 36) before it fails. A re-queued run no longer carries its requeue bookkeeping into the retry, where it was read as the stage's finished output. A `self_review` output without the required `passed` boolean now waits for the user instead of counting as a failed review. Retry Stage works on a paused run and starts it right away.
 - **Tasks created or changed through MCP reach the board without a reload.**
   MCP tools used to send a `task_changed` event the board ignores, so a task an

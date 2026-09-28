@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 )
 
 // ApproveDeps are the dependencies required by ApprovePlan.
@@ -193,7 +195,8 @@ func PlanStatus(ctx context.Context, d StatusDeps, taskID string) (PlanStatusRes
 
 	// Fall back to the live stage_run output before approval freezes the plan.
 	if result.ApprovedPlan == nil && sr != nil && len(sr.Output) > 0 {
-		result.ApprovedPlan = sr.Output
+		result.ApprovedPlan = maps.Clone(sr.Output)
+		delete(result.ApprovedPlan, pipeline.StageOutputSubmittedKey)
 	}
 
 	return result, nil

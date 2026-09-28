@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"maps"
 	"os"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -9,6 +10,11 @@ import (
 )
 
 const agentMessageMaxChars = 2000
+
+// StageOutputSubmittedKey marks a stage_run.output written by the
+// set_stage_output endpoint, so orchestrator bookkeeping in the same field is
+// never mistaken for a submitted stage result.
+const StageOutputSubmittedKey = "stage_output_submitted"
 
 // isRateLimitError returns true when the API error represents a rate or usage limit.
 // Matches by HTTP status (429/529/503) or by the structured error kind field.
@@ -126,12 +132,10 @@ func DetectCompletion(sr *ent.StageRun, cwd string, deps CompletionDeps) (Comple
 	// Tool-written stage output: the agent submitted its result via the
 	// set_stage_output MCP tool and the endpoint already validated it against
 	// the per-stage schema. Use it directly — no JSONL scrape, no retry loop.
-	// The synthetic-adapter marker (synthetic_session_file) is handled by the
-	// block below, so exclude it here.
-	if len(sr.Output) > 0 {
-		if _, isSynthetic := sr.Output["synthetic_session_file"]; !isSynthetic {
-			return CompletionResult{Kind: "completed", Output: sr.Output}, nil
-		}
+	if submitted, _ := sr.Output[StageOutputSubmittedKey].(bool); submitted {
+		out := maps.Clone(sr.Output)
+		delete(out, StageOutputSubmittedKey)
+		return CompletionResult{Kind: "completed", Output: out}, nil
 	}
 
 	// Non-Claude adapters store the synthetic JSONL path in stage_run.output.
