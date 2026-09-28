@@ -61,7 +61,7 @@ function stageLabel(stage: PipelineStage): string {
   return STAGE_LABELS[stage] || stage
 }
 
-const { maxAutoRetries } = usePipelineConfig()
+const { maxAutoRetries, maxRateLimitRetries } = usePipelineConfig()
 
 const retrySecondsLeft = ref(0)
 
@@ -70,6 +70,7 @@ function refreshCountdown() {
 }
 
 const isRequeued = computed(() => props.task.autoRetryCount != null)
+const retryBudget = computed(() => props.task.latestStageRunStatus === 'rate_limited' ? maxRateLimitRetries.value : maxAutoRetries.value)
 const prError = computed(() => {
   const value = props.task.metadata?.pr_error
   return typeof value === 'string' && value !== '' ? value : null
@@ -225,9 +226,9 @@ const activeChildOutputExpanded = ref(false)
         tone="info"
         mono
         uppercase
-        :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${maxAutoRetries})`"
+        :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${retryBudget})`"
       >
-        Retrying · {{ task.autoRetryCount }}/{{ maxAutoRetries }}{{ retrySecondsLeft > 0 ? ` · ${retrySecondsLeft}s` : '' }}
+        Retrying · {{ task.autoRetryCount }}/{{ retryBudget }}{{ retrySecondsLeft > 0 ? ` · ${retrySecondsLeft}s` : '' }}
       </AppChip>
       <AppChip
         v-if="task.needsUser && task.latestStageRunStatus === 'awaiting_user'"

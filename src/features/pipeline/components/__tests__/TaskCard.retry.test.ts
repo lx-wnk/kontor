@@ -4,7 +4,7 @@ import { ref } from 'vue'
 import TaskCard from '@/features/pipeline/components/TaskCard.vue'
 
 vi.mock('@/features/pipeline/composables/usePipelineConfig', () => ({
-  usePipelineConfig: () => ({ maxAutoRetries: ref(5), config: ref(null) }),
+  usePipelineConfig: () => ({ maxAutoRetries: ref(5), maxRateLimitRetries: ref(36), config: ref(null) }),
 }))
 
 vi.mock('@vueuse/core', () => ({
@@ -58,6 +58,22 @@ describe('taskCard retry state', () => {
     })
     expect(wrapper.text()).toContain('2/5')
     expect(wrapper.text()).toContain('Retrying')
+  })
+
+  it('divides a rate-limited run by the rate-limit budget, not the infra budget', () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: {
+          ...baseTask,
+          latestStageRunStatus: 'rate_limited',
+          autoRetryCount: 7,
+          nextRetryAt: new Date(Date.now() + 30000).toISOString(),
+          needsUser: false,
+        } as any,
+      },
+    })
+    expect(wrapper.text()).toContain('7/36')
+    expect(wrapper.text()).not.toContain('7/5')
   })
 
   it('does NOT render retry chip for normal failed task, but DOES show needs-user block', () => {

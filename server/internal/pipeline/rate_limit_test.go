@@ -211,7 +211,7 @@ func TestApplyTransition_RateLimited_SetsCorrectFields(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "rate_limited", result.Status)
-	require.Equal(t, 2, result.RetryCount)
+	require.Equal(t, 2, result.RateLimitRetryCount)
 	require.NotNil(t, result.NextRetryAt)
 	require.Equal(t, "usage limit hit", result.Output["requeue_reason"])
 
@@ -261,4 +261,33 @@ func TestOutputClear_ClearsExistingOutput(t *testing.T) {
 	reread, err := srRepo.GetByID(ctx, sr.ID)
 	require.NoError(t, err)
 	require.Nil(t, reread.Output, "Output must be nil after re-read")
+}
+
+func TestHandleFailedResult_InfraAfterRateLimits_KeepsItsOwnBudget(t *testing.T) {
+	ctx := context.Background()
+	orch, taskRepo, srRepo := makeOrchestratorWithSRRepo(t)
+	_, run := makeRunningStageRun(t, ctx, taskRepo, srRepo, 0)
+
+	result := pipeline.CompletionResult{Kind: "failed", Error: "usage limit (status 429)", Infra: true, RateLimited: true}
+	orch.SetCompletionDetector(func(*ent.StageRun, string, pipeline.CompletionDeps) (pipeline.CompletionResult, error) {
+		return result, nil
+	})
+	for range 3 {
+		fresh, err := srRepo.GetByID(ctx, run.ID)
+		require.NoError(t, err)
+		require.NoError(t, orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{fresh}))
+		_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: strPtr("running")})
+		require.NoError(t, err)
+	}
+
+	result = pipeline.CompletionResult{Kind: "failed", Error: "agent process crashed", Infra: true}
+	fresh, err := srRepo.GetByID(ctx, run.ID)
+	require.NoError(t, err)
+	require.NoError(t, orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{fresh}))
+
+	updated, err := srRepo.GetByID(ctx, run.ID)
+	require.NoError(t, err)
+	require.Equal(t, "requeued", updated.Status, "rate-limit retries must not spend the infra retry budget")
+	require.Equal(t, 1, updated.RetryCount)
+	require.Equal(t, 3, updated.RateLimitRetryCount)
 }

@@ -54,9 +54,9 @@ Infra-class stage-run failures are automatically requeued instead of parking on 
 |---|---|---|
 | `Infra` | process killed, no session JSONL, unparseable output, quota/session-limit error | auto-requeue |
 | Schema | stage output fails schema validation | iterate → wait_user (existing path, unchanged) |
-| Hard (budget exhausted) | `retry_count >= maxAutoRetries` | hard `failed` → needsUser |
+| Hard (budget exhausted) | `retry_count >= maxAutoRetries`, or `rate_limit_retry_count >= maxRateLimitRetries` | hard `failed` → needsUser |
 
-**Stage-run statuses `requeued` / `rate_limited`:** the run is updated in place (same row, no new iteration) with incremented `retry_count` and a `next_retry_at` cooldown timestamp. A rate-limit error (429/529/503) parks the run as `rate_limited` with the `rateLimitBackoffSeconds` backoff and the `maxRateLimitRetries` budget; any other infra failure parks it as `requeued`. Both are non-blocking — `needsUser` excludes them — and both are listed once in `cooldownStageRunStatuses` (`stage_run_service.go`).
+**Stage-run statuses `requeued` / `rate_limited`:** the run is updated in place (same row, no new iteration) with a `next_retry_at` cooldown timestamp. A rate-limit error (429/529/503) parks the run as `rate_limited`, increments `rate_limit_retry_count` and uses the `rateLimitBackoffSeconds` backoff and the `maxRateLimitRetries` budget; any other infra failure parks it as `requeued` and increments `retry_count` against `maxAutoRetries`. The two counters are independent, so rate-limit pauses never spend the infra budget. Both are non-blocking — `needsUser` excludes them — and both are listed once in `cooldownStageRunStatuses` (`stage_run_service.go`).
 
 **Lifecycle:**
 

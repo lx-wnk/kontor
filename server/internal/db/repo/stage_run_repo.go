@@ -49,22 +49,23 @@ type CreateStageRunInput struct {
 }
 
 type UpdateStageRunInput struct {
-	Status            *string
-	PID               *int
-	PIDClear          bool
-	SessionID         *string
-	Output            map[string]any
-	OutputClear       bool
-	TokensUsed        *int
-	CostCents         *int
-	StartedAt         *time.Time
-	EndedAt           *time.Time
-	LastGrantAt       *time.Time
-	RetryCount        *int
-	NextRetryAt       *time.Time
-	NextRetryAtClear  bool
-	StartedAtClear    bool
-	PendingUserPrompt *string
+	Status              *string
+	PID                 *int
+	PIDClear            bool
+	SessionID           *string
+	Output              map[string]any
+	OutputClear         bool
+	TokensUsed          *int
+	CostCents           *int
+	StartedAt           *time.Time
+	EndedAt             *time.Time
+	LastGrantAt         *time.Time
+	RetryCount          *int
+	RateLimitRetryCount *int
+	NextRetryAt         *time.Time
+	NextRetryAtClear    bool
+	StartedAtClear      bool
+	PendingUserPrompt   *string
 }
 
 type entStageRunRepo struct {
@@ -224,6 +225,9 @@ func (r *entStageRunRepo) Update(ctx context.Context, id string, in UpdateStageR
 	}
 	if in.RetryCount != nil {
 		q = q.SetRetryCount(*in.RetryCount)
+	}
+	if in.RateLimitRetryCount != nil {
+		q = q.SetRateLimitRetryCount(*in.RateLimitRetryCount)
 	}
 	if in.NextRetryAtClear {
 		q = q.ClearNextRetryAt()

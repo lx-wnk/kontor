@@ -43,7 +43,7 @@ const (
 	rateLimitBackoffKey        = "rateLimitBackoffSeconds"
 	defaultRateLimitBackoff    = 600
 	maxRateLimitRetriesKey     = "maxRateLimitRetries"
-	defaultMaxRateLimitRetries = 36
+	defaultMaxRateLimitRetries = db.DefaultMaxRateLimitRetries
 )
 
 // httpSpawnResult carries the outcome of an asynchronous HTTP-adapter spawn.
@@ -601,9 +601,9 @@ func (o *PipelineOrchestrator) enforceBudgetsAndTimeout(ctx context.Context, tas
 		return
 	}
 	// Stage timeout enforcement (subprocess runs only).
-	// StartedAt is read from the passed-in run, not a re-fetch: it is written once
-	// at spawn and never mutated on an existing stage_run row (requeues allocate a
-	// new row at iter+1), so the in-memory copy always equals the DB value here.
+	// StartedAt is read from the passed-in run, not a re-fetch: a requeue reuses the
+	// row and changes StartedAt only while it is not running (cleared by the requeue
+	// sweep, set again at spawn), so for a running row the copy equals the DB value.
 	if run.Pid != nil {
 		timeoutSec := o.configCache.Number(ctx, stageTimeoutKey, defaultStageTimeoutSeconds)
 		if timeoutSec > 0 && run.StartedAt != nil && time.Since(*run.StartedAt) > time.Duration(timeoutSec)*time.Second {
@@ -630,11 +630,10 @@ func (o *PipelineOrchestrator) enforceBudgetsAndTimeout(ctx context.Context, tas
 // CQ-04: extracted from finalizeCompletedAsyncRuns's failure ladder.
 func (o *PipelineOrchestrator) handleFailedResult(ctx context.Context, task *ent.Task, fresh *ent.StageRun, result CompletionResult) {
 	// RateLimited implies Infra; check it first so it uses the dedicated budget and fixed backoff.
-	// RetryCount is shared with the infra-retry counter.
 	if result.RateLimited {
 		maxRL := o.configCache.Number(ctx, maxRateLimitRetriesKey, defaultMaxRateLimitRetries)
-		if fresh.RetryCount < maxRL {
-			attempt := fresh.RetryCount + 1
+		if fresh.RateLimitRetryCount < maxRL {
+			attempt := fresh.RateLimitRetryCount + 1
 			backoffSec := o.configCache.Number(ctx, rateLimitBackoffKey, defaultRateLimitBackoff)
 			nextRetryAt := time.Now().Add(time.Duration(backoffSec) * time.Second)
 			slog.Info("orchestrator: requeuing rate-limited run",

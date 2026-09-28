@@ -280,6 +280,27 @@ func (_u *StageRunUpdate) AddRetryCount(v int) *StageRunUpdate {
 	return _u
 }
 
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (_u *StageRunUpdate) SetRateLimitRetryCount(v int) *StageRunUpdate {
+	_u.mutation.ResetRateLimitRetryCount()
+	_u.mutation.SetRateLimitRetryCount(v)
+	return _u
+}
+
+// SetNillableRateLimitRetryCount sets the "rate_limit_retry_count" field if the given value is not nil.
+func (_u *StageRunUpdate) SetNillableRateLimitRetryCount(v *int) *StageRunUpdate {
+	if v != nil {
+		_u.SetRateLimitRetryCount(*v)
+	}
+	return _u
+}
+
+// AddRateLimitRetryCount adds value to the "rate_limit_retry_count" field.
+func (_u *StageRunUpdate) AddRateLimitRetryCount(v int) *StageRunUpdate {
+	_u.mutation.AddRateLimitRetryCount(v)
+	return _u
+}
+
 // SetNextRetryAt sets the "next_retry_at" field.
 func (_u *StageRunUpdate) SetNextRetryAt(v time.Time) *StageRunUpdate {
 	_u.mutation.SetNextRetryAt(v)
@@ -482,6 +503,12 @@ func (_u *StageRunUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedRetryCount(); ok {
 		_spec.AddField(stagerun.FieldRetryCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.RateLimitRetryCount(); ok {
+		_spec.SetField(stagerun.FieldRateLimitRetryCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimitRetryCount(); ok {
+		_spec.AddField(stagerun.FieldRateLimitRetryCount, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.NextRetryAt(); ok {
 		_spec.SetField(stagerun.FieldNextRetryAt, field.TypeTime, value)
@@ -811,6 +838,27 @@ func (_u *StageRunUpdateOne) AddRetryCount(v int) *StageRunUpdateOne {
 	return _u
 }
 
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (_u *StageRunUpdateOne) SetRateLimitRetryCount(v int) *StageRunUpdateOne {
+	_u.mutation.ResetRateLimitRetryCount()
+	_u.mutation.SetRateLimitRetryCount(v)
+	return _u
+}
+
+// SetNillableRateLimitRetryCount sets the "rate_limit_retry_count" field if the given value is not nil.
+func (_u *StageRunUpdateOne) SetNillableRateLimitRetryCount(v *int) *StageRunUpdateOne {
+	if v != nil {
+		_u.SetRateLimitRetryCount(*v)
+	}
+	return _u
+}
+
+// AddRateLimitRetryCount adds value to the "rate_limit_retry_count" field.
+func (_u *StageRunUpdateOne) AddRateLimitRetryCount(v int) *StageRunUpdateOne {
+	_u.mutation.AddRateLimitRetryCount(v)
+	return _u
+}
+
 // SetNextRetryAt sets the "next_retry_at" field.
 func (_u *StageRunUpdateOne) SetNextRetryAt(v time.Time) *StageRunUpdateOne {
 	_u.mutation.SetNextRetryAt(v)
@@ -1043,6 +1091,12 @@ func (_u *StageRunUpdateOne) sqlSave(ctx context.Context) (_node *StageRun, err 
 	}
 	if value, ok := _u.mutation.AddedRetryCount(); ok {
 		_spec.AddField(stagerun.FieldRetryCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.RateLimitRetryCount(); ok {
+		_spec.SetField(stagerun.FieldRateLimitRetryCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedRateLimitRetryCount(); ok {
+		_spec.AddField(stagerun.FieldRateLimitRetryCount, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.NextRetryAt(); ok {
 		_spec.SetField(stagerun.FieldNextRetryAt, field.TypeTime, value)
