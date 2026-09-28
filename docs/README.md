@@ -18,8 +18,12 @@ The tree has three tiers, and they are kept apart on purpose:
 | [MCP Endpoint](guides/mcp.md) | Authenticated MCP server, scopes, the tools, and connecting Claude |
 | [Controlling & Spawning Agents](guides/agent-control.md) | Channel control, the spawn dialog, slash commands, permissions |
 | [Security](guides/security.md) | Threat model, auth, hardening defaults, the capability gate, and the Obsidian vault client's TLS trust model |
+| [Desktop app (macOS)](guides/desktop.md) | Native macOS app, build, and smoke testing |
+| [Troubleshooting](guides/troubleshooting.md) | Restart modes and recovering from auth lockouts |
 | [Shell Statusline](guides/statusline.md) | `scripts/statusline.py` PS1 integration |
 | [Agent Skills](guides/agent-skills.md) | Registry-owned skills and how they reach disk |
+| [Obsidian vault](guides/obsidian.md) | Configuring the Local REST API and indexing notes into memory |
+| [GitHub integration](guides/github.md) | Connecting to GitHub and configuring repository access |
 | [Plugins](plugin-guide.md) | Sidecar plugin architecture |
 | [Hooks setup](hooks-setup.md) | Optional hook-based rescan triggers |
 | [Desktop distribution](desktop-distribution.md) | Packaging the macOS app, signing, notarization |
