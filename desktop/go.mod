@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/lx-wnk/kontor/server v0.0.0
-	github.com/wailsapp/wails/v2 v2.15.0
+	github.com/wailsapp/wails/v2 v2.16.0
 )
 
 require (
