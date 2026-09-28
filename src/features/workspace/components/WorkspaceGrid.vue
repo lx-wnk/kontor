@@ -3,6 +3,7 @@ import type { OpResult, PlacedTile, WorkspacePage } from '../layout'
 import type { WidgetDef } from '../widgetRegistry'
 import { useEventListener, useResizeObserver } from '@vueuse/core'
 import { computed, ref } from 'vue'
+import AppSelect from '@/components/ui/AppSelect.vue'
 import { cellAt } from '../gridGeometry'
 import { fitsMinimum, moveTile, readingOrder, removeTile, resizeTile, rowsUsed, swapTile, validatePlacement } from '../layout'
 import { widgetIds, WIDGETS } from '../widgetRegistry'
@@ -39,7 +40,7 @@ function cellOf(e: PointerEvent) {
 }
 
 function startDrag(e: PointerEvent, index: number, mode: 'move' | 'resize') {
-  if (!props.editing || e.button !== 0 || (e.target as HTMLElement).closest('select, button:not([data-resize])'))
+  if (!props.editing || e.button !== 0 || (e.target as HTMLElement).closest('input, button:not([data-resize])'))
     return
   const t = props.page.tiles[index]
   measureGrid()
@@ -131,7 +132,13 @@ function onKey(e: KeyboardEvent, index: number) {
 function swapOptions(index: number) {
   const t = props.page.tiles[index]
   const placed = new Set(props.page.tiles.map(p => p.widget))
-  return widgetIds().filter(id => !placed.has(id)).map(id => ({ id, title: WIDGETS[id].title, reason: fitsMinimum(id, t.colSpan, t.rowSpan) }))
+  return [
+    { value: '', label: '⇄ Swap…', disabled: true },
+    ...widgetIds().filter(id => !placed.has(id)).map((id) => {
+      const reason = fitsMinimum(id, t.colSpan, t.rowSpan)
+      return { value: id, label: reason ? `${WIDGETS[id].title} — ${reason}` : WIDGETS[id].title, disabled: !!reason }
+    }),
+  ]
 }
 </script>
 
@@ -153,19 +160,14 @@ function swapOptions(index: number) {
       @pointercancel="drag = null"
     >
       <div v-if="editing" class="workspace-chrome">
-        <select
+        <AppSelect
+          model-value=""
+          :options="swapOptions(index)"
           :data-testid="`workspace-swap-${tile.widget}`"
           :aria-label="`Swap ${widgetTitle(tile)} for`"
-          class="rounded-md border border-line-strong bg-card px-1.5 text-[12px]"
-          @change="apply(swapTile(page, index, ($event.target as HTMLSelectElement).value))"
-        >
-          <option value="" selected disabled>
-            ⇄ Swap…
-          </option>
-          <option v-for="o in swapOptions(index)" :key="o.id" :value="o.id" :disabled="!!o.reason">
-            {{ o.title }}{{ o.reason ? ` — ${o.reason}` : '' }}
-          </option>
-        </select>
+          size="compact"
+          @update:model-value="apply(swapTile(page, index, $event))"
+        />
         <button
           type="button"
           :data-testid="`workspace-remove-${tile.widget}`"

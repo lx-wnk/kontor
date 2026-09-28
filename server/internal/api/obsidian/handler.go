@@ -2,13 +2,17 @@
 package obsidian
 
 import (
+	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,9 +24,14 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
+// statusPingTimeout bounds the reachability probe status makes on every
+// call — short because it blocks the settings panel's render, not because
+// the vault is normally slow.
+const statusPingTimeout = 3 * time.Second
+
 // Handler serves the Obsidian HTTP routes registered by Mount.
 type Handler struct {
-	client  *obsidianapp.Client
+	clients *obsidianapp.ClientHolder
 	mem     repo.MemoryRepo
 	gate    memory.Gate
 	spaceID string
@@ -41,14 +50,21 @@ type Handler struct {
 	// server process against the same vault.
 	running atomic.Bool
 	graphs  graphCache
+
+	// graphMu guards graphClient, the client the cached graph was last built
+	// from. ClientHolder.Set can swap in a different vault at any time (a live
+	// settings save); without this check a request right after a swap would
+	// still serve the previous vault's graph until graphTTL passed.
+	graphMu     sync.Mutex
+	graphClient *obsidianapp.Client
 }
 
-// NewHandler creates a Handler. client is nil when the vault is unconfigured
-// (see serverapp.buildObsidianClient's own doc comment) — index then answers
-// 503 rather than reaching a nil client, the same "optional integration,
-// never a boot failure" rule that function follows.
-func NewHandler(client *obsidianapp.Client, mem repo.MemoryRepo, gate memory.Gate, spaceID string) *Handler {
-	return &Handler{client: client, mem: mem, gate: gate, spaceID: spaceID, graphs: graphCache{now: time.Now}}
+// NewHandler creates a Handler. clients holds nil while the vault is
+// unconfigured (see serverapp.buildObsidianClient's own doc comment) — index
+// then answers 503 rather than reaching a nil client, the same "optional
+// integration, never a boot failure" rule that function follows.
+func NewHandler(clients *obsidianapp.ClientHolder, mem repo.MemoryRepo, gate memory.Gate, spaceID string) *Handler {
+	return &Handler{clients: clients, mem: mem, gate: gate, spaceID: spaceID, graphs: graphCache{now: time.Now}}
 }
 
 // Mount registers the /api/obsidian/* routes on r.
@@ -56,6 +72,63 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/api/obsidian/index", apierr.ErrorMiddleware(h.index))
 	r.Get("/api/obsidian/graph", apierr.ErrorMiddleware(h.graph))
 	r.Post("/api/obsidian/open", apierr.ErrorMiddleware(h.open))
+	r.Get("/api/obsidian/status", apierr.ErrorMiddleware(h.status))
+}
+
+// status reports whether a vault client is configured and, if so, whether it
+// is actually reachable — no vault content crosses this handler, so unlike
+// index/graph/open it needs no capability check. The reachability probe is a
+// plain Client.Ping, never routed through h.gate: a gate failure here would
+// misreport a working vault as unreachable for a reason that has nothing to
+// do with the network.
+func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
+	client := h.clients.Get()
+	if client == nil {
+		apierr.WriteJSON(w, http.StatusOK, map[string]bool{"configured": false})
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), statusPingTimeout)
+	defer cancel()
+
+	resp := map[string]any{"configured": true, "reachable": true}
+	if err := client.Ping(ctx); err != nil {
+		slog.Warn("obsidian status ping failed", "err", err)
+		cause, hint := classifyPingError(err)
+		resp["reachable"] = false
+		resp["error"] = cause
+		resp["hint"] = hint
+	}
+	apierr.WriteJSON(w, http.StatusOK, resp)
+	return nil
+}
+
+// classifyPingError maps a Client.Ping failure to a short cause and an
+// actionable hint. It never returns err.Error() verbatim: that text can
+// carry the vault's URL, the same leak upstreamGraph guards against.
+func classifyPingError(err error) (cause, hint string) {
+	var uaErr x509.UnknownAuthorityError
+	switch {
+	case errors.As(err, &uaErr):
+		return "certificate not trusted", `The vault uses a self-signed certificate: set TLS mode to "insecure-loopback" (127.0.0.1 only) or "pinned".`
+	case errors.Is(err, obsidianapp.ErrUnauthorized):
+		return "unauthorized", "Check the API key."
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "connection refused", "Is Obsidian running with the Local REST API plugin enabled?"
+	default:
+		return "vault unreachable", "Check that Obsidian is running and the settings above are correct."
+	}
+}
+
+// invalidateGraphCacheOnSwap drops the cached graph when client differs from
+// the one it was last built from.
+func (h *Handler) invalidateGraphCacheOnSwap(client *obsidianapp.Client) {
+	h.graphMu.Lock()
+	defer h.graphMu.Unlock()
+	if h.graphClient != client {
+		h.graphClient = client
+		h.graphs.reset()
+	}
 }
 
 // index runs one obsidianapp.IndexNotes pass and reports how many new
@@ -76,7 +149,8 @@ func (h *Handler) Mount(r chi.Router) {
 // forbidden — so both map to 403, never the default 500 ErrorMiddleware
 // would otherwise give an unrecognised error.
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) error {
-	if h.client == nil {
+	client := h.clients.Get()
+	if client == nil {
 		return apierr.NewAppError(http.StatusServiceUnavailable, "obsidian vault not configured")
 	}
 	if !h.running.CompareAndSwap(false, true) {
@@ -84,7 +158,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer h.running.Store(false)
 
-	count, err := obsidianapp.IndexNotes(r.Context(), h.client, h.mem, h.gate, h.spaceID)
+	count, err := obsidianapp.IndexNotes(r.Context(), client, h.mem, h.gate, h.spaceID)
 	if err != nil {
 		if errors.Is(err, capability.ErrDenied) || errors.Is(err, capability.ErrAskRequired) {
 			return apierr.NewAppError(http.StatusForbidden, err.Error())
@@ -113,14 +187,16 @@ func upstreamGraph(g obsidianapp.Graph, err error) (obsidianapp.Graph, error) {
 }
 
 func (h *Handler) graph(w http.ResponseWriter, r *http.Request) error {
-	if h.client == nil {
+	client := h.clients.Get()
+	if client == nil {
 		apierr.WriteJSON(w, http.StatusOK, map[string]bool{"configured": false})
 		return nil
 	}
 	if err := h.authorizeRead(r); err != nil {
 		return err
 	}
-	g, err := upstreamGraph(h.graphs.get(r.Context(), h.client.Graph))
+	h.invalidateGraphCacheOnSwap(client)
+	g, err := upstreamGraph(h.graphs.get(r.Context(), client.Graph))
 	if err != nil {
 		return err
 	}
@@ -140,7 +216,8 @@ const maxOpenBodyBytes = 4 << 10
 
 // open passes on only a note a freshly built graph lists, because Obsidian's /open creates a missing note.
 func (h *Handler) open(w http.ResponseWriter, r *http.Request) error {
-	if h.client == nil {
+	client := h.clients.Get()
+	if client == nil {
 		return apierr.NewAppError(http.StatusServiceUnavailable, "obsidian vault not configured")
 	}
 	var body struct {
@@ -158,14 +235,15 @@ func (h *Handler) open(w http.ResponseWriter, r *http.Request) error {
 	if err := h.authorizeRead(r); err != nil {
 		return err
 	}
-	g, err := upstreamGraph(h.graphs.refresh(r.Context(), h.client.Graph))
+	h.invalidateGraphCacheOnSwap(client)
+	g, err := upstreamGraph(h.graphs.refresh(r.Context(), client.Graph))
 	if err != nil {
 		return err
 	}
 	if !slices.ContainsFunc(g.Notes, func(n obsidianapp.GraphNote) bool { return n.Path == body.Path }) {
 		return apierr.NewAppError(http.StatusNotFound, "note is not in the vault graph")
 	}
-	if err := h.client.OpenNote(r.Context(), body.Path); err != nil {
+	if err := client.OpenNote(r.Context(), body.Path); err != nil {
 		slog.Warn("obsidian open failed", "err", err)
 		return apierr.NewAppError(http.StatusBadGateway, "obsidian open failed")
 	}

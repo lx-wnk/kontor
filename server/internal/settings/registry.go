@@ -136,10 +136,10 @@ var definitions = func() map[string]Definition {
 		// JSON. Empty means the built-in layout. Edited on the page itself, never
 		// in the settings list (AppSettings hides the category).
 		{Key: "workspace.layout", Type: TypeString, Default: "", Apply: ApplyLive, Category: "workspace", validate: validWorkspaceLayout},
-		{Key: "obsidian.apiKey", Type: TypeString, Secret: true, Apply: ApplyRestart, Category: "obsidian"},
-		{Key: "obsidian.baseURL", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "obsidian"},
-		{Key: "obsidian.vaultRoot", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "obsidian"},
-		{Key: "obsidian.tlsMode", Type: TypeEnum, Enum: []string{"verify", "pinned", "insecure-loopback"}, Default: "verify", Apply: ApplyRestart, Category: "obsidian"},
+		{Key: "obsidian.apiKey", Type: TypeString, Secret: true, Apply: ApplyLive, Category: "obsidian"},
+		{Key: "obsidian.baseURL", Type: TypeString, Default: "", Apply: ApplyLive, Category: "obsidian"},
+		{Key: "obsidian.vaultRoot", Type: TypeString, Default: "", Apply: ApplyLive, Category: "obsidian"},
+		{Key: "obsidian.tlsMode", Type: TypeEnum, Enum: []string{"verify", "pinned", "insecure-loopback"}, Default: "verify", Apply: ApplyLive, Category: "obsidian"},
 		// github.token is the fine-grained PAT the GitHub Application
 		// authenticates with. Secret, so it is encrypted at rest and masked on
 		// every read except Service.Secret — and therefore carries no Default,

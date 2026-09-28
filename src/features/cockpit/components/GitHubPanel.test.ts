@@ -150,6 +150,43 @@ describe('gitHubPanel', () => {
     wrapper.unmount()
   })
 
+  // The row is two lines so it never overflows the tile: the title truncates
+  // rather than pushing the row wider, and repo#number is its own link to the
+  // pull request rather than plain text.
+  it('renders repo#number as a link to the pull request, and the title link can shrink', async () => {
+    stubFetch(200, {
+      repos: [{
+        repo: 'lx-wnk/agent-dashboard',
+        pullRequests: [{ number: 42, title: 'Add the cockpit', author: 'lx-wnk', url: 'https://example.test/42', draft: false, updatedAt: '2026-09-01T10:00:00Z' }],
+      }],
+    })
+    const wrapper = await mountPanel()
+    const repoLink = wrapper.get('[data-testid="cockpit-github-repo-42"]')
+    expect(repoLink.element.tagName).toBe('A')
+    expect(repoLink.attributes('href')).toBe('https://example.test/42')
+    expect(repoLink.attributes('target')).toBe('_blank')
+    expect(repoLink.text()).toBe('lx-wnk/agent-dashboard#42')
+
+    const titleLink = wrapper.get('[data-testid="cockpit-github-pr-42"] a')
+    expect(titleLink.classes()).toContain('min-w-0')
+    wrapper.unmount()
+  })
+
+  it('lists pull requests newest first across repositories and offers merge only where the server allows it', async () => {
+    const pr = (number: number, updatedAt: string) => ({ number, title: `PR ${number}`, author: 'lx-wnk', url: `https://example.test/${number}`, draft: false, updatedAt })
+    stubFetch(200, {
+      repos: [
+        { repo: 'lx-wnk/agent-dashboard', mergeable: true, pullRequests: [pr(1, '2026-09-01T10:00:00Z')] },
+        { repo: 'someone/else', mergeable: false, pullRequests: [pr(2, '2026-09-02T10:00:00Z')] },
+      ],
+    })
+    const wrapper = await mountPanel()
+    expect(wrapper.findAll('[data-testid^="cockpit-github-pr-"]').map(r => r.attributes('data-testid'))).toEqual(['cockpit-github-pr-2', 'cockpit-github-pr-1'])
+    expect(wrapper.find('[data-testid="cockpit-github-merge-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="cockpit-github-merge-2"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   // A server that predates the check-run field omits the key entirely; the
   // panel must still draw the pull request rather than throwing on it.
   it('renders a pull request from a server that sends no checks field', async () => {

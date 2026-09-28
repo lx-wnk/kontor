@@ -2,38 +2,27 @@ package claudeconfig
 
 import (
 	"context"
-	"path/filepath"
+	"os"
 	"time"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 // WatchDebounce is how long the config has to be quiet before a change is
 // reported. Exported so a test does not have to wait it out.
 var WatchDebounce = 300 * time.Millisecond
 
-// Watch reports a debounced change to Claude's config until ctx is done. It
-// watches the config's directory, not the file: an editor that replaces the
-// file would break a watch on the file itself. A missing file is not an error.
+// Watch reports a debounced change to Claude's config until ctx is done. It polls
+// instead of watching the directory: a kqueue directory watch opens every sibling,
+// and in $HOME that blocks on ~/Desktop's privacy prompt. A missing file is not an error.
 func Watch(ctx context.Context, onChange func()) error {
 	path, err := JSONPath()
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
-	base := filepath.Base(path)
 
-	w, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	if err := w.Add(dir); err != nil {
-		w.Close()
-		return err
-	}
-
+	last := fingerprint(path)
 	go func() {
-		defer w.Close()
+		poll := time.NewTicker(WatchDebounce / 2)
+		defer poll.Stop()
 		timer := time.NewTimer(WatchDebounce)
 		timer.Stop()
 		for {
@@ -41,16 +30,11 @@ func Watch(ctx context.Context, onChange func()) error {
 			case <-ctx.Done():
 				timer.Stop()
 				return
-			case ev, ok := <-w.Events:
-				if !ok {
-					return
+			case <-poll.C:
+				if now := fingerprint(path); now != last {
+					last = now
+					resetTimer(timer, WatchDebounce)
 				}
-				if filepath.Base(ev.Name) != base {
-					continue
-				}
-				resetTimer(timer, WatchDebounce)
-			case <-w.Errors:
-				// best-effort; ignore and continue
 			case <-timer.C:
 				onChange()
 			}
@@ -58,6 +42,20 @@ func Watch(ctx context.Context, onChange func()) error {
 	}()
 
 	return nil
+}
+
+type fileState struct {
+	modTime time.Time
+	size    int64
+	exists  bool
+}
+
+func fingerprint(path string) fileState {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileState{}
+	}
+	return fileState{modTime: info.ModTime(), size: info.Size(), exists: true}
 }
 
 func resetTimer(t *time.Timer, d time.Duration) {

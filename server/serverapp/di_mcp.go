@@ -29,7 +29,7 @@ func provideMCPHandler(
 	memRetriever *memory.Retriever,
 	grantUsageRepo repo.GrantUsageRepo,
 	memAsker capability.Asker,
-	obsidianClient *obsidian.Client,
+	obsidianClients *obsidian.ClientHolder,
 	githubClient *github.Client,
 	modules mcp.ModuleTools,
 ) http.Handler {
@@ -141,11 +141,11 @@ func provideMCPHandler(
 	// agent genuinely waiting on the response, the same reasoning that
 	// applies to memory_write/memory_search, so an ask decision here may
 	// legitimately hold rather than having to fail closed. RegisterObsidianTools
-	// itself skips registering any tool when obsidianClient is nil (vault
+	// itself skips registering any tool when obsidianClients holds nil (vault
 	// unconfigured).
 	mcptools.RegisterObsidianTools(registry, mcptools.ObsidianDeps{
-		Client: obsidianClient,
-		Caller: caller,
+		Clients: obsidianClients,
+		Caller:  caller,
 		Gate: memory.Gate{
 			Capabilities: repo.NewCapabilityRepo(client),
 			Grants:       repo.NewGrantRepo(client),

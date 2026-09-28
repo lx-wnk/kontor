@@ -58,9 +58,12 @@ Scopes are hierarchical — a higher scope implies all lower ones.
 
 The four `obsidian_*` tools reach the vault configured under **Settings → Obsidian**
 (`server/internal/apps/obsidian`); when that vault is not fully configured (`obsidian.baseURL`,
-`obsidian.vaultRoot`, and `obsidian.apiKey` are a required trio), none of the four are registered at
-all rather than being registered and always failing. `obsidian_write` and `obsidian_delete` are
-irreversible: a write overwrites any existing note at that path, and a delete cannot be undone.
+`obsidian.vaultRoot`, and `obsidian.apiKey` are a required trio), none of the four are listed in
+`tools/list` or callable via `tools/call`, rather than being offered and always failing. That check
+is live, not a startup snapshot: a vault configured (or reconfigured, or turned off) while the
+server is running changes what the very next `tools/list` or `tools/call` sees — no restart needed.
+`obsidian_write` and `obsidian_delete` are irreversible: a write overwrites any existing note at
+that path, and a delete cannot be undone.
 
 The four `github_*` tools reach the repositories configured under **Settings → GitHub**
 (`server/internal/apps/github`); when `github.token`/`github.repos` are not both set, none of the

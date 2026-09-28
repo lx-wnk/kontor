@@ -661,7 +661,7 @@ const { isImporting, importStatus, start: startImport } = useHistoryImport()
 
         <!-- Obsidian -->
         <section v-else-if="activeSection === 'obsidian'">
-          <ObsidianSettings />
+          <ObsidianSettings @open-grants="activeSection = 'grants'" />
         </section>
 
         <!-- GitHub -->

@@ -8,7 +8,9 @@ import CockpitPanel from './CockpitPanel.vue'
 const { repos, loading, error, denied, unconfigured, fetchSummary } = useGitHubSummary()
 onMounted(() => void fetchSummary())
 
-const pullRequests = computed(() => repos.value.flatMap(r => r.pullRequests.map(pr => ({ ...pr, repo: r.repo }))))
+const pullRequests = computed(() => repos.value
+  .flatMap(r => r.pullRequests.map(pr => ({ ...pr, repo: r.repo, mergeable: r.mergeable !== false })))
+  .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
 
 // The route answers 200 with what it could reach and names what it could not,
 // so one rate-limited repository does not blank the others. A repository that
@@ -127,53 +129,63 @@ const message = computed(() => {
     </p>
     <ul class="flex flex-col gap-1.5">
       <li
-        v-for="pr in pullRequests.slice(0, 8)"
+        v-for="pr in pullRequests.slice(0, 20)"
         :key="`${pr.repo}#${pr.number}`"
-        class="flex items-center justify-between gap-2 text-[12px] min-w-0"
+        class="flex flex-col gap-0.5 text-[12px] min-w-0"
         :data-testid="`cockpit-github-pr-${pr.number}`"
       >
-        <a :href="pr.url" target="_blank" rel="noopener noreferrer" class="truncate text-fg hover:text-accent">
+        <a :href="pr.url" target="_blank" rel="noopener noreferrer" class="truncate min-w-0 flex-1 text-fg hover:text-accent">
           {{ pr.title }}
         </a>
-        <span
-          v-if="pr.checks"
-          :data-testid="`cockpit-github-checks-${pr.number}`"
-          class="shrink-0 tabular-nums text-fg-mute"
-          :title="checkTitle(pr.checks)"
-          :aria-label="checkTitle(pr.checks)"
-        >{{ CHECK_MARKS[pr.checks.state] }} {{ checkLabel(pr.checks) }}</span>
-        <span class="shrink-0 text-fg-mute">{{ pr.repo }}#{{ pr.number }}</span>
-        <button
-          v-if="pending !== `${pr.repo}#${pr.number}`"
-          type="button"
-          :data-testid="`cockpit-github-merge-${pr.number}`"
-          class="shrink-0 rounded-md border border-line px-2 py-0.5 text-[11px] text-fg-mute hover:text-fg hover:border-accent"
-          @click="askToMerge(pr)"
-        >
-          Merge
-        </button>
-        <span v-else class="shrink-0 flex items-center gap-1.5">
-          <span :data-testid="`cockpit-github-merge-confirm-text-${pr.number}`" class="text-[11px] text-fg">
-            Merge {{ pr.repo }}#{{ pr.number }} “{{ pr.title }}”?
+        <div class="flex items-center justify-between gap-2 min-w-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <a
+              :href="pr.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              :data-testid="`cockpit-github-repo-${pr.number}`"
+              class="shrink-0 text-fg-mute hover:text-accent"
+            >{{ pr.repo }}#{{ pr.number }}</a>
+            <span
+              v-if="pr.checks"
+              :data-testid="`cockpit-github-checks-${pr.number}`"
+              class="shrink-0 tabular-nums text-fg-mute"
+              :title="checkTitle(pr.checks)"
+              :aria-label="checkTitle(pr.checks)"
+            >{{ CHECK_MARKS[pr.checks.state] }} {{ checkLabel(pr.checks) }}</span>
+          </div>
+          <button
+            v-if="pr.mergeable && pending !== `${pr.repo}#${pr.number}`"
+            type="button"
+            :data-testid="`cockpit-github-merge-${pr.number}`"
+            class="shrink-0 rounded-md border border-line px-2 py-0.5 text-[11px] text-fg-mute hover:text-fg hover:border-accent"
+            @click="askToMerge(pr)"
+          >
+            Merge
+          </button>
+          <span v-else-if="pr.mergeable" class="min-w-0 flex items-center gap-1.5">
+            <span :data-testid="`cockpit-github-merge-confirm-text-${pr.number}`" class="min-w-0 truncate text-[11px] text-fg">
+              Merge {{ pr.repo }}#{{ pr.number }} “{{ pr.title }}”?
+            </span>
+            <button
+              type="button"
+              :data-testid="`cockpit-github-merge-confirm-${pr.number}`"
+              :disabled="merging !== null"
+              class="shrink-0 rounded-md border border-danger px-2 py-0.5 text-[11px] text-danger-text hover:brightness-110 disabled:opacity-60"
+              @click="confirmMerge(pr)"
+            >
+              {{ merging === `${pr.repo}#${pr.number}` ? 'Merging…' : 'Confirm' }}
+            </button>
+            <button
+              type="button"
+              :data-testid="`cockpit-github-merge-cancel-${pr.number}`"
+              class="shrink-0 rounded-md border border-line px-2 py-0.5 text-[11px] text-fg-mute hover:text-fg"
+              @click="pending = null"
+            >
+              Cancel
+            </button>
           </span>
-          <button
-            type="button"
-            :data-testid="`cockpit-github-merge-confirm-${pr.number}`"
-            :disabled="merging !== null"
-            class="rounded-md border border-danger px-2 py-0.5 text-[11px] text-danger-text hover:brightness-110 disabled:opacity-60"
-            @click="confirmMerge(pr)"
-          >
-            {{ merging === `${pr.repo}#${pr.number}` ? 'Merging…' : 'Confirm' }}
-          </button>
-          <button
-            type="button"
-            :data-testid="`cockpit-github-merge-cancel-${pr.number}`"
-            class="rounded-md border border-line px-2 py-0.5 text-[11px] text-fg-mute hover:text-fg"
-            @click="pending = null"
-          >
-            Cancel
-          </button>
-        </span>
+        </div>
       </li>
     </ul>
     <p

@@ -11,7 +11,7 @@ import (
 
 // ghTokenTimeout bounds the credential lookup. It reads a local credential
 // store, so it is either fast or broken.
-const ghTokenTimeout = 5 * time.Second
+var ghTokenTimeout = 5 * time.Second
 
 // ErrGhNotFound reports that the GitHub CLI is not on PATH.
 var ErrGhNotFound = errors.New("the GitHub CLI (gh) is not on PATH")

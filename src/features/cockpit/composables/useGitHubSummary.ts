@@ -29,6 +29,7 @@ export interface GitHubRepoSummary {
   repo: string
   pullRequests: GitHubPullRequest[]
   error?: string
+  mergeable?: boolean
 }
 
 // States only what is known. The route maps every Gate.Authorize failure to

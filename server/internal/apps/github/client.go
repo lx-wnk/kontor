@@ -311,6 +311,59 @@ func (c *Client) OpenPullRequests(ctx context.Context, repoName string, limit in
 	return out, nil
 }
 
+// InvolvedPullRequest is one open pull request the authenticated user is
+// involved in, found by search rather than one repository's own pull list. It
+// carries its own owner/repo because — unlike OpenPullRequests — the search
+// spans every repository GitHub will show this token, not only the
+// configured allow-list.
+type InvolvedPullRequest struct {
+	Repo      string
+	Number    int
+	Title     string
+	URL       string
+	UpdatedAt time.Time
+}
+
+// InvolvedPullRequests lists open pull requests the authenticated user is
+// involved in anywhere on GitHub, newest first. It is the counterpart to
+// OpenPullRequests: that method answers "what's open in the repositories
+// this operator configured", this one answers "what's mine to look at", and
+// the caller merges the two. Like SearchIssues, the allow-list plays no role
+// in the request itself — a caller that wants the answer bounded to the
+// configured repositories must filter it after the fact.
+func (c *Client) InvolvedPullRequests(ctx context.Context) ([]InvolvedPullRequest, error) {
+	var raw struct {
+		Items []struct {
+			Number        int       `json:"number"`
+			Title         string    `json:"title"`
+			HTMLURL       string    `json:"html_url"`
+			RepositoryURL string    `json:"repository_url"`
+			UpdatedAt     time.Time `json:"updated_at"`
+		} `json:"items"`
+	}
+	q := url.Values{
+		"q":        {"is:pr is:open involves:@me"},
+		"sort":     {"updated"},
+		"order":    {"desc"},
+		"per_page": {"20"},
+	}
+	if err := c.do(ctx, http.MethodGet, "/search/issues", q, nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]InvolvedPullRequest, 0, len(raw.Items))
+	for _, item := range raw.Items {
+		repo := repoFromAPIURL(item.RepositoryURL)
+		if repo == "" {
+			continue
+		}
+		out = append(out, InvolvedPullRequest{
+			Repo: repo, Number: item.Number, Title: item.Title,
+			URL: item.HTMLURL, UpdatedAt: item.UpdatedAt,
+		})
+	}
+	return out, nil
+}
+
 // CheckState is the coarse state of a commit's check runs, collapsed from
 // GitHub's per-run status/conclusion pairs into the four states the cockpit
 // panel draws.

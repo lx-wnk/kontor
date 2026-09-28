@@ -1,5 +1,5 @@
 import type { VueWrapper } from '@vue/test-utils'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '../../utils/testA11y'
 import AppSelect from './AppSelect.vue'
@@ -35,6 +35,36 @@ function panel(): HTMLElement | null {
 function optionEls(): HTMLElement[] {
   return Array.from(document.querySelectorAll('[role="option"]'))
 }
+
+function input(): HTMLInputElement {
+  const el = document.querySelector<HTMLInputElement>('input[role="combobox"]')
+  if (!el)
+    throw new Error('filter input is not rendered')
+  return el
+}
+
+async function press(key: string) {
+  input().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+  await flushPromises()
+}
+
+async function type(text: string) {
+  input().value = text
+  input().dispatchEvent(new Event('input', { bubbles: true }))
+  await flushPromises()
+}
+
+async function openByKey(w: VueWrapper) {
+  await w.get('button').trigger('keydown', { key: 'ArrowDown' })
+  await flushPromises()
+}
+
+const fruitOptions = [
+  { value: 'apple', label: 'Apple' },
+  { value: 'banana', label: 'Banana' },
+  { value: 'cherry', label: 'Cherry' },
+  { value: 'pineapple', label: 'Tropical' },
+]
 
 afterEach(() => {
   wrapper?.unmount()
@@ -104,10 +134,9 @@ describe('appSelect', () => {
 
   it('keyboard navigation skips disabled options', async () => {
     const w = mountSelect({ modelValue: 'a', options: optionsWithDisabled })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // opens, active = selected ('a', index 0)
-    await button.trigger('keydown', { key: 'ArrowDown' }) // skips disabled 'b' (index 1) -> 'c' (index 2)
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[2].id)
+    await openByKey(w) // active = selected ('a', index 0)
+    await press('ArrowDown') // skips disabled 'b' (index 1) -> 'c' (index 2)
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[2].id)
   })
 
   it('arrowDown opens the panel', async () => {
@@ -119,43 +148,53 @@ describe('appSelect', () => {
 
   it('arrowDown/ArrowUp move the active option', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // open, active = 'a' (index 0)
-    await button.trigger('keydown', { key: 'ArrowDown' }) // -> 'b' (index 1)
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[1].id)
-    await button.trigger('keydown', { key: 'ArrowUp' }) // -> 'a' (index 0)
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[0].id)
+    await openByKey(w) // active = 'a' (index 0)
+    await press('ArrowDown') // -> 'b' (index 1)
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[1].id)
+    await press('ArrowUp') // -> 'a' (index 0)
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[0].id)
   })
 
-  it('enter selects the active option and closes the panel', async () => {
+  it('enter selects the active option, closes the panel and refocuses the trigger', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // open, active = 'a'
-    await button.trigger('keydown', { key: 'ArrowDown' }) // active = 'b'
-    await button.trigger('keydown', { key: 'Enter' })
+    await openByKey(w)
+    await press('ArrowDown') // active = 'b'
+    await press('Enter')
     expect(w.emitted('update:modelValue')?.[0]).toEqual(['b'])
     expect(panel()).toBeNull()
+    expect(document.activeElement).toBe(w.get('button').element)
   })
 
   it('escape closes without emitting and returns focus to the trigger', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    ;(button.element as HTMLButtonElement).focus()
-    await button.trigger('keydown', { key: 'ArrowDown' })
-    await button.trigger('keydown', { key: 'ArrowDown' })
-    await button.trigger('keydown', { key: 'Escape' })
+    await openByKey(w)
+    await press('ArrowDown')
+    await press('Escape')
     expect(panel()).toBeNull()
     expect(w.emitted('update:modelValue')).toBeUndefined()
-    expect(document.activeElement).toBe(button.element)
+    expect(document.activeElement).toBe(w.get('button').element)
   })
 
-  it('tab closes the panel', async () => {
+  it('moving focus away (Tab) closes the panel without emitting', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' })
-    expect(panel()).not.toBeNull()
-    await button.trigger('keydown', { key: 'Tab' })
+    await openByKey(w)
+    await press('ArrowDown')
+    const next = document.createElement('button')
+    document.body.appendChild(next)
+    next.focus()
+    await flushPromises()
     expect(panel()).toBeNull()
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+    expect(document.activeElement).toBe(next)
+  })
+
+  it('a mousedown on an option keeps focus in the filter input so the click can land', async () => {
+    const w = mountSelect({ modelValue: 'a', options })
+    await openByKey(w)
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    optionEls()[1].dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(true)
+    expect(panel()).not.toBeNull()
   })
 
   it('mousedown outside the trigger and panel closes it', async () => {
@@ -232,34 +271,103 @@ describe('appSelect', () => {
     expect(button.classes()).toContain('text-sm')
   })
 
-  it('type-ahead jumps to the first enabled option whose label starts with the typed prefix', async () => {
-    const fruitOptions = [
-      { value: 'a', label: 'Apple' },
-      { value: 'b', label: 'Banana' },
-      { value: 'c', label: 'Cherry' },
-    ]
-    const w = mountSelect({ modelValue: 'a', options: fruitOptions })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // open
-    await button.trigger('keydown', { key: 'c' })
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[2].id)
+  it('opening shows every option with an empty filter, the selection as placeholder and as the active row', async () => {
+    const w = mountSelect({ modelValue: 'b', options })
+    await w.get('button').trigger('click')
+    await flushPromises()
+    expect(optionEls()).toHaveLength(3)
+    expect(input().value).toBe('')
+    expect(input().placeholder).toBe('Option B')
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[1].id)
+  })
+
+  it('typing filters the options by case-insensitive substring of label or string value', async () => {
+    const w = mountSelect({ modelValue: 'apple', options: fruitOptions })
+    await openByKey(w)
+    await type('APPLE')
+    expect(optionEls().map(o => o.textContent?.trim())).toEqual(['Apple✓', 'Tropical'])
+    await type('an')
+    expect(optionEls().map(o => o.textContent?.trim())).toEqual(['Banana'])
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('arrow keys and Enter pick from the filtered list, skipping disabled rows', async () => {
+    const w = mountSelect({ modelValue: 'a', options: [...optionsWithDisabled, { value: 'd', label: 'Other D' }] })
+    await openByKey(w)
+    await type('option')
+    expect(optionEls()).toHaveLength(3)
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[0].id)
+    await press('ArrowDown') // skips disabled 'Option B'
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[2].id)
+    await press('Enter')
+    expect(w.emitted('update:modelValue')?.[0]).toEqual(['c'])
+  })
+
+  it('escape after typing closes, restores the selected label and emits nothing', async () => {
+    const w = mountSelect({ modelValue: 'banana', options: fruitOptions })
+    await openByKey(w)
+    await type('che')
+    await press('Escape')
+    expect(panel()).toBeNull()
+    expect(w.get('button').text()).toContain('Banana')
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('shows a non-selectable "No matches" row when the filter matches nothing', async () => {
+    const w = mountSelect({ modelValue: 'apple', options: fruitOptions })
+    await openByKey(w)
+    await type('zzz')
+    const rows = optionEls()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].textContent?.trim()).toBe('No matches')
+    expect(rows[0].getAttribute('aria-disabled')).toBe('true')
+    expect(input().getAttribute('aria-activedescendant')).toBeNull()
+    rows[0].dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('free text never becomes the model value', async () => {
+    const w = mountSelect({ modelValue: 'apple', options: fruitOptions })
+    await openByKey(w)
+    await type('zzz')
+    await press('Enter')
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await flushPromises()
+    expect(panel()).toBeNull()
+    expect(w.emitted('update:modelValue')).toBeUndefined()
+    expect(w.get('button').text()).toContain('Apple')
+  })
+
+  it('typing a character while closed opens the panel filtered by that character', async () => {
+    const w = mountSelect({ modelValue: 'apple', options: fruitOptions })
+    await w.get('button').trigger('keydown', { key: 'c' })
+    await flushPromises()
+    expect(input().value).toBe('c')
+    expect(document.activeElement).toBe(input())
+    expect(optionEls().map(o => o.textContent?.trim())).toEqual(['Cherry', 'Tropical'])
+    expect(input().getAttribute('aria-activedescendant')).toBe(optionEls()[0].id)
   })
 
   it('has combobox/listbox ARIA wiring: role, aria-expanded, aria-selected, aria-activedescendant', async () => {
-    const w = mountSelect({ modelValue: 'b', options })
+    const w = mountSelect({ modelValue: 'b', options, ariaLabel: 'Choose option' })
     const button = w.get('button')
     expect(button.attributes('role')).toBe('combobox')
     expect(button.attributes('aria-haspopup')).toBe('listbox')
     expect(button.attributes('aria-expanded')).toBe('false')
 
     await button.trigger('click')
-    expect(button.attributes('aria-expanded')).toBe('true')
+    await flushPromises()
+    expect(input().getAttribute('aria-expanded')).toBe('true')
+    expect(input().getAttribute('aria-autocomplete')).toBe('list')
+    expect(input().getAttribute('aria-label')).toBe('Choose option')
     expect(panel()?.getAttribute('role')).toBe('listbox')
 
     const opts = optionEls()
     expect(opts[1].getAttribute('aria-selected')).toBe('true')
     expect(opts[0].getAttribute('aria-selected')).toBe('false')
-    expect(button.attributes('aria-activedescendant')).toBe(opts[1].id)
+    expect(input().getAttribute('aria-activedescendant')).toBe(opts[1].id)
+    expect(input().getAttribute('aria-controls')).toBe(panel()?.id)
     expect(button.attributes('aria-controls')).toBe(panel()?.id)
   })
 
@@ -282,12 +390,11 @@ describe('appSelect', () => {
 
   it('escape with the panel open does not let the event reach a parent handler', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // opens the panel
+    await openByKey(w)
     const parentHandler = vi.fn()
     document.addEventListener('keydown', parentHandler)
     try {
-      await button.trigger('keydown', { key: 'Escape' })
+      await press('Escape')
       expect(parentHandler).not.toHaveBeenCalled()
     }
     finally {
@@ -318,22 +425,11 @@ describe('appSelect', () => {
     expect(panel()).toBeNull()
   })
 
-  it('opening focuses the trigger', async () => {
+  it('opening focuses the filter input', async () => {
     const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button').element as HTMLButtonElement
-    expect(document.activeElement).not.toBe(button)
     await w.get('button').trigger('click')
-    expect(document.activeElement).toBe(button)
-  })
-
-  it('home/End move the active option', async () => {
-    const w = mountSelect({ modelValue: 'a', options })
-    const button = w.get('button')
-    await button.trigger('keydown', { key: 'ArrowDown' }) // open, active = 'a' (index 0)
-    await button.trigger('keydown', { key: 'End' })
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[2].id)
-    await button.trigger('keydown', { key: 'Home' })
-    expect(button.attributes('aria-activedescendant')).toBe(optionEls()[0].id)
+    await flushPromises()
+    expect(document.activeElement).toBe(input())
   })
 
   it('an options array where every option is disabled does not hang or throw', async () => {
@@ -342,9 +438,8 @@ describe('appSelect', () => {
       { value: 'b', label: 'Option B', disabled: true },
     ]
     const w = mountSelect({ modelValue: 'zzz', options: allDisabled })
-    const button = w.get('button')
-    await expect(button.trigger('keydown', { key: 'ArrowDown' })).resolves.not.toThrow()
-    await expect(button.trigger('keydown', { key: 'ArrowDown' })).resolves.not.toThrow()
+    await openByKey(w)
+    await expect(press('ArrowDown')).resolves.not.toThrow()
     expect(panel()).not.toBeNull()
   })
 
@@ -353,29 +448,5 @@ describe('appSelect', () => {
     const button = w.get('button')
     await expect(button.trigger('keydown', { key: 'ArrowDown' })).resolves.not.toThrow()
     expect(panel()).not.toBeNull()
-  })
-
-  it('type-ahead buffer resets after its timeout', async () => {
-    vi.useFakeTimers()
-    try {
-      const fruitOptions = [
-        { value: 'a', label: 'Apple' },
-        { value: 'b', label: 'Banana' },
-        { value: 'c', label: 'Cherry' },
-      ]
-      const w = mountSelect({ modelValue: 'a', options: fruitOptions })
-      const button = w.get('button')
-      await button.trigger('keydown', { key: 'ArrowDown' }) // open
-      await button.trigger('keydown', { key: 'b' }) // buffer 'b' -> Banana
-      expect(button.attributes('aria-activedescendant')).toBe(optionEls()[1].id)
-
-      vi.advanceTimersByTime(500) // buffer times out and resets
-
-      await button.trigger('keydown', { key: 'a' }) // fresh buffer 'a' -> Apple
-      expect(button.attributes('aria-activedescendant')).toBe(optionEls()[0].id)
-    }
-    finally {
-      vi.useRealTimers()
-    }
   })
 })

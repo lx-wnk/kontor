@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { waitForLayoutPatch as patched, storeLayout } from './helpers'
+import { waitForLayoutPatch as patched, selectListboxOption, storeLayout } from './helpers'
 
 // The stored layout is shared server-side state, not per-test-context state —
 // reset it after every test so a mutation here can never leak into the next
@@ -214,7 +214,7 @@ test('a page of my own survives a reload', async ({ page }) => {
   await expect(page.getByTestId('workspace-edit-bar')).toBeVisible()
   await expect(page.locator('[data-testid^="nav-page-"]', { hasText: 'Morning' })).toBeFocused()
 
-  await page.getByTestId('workspace-add').selectOption('github')
+  await selectListboxOption(page, page.getByTestId('workspace-add'), 'GitHub')
   const filled = patched(page)
   await page.getByTestId('workspace-add-submit').click()
   expect((await filled).ok(), 'save (add tile) request').toBe(true)

@@ -31,16 +31,22 @@ const sizeClass = computed(() => SIZE_CLASSES[props.size])
 // exists, and the CSS max-height applied to the panel itself.
 const PANEL_MAX_HEIGHT = 320
 
+const TRIGGER_CLASS = 'bg-card border border-line rounded-md text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent'
+
 const panelId = useId()
-const triggerRef = ref<HTMLButtonElement | null>(null)
+const buttonRef = ref<HTMLButtonElement | null>(null)
+const inputRef = ref<HTMLInputElement | null>(null)
 const panelRef = ref<HTMLDivElement | null>(null)
 
 const isOpen = ref(false)
+const query = ref('')
 const activeIndex = ref(-1)
+const inputSize = ref<{ width?: string, height?: string }>({})
 const panelPosition = ref<{ top?: string, bottom?: string, left: string, minWidth: string, maxWidth: string }>({ left: '0px', minWidth: '0px', maxWidth: '0px' })
 
-let typeaheadBuffer = ''
-let typeaheadTimer: ReturnType<typeof setTimeout> | null = null
+function triggerEl(): HTMLElement | null {
+  return inputRef.value ?? buttonRef.value
+}
 
 // One-shot suppression for the click that follows a dismissing outside
 // mousedown, so closing the panel doesn't also activate whatever was under
@@ -61,12 +67,21 @@ function clearClickSuppression() {
   }
 }
 
-const selectedIndex = computed(() => props.options.findIndex(o => o.value === props.modelValue))
-const selectedLabel = computed(() => props.options[selectedIndex.value]?.label ?? '')
+const selectedLabel = computed(() => props.options.find(o => o.value === props.modelValue)?.label ?? '')
+const visibleOptions = computed(() => {
+  const q = query.value.toLowerCase()
+  if (!q)
+    return props.options
+  return props.options.filter(o => o.label.toLowerCase().includes(q) || (typeof o.value === 'string' && o.value.toLowerCase().includes(q)))
+})
 const activeOptionId = computed(() => (isOpen.value && activeIndex.value >= 0 ? optionId(activeIndex.value) : undefined))
 
 function optionId(idx: number): string {
   return `${panelId}-option-${idx}`
+}
+
+function isSelected(opt: SelectOption<T>): boolean {
+  return opt.value === props.modelValue
 }
 
 // Active row uses the solid accent fill (same bg-accent/text-accent-contrast
@@ -79,31 +94,23 @@ function optionClass(opt: SelectOption<T>, idx: number) {
   if (opt.disabled)
     return 'opacity-50 cursor-not-allowed text-fg-faint'
   if (idx === activeIndex.value) {
-    return ['bg-accent text-accent-contrast', idx === selectedIndex.value ? 'font-medium' : '']
+    return ['bg-accent text-accent-contrast', isSelected(opt) ? 'font-medium' : '']
   }
-  return idx === selectedIndex.value ? 'text-accent font-medium' : 'text-fg'
+  return isSelected(opt) ? 'text-accent font-medium' : 'text-fg'
 }
 
 function firstEnabledIndex(): number {
-  return props.options.findIndex(o => !o.disabled)
-}
-
-function lastEnabledIndex(): number {
-  for (let i = props.options.length - 1; i >= 0; i--) {
-    if (!props.options[i].disabled)
-      return i
-  }
-  return -1
+  return visibleOptions.value.findIndex(o => !o.disabled)
 }
 
 function moveActive(delta: number) {
-  const len = props.options.length
+  const len = visibleOptions.value.length
   if (len === 0)
     return
   let idx = activeIndex.value
   for (let step = 0; step < len; step++) {
     idx = (idx + delta + len) % len
-    if (!props.options[idx]?.disabled) {
+    if (!visibleOptions.value[idx]?.disabled) {
       activeIndex.value = idx
       scrollActiveIntoView()
       return
@@ -127,7 +134,7 @@ function scrollActiveIntoView() {
 const VIEWPORT_MARGIN = 8
 
 function updatePosition() {
-  const trigger = triggerRef.value
+  const trigger = triggerEl()
   if (!trigger)
     return
   const rect = trigger.getBoundingClientRect()
@@ -146,37 +153,48 @@ function updatePosition() {
     : { top: `${rect.bottom}px`, left: `${left}px`, minWidth: `${rect.width}px`, maxWidth: `${maxWidth}px` }
 }
 
-async function openPanel() {
+// The input stands in for the (hidden, still mounted) button while open,
+// sized to it so the surrounding layout does not jump.
+async function openPanel(initialQuery = '') {
   if (props.disabled || isOpen.value)
     return
+  const rect = buttonRef.value?.getBoundingClientRect()
+  inputSize.value = rect ? { width: `${rect.width}px`, height: `${rect.height}px` } : {}
+  query.value = initialQuery
   isOpen.value = true
-  activeIndex.value = selectedIndex.value >= 0 ? selectedIndex.value : firstEnabledIndex()
-  // WKWebView (the desktop app's webview) does not focus a <button> on
-  // click, so without this the trigger's @keydown handler never receives
-  // events after a mouse-opened panel. `preventScroll` keeps focus from
-  // scrolling the trigger into view before updatePosition() below reads
-  // its (still pre-scroll) getBoundingClientRect().
-  triggerRef.value?.focus({ preventScroll: true })
+  const selected = visibleOptions.value.findIndex(isSelected)
+  activeIndex.value = !initialQuery && selected >= 0 ? selected : firstEnabledIndex()
   updatePosition()
   await nextTick()
+  // WKWebView (the desktop app's webview) does not focus a <button> on
+  // click, so focus is always moved explicitly. `preventScroll` keeps focus
+  // from scrolling the input into view before updatePosition() below reads
+  // its (still pre-scroll) getBoundingClientRect().
+  inputRef.value?.focus({ preventScroll: true })
   updatePosition()
   scrollActiveIntoView()
 }
 
 function closePanel(opts: { refocus?: boolean } = {}) {
+  if (!isOpen.value)
+    return
   isOpen.value = false
-  resetTypeahead()
+  query.value = ''
   if (opts.refocus)
-    nextTick(() => triggerRef.value?.focus())
+    nextTick(() => buttonRef.value?.focus())
 }
 
 function toggle() {
-  if (props.disabled)
-    return
   if (isOpen.value)
     closePanel()
   else
     openPanel()
+}
+
+function onInput(e: Event) {
+  query.value = (e.target as HTMLInputElement).value
+  activeIndex.value = firstEnabledIndex()
+  scrollActiveIntoView()
 }
 
 function selectOption(opt: SelectOption<T>) {
@@ -187,18 +205,13 @@ function selectOption(opt: SelectOption<T>) {
   // requests, folder re-resolution, tab switches, ...).
   if (opt.value !== props.modelValue)
     emit('update:modelValue', opt.value)
-  closePanel()
+  closePanel({ refocus: true })
 }
 
 function commitActive() {
-  const opt = props.options[activeIndex.value]
-  if (!opt || opt.disabled)
-    return
-  selectOption(opt)
-}
-
-function onOptionClick(opt: SelectOption<T>) {
-  selectOption(opt)
+  const opt = visibleOptions.value[activeIndex.value]
+  if (opt)
+    selectOption(opt)
 }
 
 function onOptionMouseMove(idx: number, opt: SelectOption<T>) {
@@ -207,83 +220,38 @@ function onOptionMouseMove(idx: number, opt: SelectOption<T>) {
   activeIndex.value = idx
 }
 
-function resetTypeahead() {
-  typeaheadBuffer = ''
-  if (typeaheadTimer) {
-    clearTimeout(typeaheadTimer)
-    typeaheadTimer = null
-  }
-}
-
-function handleTypeahead(char: string) {
-  typeaheadBuffer += char.toLowerCase()
-  if (typeaheadTimer)
-    clearTimeout(typeaheadTimer)
-  typeaheadTimer = setTimeout(resetTypeahead, 500)
-  const match = props.options.findIndex(o => !o.disabled && o.label.toLowerCase().startsWith(typeaheadBuffer))
-  if (match !== -1) {
-    activeIndex.value = match
-    scrollActiveIntoView()
-  }
-}
-
-function onTriggerKeydown(e: KeyboardEvent) {
+// Escape bubbles from the closed button so it can still close an enclosing
+// modal (SpawnDialog's window listener, AppModal's @keydown.escape).
+function onButtonKeydown(e: KeyboardEvent) {
   if (props.disabled)
     return
+  if (['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
+    e.preventDefault()
+    openPanel()
+  }
+  else if (e.key.length === 1 && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault()
+    openPanel(e.key)
+  }
+}
+
+// Tab is left to the browser: focus leaves the input and @blur closes.
+function onInputKeydown(e: KeyboardEvent) {
   switch (e.key) {
     case 'Enter':
-    case ' ':
       e.preventDefault()
-      if (isOpen.value)
-        commitActive()
-      else
-        openPanel()
+      commitActive()
       break
     case 'ArrowDown':
-      e.preventDefault()
-      if (isOpen.value)
-        moveActive(1)
-      else
-        openPanel()
-      break
     case 'ArrowUp':
       e.preventDefault()
-      if (isOpen.value)
-        moveActive(-1)
-      else
-        openPanel()
-      break
-    case 'Home':
-      e.preventDefault()
-      activeIndex.value = firstEnabledIndex()
-      if (isOpen.value)
-        scrollActiveIntoView()
-      break
-    case 'End':
-      e.preventDefault()
-      activeIndex.value = lastEnabledIndex()
-      if (isOpen.value)
-        scrollActiveIntoView()
+      moveActive(e.key === 'ArrowDown' ? 1 : -1)
       break
     case 'Escape':
-      if (isOpen.value) {
-        // Only swallow Escape while the panel is open — a native select
-        // popup consumed that keypress too. When the panel is already
-        // closed, Escape must keep bubbling so it can still close an
-        // enclosing modal (SpawnDialog's window listener, AppModal's
-        // @keydown.escape).
-        e.preventDefault()
-        e.stopPropagation()
-        closePanel({ refocus: true })
-      }
+      e.preventDefault()
+      e.stopPropagation()
+      closePanel({ refocus: true })
       break
-    case 'Tab':
-      if (isOpen.value)
-        closePanel()
-      break
-    default:
-      if (e.key.length === 1 && !e.altKey && !e.ctrlKey && !e.metaKey)
-        handleTypeahead(e.key)
   }
 }
 
@@ -294,7 +262,7 @@ function onWindowScrollOrResize() {
 
 function onDocumentMouseDown(e: MouseEvent) {
   const target = e.target as Node
-  if (triggerRef.value?.contains(target) || panelRef.value?.contains(target))
+  if (triggerEl()?.contains(target) || panelRef.value?.contains(target))
     return
   closePanel()
   // Only a primary-button mousedown is ever followed by a same-gesture
@@ -351,27 +319,48 @@ onUnmounted(() => {
   document.removeEventListener('mousedown', onDocumentMouseDown, true)
   // Also removes onAnyMouseDown's listener if a suppression is armed.
   clearClickSuppression()
-  resetTypeahead()
 })
 </script>
 
 <template>
-  <button
+  <input
+    v-if="isOpen"
     :id="id"
-    ref="triggerRef"
+    ref="inputRef"
+    type="text"
+    role="combobox"
+    aria-expanded="true"
+    aria-autocomplete="list"
+    :aria-controls="panelId"
+    :aria-activedescendant="activeOptionId"
+    :aria-label="ariaLabel"
+    autocomplete="off"
+    spellcheck="false"
+    :value="query"
+    :placeholder="selectedLabel"
+    :class="[$attrs.class, sizeClass, TRIGGER_CLASS]"
+    class="placeholder:text-fg-mute"
+    :style="inputSize"
+    @input="onInput"
+    @keydown="onInputKeydown"
+    @blur="closePanel()"
+  >
+  <button
+    v-show="!isOpen"
+    :id="isOpen ? undefined : id"
+    ref="buttonRef"
     v-bind="$attrs"
     type="button"
     role="combobox"
     :aria-expanded="isOpen"
     aria-haspopup="listbox"
     :aria-controls="panelId"
-    :aria-activedescendant="activeOptionId"
     :aria-label="ariaLabel"
     :disabled="disabled"
-    :class="sizeClass"
-    class="bg-card border border-line rounded-md text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:opacity-50 cursor-pointer inline-flex items-center justify-between gap-2 text-left"
+    :class="[sizeClass, TRIGGER_CLASS]"
+    class="disabled:opacity-50 cursor-pointer inline-flex items-center justify-between gap-2 text-left"
     @click="toggle"
-    @keydown="onTriggerKeydown"
+    @keydown="onButtonKeydown"
   >
     <span class="truncate" :title="selectedLabel || undefined">{{ selectedLabel }}</span>
     <span aria-hidden="true" class="text-fg-mute text-xs leading-none flex-shrink-0">▾</span>
@@ -386,6 +375,7 @@ onUnmounted(() => {
       :aria-label="ariaLabel"
       class="fixed z-[1500] bg-raised border border-line-strong rounded-md shadow-modal py-1 overflow-y-auto"
       :style="{ ...panelPosition, maxHeight: `${PANEL_MAX_HEIGHT}px` }"
+      @mousedown.prevent
     >
       <!--
         z-[1500] must stay strictly above every AppModal instance (highest
@@ -393,23 +383,27 @@ onUnmounted(() => {
         and strictly below the always-on-top layer at z-index 2000
         (SpotlightSearch, ToastHost, App.vue's toast host) — equal z-index
         left paint order to Teleport DOM insertion order, which only
-        worked by accident.
+        worked by accident. mousedown.prevent keeps focus in the filter
+        input, whose blur would otherwise close the panel before a click.
       -->
       <div
-        v-for="(opt, idx) in options"
+        v-for="(opt, idx) in visibleOptions"
         :id="optionId(idx)"
         :key="opt.value"
         role="option"
-        :aria-selected="idx === selectedIndex"
+        :aria-selected="isSelected(opt)"
         :aria-disabled="opt.disabled ? 'true' : undefined"
         :title="opt.label || undefined"
         class="px-3 py-1.5 text-sm flex items-center justify-between gap-2"
         :class="optionClass(opt, idx)"
-        @click="onOptionClick(opt)"
+        @click="selectOption(opt)"
         @mousemove="onOptionMouseMove(idx, opt)"
       >
         <span class="truncate">{{ opt.label }}</span>
-        <span v-if="idx === selectedIndex" aria-hidden="true" class="flex-shrink-0" :class="idx === activeIndex ? 'text-accent-contrast' : 'text-accent'">✓</span>
+        <span v-if="isSelected(opt)" aria-hidden="true" class="flex-shrink-0" :class="idx === activeIndex ? 'text-accent-contrast' : 'text-accent'">✓</span>
+      </div>
+      <div v-if="!visibleOptions.length" role="option" aria-disabled="true" aria-selected="false" class="px-3 py-1.5 text-sm text-fg-mute">
+        No matches
       </div>
     </div>
   </Teleport>

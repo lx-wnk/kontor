@@ -159,3 +159,15 @@ func TestService_SetEmptyClearsASecret(t *testing.T) {
 	assert.Empty(t, reloaded.String("obsidian.apiKey"), "a cleared secret must still read as unset after a reload")
 	assert.Empty(t, reloaded.Effective()["obsidian.apiKey"])
 }
+
+func TestService_OnChangeFiresOnlyAfterASuccessfulSet(t *testing.T) {
+	svc := New(newFakeRepo(), nil)
+	var keys []string
+	svc.OnChange(func(_ context.Context, key string) { keys = append(keys, key) })
+
+	require.NoError(t, svc.Set(t.Context(), "obsidian.baseURL", "https://127.0.0.1:27124"))
+	require.Error(t, svc.Set(t.Context(), "no.such.key", "x"))
+	require.ErrorIs(t, svc.Set(t.Context(), "obsidian.apiKey", "secret"), ErrNoSecretBox)
+
+	assert.Equal(t, []string{"obsidian.baseURL"}, keys)
+}

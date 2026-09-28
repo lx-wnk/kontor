@@ -378,7 +378,9 @@ guard blocks loopback on purpose, and Obsidian's API lives on loopback, so
 the client carries its own narrow, named dial policy rather than widening
 the shared guard to accommodate one application.
 
-**The client is now constructed at boot, from `Settings → Obsidian`.**
+**The client is built from `Settings → Obsidian`, at boot and again whenever
+one of its settings is saved** (a partial trio saved while running turns the
+vault off rather than failing the save).
 `buildObsidianClient` (`server/serverapp/di_obsidian.go`) reads
 `obsidian.baseURL`, `obsidian.vaultRoot`, `obsidian.apiKey`, and
 `obsidian.tlsMode` from the settings registry after `obsidian.Register` runs.

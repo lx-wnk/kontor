@@ -36,7 +36,7 @@ type rpcError struct {
 // modules may be nil: a server built without a module source serves exactly the
 // core tools.
 func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToolAuthorizer) http.HandlerFunc {
-	coreTools := buildToolsList(registry)
+	coreDefs := sortedToolDefs(registry)
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 		var req rpcRequest
@@ -61,10 +61,18 @@ func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToo
 			})
 
 		case "tools/list":
-			// Core tools are fixed; a module's are asked for on every list,
-			// because a module that stopped must be absent rather than listed
-			// and then failing when called.
-			tools := coreTools
+			// Filtered per request: an unavailable tool or a stopped module must be absent, never listed and then failing.
+			tools := make([]map[string]any, 0, len(coreDefs))
+			for _, def := range coreDefs {
+				if !available(def) {
+					continue
+				}
+				tools = append(tools, map[string]any{
+					"name":        def.Name,
+					"description": def.Description,
+					"inputSchema": def.InputSchema,
+				})
+			}
 			if modules != nil {
 				offered := modules.List(r.Context())
 				visible := moduleToolVisibility(r.Context(), moduleGate, offered)
@@ -101,7 +109,7 @@ func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToo
 				}
 			}
 			def, ok := registry[p.Name]
-			if !ok {
+			if !ok || !available(def) {
 				writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{Code: -32601, Message: "tool not found: " + p.Name}})
 				return
 			}
@@ -149,21 +157,16 @@ func writeRPC(w http.ResponseWriter, resp rpcResponse) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// buildToolsList builds the tools/list payload once at startup, sorted by name for determinism.
-func buildToolsList(registry ToolRegistry) []map[string]any {
+// sortedToolDefs snapshots the registry once at startup, sorted by name for determinism.
+func sortedToolDefs(registry ToolRegistry) []*ToolDef {
 	names := make([]string, 0, len(registry))
 	for name := range registry {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	out := make([]map[string]any, 0, len(registry))
+	out := make([]*ToolDef, 0, len(registry))
 	for _, name := range names {
-		def := registry[name]
-		out = append(out, map[string]any{
-			"name":        def.Name,
-			"description": def.Description,
-			"inputSchema": def.InputSchema,
-		})
+		out = append(out, registry[name])
 	}
 	return out
 }

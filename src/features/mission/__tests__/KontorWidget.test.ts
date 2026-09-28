@@ -22,7 +22,7 @@ vi.mock('../composables/useKontorSession', () => ({
   useKontorAgent: () => computed(() => agents.value.find(a => a.pid === session.pid.value) ?? null),
 }))
 vi.mock('@/features/agents', () => ({ useAgents: () => ({ agents }) }))
-vi.mock('../components/KontorTile.vue', () => ({ default: { template: '<div data-testid="stub-kontor-tile" />' } }))
+vi.mock('../components/KontorTile.vue', () => ({ default: { template: '<div data-testid="stub-kontor-tile"><slot name="actions" /></div>' } }))
 
 const { default: KontorWidget } = await import('../components/KontorWidget.vue')
 
@@ -53,6 +53,17 @@ describe('kontorWidget', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }))
     await nextTick()
     expect(document.querySelector('[data-testid="kontor-expanded"]')).not.toBeNull()
+    w.unmount()
+  })
+
+  it('collapses from a labelled Minimize button in the tile header', async () => {
+    const w = mount(KontorWidget, { attachTo: document.body })
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    const button = document.querySelector<HTMLButtonElement>('[data-testid="stub-kontor-tile"] [data-testid="kontor-collapse"]')!
+    expect(button.textContent).toContain('Minimize')
+    button.click()
+    await nextTick()
+    expect(document.querySelector('[data-testid="kontor-expanded"]')).toBeNull()
     w.unmount()
   })
 
