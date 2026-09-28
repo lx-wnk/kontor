@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookstore"
-	"github.com/lx-wnk/agent-dashboard/server/internal/permissions"
+	"github.com/lx-wnk/kontor/server/internal/hookstore"
+	"github.com/lx-wnk/kontor/server/internal/permissions"
 )
 
 // newTestHandler is a convenience constructor for tests. It wires a real

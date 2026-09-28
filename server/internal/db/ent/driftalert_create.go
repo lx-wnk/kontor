@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/driftalert"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
 )
 
 // DriftAlertCreate is the builder for creating a DriftAlert entity.

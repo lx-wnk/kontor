@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	entdep "github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskdependency"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	entdep "github.com/lx-wnk/kontor/server/internal/db/ent/taskdependency"
 )
 
 // DependencyRepo manages task dependency records.

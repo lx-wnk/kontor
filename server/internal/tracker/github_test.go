@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/tracker"
+	"github.com/lx-wnk/kontor/server/internal/tracker"
 )
 
 func ghServer(t *testing.T, status int, body any) *httptest.Server {

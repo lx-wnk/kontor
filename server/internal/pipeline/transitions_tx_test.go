@@ -11,9 +11,9 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 )
 
 // errInjectedCommit is returned by commitFailTx.Commit to simulate a real

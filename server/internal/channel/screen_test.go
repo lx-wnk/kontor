@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/askq"
+	"github.com/lx-wnk/kontor/server/internal/askq"
 )
 
 func TestEmulatorCROverwritesLine(t *testing.T) {

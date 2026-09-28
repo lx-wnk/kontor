@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channel"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 // HeadlessSubcommands returns the subcommand names DispatchHeadless handles.

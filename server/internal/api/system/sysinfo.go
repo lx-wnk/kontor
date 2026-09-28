@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/platform"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/platform"
 )
 
 // SystemInfo mirrors the TypeScript SystemInfo shape.

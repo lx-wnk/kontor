@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/proc"
 )
 
 // sweepAwaitingUserRuns reaps awaiting_user stage_runs whose agent process has

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 // listGlobalAudit handles GET /api/audit. Admin only in TypeScript; Go skips the

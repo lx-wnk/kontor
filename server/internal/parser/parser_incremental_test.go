@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 	"github.com/stretchr/testify/require"
 )
 

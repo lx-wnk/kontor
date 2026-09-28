@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/version"
+	"github.com/lx-wnk/kontor/server/internal/version"
 )
 
 // Every caller has a working answer for "unknown", so a directory that is not

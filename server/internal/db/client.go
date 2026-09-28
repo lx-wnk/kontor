@@ -16,11 +16,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/grant"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskpermission"
+	"github.com/lx-wnk/kontor/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/grant"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskpermission"
 )
 
 // WriteClient marks an *ent.Client as opened onto the connection pool wired

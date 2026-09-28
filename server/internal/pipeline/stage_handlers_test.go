@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/llmadapter"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/llmadapter"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/stretchr/testify/require"
 )
 

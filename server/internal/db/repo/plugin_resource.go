@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // ReconcilePluginResources gives every plugin row a registry identity. A plugin

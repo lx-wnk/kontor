@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/testsupport/fakespawn"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/testsupport/fakespawn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

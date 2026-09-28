@@ -1,5 +1,5 @@
 packages:
-  - path: github.com/lx-wnk/agent-dashboard/sdk
+  - path: github.com/lx-wnk/kontor/sdk
     output_path: src/sdk.generated.ts
     enum_style: union
     type_mappings:

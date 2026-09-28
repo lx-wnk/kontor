@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channel"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 	"github.com/spf13/cobra"
 )
 

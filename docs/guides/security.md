@@ -3,14 +3,14 @@
 The dashboard reads sensitive Claude session data from your machine. It is designed local-first and defensive by default.
 
 - **Loopback only** — the server binds to `127.0.0.1` and is never exposed to the network. (Multi-machine mode is opt-in and expects a VPN/SSH tunnel — see [Configuration](configuration.md).)
-- **Local-trust auth bypass** — `auth.mode` defaults to `none`, and in that mode all API requests are allowed without login. This is the intended posture for a single-user developer machine, and it is a real trust decision rather than a gap: see [Authentication and the local-trust default](#authentication-and-the-local-trust-default) for exactly what it permits. For shared or multi-user machines, configure GitHub OAuth (`DASHBOARD_GITHUB_CLIENT_ID` + `DASHBOARD_GITHUB_CLIENT_SECRET`).
-- **Ephemeral JWT secret** — `DASHBOARD_JWT_SECRET` is auto-generated if unset (sessions reset on restart). Set a stable value for production.
+- **Local-trust auth bypass** — `auth.mode` defaults to `none`, and in that mode all API requests are allowed without login. This is the intended posture for a single-user developer machine, and it is a real trust decision rather than a gap: see [Authentication and the local-trust default](#authentication-and-the-local-trust-default) for exactly what it permits. For shared or multi-user machines, configure GitHub OAuth (`KONTOR_GITHUB_CLIENT_ID` + `KONTOR_GITHUB_CLIENT_SECRET`).
+- **Ephemeral JWT secret** — `KONTOR_JWT_SECRET` is auto-generated if unset (sessions reset on restart). Set a stable value for production.
 - **Hashed tokens** — bearer tokens are SHA-256 hashed before storage; raw tokens are shown once and never persisted in plaintext.
 - **Authenticated channel replies** — per-agent bearer tokens authenticate channel replies.
 - **Sanitized output** — markdown is sanitized via DOMPurify before any `v-html` rendering.
 - **Rate-limited spawns** — user-initiated spawns are rate-limited (default 5/min, configurable).
 - **Dangerous-command block-list** — a block-list in the spawner rejects `curl`/`wget`/`eval`/shell-substitution in agent tool grants.
-- **`git push` hard-blocked** by default even when granted; opt out with `DASHBOARD_ALLOW_GIT_PUSH=true` or per-task `metadata.allowGitPush=true`.
+- **`git push` hard-blocked** by default even when granted; opt out with `KONTOR_ALLOW_GIT_PUSH=true` or per-task `metadata.allowGitPush=true`.
 
 See also the [Privacy policy](../../PRIVACY.md).
 
@@ -57,7 +57,7 @@ sites do not wrap these routes in the admin middleware they ask for:
   authorization"
 
 They are kept as the specification of where the gate belongs once the role is
-grantable, tracked in [#427](https://github.com/lx-wnk/Agent-Dashboard/issues/427).
+grantable, tracked in [#427](https://github.com/lx-wnk/kontor/issues/427).
 
 ### When this posture is wrong for you
 
@@ -68,7 +68,7 @@ therefore inside the trust boundary rather than outside it.
 
 If that is not the posture you want, set `auth.mode` to `plugin` and configure an auth
 provider. `auth.mode` is registered `ApplyRestart`: the running server holds the value
-it read at startup, so changing it — through the settings UI or `agent-dashboard
+it read at startup, so changing it — through the settings UI or `kontor
 settings set` — has no effect until the server restarts. Verify by reloading the
 dashboard and confirming you are asked to log in; do not assume the write took.
 
@@ -120,7 +120,7 @@ grant made with `--scope routine:<schedule id>` decides that push. **It is no lo
 with a second, ephemeral `dashboard-tasks` MCP server entry alongside
 `dashboard-channel` — a per-stage-run bearer credential
 (`server/internal/mcp/stagekey.go`, `StageKeyIssuer.Issue`), distinct from
-`DASHBOARD_MCP_TOKEN`. That env var is still a single value taken from
+`KONTOR_MCP_TOKEN`. That env var is still a single value taken from
 config and handed to every spawn — it has not changed and still identifies
 no task — but it was never the credential that reaches `/api/mcp` in the
 first place: it belongs to the channel bridge alone
@@ -220,23 +220,23 @@ able to give up on purpose:
 
 | Enforcement point | What it covers |
 |---|---|
-| **Server** (`ServerEnforcer`) | The only point with complete coverage once a call site invokes it — nothing routes around it, and it cannot time out into an implicit allow. It is implemented and tested (`server/internal/capability/enforcer_server.go`) and has real production callers: every `/api/memory/*` request, both memory MCP tools (`memory_search`, `memory_write`), the task pipeline's automatic memory push into a stage's spawn prompt, the `POST /api/obsidian/index` trigger, the four `obsidian_*` MCP tools, the four `/api/github/*` HTTP routes (`summary`, `search`, `comment`, `merge`), and the four `github_*` MCP tools, all through `memory.Gate.Authorize` (`server/internal/memory/authorize.go`). **An `Asker` is now wired to it — but only when authentication is on.** With `DASHBOARD_AUTH` in any real mode, `server/serverapp/di.go` builds a `serverask.Asker` (`server/internal/serverask/asker.go`): an `ask` decision holds the caller's request open, the pending ask rides the agent SSE frame into the dashboard's triage band, and **Allow**/**Deny** there posts to `POST /api/capabilities/decisions/respond`, which releases the held call. Under `DASHBOARD_AUTH=none` no asker is constructed and an `ask` still fails closed to `ErrAskRequired` — deliberately: the respond route is not mounted in that mode either, so "a human decided" would reduce to "any local process decided". Six of the call sites that reach the gate may block for a human — the HTTP memory handler (`server/internal/api/memory/handler.go`), `GET /api/resources` (`server/internal/api/resources/handler.go`, which authorizes `memory.read` for `kind=memory_space`), the memory MCP tools (`server/internal/mcp/tools/memory.go`), the four `obsidian_*` MCP tools (`server/internal/mcp/tools/obsidian.go`, sharing the same `Asker` the memory tools use — an agent is genuinely waiting on the tool response either way), the four `/api/github/*` HTTP routes (`server/internal/api/github/handler.go`, built with that same `Asker` — unlike the Obsidian HTTP route just below, these four are the direct request a browser is blocked on, the same shape the memory handler already gates with an `Asker`, not an unattended background run), and the four `github_*` MCP tools (`server/internal/mcp/tools/github.go`, sharing the memory tools' `Asker` too). `github_merge` never actually reaches the asker regardless of any of this: its `spend` class resolves to deny in `capability.Decide`, and `ServerEnforcer` returns `ErrDenied` before the ask branch runs — see [GitHub's token and repository boundary](#githubs-token-and-repository-boundary). The pipeline's memory push (`server/serverapp/di_pipeline.go`) and the Obsidian index trigger's three checks — `memory.write` on the target space, `obsidian.search`, `obsidian.read` (`server/internal/apps/obsidian/index.go`, called from `POST /api/obsidian/index`) — construct their own `Gate` with no `Asker` on purpose: nothing is waiting on either, so an unanswerable ask must deny rather than stall a spawn or a background index run. The two gates do not check the same set: `IndexNotes` checks all three — `memory.write`, `obsidian.search`, `obsidian.read` — together on every run (`server/internal/apps/obsidian/index.go:66,82,92`), while each MCP tool checks exactly one capability per call — `obsidian_read` only `obsidian.read`, `obsidian_search` only `obsidian.search`, `obsidian_write` only `obsidian.write`, `obsidian_delete` only `obsidian.delete` — and none of the four ever checks `memory.write`. What the two gates share is only the asker asymmetry: a fresh install denies the index trigger outright on a missing grant, while the identical kind of `ask` decision through an MCP tool call can surface as a card instead. An ask nobody answers within 25 seconds (`askHoldTimeout`) denies, and so does an ask still pending when the server restarts: a pending ask lives only in memory, is never persisted, and the caller's request fails closed when it disappears. A `deny` decision never reaches the asker at all — `ServerEnforcer.Enforce` returns `ErrDenied` for `EffectDeny` before the ask branch — so nobody can click an explicit denial into an allow; the only decision a human sees is one the Decider itself resolved to `ask`. One such case is a rate limit: an `allow` whose winning grant is exhausted is downgraded to `ask` by `Enforce`, with a reason naming the limit, so with an asker wired a human can now be asked to permit one use past a cap they set themselves. The other half of the old gap closed separately: the `agent-dashboard grants` CLI now creates standing grants, so a `memory.read`/`memory.write` request can be allowed once and for all rather than one call at a time. That is no longer the only surface for it — `GET`/`POST /api/grants` and `DELETE /api/grants/{id}` (`server/internal/api/grants/handler.go`) and **Settings → Grants** create and revoke `grants` rows too — but a fresh install still denies every memory call until a grant exists through one of these or an ask is answered by hand. |
+| **Server** (`ServerEnforcer`) | The only point with complete coverage once a call site invokes it — nothing routes around it, and it cannot time out into an implicit allow. It is implemented and tested (`server/internal/capability/enforcer_server.go`) and has real production callers: every `/api/memory/*` request, both memory MCP tools (`memory_search`, `memory_write`), the task pipeline's automatic memory push into a stage's spawn prompt, the `POST /api/obsidian/index` trigger, the four `obsidian_*` MCP tools, the four `/api/github/*` HTTP routes (`summary`, `search`, `comment`, `merge`), and the four `github_*` MCP tools, all through `memory.Gate.Authorize` (`server/internal/memory/authorize.go`). **An `Asker` is now wired to it — but only when authentication is on.** With `KONTOR_AUTH` in any real mode, `server/serverapp/di.go` builds a `serverask.Asker` (`server/internal/serverask/asker.go`): an `ask` decision holds the caller's request open, the pending ask rides the agent SSE frame into the dashboard's triage band, and **Allow**/**Deny** there posts to `POST /api/capabilities/decisions/respond`, which releases the held call. Under `KONTOR_AUTH=none` no asker is constructed and an `ask` still fails closed to `ErrAskRequired` — deliberately: the respond route is not mounted in that mode either, so "a human decided" would reduce to "any local process decided". Six of the call sites that reach the gate may block for a human — the HTTP memory handler (`server/internal/api/memory/handler.go`), `GET /api/resources` (`server/internal/api/resources/handler.go`, which authorizes `memory.read` for `kind=memory_space`), the memory MCP tools (`server/internal/mcp/tools/memory.go`), the four `obsidian_*` MCP tools (`server/internal/mcp/tools/obsidian.go`, sharing the same `Asker` the memory tools use — an agent is genuinely waiting on the tool response either way), the four `/api/github/*` HTTP routes (`server/internal/api/github/handler.go`, built with that same `Asker` — unlike the Obsidian HTTP route just below, these four are the direct request a browser is blocked on, the same shape the memory handler already gates with an `Asker`, not an unattended background run), and the four `github_*` MCP tools (`server/internal/mcp/tools/github.go`, sharing the memory tools' `Asker` too). `github_merge` never actually reaches the asker regardless of any of this: its `spend` class resolves to deny in `capability.Decide`, and `ServerEnforcer` returns `ErrDenied` before the ask branch runs — see [GitHub's token and repository boundary](#githubs-token-and-repository-boundary). The pipeline's memory push (`server/serverapp/di_pipeline.go`) and the Obsidian index trigger's three checks — `memory.write` on the target space, `obsidian.search`, `obsidian.read` (`server/internal/apps/obsidian/index.go`, called from `POST /api/obsidian/index`) — construct their own `Gate` with no `Asker` on purpose: nothing is waiting on either, so an unanswerable ask must deny rather than stall a spawn or a background index run. The two gates do not check the same set: `IndexNotes` checks all three — `memory.write`, `obsidian.search`, `obsidian.read` — together on every run (`server/internal/apps/obsidian/index.go:66,82,92`), while each MCP tool checks exactly one capability per call — `obsidian_read` only `obsidian.read`, `obsidian_search` only `obsidian.search`, `obsidian_write` only `obsidian.write`, `obsidian_delete` only `obsidian.delete` — and none of the four ever checks `memory.write`. What the two gates share is only the asker asymmetry: a fresh install denies the index trigger outright on a missing grant, while the identical kind of `ask` decision through an MCP tool call can surface as a card instead. An ask nobody answers within 25 seconds (`askHoldTimeout`) denies, and so does an ask still pending when the server restarts: a pending ask lives only in memory, is never persisted, and the caller's request fails closed when it disappears. A `deny` decision never reaches the asker at all — `ServerEnforcer.Enforce` returns `ErrDenied` for `EffectDeny` before the ask branch — so nobody can click an explicit denial into an allow; the only decision a human sees is one the Decider itself resolved to `ask`. One such case is a rate limit: an `allow` whose winning grant is exhausted is downgraded to `ask` by `Enforce`, with a reason naming the limit, so with an asker wired a human can now be asked to permit one use past a cap they set themselves. The other half of the old gap closed separately: the `agent-dashboard grants` CLI now creates standing grants, so a `memory.read`/`memory.write` request can be allowed once and for all rather than one call at a time. That is no longer the only surface for it — `GET`/`POST /api/grants` and `DELETE /api/grants/{id}` (`server/internal/api/grants/handler.go`) and **Settings → Grants** create and revoke `grants` rows too — but a fresh install still denies every memory call until a grant exists through one of these or an ask is answered by hand. |
 | **Spawn** (`SpawnEnforcer`) | Complete for every agent the dashboard's task pipeline spawns itself: each granted `TaskPermission` is resolved through the Decider and rendered into that process's `--allowedTools` list (`server/internal/pipeline/spawner.go`). It cannot ask — the file is written before the process starts — so an `ask` decision is simply omitted, and the agent falls back to its own permission prompt for that call. |
 | **Hook** (`HookEnforcer`) | The only point that can reach a session you started by hand, because it rides Claude Code's own `PreToolUse` hook instead of a start-time handshake. **It fails open on a timeout, by design** — see below. |
 
 ### Creating and revoking grants
 
-The `agent-dashboard grants` CLI, `GET`/`POST /api/grants` plus
+The `kontor grants` CLI, `GET`/`POST /api/grants` plus
 `DELETE /api/grants/{id}` (`server/internal/api/grants/handler.go`), and
 **Settings → Grants** all create and revoke `grants` rows (the boot
 backfill migration writes rows too, but nobody invokes it by hand). Only
 the CLI opens the SQLite database directly, the same way
-`agent-dashboard settings` and `agent-dashboard plugins` do, so it is the
+`kontor settings` and `kontor plugins` do, so it is the
 one that still works while the server is down.
 
 ```bash
-agent-dashboard grants add memory.read --pattern '*' --scope global --mode allow
-agent-dashboard grants list --capability memory.read
+kontor grants add memory.read --pattern '*' --scope global --mode allow
+kontor grants list --capability memory.read
 ```
 
 `add`, `list`, `revoke`, and `capabilities` are the four subcommands —
@@ -284,8 +284,8 @@ a narrower one matches.
 So these two grants do **not** compose the way they read:
 
 ```bash
-agent-dashboard grants add memory.read --pattern '*' --scope global --mode deny
-agent-dashboard grants add memory.read --pattern '*' --scope project:/home/me/app --mode allow
+kontor grants add memory.read --pattern '*' --scope global --mode deny
+kontor grants add memory.read --pattern '*' --scope project:/home/me/app --mode allow
 ```
 
 Inside `/home/me/app` the request is **allowed**. The global `deny` is not a
@@ -449,9 +449,9 @@ the same reasoning that puts the `obsidian.*` capabilities and `WebFetch` in
 grant. `github.merge` is class `spend` instead, which `defaultEffect` sends
 straight to `EffectDeny`: with no grant, a merge is refused outright, never
 held open for a human to click through. This does not depend on whether an
-`Asker` is wired at all (see the table above) — under `DASHBOARD_AUTH=none`
+`Asker` is wired at all (see the table above) — under `KONTOR_AUTH=none`
 an `ask` decision fails closed anyway, but a merge with a `reach` class
-would still surface as a held request the moment `DASHBOARD_AUTH` and an
+would still surface as a held request the moment `KONTOR_AUTH` and an
 asker were both configured, and a merge is not the decision this project
 wants one tired approval away from happening by accident. The cockpit's **Merge**
 button calls that same gated route and is refused the same way without a
@@ -482,4 +482,4 @@ in that function may put the token in an error or a log line.
 
 ## Reporting a vulnerability
 
-Please report security issues privately via [GitHub Security Advisories](https://github.com/lx-wnk/Agent-Dashboard/security/advisories/new) rather than opening a public issue.
+Please report security issues privately via [GitHub Security Advisories](https://github.com/lx-wnk/kontor/security/advisories/new) rather than opening a public issue.

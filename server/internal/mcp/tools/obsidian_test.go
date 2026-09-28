@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	obsidianapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	obsidianapp "github.com/lx-wnk/kontor/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // TestObsidianToolsHaveScopeEntries proves all four Obsidian tools have a

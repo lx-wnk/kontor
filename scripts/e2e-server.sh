@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BIN=bin/agent-dashboard
+BIN=bin/kontor
 E2E_PORT="${E2E_PORT:-13199}"
 E2E_DB="${E2E_DB_PATH:-$PWD/.e2e/dashboard-e2e.db}"
 

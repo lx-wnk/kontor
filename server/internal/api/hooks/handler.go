@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookstore"
-	"github.com/lx-wnk/agent-dashboard/server/internal/permissions"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/hookstore"
+	"github.com/lx-wnk/kontor/server/internal/permissions"
 )
 
 const (

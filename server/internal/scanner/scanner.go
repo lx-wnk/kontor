@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/platform"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/platform"
 )
 
 // ProcessInfo holds metadata about a running Claude Code process.

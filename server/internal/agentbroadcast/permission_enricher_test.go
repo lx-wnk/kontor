@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/agentbroadcast"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/agentbroadcast"
 )
 
 type fakeBridge struct {

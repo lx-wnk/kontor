@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/askq"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/askq"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 // questionProbeTimeout bounds the loopback HTTP round-trip so a slow or wedged

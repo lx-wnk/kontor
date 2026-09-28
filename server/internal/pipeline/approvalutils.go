@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // backlogStageTools is the minimum tool set the backlog-stage agent needs to explore a codebase.

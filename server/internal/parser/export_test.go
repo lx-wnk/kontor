@@ -1,6 +1,6 @@
 package parser
 
-import "github.com/lx-wnk/agent-dashboard/sdk"
+import "github.com/lx-wnk/kontor/sdk"
 
 // Test-only accessors for the candidate-cache stat counter. Defined in an
 // internal test file so the external parser_test package can assert how many

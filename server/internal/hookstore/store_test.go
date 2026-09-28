@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 func ev(tool string) sdk.HookEvent {

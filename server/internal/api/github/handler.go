@@ -18,11 +18,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	githubapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	githubapp "github.com/lx-wnk/kontor/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // Handler serves /api/github/*.

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pluginmgmt"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/pluginmgmt"
 )
 
 type fakeRepo struct {

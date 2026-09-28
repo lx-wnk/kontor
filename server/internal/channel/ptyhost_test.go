@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 // syncBuf is a goroutine-safe writer standing in for the pty master.

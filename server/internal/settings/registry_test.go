@@ -3,7 +3,7 @@ package settings
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

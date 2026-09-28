@@ -3,7 +3,7 @@
 ## Our pledge
 
 We as members, contributors, and maintainers pledge to make participation in the
-Agent Dashboard community a welcoming, respectful, and harassment-free experience
+Kontor community a welcoming, respectful, and harassment-free experience
 for everyone, regardless of background or identity.
 
 We pledge to act and interact in ways that contribute to an open, friendly, and
@@ -33,7 +33,7 @@ FAQ at <https://www.contributor-covenant.org/faq>.
 ## Enforcement
 
 Instances of unacceptable behavior may be reported privately to the project
-maintainer via a [GitHub Security Advisory](https://github.com/lx-wnk/Agent-Dashboard/security/advisories/new)
+maintainer via a [GitHub Security Advisory](https://github.com/lx-wnk/kontor/security/advisories/new)
 or by contacting [@lx-wnk](https://github.com/lx-wnk) on GitHub. All complaints
 will be reviewed and investigated promptly and fairly. Maintainers are obligated
 to respect the privacy and security of the reporter of any incident.

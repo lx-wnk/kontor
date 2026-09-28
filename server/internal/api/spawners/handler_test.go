@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // stripSSEFrame strips the "data: " prefix and "\n\n" suffix added by Broadcaster.

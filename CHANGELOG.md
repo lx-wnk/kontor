@@ -13,6 +13,24 @@ from [Conventional Commits](https://www.conventionalcommits.org/) by GoReleaser.
 Preparing the first public release.
 
 ### Changed
+
+- The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
+  `lx-wnk/tap/kontor`, the container image is `ghcr.io/lx-wnk/kontor`, the macOS
+  bundle identifier is `com.lxwnk.kontor`, and the Go modules are
+  `github.com/lx-wnk/kontor/{sdk,server,desktop}` with plugins under
+  `github.com/lx-wnk/kontor-plugin-*`. The installer's environment variables are
+  now `KONTOR_BIN_DIR` and `KONTOR_VERSION`.
+- Configuration variables are now `KONTOR_*`. The old `DASHBOARD_*` names are
+  still read, the new ones win when both are set, and the server warns once at
+  boot when it found only old ones.
+- A new installation writes `~/.claude/kontor-tasks.db`; one that already has
+  `dashboard-tasks.db` keeps using it. The plugin encryption key is copied to
+  `kontor-secret.key` on first boot and the previous file is kept as a backup.
+- The hook script and its secret file keep their old names in this release. The
+  copy already installed in `~/.claude` has those paths baked in, so renaming
+  them without reinstalling the script would stop it authenticating.
+
+### Changed
 - **The sidebar stops moving the item you are aiming at.** Hovering the icon rail expanded it, and two things that render only in the expanded state changed the geometry underneath the pointer: the group captions (`MONITOR`, `BUILD`, `INSIGHTS`) inserted three rows, and the footer laid its three action buttons out in a row instead of a column, making it ~80px shorter. Because the last nav group is bottom-anchored with `mt-auto`, that second one lifted every Insights item by that much. Measured against the running app: `Workflows`, `Cost` and `Eval` moved 76px the moment the panel opened — nearly two rows — so a click begun over one of them landed on its neighbour. The caption now sits in a fixed-height box present in both states (the icon rail keeps its centred rule inside it), and the footer keeps one column layout throughout. After the fix those three rows sit at the same offsets in both states; the top five move 3px, from the title block that still appears only when expanded, which is well inside a 40px row. Both invariants have tests that fail against the old markup.
 - **The Eval view draws its charts on the first paint, and stops rate-limiting itself on the way there.** Two defects on the same screen, both visible only in a running app. The nine metric cards sat blank because the draw was triggered by a watcher on `snapshots` alone, while the `<svg>` it draws into is gated by `isLoading` as well — the watcher fired while the element did not exist yet, `renderChart` found a null ref and returned, and nothing re-triggered it until the 60-second poll replaced `snapshots` again. The watcher now covers both gates. (The same line moved from `queueMicrotask` to `nextTick`, which is the primitive that actually orders after Vue's DOM patch; on its own it changed nothing measurable, and the test proves it — reverting only that stays green.) Separately, the view fetched one request per metric, so a single page load sent 21 API requests in one second against the server's own per-IP burst of 20 and answered itself `429 Failed to load eval data`. `/api/eval/metrics` returns every metric without a `metric` filter, so the client now makes one request and groups the rows itself: 13 requests per second instead of 21. The composable test that asserted "at least ten fetches" had written the fan-out down as a requirement; it now asserts one. `CostAnalyticsView` got the same `nextTick` for the same reason its own comment already gave, though its charts survived the old primitive because their cards use `v-show` and the refs exist from mount — no defect was observed there.
 - **Mission control surfaces an agent's own question, not only a pipeline permission.** Its empty state promises that agents will interrupt there, but the centre ranked permission requests and plans waiting for approval and nothing else — so an agent holding an AskUserQuestion on its terminal left the centre reading "Nothing needs you" while the needs-you band showed the question one view away. `question` joins the ranking between `permission` and `plan`: a permission blocks a tool call already in flight, a question blocks the turn around it, a plan blocks nothing until a human looks. The centre renders the same `QuestionCard` and `ConfirmCard` the band renders rather than growing a second way to answer, and the review/submit screen that closes a multi-question flow counts too — leaving it out would have let the centre fall silent at the last step of the flow it had just surfaced. The POST both places send is now one function, `sendQuestionAnswer`. The centre's context line also stopped printing a trailing separator for items that carry no stage.

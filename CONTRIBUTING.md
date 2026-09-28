@@ -1,4 +1,4 @@
-# Contributing to agent-dashboard
+# Contributing to kontor
 
 Real-time monitoring dashboard for locally running Claude Code agents. Go 1.26 backend, Vue 3 + TypeScript frontend.
 
@@ -18,8 +18,8 @@ Building the macOS desktop shell (`desktop/`) additionally requires Xcode comman
 ## Setup
 
 ```bash
-git clone https://github.com/lx-wnk/Agent-Dashboard.git
-cd Agent-Dashboard
+git clone https://github.com/lx-wnk/kontor.git
+cd Kontor
 pnpm install        # frontend dependencies only
 ```
 
@@ -33,17 +33,17 @@ task dev
 
 Starts the Go backend via `air` (hot-reload on `.go` file changes) and serves the Vue SPA, both on port 13120.
 
-To re-trigger the first-run onboarding flow (e.g. to test it) once you've already completed or skipped it, reset its setting: `agent-dashboard settings set onboarding.completed false`. The CLI writes straight to the database and a running server reads its settings once at startup, so restart the server afterwards — otherwise the command reports success and the flow stays hidden.
+To re-trigger the first-run onboarding flow (e.g. to test it) once you've already completed or skipped it, reset its setting: `kontor settings set onboarding.completed false`. The CLI writes straight to the database and a running server reads its settings once at startup, so restart the server afterwards — otherwise the command reports success and the flow stays hidden.
 
 ## Production build
 
 ```bash
 pnpm build          # build the Vue SPA (embedded into the binary via go:embed)
-task build          # compile → bin/agent-dashboard
+task build          # compile → bin/kontor
 DASHBOARD_JWT_SECRET=<32+ chars> ./bin/agent-dashboard serve
 ```
 
-Build the SPA **before** the binary — `go:embed` bakes the compiled frontend into `bin/agent-dashboard`, so the result is self-contained (no Node.js at runtime). Deploy by copying the binary. End users do not build from source; see [docs/guides/install.md](docs/guides/install.md) for binary/Homebrew/Docker installs.
+Build the SPA **before** the binary — `go:embed` bakes the compiled frontend into `bin/kontor`, so the result is self-contained (no Node.js at runtime). Deploy by copying the binary. End users do not build from source; see [docs/guides/install.md](docs/guides/install.md) for binary/Homebrew/Docker installs.
 
 ## Commands
 
@@ -52,7 +52,7 @@ Build the SPA **before** the binary — `go:embed` bakes the compiled frontend i
 | Command | Description |
 |---------|-------------|
 | `task dev` | Start with air hot-reload |
-| `task build` | Compile production binary → `bin/agent-dashboard` |
+| `task build` | Compile production binary → `bin/kontor` |
 | `task build:all` | Build the SPA and embed it into the server binary |
 | `task build:everything` | `build:all` plus, on macOS, the desktop shell |
 | `task dev:desktop` | macOS desktop shell with wails hot-reload (needs the wails CLI) |
@@ -101,7 +101,7 @@ IDE-embedded tools (Cursor, Copilot-in-VSCode, Windsurf) don't write file-per-se
 `desktop/` is its own Go module (wails v2) that wraps the dashboard server in a native WKWebView window. It is `//go:build darwin`-gated — the module does not build on other platforms; a `main_other.go` stub keeps `go build ./...` and CI green off macOS. Build and run it for a dev smoke (requires Go 1.26 + Xcode command-line tools, no `wails` CLI needed):
 
 ```bash
-task desktop:run        # or: task build:desktop  (writes bin/agent-dashboard-desktop)
+task desktop:run        # or: task build:desktop  (writes bin/kontor-desktop)
 ```
 
 Three non-obvious build requirements the `desktop:*` tasks encapsulate — a bare `cd desktop && go build .` runs but produces a broken app:
@@ -162,4 +162,4 @@ All commit messages must be written in English.
 
 ## Reporting Issues
 
-Use [GitHub Issues](https://github.com/lx-wnk/Agent-Dashboard/issues/new/choose) to report bugs or request features.
+Use [GitHub Issues](https://github.com/lx-wnk/kontor/issues/new/choose) to report bugs or request features.

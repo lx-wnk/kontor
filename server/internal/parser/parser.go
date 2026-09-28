@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sanitize"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/sanitize"
 )
 
 const tailBytes = 32768 // 32KB from end

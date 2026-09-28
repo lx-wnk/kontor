@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 )
 
 func TestRecentChannelOutput(t *testing.T) {

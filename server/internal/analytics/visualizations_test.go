@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 func TestBuildSankey_LinearFixture(t *testing.T) {

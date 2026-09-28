@@ -1,6 +1,7 @@
 package secretbox
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -105,4 +106,33 @@ func TestLoadOrGenerateMasterKey_LegacyFallback(t *testing.T) {
 	// No new key file must appear at the configured path.
 	_, statErr := os.Stat(filepath.Join(newDir, secretKeyFileName))
 	require.True(t, os.IsNotExist(statErr), "must not generate a new key when legacy key exists")
+}
+
+// The key file is the one rename in this project that can destroy something
+// the operator cannot recreate: every plugin secret is sealed with it, and a
+// bootstrap that fails to find the old file does not error — it generates a new
+// key and every stored secret becomes undecryptable.
+func TestLoadOrGenerateMasterKey_MigratesTheRenamedKeyFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+
+	original := bytes.Repeat([]byte{7}, 32)
+	oldPath := filepath.Join(dir, "dashboard-secret.key")
+	if err := os.WriteFile(oldPath, []byte(hex.EncodeToString(original)+"\n"), 0o600); err != nil {
+		t.Fatalf("seed the old key file: %v", err)
+	}
+
+	got, err := LoadOrGenerateMasterKey("")
+	if err != nil {
+		t.Fatalf("LoadOrGenerateMasterKey: %v", err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatal("the returned key is not the one stored under the old name — every sealed secret would be lost")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "kontor-secret.key")); err != nil {
+		t.Errorf("the key was not written under the new name: %v", err)
+	}
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Errorf("the old key file must survive as the backup: %v", err)
+	}
 }

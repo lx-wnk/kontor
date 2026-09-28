@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apiobsidian "github.com/lx-wnk/agent-dashboard/server/internal/api/obsidian"
-	obsidianapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
+	obsidianapp "github.com/lx-wnk/kontor/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // testDeps wires the repos the handler needs against a fresh in-memory

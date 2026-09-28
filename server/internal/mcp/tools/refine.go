@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	refineapi "github.com/lx-wnk/agent-dashboard/server/internal/api/refine"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/refine"
+	refineapi "github.com/lx-wnk/kontor/server/internal/api/refine"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/refine"
 )
 
 // RefineDeps holds dependencies required by the refinement MCP tools.

@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/systemprompt"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/systemprompt"
 )
 
 // SystemPromptCreate is the builder for creating a SystemPrompt entity.

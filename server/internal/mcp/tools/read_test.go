@@ -3,7 +3,7 @@ package tools
 import (
 	"testing"
 
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
 	"github.com/stretchr/testify/require"
 )
 

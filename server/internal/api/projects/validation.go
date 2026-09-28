@@ -4,7 +4,7 @@ package projects
 import (
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // ValidateSlug returns true when s is a valid slug.

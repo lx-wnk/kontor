@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/materializer"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/materializer"
 )
 
 // maxRequestBytes caps the request body. The body carries one boolean.

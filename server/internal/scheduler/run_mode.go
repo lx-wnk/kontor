@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/worktree"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/worktree"
 )
 
 // CheckRunMode reports why a routine with runMode and cwd cannot be saved.

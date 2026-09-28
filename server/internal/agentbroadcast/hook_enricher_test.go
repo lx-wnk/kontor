@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookstore"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/hookstore"
 )
 
 func TestHookEventEnricher_SetsEventsForMatchingSession(t *testing.T) {

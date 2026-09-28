@@ -16,7 +16,11 @@ import (
 const (
 	// DefaultRootDirName is the directory under $HOME that holds auto-created
 	// worktrees when no explicit root is configured.
-	DefaultRootDirName = "dashboard-worktrees"
+	DefaultRootDirName = "kontor-worktrees"
+	// RenamedRootDirName is what that directory was called before the project
+	// was renamed. An installation that already has one keeps using it: the
+	// checkouts inside are what running agents are working in.
+	RenamedRootDirName = "dashboard-worktrees"
 	// BranchPrefix is prepended to a task slug when no source branch is set.
 	BranchPrefix = "feat/"
 )

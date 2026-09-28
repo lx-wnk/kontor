@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/eval"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/eval"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 func TestEvalOnDrift_BroadcastsEvalDriftEvent(t *testing.T) {

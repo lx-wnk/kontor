@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // askUserQuestionTool is Claude Code's interactive multiple-choice tool. It

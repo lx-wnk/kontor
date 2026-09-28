@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // EntryImportMarker gates the one-time copy of servers that already existed

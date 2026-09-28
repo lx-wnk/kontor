@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
 )
 
 // Repo is the persistence the service needs (subset of repo.AppSettingRepo,

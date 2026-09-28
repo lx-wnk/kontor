@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
-	"github.com/lx-wnk/agent-dashboard/server/internal/provider"
-	"github.com/lx-wnk/agent-dashboard/server/internal/scanner"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/provider"
+	"github.com/lx-wnk/kontor/server/internal/scanner"
 )
 
 const (

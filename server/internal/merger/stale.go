@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // liveSnapshot caches the minimum a finished agent card needs to be

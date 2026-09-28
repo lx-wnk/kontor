@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/services"
 )
 
 // containsConsecutive returns true if args contains a followed immediately by b.

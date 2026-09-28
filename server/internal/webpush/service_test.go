@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	webpushlib "github.com/SherClockHolmes/webpush-go"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
 )
 
 func newTestService(t *testing.T) (*Service, rawrepo.PushSubscriptionRepo) {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 func writeLines(t *testing.T, lines []string) string {

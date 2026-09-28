@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // fakeStageRuns embeds repo.StageRunRepo so only ListBySessionIDs needs an

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/pathutil"
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 	"github.com/stretchr/testify/require"
 )
 

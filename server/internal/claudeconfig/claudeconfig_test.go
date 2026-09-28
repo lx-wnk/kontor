@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudeconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/stretchr/testify/require"
 )
 

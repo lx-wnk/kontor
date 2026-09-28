@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // ReconcileScheduleResources gives every task_schedule row a registry identity.

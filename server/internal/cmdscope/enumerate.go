@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/sanitize"
+	"github.com/lx-wnk/kontor/server/internal/sanitize"
 )
 
 // maxArgumentHintRunes caps the argument template a command or skill file may

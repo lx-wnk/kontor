@@ -1,6 +1,6 @@
 package ranking
 
-import "github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+import "github.com/lx-wnk/kontor/server/internal/db/ent"
 
 // EffectiveRank returns the task's stored rank, falling back to its creation
 // time (as microseconds) so unranked legacy rows still order deterministically.

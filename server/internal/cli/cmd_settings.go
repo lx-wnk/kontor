@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // resolveDBPath: --db flag > DASHBOARD_DB_PATH > default ~/.claude/dashboard-tasks.db

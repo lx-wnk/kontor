@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/schema"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/schema"
 )
 
 const (

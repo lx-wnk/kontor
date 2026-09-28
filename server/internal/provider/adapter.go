@@ -1,6 +1,6 @@
 package provider
 
-import "github.com/lx-wnk/agent-dashboard/server/internal/parser"
+import "github.com/lx-wnk/kontor/server/internal/parser"
 
 // Adapter parses providers whose sessions are not file-per-session JSONL
 // (IDE-embedded: Cursor, Copilot-in-VSCode, Windsurf). No adapter is registered

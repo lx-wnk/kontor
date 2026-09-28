@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/tracker"
+	"github.com/lx-wnk/kontor/server/internal/tracker"
 )
 
 func TestErrorsAreDistinct(t *testing.T) {

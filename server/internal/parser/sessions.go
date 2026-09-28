@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/scanner"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/scanner"
 )
 
 const (

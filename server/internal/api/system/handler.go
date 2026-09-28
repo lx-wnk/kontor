@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/version"
+	"github.com/lx-wnk/kontor/server/internal/version"
 )
 
 var startTime = time.Now()

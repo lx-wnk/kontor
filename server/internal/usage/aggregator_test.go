@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/usage"
+	"github.com/lx-wnk/kontor/server/internal/usage"
 )
 
 func makeProjectDir(t *testing.T, configDir string) string {

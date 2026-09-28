@@ -67,7 +67,7 @@ import (
 	"strings"
 	"time"
 
-	oauthkit "github.com/lx-wnk/agent-dashboard-plugin-oauthkit"
+	oauthkit "github.com/lx-wnk/kontor-plugin-oauthkit"
 )
 
 const (

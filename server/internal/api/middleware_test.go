@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api"
-	authpkg "github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/api"
+	authpkg "github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/merger"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // TestRouter_BypassAuth_LoopbackNoOAuth verifies that when BypassAuth is true

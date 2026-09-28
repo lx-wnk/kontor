@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // newPluginsCmd is the direct-DB plugin control group — the offline lockout

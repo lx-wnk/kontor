@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // buildObsidianClient returns nil, nil when Obsidian is unconfigured: the

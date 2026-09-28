@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/spawner"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/spawner"
 )
 
 // Spawner is the model entity for the Spawner schema.

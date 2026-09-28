@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // envKeyForbidden matches shell metacharacters and control chars that must

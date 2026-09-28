@@ -3,9 +3,9 @@ package tools
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // ReadDeps holds the repositories required by the read tools.

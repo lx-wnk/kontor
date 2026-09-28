@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // StageTransition is a sealed interface. Only types in this package satisfy it.

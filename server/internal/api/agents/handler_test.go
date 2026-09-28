@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/agents"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/api/agents"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // syncRecorder is an http.ResponseWriter+http.Flusher safe for concurrent

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 // defaultRangeDays is the look-back window used when the request omits `from`.

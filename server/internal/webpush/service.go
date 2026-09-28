@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	webpushlib "github.com/SherClockHolmes/webpush-go"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
 )
 
 const (

@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/pipelineconfig"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/pipelineconfig"
 )
 
 // PipelineConfigCreate is the builder for creating a PipelineConfig entity.

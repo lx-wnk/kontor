@@ -35,8 +35,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/httputil"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/httputil"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

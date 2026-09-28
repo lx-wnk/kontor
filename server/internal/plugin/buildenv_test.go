@@ -31,12 +31,19 @@ func TestBuildPluginEnv_BlocklistWinsOverAllowList(t *testing.T) {
 }
 
 func TestBuildPluginEnv_AllBlocklistNamesAreBlocked(t *testing.T) {
-	blocked := []string{
-		"DASHBOARD_SECRET_KEY",
-		"DASHBOARD_JWT_SECRET",
-		"DASHBOARD_AUTH_PLUGIN_SECRET",
-		"DASHBOARD_MCP_TOKEN",
-		"DASHBOARD_HOOKS_SECRET",
+	// Both prefixes: the server reads configuration under either since the
+	// rename, so a secret set under the new name must be blocked as firmly as
+	// the old one. An allow-list matches by prefix and grew on its own; this
+	// blocklist does not, which is what this case is here to catch.
+	var blocked []string
+	for _, prefix := range []string{"DASHBOARD_", "KONTOR_"} {
+		blocked = append(blocked,
+			prefix+"SECRET_KEY",
+			prefix+"JWT_SECRET",
+			prefix+"AUTH_PLUGIN_SECRET",
+			prefix+"MCP_TOKEN",
+			prefix+"HOOKS_SECRET",
+		)
 	}
 	for _, k := range blocked {
 		t.Setenv(k, "secret-value")

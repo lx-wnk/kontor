@@ -1,5 +1,5 @@
 {
-  "name": "claude-agent-overview",
+  "name": "kontor",
   "type": "module",
   "version": "0.1.0",
   "private": true,
@@ -7,10 +7,10 @@
   "description": "Real-time monitoring and control dashboard for locally running Claude Code agents",
   "author": "Alexander Wink",
   "license": "MIT",
-  "homepage": "https://github.com/lx-wnk/Agent-Dashboard",
+  "homepage": "https://github.com/lx-wnk/kontor",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lx-wnk/Agent-Dashboard.git"
+    "url": "https://github.com/lx-wnk/kontor.git"
   },
   "scripts": {
     "dev": "vite",

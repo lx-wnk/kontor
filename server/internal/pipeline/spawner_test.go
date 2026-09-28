@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/stretchr/testify/require"
 )
 

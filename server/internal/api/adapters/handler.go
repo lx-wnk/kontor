@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/llmadapter"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/llmadapter"
 )
 
 // availableAdapters is a thin shim re-exporting the canonical catalog from

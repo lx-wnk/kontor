@@ -16,7 +16,7 @@ import (
 func TestRegenerateEnt(t *testing.T) {
 	cfg := &gen.Config{
 		Target:  "../ent",
-		Package: "github.com/lx-wnk/agent-dashboard/server/internal/db/ent",
+		Package: "github.com/lx-wnk/kontor/server/internal/db/ent",
 		// Must match the canonical generation feature set, otherwise this
 		// regeneration silently strips the upsert (OnConflict*) helpers that
 		// repo code (e.g. agent_cost_trend_repo.go) depends on — corrupting the

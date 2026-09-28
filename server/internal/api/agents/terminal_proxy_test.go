@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 // fakeBroker stands in for the pty-broker's /ws endpoint: it sends a hello

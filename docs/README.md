@@ -1,6 +1,6 @@
 # Documentation
 
-Reference and guides for Agent Dashboard. Start with the [project README](../README.md) for an
+Reference and guides for Kontor. Start with the [project README](../README.md) for an
 overview and quickstart.
 
 The tree has three tiers, and they are kept apart on purpose:

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 // errorsAs is a thin wrapper so the test file can do an inline type

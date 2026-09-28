@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // TestAllAgentConfigDirs_DefaultAlwaysVariantsOnlyWhenPresent pins the two

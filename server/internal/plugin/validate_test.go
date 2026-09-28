@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 func TestValidID(t *testing.T) {

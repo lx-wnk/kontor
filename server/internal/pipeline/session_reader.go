@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 var jsonBlockRE = regexp.MustCompile("(?s)```json\\b([\\s\\S]*?)```")

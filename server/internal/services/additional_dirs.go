@@ -1,6 +1,6 @@
 package services
 
-import "github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+import "github.com/lx-wnk/kontor/server/internal/db/ent"
 
 // AdditionalDirsForProject returns the paths of project folders that should be
 // passed to the `claude` CLI via --add-dir flags. It excludes:

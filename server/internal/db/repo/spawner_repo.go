@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/project"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/spawner"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/project"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/spawner"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
 )
 
 // ErrSpawnerBuiltIn is returned when attempting to delete a built-in spawner.

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/askgate"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/serverask"
+	"github.com/lx-wnk/kontor/server/internal/askgate"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/serverask"
 )
 
 // fakeResolver records what it was handed and returns a fixed error.

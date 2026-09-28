@@ -20,7 +20,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/cmdscope"
+	"github.com/lx-wnk/kontor/server/internal/cmdscope"
 )
 
 // CwdPolicy gates the client-supplied project cwd to the same roots the spawn

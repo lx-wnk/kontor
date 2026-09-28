@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // TestCreateTask_HTTPStageMustMatchKind verifies POST /api/tasks refuses to

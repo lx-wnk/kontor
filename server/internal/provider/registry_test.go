@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
+	"github.com/lx-wnk/kontor/sdk"
 )
 
 func testRegistry(t *testing.T, enabled ...string) *Registry {

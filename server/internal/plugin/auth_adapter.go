@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/auth"
 )
 
 // PluginAuthProvider implements auth.OAuthProvider by proxying to an auth_provider plugin.

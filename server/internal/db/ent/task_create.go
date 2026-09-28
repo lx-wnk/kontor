@@ -12,10 +12,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/stagerun"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskdependency"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/taskpermission"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/stagerun"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskdependency"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/taskpermission"
 )
 
 // TaskCreate is the builder for creating a Task entity.

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // HandlerDeps holds the dependencies for the plan HTTP handler.

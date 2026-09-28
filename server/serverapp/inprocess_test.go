@@ -3,15 +3,23 @@ package serverapp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/config"
-	"github.com/lx-wnk/agent-dashboard/server/internal/restart"
+	"github.com/stretchr/testify/require"
+
+	"github.com/lx-wnk/kontor/server/internal/config"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/restart"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // freePort asks the OS for an unused loopback port and immediately releases it.
@@ -113,4 +121,66 @@ func TestRun_InProcess_HealthMutationShutdown(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("Run did not return within timeout after ctx cancellation")
 	}
+}
+
+// An optional, read-only integration must not be able to take the server down.
+// Measured on 2026-09-19 against a copy of a real installation: with
+// github.repos configured and github.tokenSource set to gh-cli, an expired gh
+// login ended the boot with "startup failed", so the dashboard — agents,
+// pipeline, everything — was unreachable because of a GitHub token.
+func TestRun_InProcess_BootsWhenTheGitHubTokenIsUnavailable(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "boot.db")
+
+	bundle, err := db.Open(dbPath)
+	require.NoError(t, err)
+	box, err := secretbox.New(make([]byte, 32))
+	require.NoError(t, err)
+	svc := settings.New(settingsRepoAdapter{inner: repo.NewAppSettingRepo(bundle.Client)}, box)
+	require.NoError(t, svc.Load(t.Context()))
+	require.NoError(t, svc.Set(t.Context(), "github.tokenSource", "gh-cli"))
+	require.NoError(t, svc.Set(t.Context(), "github.repos", "lx-wnk/kontor"))
+	require.NoError(t, bundle.Client.Close())
+
+	restore := stubGhToken(func(context.Context) (string, error) {
+		return "", errors.New("gh auth token failed: no oauth token found for github.com")
+	})
+	defer restore()
+
+	port := freePort(t)
+	cfg := config.Config{
+		Host:        "127.0.0.1",
+		Port:        port,
+		DBPath:      dbPath,
+		RestartMode: "reexec",
+		JWTSecret:   "test-secret-test-secret-test-secret-32",
+		HooksSecret: "test-hooks-secret-test-hooks-secret-32",
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runErrCh := make(chan error, 1)
+	go func() { runErrCh <- Run(ctx, cfg, "", restart.NewController(cfg.RestartMode)) }()
+
+	healthURL := fmt.Sprintf("http://127.0.0.1:%d/api/system/health", port)
+	client := &http.Client{Timeout: 2 * time.Second}
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(healthURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				cancel()
+				<-runErrCh
+				return
+			}
+		}
+		select {
+		case runErr := <-runErrCh:
+			t.Fatalf("the server exited instead of booting without GitHub: %v", runErr)
+		default:
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	cancel()
+	t.Fatal("the server never became healthy")
 }

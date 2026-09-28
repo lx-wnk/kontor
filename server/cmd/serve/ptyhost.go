@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/serverapp"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/serverapp"
 )
 
 // newPtyHostCmd builds `agent-dashboard pty-host -- <binary> <args…>`. It runs

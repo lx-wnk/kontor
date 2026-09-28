@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/apps/github"
 )
 
 // An absent gh must be its own error, not a generic exec failure: the fix

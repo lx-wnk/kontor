@@ -4,8 +4,8 @@
 package parser
 
 import (
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pricing"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/pricing"
 )
 
 // EstimateCost returns the estimated USD cost for a given token usage and model.

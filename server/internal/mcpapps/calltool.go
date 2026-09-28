@@ -8,7 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/version"
+	"github.com/lx-wnk/kontor/server/internal/version"
 )
 
 // callToolTimeout bounds one operator-initiated tool call, matching the

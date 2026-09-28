@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
 )
 
 type fakeRepo struct{ rows map[string]row }

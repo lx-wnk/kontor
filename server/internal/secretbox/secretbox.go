@@ -16,7 +16,14 @@ import (
 	"strings"
 )
 
-const secretKeyFileName = "dashboard-secret.key"
+const secretKeyFileName = "kontor-secret.key"
+
+// renamedKeyFileName is what the key file was called before the project was
+// renamed. It is still read, and copied to the new name on first boot, because
+// every plugin secret is sealed with it: a bootstrap that does not find it does
+// not fail — it generates a fresh key and makes every stored secret
+// undecryptable. The old file is deliberately left in place as the backup.
+const renamedKeyFileName = "dashboard-secret.key"
 
 // MaskedSentinel is what a secret value reads as on any surface that is not
 // explicitly decrypting it. Submitting it back means "leave unchanged", so it
@@ -106,6 +113,20 @@ func LoadOrGenerateMasterKey(existing string) ([]byte, error) {
 		// empty file — fall through to generate
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("secretbox: read key file %s: %w", path, err)
+	} else if renamedKey, found, rerr := readRenamedKey(baseDir); rerr != nil {
+		// Present but unreadable: fail hard for the same reason the primary path
+		// does. Generating a fresh key here would silently orphan every secret
+		// sealed with the old one.
+		return nil, rerr
+	} else if found {
+		// The key exists under the pre-rename name. Copy it to the new name so
+		// the next boot needs no fallback, and keep the original as a backup.
+		if err := os.WriteFile(path, []byte(hex.EncodeToString(renamedKey)+"\n"), 0o600); err != nil {
+			return nil, fmt.Errorf("secretbox: copy key to %s: %w", path, err)
+		}
+		slog.Info("plugin secret master key migrated to its new name; the previous file is kept as a backup",
+			"path", path, "backup", filepath.Join(baseDir, renamedKeyFileName))
+		return renamedKey, nil
 	} else if legacyKey, ok := readLegacyKey(baseDir, path); ok {
 		// Primary path has no key but the legacy ~/.claude path does (key was
 		// generated before CLAUDE_CONFIG_DIR was set). Use it so existing encrypted
@@ -124,6 +145,25 @@ func LoadOrGenerateMasterKey(existing string) ([]byte, error) {
 	}
 	slog.Info("Generated plugin secret master key — set DASHBOARD_SECRET_KEY to use across machines", "path", path)
 	return key, nil
+}
+
+// readRenamedKey returns the key stored under the pre-rename file name in the
+// same directory, if it is present and valid.
+func readRenamedKey(baseDir string) ([]byte, bool, error) {
+	path := filepath.Join(baseDir, renamedKeyFileName)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false, nil
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil, false, nil
+	}
+	key, err := hex.DecodeString(trimmed)
+	if err != nil || len(key) != 32 {
+		return nil, false, fmt.Errorf("secretbox: key file %s is non-empty but invalid; remove it manually to regenerate", path)
+	}
+	return key, true, nil
 }
 
 // readLegacyKey returns the key persisted at the default ~/.claude path when the

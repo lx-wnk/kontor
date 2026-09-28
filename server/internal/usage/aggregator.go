@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pricing"
+	"github.com/lx-wnk/kontor/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/pricing"
 )
 
 const (

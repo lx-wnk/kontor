@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // IsNotFound reports whether err is ent's not-found error. It exists so callers

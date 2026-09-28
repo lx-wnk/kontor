@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	apiusage "github.com/lx-wnk/agent-dashboard/server/internal/api/usage"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
-	"github.com/lx-wnk/agent-dashboard/server/internal/usage"
+	apiusage "github.com/lx-wnk/kontor/server/internal/api/usage"
+	"github.com/lx-wnk/kontor/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/usage"
 )
 
 // fakeSettingsRepo satisfies settings.Repo with an in-memory map.

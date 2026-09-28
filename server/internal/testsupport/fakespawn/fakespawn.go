@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudemodel"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
-	"github.com/lx-wnk/agent-dashboard/server/internal/scanner"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudemodel"
+	"github.com/lx-wnk/kontor/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/scanner"
 )
 
 // Spawner owns one fake agent's temp HOME and the set of currently-live fake

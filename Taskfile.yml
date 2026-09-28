@@ -98,7 +98,7 @@ tasks:
   build:
     desc: Build server binary (embeds whatever is currently in server/frontend/dist)
     dir: server
-    cmd: go build -ldflags "-X main.version={{.VERSION}}" -o ../bin/agent-dashboard ./cmd/serve/...
+    cmd: go build -ldflags "-X main.version={{.VERSION}}" -o ../bin/kontor ./cmd/serve/...
 
   build:all:
     desc: Build frontend and embed it into a self-contained server binary
@@ -129,17 +129,17 @@ tasks:
       # on the macOS 15 SDK but a plain `go build` omits.
       # The version is stamped here too: a desktop window that cannot name its
       # own build is indistinguishable from a stale one (see /api/system/health).
-      - cd desktop && CGO_ENABLED=1 go build -tags production -ldflags "-X github.com/lx-wnk/agent-dashboard/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'" -o ../bin/agent-dashboard-desktop .
+      - cd desktop && CGO_ENABLED=1 go build -tags production -ldflags "-X github.com/lx-wnk/kontor/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'" -o ../bin/kontor-desktop .
 
   desktop:run:
     desc: Build and launch the macOS desktop shell for a smoke test
     platforms: [darwin]
     cmds:
       - task: build:desktop
-      - ./bin/agent-dashboard-desktop
+      - ./bin/kontor-desktop
 
   desktop:dist:
-    desc: Package the macOS desktop shell into an unsigned bin/Agent Dashboard.app bundle (requires the wails CLI + Xcode CLT)
+    desc: Package the macOS desktop shell into an unsigned bin/Kontor.app bundle (requires the wails CLI + Xcode CLT)
     platforms: [darwin]
     cmds:
       - defer: git checkout -- desktop/wails.json
@@ -153,18 +153,18 @@ tasks:
       # Same production tag + UniformTypeIdentifiers ldflag as build:desktop, driven
       # through `wails build` so it also renders desktop/wails.json + Info.plist into
       # a real .app bundle instead of a bare Mach-O binary.
-      - cd desktop && $(go env GOPATH)/bin/wails build -clean -tags production -ldflags "-X github.com/lx-wnk/agent-dashboard/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'"
+      - cd desktop && $(go env GOPATH)/bin/wails build -clean -tags production -ldflags "-X github.com/lx-wnk/kontor/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'"
       - mkdir -p bin
-      - rm -rf "bin/Agent Dashboard.app"
-      - cp -R "desktop/build/bin/Agent Dashboard.app" bin/
+      - rm -rf "bin/Kontor.app"
+      - cp -R "desktop/build/bin/Kontor.app" bin/
 
   desktop:dmg:
-    desc: Package bin/Agent Dashboard.app into an unsigned bin/Agent Dashboard.dmg (via hdiutil, no external tool needed)
+    desc: Package bin/Kontor.app into an unsigned bin/Kontor.dmg (via hdiutil, no external tool needed)
     platforms: [darwin]
     cmds:
       - task: desktop:dist
-      - rm -f "bin/Agent Dashboard.dmg"
-      - hdiutil create -volname "Agent Dashboard" -srcfolder "bin/Agent Dashboard.app" -ov -format UDZO "bin/Agent Dashboard.dmg"
+      - rm -f "bin/Kontor.dmg"
+      - hdiutil create -volname "Kontor" -srcfolder "bin/Kontor.app" -ov -format UDZO "bin/Kontor.dmg"
 
   test:
     desc: Run all tests (all modules)

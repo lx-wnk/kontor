@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // Dimension is the grouping key for all metrics.

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // seedPluginsFromEnabledList migrates the legacy #230 "plugins.enabled" setting

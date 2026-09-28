@@ -21,8 +21,8 @@ Run `wails doctor` after installing the CLI to confirm your toolchain is ready.
 
 ```sh
 export PATH="$PATH:$(go env GOPATH)/bin"   # so `wails` is on PATH
-task desktop:dist   # -> bin/Agent Dashboard.app
-task desktop:dmg    # -> bin/Agent Dashboard.dmg (chains desktop:dist)
+task desktop:dist   # -> bin/Kontor.app
+task desktop:dmg    # -> bin/Kontor.dmg (chains desktop:dist)
 ```
 
 `desktop:dist` runs `wails build` (reading `desktop/wails.json` and `desktop/build/darwin/Info.plist`)
@@ -35,11 +35,11 @@ Both artifacts are **unsigned**. That's expected at this stage — see below.
 
 ## The Gatekeeper caveat (unsigned artifact)
 
-Anyone who downloads `Agent Dashboard.app`/`.dmg` before it's signed and notarized (see next
+Anyone who downloads `Kontor.app`/`.dmg` before it's signed and notarized (see next
 section) will hit Gatekeeper's "cannot be opened because the developer cannot be verified" dialog.
 The workaround for a locally-built or trusted unsigned app:
 
-1. Right-click (or Control-click) `Agent Dashboard.app` in Finder.
+1. Right-click (or Control-click) `Kontor.app` in Finder.
 2. Choose **Open**.
 3. Confirm **Open** in the dialog that appears.
 
@@ -59,7 +59,7 @@ installed in your keychain:
 codesign --deep --force --options runtime \
   --entitlements desktop/build/darwin/entitlements.plist \
   --sign "Developer ID Application: Your Name (TEAMID)" \
-  "bin/Agent Dashboard.app"
+  "bin/Kontor.app"
 ```
 
 `desktop/build/darwin/entitlements.plist` grants the minimum a wails/WKWebView app needs under the
@@ -75,17 +75,17 @@ deliberately left out by default since it widens what unsigned code the process 
 Verify the signature:
 
 ```sh
-codesign --verify --deep --strict --verbose=2 "bin/Agent Dashboard.app"
-spctl --assess --type execute --verbose "bin/Agent Dashboard.app"
+codesign --verify --deep --strict --verbose=2 "bin/Kontor.app"
+spctl --assess --type execute --verbose "bin/Kontor.app"
 ```
 
 ### 2. Re-package the signed app into a DMG
 
 ```sh
-rm -f "bin/Agent Dashboard.dmg"
-hdiutil create -volname "Agent Dashboard" -srcfolder "bin/Agent Dashboard.app" \
-  -ov -format UDZO "bin/Agent Dashboard.dmg"
-codesign --sign "Developer ID Application: Your Name (TEAMID)" "bin/Agent Dashboard.dmg"
+rm -f "bin/Kontor.dmg"
+hdiutil create -volname "Kontor" -srcfolder "bin/Kontor.app" \
+  -ov -format UDZO "bin/Kontor.dmg"
+codesign --sign "Developer ID Application: Your Name (TEAMID)" "bin/Kontor.dmg"
 ```
 
 ### 3. Submit for notarization
@@ -94,7 +94,7 @@ Requires an app-specific password or API key set up for `notarytool` (see
 [Apple's notarytool guide](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution)).
 
 ```sh
-xcrun notarytool submit "bin/Agent Dashboard.dmg" \
+xcrun notarytool submit "bin/Kontor.dmg" \
   --apple-id "you@example.com" \
   --team-id "TEAMID" \
   --password "@keychain:AC_PASSWORD" \
@@ -107,8 +107,8 @@ the failure log with `xcrun notarytool log <submission-id> --apple-id ... --team
 ### 4. Staple the notarization ticket
 
 ```sh
-xcrun stapler staple "bin/Agent Dashboard.dmg"
-xcrun stapler validate "bin/Agent Dashboard.dmg"
+xcrun stapler staple "bin/Kontor.dmg"
+xcrun stapler validate "bin/Kontor.dmg"
 ```
 
 Stapling embeds the notarization ticket in the DMG itself, so Gatekeeper can verify it offline

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	githubapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	githubapp "github.com/lx-wnk/kontor/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 // GitHubDeps holds the dependencies required by the GitHub MCP tools. Client

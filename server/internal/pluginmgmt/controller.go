@@ -14,10 +14,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/plugins"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/api/plugins"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 // Repo is the subset of repo.PluginRepo the controller reads.

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/permissionpreset"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/remoteregistration"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/task"
-	entuser "github.com/lx-wnk/agent-dashboard/server/internal/db/ent/user"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/permissionpreset"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/remoteregistration"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/task"
+	entuser "github.com/lx-wnk/kontor/server/internal/db/ent/user"
 )
 
 // ProviderUserInfo holds fields from the OAuth provider user API.

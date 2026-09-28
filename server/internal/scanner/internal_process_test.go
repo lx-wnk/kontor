@@ -3,7 +3,7 @@ package scanner_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/scanner"
+	"github.com/lx-wnk/kontor/server/internal/scanner"
 	"github.com/stretchr/testify/require"
 )
 

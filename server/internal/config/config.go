@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -16,7 +17,7 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/worktree"
+	"github.com/lx-wnk/kontor/server/internal/worktree"
 )
 
 // Config holds bootstrap and secret configuration. Operational config now lives
@@ -55,14 +56,59 @@ func Defaults() Config {
 	return Config{
 		Host:         "127.0.0.1",
 		Port:         13120,
-		DBPath:       home + "/.claude/dashboard-tasks.db",
-		WorktreeRoot: home + "/" + worktree.DefaultRootDirName,
+		DBPath:       keepExisting(filepath.Join(home, ".claude", "kontor-tasks.db"), filepath.Join(home, ".claude", "dashboard-tasks.db")),
+		WorktreeRoot: keepExisting(filepath.Join(home, worktree.DefaultRootDirName), filepath.Join(home, worktree.RenamedRootDirName)),
 		RestartMode:  "reexec",
 	}
 }
 
+// keepExisting returns preferred unless it is absent and legacy is present, in
+// which case the installation keeps using what it already has. Nothing is
+// copied or moved: a database can be large and a worktree root holds checkouts
+// that running agents are working in, so relocating either behind the
+// operator's back would be the more dangerous of the two options.
+func keepExisting(preferred, legacy string) string {
+	if _, err := os.Stat(preferred); err == nil {
+		return preferred
+	}
+	if _, err := os.Stat(legacy); err == nil {
+		slog.Info("using the pre-rename path because it exists", "path", legacy, "new", preferred)
+		return legacy
+	}
+	return preferred
+}
+
+// EnvPrefix is the prefix every configuration variable carries. legacyEnvPrefix
+// is the name it had before the project was renamed; it is still read so an
+// installation whose shell profile or .env file predates the rename keeps its
+// configuration.
+const (
+	EnvPrefix       = "KONTOR_"
+	legacyEnvPrefix = "DASHBOARD_"
+)
+
+// warnIfOnlyLegacyEnvPrefix says once, at boot, that the configuration came in
+// under the old prefix — the only signal an operator gets that a future release
+// dropping it will change their setup.
+func warnIfOnlyLegacyEnvPrefix() {
+	legacy, current := 0, 0
+	for _, kv := range os.Environ() {
+		switch {
+		case strings.HasPrefix(kv, EnvPrefix):
+			current++
+		case strings.HasPrefix(kv, legacyEnvPrefix):
+			legacy++
+		}
+	}
+	if legacy > 0 && current == 0 {
+		slog.Warn("configuration read from the old environment prefix",
+			"old", legacyEnvPrefix, "new", EnvPrefix, "variables", legacy)
+	}
+}
+
 // Load returns a Config merged from defaults → optional JSON file → env vars.
-// Env vars are prefixed with DASHBOARD_ and case-insensitive.
+// Env vars carry EnvPrefix and are case-insensitive; legacyEnvPrefix is still
+// accepted, see the loop below.
 func Load(cfgFile string) (Config, error) {
 	// Load a .env file from the working directory into the process environment
 	// so both `task dev` (air) and `./bin/agent-dashboard serve` pick it up — the
@@ -96,12 +142,21 @@ func Load(cfgFile string) (Config, error) {
 		}
 	}
 
-	// Env vars: DASHBOARD_HOST → host, DASHBOARD_JWT_SECRET → jwt_secret
-	if err := k.Load(env.Provider("DASHBOARD_", ".", func(s string) string {
-		return strings.ToLower(strings.TrimPrefix(s, "DASHBOARD_"))
-	}), nil); err != nil {
-		return Config{}, fmt.Errorf("config env: %w", err)
+	// Env vars: KONTOR_HOST → host, KONTOR_JWT_SECRET → jwt_secret.
+	//
+	// The old prefix is loaded first and the new one after it, so a value set
+	// under both wins under the new name. Reading the old prefix is not a
+	// courtesy: it lives in shell profiles and .env files this process cannot
+	// see, and dropping it would change an existing installation's configuration
+	// without anyone touching it.
+	for _, prefix := range []string{legacyEnvPrefix, EnvPrefix} {
+		if err := k.Load(env.Provider(prefix, ".", func(s string) string {
+			return strings.ToLower(strings.TrimPrefix(s, prefix))
+		}), nil); err != nil {
+			return Config{}, fmt.Errorf("config env %s: %w", prefix, err)
+		}
 	}
+	warnIfOnlyLegacyEnvPrefix()
 
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return Config{}, fmt.Errorf("config unmarshal: %w", err)

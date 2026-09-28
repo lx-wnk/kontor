@@ -3,7 +3,7 @@ package capability_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/capability"
 )
 
 func TestSpawnEnforcerEmitsOnlyAllowedEntries(t *testing.T) {

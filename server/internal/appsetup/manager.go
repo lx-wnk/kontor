@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 )
 
 // warningText is shown next to a running setup session everywhere it

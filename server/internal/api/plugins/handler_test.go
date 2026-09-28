@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/plugins"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/api/plugins"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 const testJWTSecret = "test-secret-plugins"

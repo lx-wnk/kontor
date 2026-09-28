@@ -9,10 +9,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/checkpoint"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/domainerr"
+	"github.com/lx-wnk/kontor/server/internal/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/domainerr"
 )
 
 // fakeCheckpointRepo is an in-memory repo.CheckpointRepo backed by a slice.

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // sharedContext is prepended to every stage system prompt. It names

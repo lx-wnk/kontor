@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 func newSchedule(t *testing.T, r repo.TaskScheduleRepo, name string, in repo.CreateTaskScheduleInput) string {

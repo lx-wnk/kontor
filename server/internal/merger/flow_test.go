@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdk "github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/agents"
-	"github.com/lx-wnk/agent-dashboard/server/internal/merger"
-	"github.com/lx-wnk/agent-dashboard/server/internal/testsupport/fakespawn"
+	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/api/agents"
+	"github.com/lx-wnk/kontor/server/internal/merger"
+	"github.com/lx-wnk/kontor/server/internal/testsupport/fakespawn"
 )
 
 // findBySession returns the agent with the given session ID, or false.

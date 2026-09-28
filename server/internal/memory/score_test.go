@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
 func TestScopeSpecificityOutranksEqualRelevance(t *testing.T) {

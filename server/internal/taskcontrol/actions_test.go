@@ -3,7 +3,7 @@ package taskcontrol_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/taskcontrol"
+	"github.com/lx-wnk/kontor/server/internal/taskcontrol"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

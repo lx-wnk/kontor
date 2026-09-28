@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // gitResolveTimeout bounds each git invocation so a slow/hung repo can never

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
 )
 
 // MaskedSentinel is returned for secret values and, when sent back on Put,

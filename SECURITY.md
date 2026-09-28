@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Agent Dashboard is in active pre-1.0 development. Only the latest commit on
+Kontor is in active pre-1.0 development. Only the latest commit on
 `main` (and the most recent published release, if any) receives security fixes.
 Older releases are not supported.
 
@@ -13,7 +13,7 @@ Older releases are not supported.
 
 ## Threat Model
 
-Agent Dashboard is a **local-first** tool. The server binds exclusively to
+Kontor is a **local-first** tool. The server binds exclusively to
 `127.0.0.1` and reads sensitive Claude Code session data from your local
 filesystem. It is not designed to be exposed to the public internet. See
 [docs/guides/security.md](docs/guides/security.md) for a full description of
@@ -32,7 +32,7 @@ for what it permits and when it is the wrong posture for you.
 
 Report vulnerabilities privately via GitHub Security Advisories:
 
-> https://github.com/lx-wnk/Agent-Dashboard/security/advisories/new
+> https://github.com/lx-wnk/kontor/security/advisories/new
 
 Include a description of the issue, reproduction steps, and (if known) the
 potential impact. You will receive a response as soon as possible. If the report

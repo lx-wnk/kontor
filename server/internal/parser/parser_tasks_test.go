@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 func mustMarshal(v any) []byte {

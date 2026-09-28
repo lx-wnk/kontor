@@ -3,7 +3,7 @@ package validation_test
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 func TestIsValidSlug(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/domainerr"
+	"github.com/lx-wnk/kontor/server/internal/domainerr"
 )
 
 // Sentinel errors — aliases to the stdlib-only domainerr package so the db

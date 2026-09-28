@@ -3,7 +3,7 @@ package tasks
 import (
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/taskcontrol"
+	"github.com/lx-wnk/kontor/server/internal/taskcontrol"
 )
 
 type stubRefineReader struct{ status, errMsg string }

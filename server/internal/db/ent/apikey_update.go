@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/apikey"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/predicate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/apikey"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/predicate"
 )
 
 // ApiKeyUpdate is the builder for updating ApiKey entities.

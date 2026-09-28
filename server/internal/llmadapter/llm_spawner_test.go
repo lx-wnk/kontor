@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/llmadapter"
+	"github.com/lx-wnk/kontor/server/internal/llmadapter"
 )
 
 // parseAndExtractAssistantText mimics what session_reader.go does:

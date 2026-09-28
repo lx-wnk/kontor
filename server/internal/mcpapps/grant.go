@@ -3,7 +3,7 @@ package mcpapps
 import (
 	"context"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // EnsureGrant creates the grant unless a live, unlimited grant with the same

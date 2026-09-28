@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 const (

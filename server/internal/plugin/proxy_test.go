@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
 )
 
 // TestNewReverseProxy_ProxiesAndStripsPrefixAndHeaders is a regression test for the

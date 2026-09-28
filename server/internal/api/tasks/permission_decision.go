@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 )
 
 // Decisions a human can make on a pending permission request.

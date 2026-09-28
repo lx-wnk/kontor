@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/project"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/projectfolder"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/project"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/projectfolder"
 )
 
 // ProjectFolderCreate is the builder for creating a ProjectFolder entity.

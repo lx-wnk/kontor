@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // fakeWorktreeMgr implements tasks.WorktreeStatusProvider for testing.

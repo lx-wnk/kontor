@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/capability"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/capability"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
 // ScopeKinds lists the scope kind values a caller may name. Shared by every

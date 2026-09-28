@@ -1,10 +1,10 @@
 {
-  "name": "dashboard-channel",
+  "name": "kontor-channel",
   "type": "module",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "node --import tsx/esm dashboard-channel.ts"
+    "start": "node --import tsx/esm kontor-channel.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1"

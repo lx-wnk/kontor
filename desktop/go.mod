@@ -1,9 +1,9 @@
-module github.com/lx-wnk/agent-dashboard/desktop
+module github.com/lx-wnk/kontor/desktop
 
 go 1.26
 
 require (
-	github.com/lx-wnk/agent-dashboard/server v0.0.0
+	github.com/lx-wnk/kontor/server v0.0.0
 	github.com/wailsapp/wails/v2 v2.15.0
 )
 
@@ -46,7 +46,7 @@ require (
 	github.com/leaanthony/gosod v1.0.4 // indirect
 	github.com/leaanthony/slicer v1.6.0 // indirect
 	github.com/leaanthony/u v1.1.1 // indirect
-	github.com/lx-wnk/agent-dashboard/sdk v0.0.0-00010101000000-000000000000 // indirect
+	github.com/lx-wnk/kontor/sdk v0.0.0-00010101000000-000000000000 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -86,8 +86,8 @@ require (
 	modernc.org/sqlite v1.57.0 // indirect
 )
 
-replace github.com/lx-wnk/agent-dashboard/server => ../server
+replace github.com/lx-wnk/kontor/server => ../server
 
-replace github.com/lx-wnk/agent-dashboard/sdk => ../sdk
+replace github.com/lx-wnk/kontor/sdk => ../sdk
 
 replace github.com/coder/acp-go-sdk => github.com/lx-wnk/acp-go-sdk v1.20.0-lxwnk.alpha.1

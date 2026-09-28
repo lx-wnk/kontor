@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // SkillPath builds the SKILL.md path for slug in t, following the layout

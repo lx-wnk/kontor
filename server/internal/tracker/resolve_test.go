@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/tracker"
+	"github.com/lx-wnk/kontor/server/internal/tracker"
 )
 
 func TestResolve_GitHubURL(t *testing.T) {

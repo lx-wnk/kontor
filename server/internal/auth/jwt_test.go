@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/auth"
 	"github.com/stretchr/testify/require"
 )
 

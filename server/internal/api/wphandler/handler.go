@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/rawrepo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/webpush"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
+	"github.com/lx-wnk/kontor/server/internal/webpush"
 )
 
 // Handler handles VAPID key management and subscription registration endpoints.

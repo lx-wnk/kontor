@@ -12,14 +12,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	githubapp "github.com/lx-wnk/agent-dashboard/server/internal/apps/github"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
+	githubapp "github.com/lx-wnk/kontor/server/internal/apps/github"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/memory"
 )
 
-const ghTestRepo = "lx-wnk/agent-dashboard"
+const ghTestRepo = "lx-wnk/kontor"
 
 // TestEveryGitHubCapabilityIsOnBothSurfaces is the rule this project has
 // broken twice: a gated action wired on one surface only. It reads the

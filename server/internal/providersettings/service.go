@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/provider"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/provider"
 )
 
 // repoIface is the subset of repo.ProviderSettingRepo the service needs,

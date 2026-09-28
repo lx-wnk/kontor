@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/materializer"
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/materializer"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // TestTargets_TwoPathsToOneDirectoryProduceOneTarget covers the layout this

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/checkpoint"
 )
 
 func initRepo(t *testing.T) string {

@@ -17,18 +17,22 @@
 #   DASHBOARD_URL           default http://127.0.0.1:13120
 #   DASHBOARD_HOOKS_SECRET  overrides the secret file below
 #
-# The secret is read from ~/.claude/dashboard-hooks-secret (0600, written by the
-# dashboard on first boot) rather than required in the environment: a session
+# The secret is read from ~/.claude/kontor-hooks-secret, or the pre-rename
+# dashboard-hooks-secret (0600, written by the server on first boot) rather than required in the environment: a session
 # started by hand in a terminal inherits no dashboard variables, and putting the
 # secret in settings.json would leave it in a file meant to be shared.
 set -u
 
-url="${DASHBOARD_URL:-http://127.0.0.1:13120}"
-secret_file="${HOME}/.claude/dashboard-hooks-secret"
-secret="${DASHBOARD_HOOKS_SECRET:-}"
-if [ -z "$secret" ] && [ -r "$secret_file" ]; then
-  secret="$(tr -d '[:space:]' < "$secret_file")"
-fi
+url="${KONTOR_URL:-${DASHBOARD_URL:-http://127.0.0.1:13120}}"
+secret="${KONTOR_HOOKS_SECRET:-${DASHBOARD_HOOKS_SECRET:-}}"
+# Both file names are read: the server keeps using whichever already exists, so
+# a script installed after the rename still has to find a secret written before
+# it.
+for secret_file in "${HOME}/.claude/kontor-hooks-secret" "${HOME}/.claude/dashboard-hooks-secret"; do
+  if [ -z "$secret" ] && [ -r "$secret_file" ]; then
+    secret="$(tr -d '[:space:]' < "$secret_file")"
+  fi
+done
 payload="$(cat)"
 
 [ -n "$secret" ] || exit 0

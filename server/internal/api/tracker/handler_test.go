@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	trackerapi "github.com/lx-wnk/agent-dashboard/server/internal/api/tracker"
-	"github.com/lx-wnk/agent-dashboard/server/internal/plugin"
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
-	"github.com/lx-wnk/agent-dashboard/server/internal/tracker"
+	trackerapi "github.com/lx-wnk/kontor/server/internal/api/tracker"
+	"github.com/lx-wnk/kontor/server/internal/plugin"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
+	"github.com/lx-wnk/kontor/server/internal/tracker"
 )
 
 // memRepo is an in-memory plugin.Repo for tests.

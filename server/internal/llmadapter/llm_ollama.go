@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/ollamaclient"
+	"github.com/lx-wnk/kontor/server/internal/ollamaclient"
 )
 
 // OllamaSpawner calls the Ollama HTTP API synchronously and writes a

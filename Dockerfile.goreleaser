@@ -1,5 +1,5 @@
 FROM gcr.io/distroless/static:nonroot
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/agent-dashboard /agent-dashboard
+COPY $TARGETPLATFORM/kontor /kontor
 EXPOSE 13120
-ENTRYPOINT ["/agent-dashboard", "serve"]
+ENTRYPOINT ["/kontor", "serve"]

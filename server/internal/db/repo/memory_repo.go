@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/memoryentry"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/memoryinjection"
+	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/memoryentry"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/memoryinjection"
 )
 
 // MemoryKinds and MemorySourceKinds list the values CreateEntry accepts for

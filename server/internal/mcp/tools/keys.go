@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // KeyDeps holds dependencies required by the API key management tools.

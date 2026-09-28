@@ -10,12 +10,12 @@ For agents started **manually** outside the dashboard, inject the channel binary
 claude --mcp-config '{"mcpServers":{"dashboard-channel":{"command":"/path/to/bin/dashboard-channel"}}}'
 ```
 
-Use the built-in `agent-dashboard live` command, which loads the channel MCP automatically and selects the best transport (tmux if available, pty broker otherwise):
+Use the built-in `kontor live` command, which loads the channel MCP automatically and selects the best transport (tmux if available, pty broker otherwise):
 
 ```bash
-agent-dashboard live
-agent-dashboard live --resume <session-id>
-agent-dashboard live --yolo   # adds --dangerously-skip-permissions
+kontor live
+kontor live --resume <session-id>
+kontor live --yolo   # adds --dangerously-skip-permissions
 ```
 
 ## Spawning new agents
@@ -86,7 +86,7 @@ the dashboard for any session — including ones you started by hand — by
 registering two Claude Code hooks:
 
 ```bash
-agent-dashboard hooks install
+kontor hooks install
 ```
 
 That writes the hook script to `~/.claude/dashboard-hooks/` (mode `0700`,
@@ -95,7 +95,7 @@ extracted from the binary — nothing needs to stay in a checkout) and registers
 `$CLAUDE_CONFIG_DIR/settings.json`). Existing hooks are kept; re-running the
 command rewrites the script and repairs the registered path if the binary moved.
 Settings are read when a session starts, so restart anything already running.
-`agent-dashboard hooks uninstall` removes the entries that point at that script
+`kontor hooks uninstall` removes the entries that point at that script
 and leaves every other hook alone.
 
 `docs/hooks-setup.md` describes registering hooks by hand for the notification

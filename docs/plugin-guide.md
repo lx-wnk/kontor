@@ -378,7 +378,7 @@ plugin's DB state.
 broken, disable auth from the CLI without a running server:
 
 ```bash
-agent-dashboard settings set auth.mode none
+kontor settings set auth.mode none
 ```
 
 This writes directly to the database and takes effect on next boot.
@@ -401,7 +401,7 @@ This writes directly to the database and takes effect on next boot.
 
    ```bash
    export DASHBOARD_PLUGIN_DIR=/path/to/plugins
-   ./agent-dashboard serve
+   ./kontor serve
    ```
 
    Or add `"plugin_dir": "/path/to/plugins"` to your JSON config file.
@@ -436,7 +436,7 @@ capability.
 | File          | Purpose |
 |---------------|---------|
 | `plugin.json` | Descriptor — capability `auth_provider`, addr `127.0.0.1:19001`, command `./github-oauth` |
-| `go.mod`      | Standalone Go module (`github.com/lx-wnk/agent-dashboard-plugin-github-oauth`) |
+| `go.mod`      | Standalone Go module (`github.com/lx-wnk/kontor-plugin-github-oauth`) |
 | `main.go`     | HTTP server implementing standalone OAuth flow + `/health` |
 
 ### Setup
@@ -454,7 +454,7 @@ export DASHBOARD_AUTH_PLUGIN_SECRET=$(openssl rand -hex 32)
 
 # 3. Point the dashboard at the plugin dir and start
 export DASHBOARD_PLUGIN_DIR=/path/to/plugins   # directory containing github-oauth/
-./agent-dashboard serve
+./kontor serve
 ```
 
 The dashboard logs `plugin: loaded id=github-oauth capabilities=[auth_provider]` on
@@ -480,7 +480,7 @@ single-tenant Azure AD.
 | File | Purpose |
 |------|---------|
 | `plugin.json` | Descriptor — capability `auth_provider`, addr `127.0.0.1:19002`, command `./office365-oauth` |
-| `go.mod` | Standalone module (`github.com/lx-wnk/agent-dashboard-plugin-office365-oauth`) |
+| `go.mod` | Standalone module (`github.com/lx-wnk/kontor-plugin-office365-oauth`) |
 | `main.go` | HTTP server implementing standalone OAuth2 flow |
 
 ### Azure App Registration
@@ -511,5 +511,5 @@ export OFFICE365_ALLOWED_GROUP_ID=your_group_object_id
 
 # 3. Point the dashboard at the plugin dir and start
 export PLUGIN_DIR=/path/to/plugins   # directory containing office365-oauth/
-./agent-dashboard serve
+./kontor serve
 ```

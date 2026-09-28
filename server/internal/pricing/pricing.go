@@ -6,8 +6,8 @@ package pricing
 import (
 	"regexp"
 
-	"github.com/lx-wnk/agent-dashboard/sdk"
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudemodel"
+	"github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/claudemodel"
 )
 
 // modelPricingEntry holds per-million-token USD prices for a single model.

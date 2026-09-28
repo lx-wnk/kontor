@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/sanitize"
+	"github.com/lx-wnk/kontor/server/internal/sanitize"
 )
 
 func TestForDisplayStripsDeceptiveRunes(t *testing.T) {

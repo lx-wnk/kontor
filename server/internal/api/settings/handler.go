@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
-	"github.com/lx-wnk/agent-dashboard/server/internal/secretbox"
-	settingssvc "github.com/lx-wnk/agent-dashboard/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/secretbox"
+	settingssvc "github.com/lx-wnk/kontor/server/internal/settings"
 )
 
 // Handler serves the DB-backed settings registry.

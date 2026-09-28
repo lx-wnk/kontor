@@ -7,17 +7,17 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/api/tasks"
-	"github.com/lx-wnk/agent-dashboard/server/internal/config"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcp"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
-	"github.com/lx-wnk/agent-dashboard/server/internal/memory"
-	"github.com/lx-wnk/agent-dashboard/server/internal/pipeline"
-	"github.com/lx-wnk/agent-dashboard/server/internal/services"
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
-	"github.com/lx-wnk/agent-dashboard/server/internal/sse"
+	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/config"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/services"
+	"github.com/lx-wnk/kontor/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 // resolveAdditionalDirs returns the extra project-folder paths that should be

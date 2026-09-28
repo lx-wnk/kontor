@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/validation"
+	"github.com/lx-wnk/kontor/server/internal/validation"
 )
 
 // ErrRepoNotAllowed is returned for any repository outside github.repos. It is

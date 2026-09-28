@@ -3,9 +3,9 @@ package tools
 import (
 	"context"
 
-	planapi "github.com/lx-wnk/agent-dashboard/server/internal/api/plan"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	mcp "github.com/lx-wnk/agent-dashboard/server/internal/mcp"
+	planapi "github.com/lx-wnk/kontor/server/internal/api/plan"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
 )
 
 // PlanDeps holds dependencies required by the plan MCP tools.

@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/mcpapplication"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/schema"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/mcpapplication"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/schema"
 )
 
 // MCPApplicationCreate is the builder for creating a MCPApplication entity.

@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apihistory "github.com/lx-wnk/agent-dashboard/server/internal/api/history"
-	"github.com/lx-wnk/agent-dashboard/server/internal/auth"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
-	histsvc "github.com/lx-wnk/agent-dashboard/server/internal/history"
+	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
+	"github.com/lx-wnk/kontor/server/internal/auth"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	histsvc "github.com/lx-wnk/kontor/server/internal/history"
 )
 
 const testJWTSecret = "test-history-secret"

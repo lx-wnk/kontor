@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 // resumeRecorder records ResumeFromUser; every other orchestrator call is a no-op.

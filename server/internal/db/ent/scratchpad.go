@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/scratchpad"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/scratchpad"
 )
 
 // Scratchpad is the model entity for the Scratchpad schema.

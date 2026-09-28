@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Agent Dashboard</string>
+	<string>Kontor</string>
 	<key>CFBundleExecutable</key>
 	<string>{{.OutputFilename}}</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.lxwnk.agent-dashboard</string>
+	<string>com.lxwnk.kontor</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

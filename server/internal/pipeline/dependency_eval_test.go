@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
 
 func TestEvaluateDependency(t *testing.T) {

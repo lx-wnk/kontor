@@ -10,9 +10,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/predicate"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/project"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/projectfolder"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/predicate"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/project"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/projectfolder"
 )
 
 // ProjectFolderUpdate is the builder for updating ProjectFolder entities.

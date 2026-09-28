@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/claudesettings"
+	"github.com/lx-wnk/kontor/server/internal/claudesettings"
 )
 
 func TestMatchesTheDocumentedRuleShapes(t *testing.T) {

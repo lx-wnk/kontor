@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/hookscript"
+	"github.com/lx-wnk/kontor/server/internal/hookscript"
 )
 
-const testScript = "/opt/dash/dashboard-hooks/dashboard-permission.sh"
+const testScript = "/opt/dash/kontor-hooks/kontor-permission.sh"
 
 func writeJSON(t *testing.T, path string, v any) {
 	t.Helper()
@@ -448,5 +448,31 @@ func TestAStaleEntryInTheOwnedDirectoryIsStillOurs(t *testing.T) {
 	removed, foreign := removePermissionHooks(settings)
 	if !removed || len(foreign) != 0 {
 		t.Fatalf("uninstall = (%v, %v), want the repaired entry removed and nothing reported", removed, foreign)
+	}
+}
+
+// An installation that ran a pre-rename binary has an entry pointing at the old
+// directory and script name. The installer has to recognise it as its own and
+// replace it; a matcher that only knows the current name appends a second entry
+// and the permission hook then fires twice on every gated tool call.
+func TestApplyPermissionHooksReplacesAPreRenameEntry(t *testing.T) {
+	settings := map[string]any{}
+	mustApply(t, settings, "/opt/dash/dashboard-hooks/dashboard-permission.sh")
+
+	got, err := applyPermissionHooks(settings, testScript)
+	if err != nil || got != hooksRepaired {
+		t.Fatalf("install over a pre-rename entry = (%v, %v), want (repaired, nil)", got, err)
+	}
+
+	hooks := settings["hooks"].(map[string]any)
+	for _, event := range []string{"PreToolUse", "Notification"} {
+		entries := hooks[event].([]any)
+		if len(entries) != 1 {
+			t.Fatalf("%s has %d entries — the pre-rename entry was not replaced", event, len(entries))
+		}
+		cmd, ours, _ := entryCommand(entries[0], testScript)
+		if !ours || !strings.HasPrefix(cmd, testScript) {
+			t.Fatalf("%s points at %q, want the renamed script", event, cmd)
+		}
 	}
 }

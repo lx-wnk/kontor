@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/lx-wnk/agent-dashboard/server/internal/apierr"
+	"github.com/lx-wnk/kontor/server/internal/apierr"
 )
 
 // resumeStage reaps any dead run on the current stage and re-queues the task,

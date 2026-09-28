@@ -17,8 +17,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/creack/pty"
-	"github.com/lx-wnk/agent-dashboard/server/internal/askq"
-	"github.com/lx-wnk/agent-dashboard/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/askq"
+	"github.com/lx-wnk/kontor/server/internal/channelconfig"
 	"golang.org/x/term"
 )
 

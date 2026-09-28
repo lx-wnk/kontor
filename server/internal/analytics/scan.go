@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/parser"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // sessionFileRE matches a session JSONL filename (UUID + .jsonl) — used to

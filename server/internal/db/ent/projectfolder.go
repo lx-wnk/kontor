@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/project"
-	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent/projectfolder"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/project"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/projectfolder"
 )
 
 // ProjectFolder is the model entity for the ProjectFolder schema.

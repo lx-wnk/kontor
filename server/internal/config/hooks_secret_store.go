@@ -9,7 +9,14 @@ import (
 	"strings"
 )
 
-const hooksSecretFile = ".claude/dashboard-hooks-secret"
+//nolint:gosec // G101: a file path, not a credential — the secret lives in the file.
+const hooksSecretFile = ".claude/kontor-hooks-secret"
+
+// legacyHooksSecretFile is the pre-rename name. It is read, and kept in use
+// when it exists, rather than migrated: a hook script installed before the
+// rename has this path baked into it, so writing the secret somewhere else
+// would leave that copy unable to authenticate.
+const legacyHooksSecretFile = ".claude/dashboard-hooks-secret"
 
 // loadOrGenerateHooksSecret returns the hooks secret from the following sources
 // in precedence order:
@@ -30,6 +37,12 @@ func loadOrGenerateHooksSecret(existing string) (string, error) {
 	}
 
 	path := filepath.Join(home, hooksSecretFile)
+	if _, statErr := os.Stat(path); errors.Is(statErr, os.ErrNotExist) {
+		legacy := filepath.Join(home, legacyHooksSecretFile)
+		if _, legacyErr := os.Stat(legacy); legacyErr == nil {
+			path = legacy
+		}
+	}
 
 	data, err := os.ReadFile(path)
 	if err == nil {
@@ -38,7 +51,7 @@ func loadOrGenerateHooksSecret(existing string) (string, error) {
 			return secret, nil
 		}
 		// File exists but content is too short — treat as corrupt and regenerate.
-		slog.Warn("dashboard-hooks-secret file has invalid content, regenerating", "path", path)
+		slog.Warn("hooks secret file has invalid content, regenerating", "path", path)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("config: read hooks secret file %s: %w", path, err)
 	}

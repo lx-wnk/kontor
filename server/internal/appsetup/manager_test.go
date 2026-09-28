@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/appsetup"
-	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
+	"github.com/lx-wnk/kontor/server/internal/appsetup"
+	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 )
 
 // TestHelperProcess is not a real test: Start re-executes the test binary

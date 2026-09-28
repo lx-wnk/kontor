@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/apps/obsidian"
+	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 )
 
 func vaultHandler() http.HandlerFunc {

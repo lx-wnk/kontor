@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/lx-wnk/agent-dashboard/server/internal/settings"
-	"github.com/lx-wnk/agent-dashboard/server/internal/usage"
+	"github.com/lx-wnk/kontor/server/internal/settings"
+	"github.com/lx-wnk/kontor/server/internal/usage"
 )
 
 // Handler serves GET /api/usage.
