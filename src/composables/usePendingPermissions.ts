@@ -13,13 +13,19 @@ export interface PermissionItem {
   requests: PermissionRequest[]
 }
 
+// Owes-an-answer and requests-are-stranded are separate server flags; the second
+// implies the first, but only the first covers the agent that is still alive.
+function awaitsDecision(task: PipelineTask): boolean {
+  return Boolean(task.hasPendingPermissions || task.blockedByPendingPermissions)
+}
+
 function projectNameFromTask(task: PipelineTask): string {
   const lastSegment = task.cwd.split('/').filter(Boolean).pop() ?? task.cwd
   return friendlyProjectName(lastSegment)
 }
 
 export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
-  // Map of taskId → fetched requests (only for blocked tasks)
+  // Map of taskId → fetched requests (only for tasks awaiting a decision)
   const cache = ref<Map<string, PermissionRequest[]>>(new Map())
   // Track which task IDs are currently being fetched to avoid duplicate requests
   const fetching = new Set<string>()
@@ -38,7 +44,7 @@ export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
   }
 
   async function refresh(): Promise<void> {
-    const blocked = tasks.value.filter(t => t.blockedByPendingPermissions)
+    const blocked = tasks.value.filter(awaitsDecision)
     await Promise.all(blocked.map(fetchForTask))
     // Remove stale entries for tasks no longer blocked
     const blockedIds = new Set(blocked.map(t => t.id))
@@ -51,7 +57,7 @@ export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
   }
 
   watch(
-    () => tasks.value.filter(t => t.blockedByPendingPermissions).map(t => t.id).join(','),
+    () => tasks.value.filter(awaitsDecision).map(t => t.id).join(','),
     () => { void refresh() },
     { immediate: true },
   )
@@ -59,7 +65,7 @@ export function usePendingPermissions(tasks: Ref<PipelineTask[]>) {
   const items = computed<PermissionItem[]>(() => {
     const result: PermissionItem[] = []
     for (const task of tasks.value) {
-      if (!task.blockedByPendingPermissions)
+      if (!awaitsDecision(task))
         continue
       const requests = (cache.value.get(task.id) ?? []).filter(r => r.outcome === null)
       if (requests.length === 0)

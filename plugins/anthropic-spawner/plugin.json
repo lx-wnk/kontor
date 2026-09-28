@@ -1,7 +1,12 @@
 {
   "$schema": "../../plugin-sdk/plugin.schema.json",
   "id": "anthropic-spawner",
+  "name": "Anthropic Spawner",
   "version": "0.1.0",
-  "command": ["./anthropic-spawner"],
-  "env": ["ANTHROPIC_API_KEY"]
+  "command": [
+    "./anthropic-spawner"
+  ],
+  "env": [
+    "ANTHROPIC_API_KEY"
+  ]
 }

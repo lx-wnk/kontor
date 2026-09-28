@@ -13,6 +13,7 @@ import { useNow } from '@/composables/useNow'
 import { usePermissionResolve } from '@/composables/usePermissionResolve'
 import { toast } from '@/composables/useToast'
 import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity'
+import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { isApplicationTool } from '@/utils/applicationTool'
 import { attentionFor } from '@/utils/attention'
 import { formatErrorState, formatRelativeActivity, secondsSince, shortModel } from '@/utils/format'
@@ -446,13 +447,7 @@ const answeringQuestion = ref<Record<string, boolean>>({})
 async function answerQuestion(agent: Agent, intent: AnswerIntent) {
   answeringQuestion.value[agent.sessionId] = true
   try {
-    const res = await fetch(`/api/agents/${agent.pid}/answer-question`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(intent),
-    })
-    if (!res.ok)
-      throw new Error(`HTTP ${res.status}`)
+    await sendQuestionAnswer(agent.pid, intent)
   }
   catch (err) {
     toast.error(`Couldn't send answer: ${err instanceof Error ? err.message : String(err)}`)

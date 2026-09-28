@@ -164,3 +164,45 @@ func TestReconcilePluginResourcesDerivesStateFromPluginFields(t *testing.T) {
 		}
 	}
 }
+
+// The projection linked a plugin to its registry identity once and then skipped
+// it forever, so a manifest that gained a name (or a new version) never reached
+// the registry row — it kept whatever the first boot happened to see. Five rows
+// in the author's own database sat there with an empty name for that reason.
+func TestReconcilePluginResourcesRefreshesALinkedRow(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+	ctx := context.Background()
+
+	pluginRepo := repo.NewPluginRepo(bundle.Client)
+	resourceRepo := repo.NewResourceRepo(bundle.Client)
+
+	if _, err := pluginRepo.Upsert(ctx, repo.UpsertPluginInput{ID: "voice-whisper", Version: "1.0.0"}); err != nil {
+		t.Fatalf("seed nameless plugin: %v", err)
+	}
+	if _, err := repo.ReconcilePluginResources(ctx, resourceRepo, bundle.Client); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	// The manifest gains a name, exactly as it does when the author fills it in.
+	if _, err := pluginRepo.Upsert(ctx, repo.UpsertPluginInput{ID: "voice-whisper", Name: "Voice (Whisper)", Version: "1.1.0"}); err != nil {
+		t.Fatalf("rename plugin: %v", err)
+	}
+	if _, err := repo.ReconcilePluginResources(ctx, resourceRepo, bundle.Client); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	res, err := resourceRepo.Get(ctx, repo.ResourceKindApplication, repo.GlobalScope(), "voice-whisper")
+	if err != nil {
+		t.Fatalf("get resource: %v", err)
+	}
+	if res.Name != "Voice (Whisper)" {
+		t.Errorf("name = %q, want the refreshed manifest name", res.Name)
+	}
+	if res.Version != "1.1.0" {
+		t.Errorf("version = %q, want the refreshed manifest version", res.Version)
+	}
+}

@@ -99,6 +99,7 @@ type EnrichedTask struct {
 	CurrentIteration            int                  `json:"currentIteration"`
 	ActiveSessionID             *string              `json:"activeSessionId"`
 	ActivePID                   *int                 `json:"activePid"`
+	HasPendingPermissions       bool                 `json:"hasPendingPermissions"`
 	BlockedByPendingPermissions bool                 `json:"blockedByPendingPermissions"`
 	AvailableActions            []taskcontrol.Action `json:"availableActions"`
 
@@ -276,7 +277,12 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 		currentIteration = latest.Iteration
 	}
 
-	hasPendingPermissions := latestStatus != nil && *latestStatus == "running" && pendingPermsCount > 0
+	// hasPending answers "does someone owe this task a decision", independent of
+	// run status: the agent files the request as it parks on awaiting_user, and
+	// its process may be alive or already gone. blockedBy answers the narrower
+	// "are these requests stranded", which is what gates the next spawn.
+	// Cancelled tasks are excluded — their leftover requests need no answer.
+	hasPendingPermissions := pendingPermsCount > 0 && t.CurrentStage != "cancelled"
 	isTerminal := latestStatus != nil && (*latestStatus == "failed" || *latestStatus == "done")
 	isZombieAwait := latestStatus != nil && *latestStatus == "awaiting_user" && latest != nil &&
 		(latest.Pid == nil || !isAlive(*latest.Pid))
@@ -324,6 +330,7 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 		CurrentIteration:            currentIteration,
 		ActiveSessionID:             activeSessionID,
 		ActivePID:                   activePID,
+		HasPendingPermissions:       hasPendingPermissions,
 		BlockedByPendingPermissions: blockedByPendingPermissions,
 		IsBlocked:                   isBlocked,
 		IsUnsatisfiable:             isUnsatisfiable,

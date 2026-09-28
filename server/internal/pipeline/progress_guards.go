@@ -9,7 +9,9 @@ import (
 
 	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
 	"github.com/lx-wnk/agent-dashboard/server/internal/db/repo"
+	"github.com/lx-wnk/agent-dashboard/server/internal/mcpapps"
 	"github.com/lx-wnk/agent-dashboard/server/internal/proc"
+	"github.com/lx-wnk/agent-dashboard/server/internal/taskcontrol"
 )
 
 // runProgressTaskLocked is the core of ProgressTask — called with the per-task
@@ -208,28 +210,7 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 			_ = o.opts.AuditRepo.RecordTaskAudit(ctx, task.ID, nil, action, "task:"+task.ID, details)
 		},
 		RequestPermission: func(tool, pattern, reason string) *ent.PermissionRequest {
-			pat := (*string)(nil)
-			if pattern != "" {
-				pat = &pattern
-			}
-			rsn := (*string)(nil)
-			if reason != "" {
-				rsn = &reason
-			}
-			req, err := o.opts.PermissionRepo.CreatePermissionRequest(ctx, repo.CreatePermissionRequestInput{
-				StageRunID: stageRun.ID,
-				Tool:       tool,
-				Pattern:    pat,
-				Reason:     rsn,
-			})
-			if err != nil {
-				slog.Error("orchestrator: CreatePermissionRequest failed", "err", err)
-				return nil
-			}
-			if o.opts.OnPermissionRequest != nil {
-				o.opts.OnPermissionRequest(task.ID, req)
-			}
-			return req
+			return o.filePermissionRequest(ctx, task, stageRun.ID, tool, pattern, reason)
 		},
 		PermissionStatus: func(pollCtx context.Context, id string) (*ent.PermissionRequest, error) {
 			// pollCtx, not the enclosing request ctx: an ACP gate polls while the
@@ -285,4 +266,48 @@ func (o *PipelineOrchestrator) sweepMarkPending(ctx context.Context, taskID, run
 	}
 	_, err = o.stageRuns.MarkPending(ctx, runID)
 	return true, err
+}
+
+// filePermissionRequest writes the row an agent's permission request needs and,
+// for a task whose autonomy answers by itself, resolves it on the spot. The ACP
+// gate polls the row rather than reading a return value, so an allow-all task
+// gets a written answer instead of a skipped request. Application tools are
+// excluded for the same reason the HTTP path excludes them: their own grant
+// governs. Returns nil only when the row could not be written.
+func (o *PipelineOrchestrator) filePermissionRequest(
+	ctx context.Context, task *ent.Task, stageRunID, tool, pattern, reason string,
+) *ent.PermissionRequest {
+	pat := (*string)(nil)
+	if pattern != "" {
+		pat = &pattern
+	}
+	rsn := (*string)(nil)
+	if reason != "" {
+		rsn = &reason
+	}
+	req, err := o.opts.PermissionRepo.CreatePermissionRequest(ctx, repo.CreatePermissionRequestInput{
+		StageRunID: stageRunID,
+		Tool:       tool,
+		Pattern:    pat,
+		Reason:     rsn,
+	})
+	if err != nil {
+		slog.Error("orchestrator: CreatePermissionRequest failed", "err", err)
+		return nil
+	}
+	if taskcontrol.IsAllowAll(task.Autonomy) && !mcpapps.IsApplicationTool(tool) {
+		if resolveErr := o.opts.PermissionRepo.ResolvePermissionRequest(ctx, req.ID, repo.OutcomeGranted); resolveErr != nil {
+			slog.Warn("orchestrator: auto-approve failed", "reqID", req.ID, "err", resolveErr)
+		} else {
+			_ = o.opts.AuditRepo.RecordTaskAudit(ctx, task.ID, nil, "permission_auto_approved", "task:"+task.ID, map[string]any{
+				"requestId": req.ID,
+				"tool":      tool,
+				"autonomy":  task.Autonomy,
+			})
+		}
+	}
+	if o.opts.OnPermissionRequest != nil {
+		o.opts.OnPermissionRequest(task.ID, req)
+	}
+	return req
 }

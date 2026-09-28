@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { usePendingPermissions } from '@/composables/usePendingPermissions'
+import { useAgents } from '@/features/agents'
 import { GitHubPanel, MemoryPanel } from '@/features/cockpit'
 import { useTasks } from '@/features/pipeline'
 import LiveWorkRail from './components/LiveWorkRail.vue'
@@ -12,6 +13,9 @@ const emit = defineEmits<{ openTask: [taskId: string] }>()
 
 const { tasks, refetch } = useTasks()
 const { items: pending, refresh: refreshPending } = usePendingPermissions(tasks)
+// autoStart: false — App.vue owns the stream. This view reads the same shared
+// refs without touching the subscriber count it never raised.
+const { agents } = useAgents({ autoStart: false })
 
 onMounted(refetch)
 
@@ -22,7 +26,7 @@ onMounted(refetch)
 const RUNNING_STAGES = new Set(['plan_review', 'implementation', 'self_review', 'finalization'])
 const running = computed(() => tasks.value.filter(t => RUNNING_STAGES.has(t.currentStage)))
 
-const ranked = computed(() => rankNextThings(pending.value, tasks.value))
+const ranked = computed(() => rankNextThings(pending.value, tasks.value, agents.value))
 const next = computed(() => ranked.value[0] ?? null)
 const remaining = computed(() => Math.max(0, ranked.value.length - 1))
 </script>

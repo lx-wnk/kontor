@@ -169,6 +169,7 @@ The following third-party packages are used as transitive dependencies.
 | fast-deep-equal | 3.1.3 | MIT |
 | fast-uri | 3.1.2 | BSD-3-Clause |
 | finalhandler | 2.1.1 | MIT |
+| firacode | 6.2.0 | OFL-1.1 |
 | forwarded | 0.2.0 | MIT |
 | fresh | 2.0.0 | MIT |
 | function-bind | 1.1.2 | MIT |

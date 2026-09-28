@@ -1,9 +1,14 @@
 {
   "$schema": "../../plugin-sdk/plugin.schema.json",
   "id": "voice-webspeech",
+  "name": "Voice (Web Speech)",
   "version": "0.1.0",
-  "capabilities": ["route_extension"],
+  "capabilities": [
+    "route_extension"
+  ],
   "addr": "127.0.0.1:19011",
-  "command": ["./voice-webspeech"],
+  "command": [
+    "./voice-webspeech"
+  ],
   "env": []
 }

@@ -325,6 +325,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	}
 	for _, e := range enriched {
 		h.applyRefineStatus(e, e.ID)
+		// Metadata (spec/plan) is only read by the task detail view, which fetches
+		// the single task by id; stripping it here is most of the list payload.
+		e.Metadata = nil
 	}
 	return jsonReply(w, http.StatusOK, enriched)
 }

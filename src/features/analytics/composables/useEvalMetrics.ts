@@ -24,17 +24,22 @@ export function useEvalMetrics() {
     return Object.fromEntries(METRIC_KEYS.map(k => [k, [] as EvalMetricSnapshot[]])) as Record<MetricKey, EvalMetricSnapshot[]>
   }
 
+  // One request, not one per metric. The endpoint returns every metric when no
+  // `metric` filter is given, and nine parallel calls put a single page load
+  // over the server's own per-IP burst of 20 — the app answered itself 429 and
+  // rendered "Failed to load eval data" on a cold start.
   async function fetchMetrics(signal: AbortSignal): Promise<void> {
+    const res = await fetch(`/api/eval/metrics?hours=${hours.value}`, { signal })
+    if (!res.ok)
+      throw new Error(`HTTP ${res.status}`)
+    const all = await res.json() as EvalMetricSnapshot[]
+
     const grouped = emptySnapshots()
-    await Promise.all(
-      METRIC_KEYS.map(async (key) => {
-        const res = await fetch(`/api/eval/metrics?metric=${key}&hours=${hours.value}`, { signal })
-        if (!res.ok)
-          throw new Error(`HTTP ${res.status}`)
-        const data = await res.json() as EvalMetricSnapshot[]
-        grouped[key] = data
-      }),
-    )
+    const wanted = new Set<string>(METRIC_KEYS)
+    for (const row of all) {
+      if (wanted.has(row.metricKey))
+        grouped[row.metricKey as MetricKey].push(row)
+    }
     snapshots.value = grouped
 
     const isEmpty = METRIC_KEYS.every(key => grouped[key].length === 0)

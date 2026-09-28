@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/lx-wnk/agent-dashboard/server/internal/db/ent"
@@ -52,4 +53,41 @@ func TestEnrichOne_AwaitingUserZombieGating(t *testing.T) {
 	live, err := enrichOne(context.Background(), task, latest, 1, liveProbe, nil, nil, nil)
 	require.NoError(t, err)
 	require.False(t, live.BlockedByPendingPermissions)
+}
+
+// TestEnrichOne_PendingIsFlaggedBeforeTheAgentDies verifies the flag that the
+// mission centre filters on fires while the agent is still alive and parked on
+// awaiting_user — the state in which neither existing flag was set — and that it
+// reaches the client under the key src/types.ts declares.
+func TestEnrichOne_PendingIsFlaggedBeforeTheAgentDies(t *testing.T) {
+	pid := 4242
+	task := &ent.Task{CurrentStage: "implementation"}
+	alive := memoizeProbe(func(int) bool { return true })
+
+	// Parked on awaiting_user with a live pid: not a zombie, not terminal, so
+	// blockedBy stays false — but a human still owes this task an answer.
+	parked := &ent.StageRun{Stage: "implementation", Status: "awaiting_user", Pid: &pid}
+	live, err := enrichOne(context.Background(), task, parked, 1, alive, nil, nil, nil)
+	require.NoError(t, err)
+	require.True(t, live.HasPendingPermissions, "a parked agent with an open request is waiting on the user")
+	require.False(t, live.BlockedByPendingPermissions, "nothing is stranded while the agent is alive")
+	require.True(t, live.NeedsUser)
+
+	payload, err := json.Marshal(live)
+	require.NoError(t, err)
+	var wire map[string]any
+	require.NoError(t, json.Unmarshal(payload, &wire))
+	require.Equal(t, true, wire["hasPendingPermissions"], "client filters on this key")
+
+	// Same run, no open requests → neither flag.
+	none, err := enrichOne(context.Background(), task, parked, 0, alive, nil, nil, nil)
+	require.NoError(t, err)
+	require.False(t, none.HasPendingPermissions)
+	require.False(t, none.BlockedByPendingPermissions)
+
+	// A cancelled task's leftover requests need no answer and must not be surfaced.
+	cancelled := &ent.Task{CurrentStage: "cancelled"}
+	gone, err := enrichOne(context.Background(), cancelled, parked, 1, alive, nil, nil, nil)
+	require.NoError(t, err)
+	require.False(t, gone.HasPendingPermissions)
 }

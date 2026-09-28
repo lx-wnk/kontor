@@ -189,3 +189,31 @@ func TestReconcileScheduleResources_SkipsAlreadyLinked(t *testing.T) {
 		t.Fatalf("expected 0 (already linked), got %d", linked)
 	}
 }
+
+// The twin of TestReconcilePluginResourcesRefreshesALinkedRow: this projection
+// mirrors the plugin one, including the filter that skipped already-linked rows,
+// so a renamed routine kept its old label in the registry forever.
+func TestReconcileScheduleResourcesRefreshesALinkedRow(t *testing.T) {
+	client, resources := openDBBundle(t)
+	ctx := context.Background()
+
+	s := createScheduleRaw(t, client, "nightly", true)
+	if _, err := repo.ReconcileScheduleResources(ctx, resources, client); err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+
+	if err := client.TaskSchedule.UpdateOneID(s.ID).SetName("Nightly sweep").Exec(ctx); err != nil {
+		t.Fatalf("rename schedule: %v", err)
+	}
+	if _, err := repo.ReconcileScheduleResources(ctx, resources, client); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+
+	res, err := resources.Get(ctx, repo.ResourceKindRoutine, repo.GlobalScope(), s.ID)
+	if err != nil {
+		t.Fatalf("get resource: %v", err)
+	}
+	if res.Name != "Nightly sweep" {
+		t.Errorf("name = %q, want the refreshed schedule name", res.Name)
+	}
+}

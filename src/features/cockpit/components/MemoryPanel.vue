@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import type { PanelState } from '../panelState'
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useResources } from '@/features/settings'
 import CockpitPanel from './CockpitPanel.vue'
 
-// A fresh useResources per panel: it is not a singleton, and each panel asks
-// for a different kind. Both fire one request on mount.
-const { resources, loading, error, denied, fetchResources } = useResources()
-onMounted(() => void fetchResources({ kind: 'memory_space' }))
+// A fresh useResources per panel: it is not a singleton, and each panel names
+// its kind here so the composable's mount fetch asks for it directly.
+const { resources, loading, error, denied } = useResources('memory_space')
 
 // kind=memory_space gates on memory.read (api/resources/handler.go), so on a
 // fresh install this panel is denied and must say so rather than reporting an

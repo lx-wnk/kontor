@@ -165,7 +165,13 @@ type ipLimiter struct {
 type IPRateLimiterConfig struct {
 	// Rate is the sustained request rate per second per IP. Default: 10.
 	Rate rate.Limit
-	// Burst is the maximum burst size per IP. Default: 20.
+	// Burst is the maximum burst size per IP. Default: 120.
+	//
+	// Sized from measurement, not from intuition: one cold start of the SPA
+	// issues 21 API requests with a peak of 20 in a single second, and the
+	// server binds loopback only, so every client shares the 127.0.0.1 bucket —
+	// two windows open at once peak at 40. 120 leaves room for a third and
+	// fourth client while the sustained rate still bounds a probing loop.
 	Burst int
 	// CleanupInterval controls how often stale limiter entries are evicted.
 	// Default: 5 minutes.
@@ -180,7 +186,7 @@ func (c *IPRateLimiterConfig) applyDefaults() {
 		c.Rate = 10
 	}
 	if c.Burst <= 0 {
-		c.Burst = 20
+		c.Burst = 120
 	}
 	if c.CleanupInterval <= 0 {
 		c.CleanupInterval = 5 * time.Minute

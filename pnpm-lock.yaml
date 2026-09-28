@@ -75,6 +75,9 @@ importers:
       dompurify:
         specifier: ^3.4.14
         version: 3.4.14
+      firacode:
+        specifier: ^6.2.0
+        version: 6.2.0
       jsonrepair:
         specifier: ^3.14.0
         version: 3.14.0
@@ -2838,6 +2841,9 @@ packages:
   find-up@5.0.0:
     resolution: {integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==}
     engines: {node: '>=10'}
+
+  firacode@6.2.0:
+    resolution: {integrity: sha512-t5R3aO2BmhRXnYtKXbImLVNsILuCIbJ/XlDzBufjpi3il8P/CVdpWco83Ud3r2Tl0gitAmyP4o1fbJ52ozV1jw==}
 
   flat-cache@4.0.1:
     resolution: {integrity: sha512-f7ccFPK3SXFHpx15UIGyRJ/FJQctuKZ0zVuN3frBo4HnK3cay9VEW0R6yPYFHC0AgqhukPzKjq22t5DmAyqGyw==}
@@ -7334,6 +7340,8 @@ snapshots:
     dependencies:
       locate-path: 6.0.0
       path-exists: 4.0.0
+
+  firacode@6.2.0: {}
 
   flat-cache@4.0.1:
     dependencies:

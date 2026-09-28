@@ -9,15 +9,8 @@
   <meta name="description" content="Real-time monitoring dashboard for locally running Claude Code agents.">
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
-  <!-- UX-32: Inline dark-mode script in <head> to prevent flash of incorrect theme -->
-  <script>
-    (function() {
-      var stored = localStorage.getItem('agent-theme');
-      var isDark = stored === 'dark'
-        || (stored !== 'light' && !window.matchMedia('(prefers-color-scheme: light)').matches);
-      if (isDark) document.documentElement.classList.add('dark');
-    })();
-  </script>
+  <!-- Render-blocking on purpose: the theme class must be set before first paint -->
+  <script src="/theme-init.js"></script>
 </head>
 <body>
   <div id="app"></div>

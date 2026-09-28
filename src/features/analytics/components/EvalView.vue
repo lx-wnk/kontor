@@ -5,7 +5,7 @@ import { axisBottom, axisLeft } from 'd3-axis'
 import { scaleLinear, scalePoint } from 'd3-scale'
 import { select } from 'd3-selection'
 import { curveMonotoneX, line as d3line } from 'd3-shape'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import { toast } from '@/composables/useToast'
 import { useEvalMetrics } from '@/features/analytics/composables/useEvalMetrics'
@@ -150,8 +150,14 @@ onMounted(() => {
   start()
 })
 
-watch(snapshots, () => {
-  queueMicrotask(renderAllCharts)
+// Two conditions gate the <svg> these charts draw into: the section is hidden
+// while isLoading, and the card shows its empty reason until snapshots arrive.
+// Watching snapshots alone fired while the element still did not exist, and
+// nothing re-triggered the draw afterwards — nine blank cards until the 60s
+// poll happened to replace snapshots again. nextTick rather than a microtask,
+// because only nextTick is ordered after Vue has patched the DOM.
+watch([snapshots, isLoading], () => {
+  void nextTick(renderAllCharts)
 }, { immediate: true })
 
 onUnmounted(() => {

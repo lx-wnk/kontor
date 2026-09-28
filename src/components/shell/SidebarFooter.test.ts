@@ -43,4 +43,17 @@ describe('sidebarFooter', () => {
     await btn.trigger('click')
     expect(w.emitted('install')).toHaveLength(1)
   })
+
+  // The last nav group is bottom-anchored, so the footer's height sets where
+  // Insights sits. A row when expanded and a column when collapsed made it
+  // ~80px shorter on hover and slid those items out from under the pointer.
+  it('lays its actions out the same way in both states', () => {
+    const collapsed = mount(SidebarFooter, { props: { ...base, expanded: false } })
+    const expanded = mount(SidebarFooter, { props: { ...base, expanded: true } })
+
+    const collapsedClasses = collapsed.get('[data-testid="footer-actions"]').classes()
+    const expandedClasses = expanded.get('[data-testid="footer-actions"]').classes()
+    expect(expandedClasses).toEqual(collapsedClasses)
+    expect(collapsedClasses).toContain('flex-col')
+  })
 })

@@ -106,15 +106,25 @@ function selectView(view: ActiveView): void {
           class="flex flex-col gap-0.5"
           :class="{ 'mt-auto': gi === grouped.length - 1 }"
         >
-          <div v-if="expanded" class="px-2 pt-3 pb-1 text-[9px] uppercase tracking-wider text-fg-faint font-bold">
-            {{ g.group }}
-          </div>
+          <!-- One box of a fixed height in both states. The heading used to
+               render only when expanded, so hovering inserted three rows and
+               pushed every nav item down by a different amount per group —
+               you aimed at an icon and clicked whatever slid under the cursor. -->
           <div
-            v-else-if="gi > 0"
-            aria-hidden="true"
-            data-testid="nav-group-divider"
-            class="h-px w-6 bg-line self-center my-2"
-          />
+            data-testid="nav-group-slot"
+            class="h-7 flex items-center shrink-0"
+            :class="expanded ? 'px-2' : 'justify-center'"
+          >
+            <span v-if="expanded" class="text-[9px] uppercase tracking-wider text-fg-faint font-bold">
+              {{ g.group }}
+            </span>
+            <span
+              v-else-if="gi > 0"
+              aria-hidden="true"
+              data-testid="nav-group-divider"
+              class="h-px w-6 bg-line"
+            />
+          </div>
           <NavItem
             v-for="item in g.items"
             :key="item.view"
