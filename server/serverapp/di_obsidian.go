@@ -61,6 +61,36 @@ func buildObsidianClient(ctx context.Context, settingsSvc *settings.Service) (*o
 	return client, nil
 }
 
+// bootObsidianClient builds the vault client for boot, tolerating a partial
+// trio the same way buildGitHubClient's caller (di.go) tolerates a broken
+// GitHub configuration: log at Warn and start with the vault off instead of
+// failing the whole server. A read-only integration does not get to take the
+// server down over a typo in its own settings.
+func bootObsidianClient(ctx context.Context, settingsSvc *settings.Service) *obsidian.Client {
+	client, err := buildObsidianClient(ctx, settingsSvc)
+	if err != nil {
+		slog.Warn("obsidian: integration disabled", "err", err)
+		return nil
+	}
+	return client
+}
+
+// watchObsidianSettings rebuilds the vault client whenever an obsidian.* setting
+// is saved. The Settings panel saves the keys one at a time, so a partial trio
+// is a normal intermediate state: it turns the vault off instead of failing the save.
+func watchObsidianSettings(settingsSvc *settings.Service, clients *obsidian.ClientHolder) {
+	settingsSvc.OnChange(func(ctx context.Context, key string) {
+		if !strings.HasPrefix(key, "obsidian.") {
+			return
+		}
+		client, err := buildObsidianClient(ctx, settingsSvc)
+		if err != nil {
+			slog.Info("obsidian: vault off until its settings are complete", "err", err)
+		}
+		clients.Set(client)
+	})
+}
+
 // obsidianSpaceSlug is the fixed slug of the memory space IndexNotes writes
 // its pointer entries into. Global scope: the vault is one machine-wide
 // resource, not scoped to any single project.

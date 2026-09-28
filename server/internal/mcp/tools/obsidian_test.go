@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -118,7 +119,7 @@ func newObsidianDepsForTest(t *testing.T) (ObsidianDeps, repo.GrantRepo, repo.Ca
 
 	ts, called := newFakeObsidianVault(t)
 	deps := ObsidianDeps{
-		Client: newTestObsidianClient(t, ts),
+		Clients: obsidianapp.NewClientHolder(newTestObsidianClient(t, ts)),
 		Gate: memory.Gate{
 			Capabilities: capabilities,
 			Grants:       grants,
@@ -147,7 +148,7 @@ func obsidianTestDepsWithCatalogue(t *testing.T) (ObsidianDeps, repo.GrantRepo, 
 	grants := repo.NewGrantRepo(bundle.Client)
 	ts, called := newFakeObsidianVault(t)
 	deps := ObsidianDeps{
-		Client: newTestObsidianClient(t, ts),
+		Clients: obsidianapp.NewClientHolder(newTestObsidianClient(t, ts)),
 		// No Asker: proves the ask-effect path fails closed
 		// (capability.ErrAskRequired) at the unit-test level, the same way
 		// memory's equivalent test does. Production wiring (di_mcp.go)
@@ -175,7 +176,7 @@ func newObsidianDepsWithCaller(t *testing.T) (ObsidianDeps, repo.GrantRepo, *db.
 	grants := repo.NewGrantRepo(bundle.Client)
 	ts, called := newFakeObsidianVault(t)
 	deps := ObsidianDeps{
-		Client: newTestObsidianClient(t, ts),
+		Clients: obsidianapp.NewClientHolder(newTestObsidianClient(t, ts)),
 		Caller: mcp.CallerResolver{
 			StageRuns: repo.NewStageRunRepo(bundle.Client),
 			Tasks:     repo.NewTaskRepo(bundle.Client),
@@ -340,19 +341,87 @@ func TestObsidianWriteDeniedWithoutGrantEvenWhenCapabilityCatalogued(t *testing.
 	assert.False(t, *called, "the vault must not be touched while the ask is unanswerable")
 }
 
-// TestObsidianToolsNotRegisteredWhenClientNil pins the nil-client decision:
-// an unconfigured vault means the four tools are never registered at all,
-// rather than registered and answering a fixed "not configured" error every
-// time — an agent discovering a tool it can never use is worse than not
-// discovering it.
-func TestObsidianToolsNotRegisteredWhenClientNil(t *testing.T) {
-	registry := mcp.ToolRegistry{}
-	RegisterObsidianTools(registry, ObsidianDeps{Client: nil})
+// TestObsidianToolsFollowClientHolderLiveness pins the still-standing
+// decision (see obsidianAvailable's doc comment) with the live-swap
+// mechanism that replaced the old "don't register while nil" one: an agent
+// must never discover a tool it cannot use, so the four tools are neither
+// listed in tools/list nor callable via tools/call while the vault client
+// holder is nil, and become both the moment the holder is Set to a client —
+// with no server restart in between.
+func TestObsidianToolsFollowClientHolderLiveness(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
 
-	for _, name := range []string{"obsidian_read", "obsidian_search", "obsidian_write", "obsidian_delete"} {
-		_, ok := registry[name]
-		assert.False(t, ok, "%s must not be registered when the vault client is nil", name)
+	capabilities := repo.NewCapabilityRepo(bundle.Client)
+	resources := repo.NewResourceRepo(bundle.Client)
+	ctx := context.Background()
+	require.NoError(t, obsidianapp.Register(ctx, resources, capabilities))
+	grants := repo.NewGrantRepo(bundle.Client)
+
+	holder := obsidianapp.NewClientHolder(nil)
+	deps := ObsidianDeps{
+		Clients: holder,
+		Gate:    memory.Gate{Capabilities: capabilities, Grants: grants, GrantUsage: repo.NewGrantUsageRepo(bundle.Client, bundle.WriteClient)},
 	}
+	registry := mcp.ToolRegistry{}
+	RegisterObsidianTools(registry, deps)
+	mustAllowMemoryGrant(t, grants, ctx, obsidianapp.CapabilityRead)
+
+	handler := mcp.MCPHandler(registry, nil, nil)
+	auth := &mcp.MCPAuthInfo{KeyID: "test-key", Scopes: mcp.ResolveScopes([]string{"obsidian:read"})}
+
+	assert.False(t, listedTools(t, handler)["obsidian_read"], "obsidian_read must not be listed while the vault client is nil")
+	callErr := callToolRPC(t, handler, auth, "obsidian_read", map[string]any{"path": "a.md"})
+	require.NotNil(t, callErr, "obsidian_read must refuse a call while the vault client is nil")
+	assert.Equal(t, float64(-32601), callErr["code"], "an unavailable tool must answer exactly like an unknown one")
+
+	ts, _ := newFakeObsidianVault(t)
+	holder.Set(newTestObsidianClient(t, ts))
+
+	assert.True(t, listedTools(t, handler)["obsidian_read"], "obsidian_read must be listed once the vault client is set")
+	callErr = callToolRPC(t, handler, auth, "obsidian_read", map[string]any{"path": "a.md"})
+	assert.Nil(t, callErr, "obsidian_read must be callable once the vault client is set, got: %v", callErr)
+}
+
+// listedTools posts tools/list and returns the set of tool names present.
+func listedTools(t *testing.T, handler http.HandlerFunc) map[string]bool {
+	t.Helper()
+	resp := postMCP(t, handler, nil, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": map[string]any{},
+	})
+	result := resp["result"].(map[string]any)
+	names := make(map[string]bool)
+	for _, tool := range result["tools"].([]any) {
+		names[tool.(map[string]any)["name"].(string)] = true
+	}
+	return names
+}
+
+// callToolRPC posts tools/call and returns the RPC error object, or nil on success.
+func callToolRPC(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, name string, args map[string]any) map[string]any {
+	t.Helper()
+	resp := postMCP(t, handler, auth, map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+		"params": map[string]any{"name": name, "arguments": args},
+	})
+	rpcErr, _ := resp["error"].(map[string]any)
+	return rpcErr
+}
+
+func postMCP(t *testing.T, handler http.HandlerFunc, auth *mcp.MCPAuthInfo, body map[string]any) map[string]any {
+	t.Helper()
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(b))
+	if auth != nil {
+		req = req.WithContext(mcp.ContextWithAuth(req.Context(), auth))
+	}
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	return resp
 }
 
 func TestObsidianReadSucceedsWithAnAllowGrant(t *testing.T) {

@@ -52,6 +52,7 @@ GET /api/memory/spaces
 GET /api/notifications/config
 GET /api/notifications/preferences
 GET /api/obsidian/graph
+GET /api/obsidian/status
 GET /api/pipeline/config
 GET /api/pipeline/recommendation
 GET /api/plugins

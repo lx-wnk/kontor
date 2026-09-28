@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	obsidianapp "github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -147,7 +148,7 @@ func buildBypassRouter(t *testing.T) http.Handler {
 		// common case in production too — so /api/obsidian/index answers 503
 		// before ever reaching the gate below.
 		ObsidianHandler: apiobsidian.NewHandler(
-			nil,
+			obsidianapp.NewClientHolder(nil),
 			repo.NewMemoryRepo(c, bundle.WriteClient),
 			memory.Gate{
 				Capabilities: repo.NewCapabilityRepo(c),

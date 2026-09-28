@@ -151,7 +151,7 @@ test('no "No project" option — project select starts empty and must be chosen'
   expect(optionLabels).not.toContain('')
 
   // Close the panel again so it can't intercept the next interaction.
-  await trigger.click()
+  await page.keyboard.press('Escape')
   await listbox.waitFor({ state: 'detached' })
 
   // Submit button is disabled while no title is entered.

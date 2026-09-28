@@ -303,6 +303,32 @@ func (c *Client) newRequest(ctx context.Context, method, notePath string, body i
 // on a blip.
 var ErrNotFound = errors.New("obsidian: note not found")
 
+// ErrUnauthorized indicates the vault rejected the configured API key.
+var ErrUnauthorized = errors.New("obsidian: unauthorized")
+
+// Ping checks that the vault's Local REST API answers, without reading any
+// vault content. GET / is the cheapest call the API exposes and needs no
+// Authorization header, so this exercises the network and TLS path a status
+// check cares about without spending a capability-gated request.
+func (c *Client) Ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("obsidian: build ping request: %w", err)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("obsidian: ping: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("obsidian: ping: %w", ErrUnauthorized)
+	}
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("obsidian: ping: unexpected status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // Read returns the raw content of the note at notePath.
 func (c *Client) Read(ctx context.Context, notePath string) (string, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, notePath, nil)
@@ -514,4 +540,24 @@ func pathUnderRoot(root, fullPath string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimPrefix(fullClean, prefix), true
+}
+
+// ClientHolder hands out the current vault client; nil means the vault is unconfigured.
+type ClientHolder struct {
+	mu sync.RWMutex
+	c  *Client
+}
+
+func NewClientHolder(c *Client) *ClientHolder { return &ClientHolder{c: c} }
+
+func (h *ClientHolder) Get() *Client {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.c
+}
+
+func (h *ClientHolder) Set(c *Client) {
+	h.mu.Lock()
+	h.c = c
+	h.mu.Unlock()
 }

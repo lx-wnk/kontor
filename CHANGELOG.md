@@ -14,6 +14,22 @@ Preparing the first public release.
 
 ### Fixed
 
+- The desktop app no longer hangs at start when opened from Finder. Watching Claude's config in the home directory opened every entry there, including `~/Desktop`, which waits on a macOS privacy prompt; the config file is now polled instead.
+- **A half-filled Obsidian setup no longer stops the server from starting.**
+  Boot used to fail outright when only some of `obsidian.baseURL`,
+  `obsidian.vaultRoot` and `obsidian.apiKey` were set; it now logs a warning
+  and starts with the vault off, the same tolerance a broken GitHub
+  configuration already has.
+- **The hub graph no longer shows the previous vault after switching.** The
+  cached graph survived a live Obsidian settings save because it was keyed
+  only by time, not by which vault built it; swapping vaults now drops the
+  cache immediately instead of serving the old vault's notes for up to 60s.
+- **GitHub tile rows no longer overflow the tile.** The pull request title
+  shared one row with its checks, `repo#number` and the Merge button, so a
+  long title or a wide checks label pushed the row past the tile's width and
+  turned the whole panel's `overflow-y-auto` into a horizontal scrollbar too.
+  Each row is now two lines: the title truncates with an ellipsis on its own
+  line, `repo#number` and the checks/merge controls sit on the line below.
 - **Token totals no longer double-count under concurrent refreshes.** When the
   agent stream, a hook-triggered rescan and an HTTP read refreshed the same
   active session at once, each added the newly appended messages, inflating
@@ -129,6 +145,25 @@ Preparing the first public release.
 
 ### Changed
 
+- **Every select can be filtered by typing.** Opening a select (click, arrow key, or just typing while it has focus) turns it into a text field that narrows the list by label as you type; arrow keys and Enter pick from the filtered list, Escape restores the previous choice, and a "No matches" row says when nothing fits. Only listed options can be picked. The workspace "Add a tile" and tile "Swap" pickers now use the same select.
+- **Obsidian status now tells you why the vault is unreachable, not just that it's configured.** `GET /api/obsidian/status` probes the vault with a cheap unauthenticated ping and reports `reachable` plus a short error and an actionable hint (self-signed certificate, wrong API key, Obsidian not running); the settings panel shows that hint under the Index button and disables it until the vault is reachable. A denied "Index now" run now links straight to the Grants settings instead of leaving you to find them yourself.
+- **Index now is disabled until the vault works.** The button used to be
+  clickable regardless of whether Obsidian was configured; the settings panel
+  now fetches `GET /api/obsidian/status` on load and after every save, and
+  disables the button with a hint until the vault is reachable.
+- **The GitHub tile lists open pull requests you are involved in, up to 20.**
+  `GET /api/github/summary` now merges each configured repository's own open
+  pull requests with whatever the `involves:@me` search finds across every
+  repository the token can see, deduped by repo#number, sorted by most
+  recently updated, and capped at 20 instead of the previous 5-per-repository,
+  8-shown limit.
+- Obsidian settings take effect as soon as they are saved; no restart.
+- **The four `obsidian_*` MCP tools follow the vault's live state, not a
+  startup snapshot.** Configuring a vault while the server is already running
+  used to leave the tools unlisted and uncallable until a restart; `tools/list`
+  and `tools/call` now re-check availability on every request, so the tools
+  appear the moment the vault is set and disappear the moment it is cleared —
+  with no server restart either way.
 - The hub returns to its previous zoom and position after closing a card or
   coming back from a module.
 - The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
@@ -181,6 +216,7 @@ Preparing the first public release.
 
 ### Added
 - Agents carry their session title (a /rename title, else Claude's generated one).
+- **Allow Obsidian indexing with one click from its settings.** The Obsidian panel now shows an "Allow indexing" button — on a denied "Index now" run, or proactively whenever `obsidian.search`, `obsidian.read`, or `memory.write` is missing a global allow grant — that creates exactly the missing grants and confirms once indexing is unblocked, without a detour through Settings → Grants.
 - **Live edges in the hub.** A dashed line runs from an agent to each vault
   note it read in the last ten minutes, a dotted one to each note it wrote,
   fading as the touch ages. The server reads them from the agent's Obsidian MCP

@@ -162,6 +162,37 @@ func TestSearchIssuesReportsTheOwningRepository(t *testing.T) {
 	require.Contains(t, last.URL.Query().Get("q"), "flaky")
 }
 
+// TestInvolvedPullRequestsIsNotBoundToTheAllowList proves the search this
+// method runs reaches repositories outside the configured allow-list — the
+// property that makes it different from SearchIssues, whose whole job is to
+// stay inside it.
+func TestInvolvedPullRequestsIsNotBoundToTheAllowList(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/search/issues", r.URL.Path)
+		require.Equal(t, "is:pr is:open involves:@me", r.URL.Query().Get("q"))
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{
+			"number": 7, "title": "Fix the flake",
+			"html_url":       "https://github.com/other/repo/pull/7",
+			"repository_url": "https://api.github.com/repos/other/repo",
+			"updated_at":     "2026-09-01T10:00:00Z",
+		}}})
+	}))
+	t.Cleanup(ts.Close)
+
+	c, err := github.NewClient(github.Config{
+		Token: "ghp_test", BaseURL: ts.URL,
+		Repos: []string{"lx-wnk/kontor"}, AllowLoopback: true,
+	})
+	require.NoError(t, err)
+
+	prs, err := c.InvolvedPullRequests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	require.Equal(t, "other/repo", prs[0].Repo, "involves:@me must not be filtered to the configured allow-list")
+	require.Equal(t, 7, prs[0].Number)
+	require.Equal(t, "Fix the flake", prs[0].Title)
+}
+
 // TestClientErrorsNeverCarryTheToken: an upstream 401 is the single most
 // likely error a user will paste into an issue.
 func TestClientErrorsNeverCarryTheToken(t *testing.T) {

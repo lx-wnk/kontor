@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/apps/github"
 )
@@ -65,6 +66,7 @@ func TestTokenFromGhCLIRejectsAnEmptyAnswer(t *testing.T) {
 
 func writeFakeGh(t *testing.T, dir, script string) {
 	t.Helper()
+	t.Cleanup(github.SetGhTokenTimeout(time.Minute))
 	path := dir + "/gh"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil { //nolint:gosec // test fixture must be executable
 		t.Fatal(err)

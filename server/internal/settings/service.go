@@ -43,6 +43,7 @@ type Service struct {
 
 	mu       sync.RWMutex
 	snapshot map[string]string // key -> raw DB value (present only if a row exists)
+	onChange []func(ctx context.Context, key string)
 }
 
 // New builds a Service. box may be nil when no database is configured; in
@@ -175,6 +176,26 @@ func (s *Service) Secret(ctx context.Context, key string) (string, error) {
 // apiKey trio to the all-empty state buildObsidianClient reads as "vault
 // off". Clearing needs no master key, so it is allowed even when box is nil.
 func (s *Service) Set(ctx context.Context, key, value string) error {
+	if err := s.set(ctx, key, value); err != nil {
+		return err
+	}
+	s.mu.RLock()
+	hooks := s.onChange
+	s.mu.RUnlock()
+	for _, fn := range hooks {
+		fn(ctx, key)
+	}
+	return nil
+}
+
+// OnChange registers fn to run after every successful Set, in the caller's goroutine.
+func (s *Service) OnChange(fn func(ctx context.Context, key string)) {
+	s.mu.Lock()
+	s.onChange = append(s.onChange, fn)
+	s.mu.Unlock()
+}
+
+func (s *Service) set(ctx context.Context, key, value string) error {
 	def, ok := Lookup(key)
 	if !ok {
 		return &ValidationError{Err: fmt.Errorf("settings.Set: unknown key %q", key)}

@@ -43,7 +43,12 @@ type ToolDef struct {
 	Description string
 	InputSchema map[string]any // JSON Schema object
 	Handler     ToolHandler
+	// Available gates listing and calling per request; nil means always.
+	Available func() bool
 }
+
+// available reports whether def may be listed or called right now.
+func available(def *ToolDef) bool { return def.Available == nil || def.Available() }
 
 // ToolRegistry maps tool names to definitions.
 type ToolRegistry map[string]*ToolDef

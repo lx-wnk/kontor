@@ -171,9 +171,9 @@ type ServerComponents struct {
 	CapabilityDecisions agentbroadcast.CapabilityDecisionProvider
 	Eval                *eval.Service
 	Settings            *settings.Service
-	// Obsidian is nil when the vault is unconfigured or no database is
+	// Obsidian holds nil while the vault is unconfigured or no database is
 	// present; see buildObsidianClient (di_obsidian.go).
-	Obsidian *obsidian.Client
+	Obsidian *obsidian.ClientHolder
 	// GitHub is nil when unconfigured or no database is present; see
 	// buildGitHubClient (di_github.go).
 	GitHub  *github.Client
@@ -284,7 +284,6 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// Seed the spawner command allow-list from settings (ApplyRestart).
 	services.SetSpawnerAllowedCommands(settingsSvc.StringSlice("spawn.allowedCommands"))
 
-	noteRoot := settingsSvc.String("obsidian.vaultRoot")
 	agentMerger := merger.New(
 		merger.WithRegistry(providerRegistry),
 		merger.WithScanFn(func(ctx context.Context) ([]scanner.ProcessInfo, error) {
@@ -292,7 +291,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		}),
 		merger.WithScreenProbe(merger.RealScreenProbe),
 		merger.WithNotePathFn(func(vaultPath string) (string, bool) {
-			return obsidian.RootRelative(noteRoot, vaultPath)
+			return obsidian.RootRelative(settingsSvc.String("obsidian.vaultRoot"), vaultPath)
 		}),
 	)
 
@@ -323,16 +322,12 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// setupManager is hoisted so runComponents can drive its sweep loop; it is
 	// nil when no database is configured, like every other repo-backed piece.
 	var setupManager *appsetup.Manager
-	// obsidianClient is nil when the vault is unconfigured (buildObsidianClient's
+	// obsidianClients holds nil while the vault is unconfigured (buildObsidianClient's
 	// own doc comment covers why that is not an error) and stays nil without
 	// a database, since Register and the capability catalogue it depends on
 	// need entClient too. obsidianSpaceID is set unconditionally alongside
-	// obsidian.Register below, regardless of whether the vault itself is
-	// configured: all four obsidian settings are ApplyRestart and the client
-	// is captured once here, so configuring a vault takes a restart either
-	// way — creating the space unconditionally just keeps that restart from
-	// also being the first run that has to create it.
-	var obsidianClient *obsidian.Client
+	// obsidian.Register below, so a vault configured later has its space ready.
+	obsidianClients := obsidian.NewClientHolder(nil)
 	var obsidianSpaceID string
 	// githubClient is nil when GitHub is unconfigured (buildGitHubClient's own
 	// doc comment covers why that is not an error) and stays nil without a
@@ -431,13 +426,11 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 
 		// Construct the vault client from settings so it exists once the
 		// operator configures it, rather than only once something reads
-		// obsidian.IndexNotes. buildObsidianClient returns nil, nil when
-		// unconfigured; a half-configured vault fails the boot instead of
-		// silently disabling itself (see its own doc comment for why).
-		obsidianClient, err = buildObsidianClient(ctx, settingsSvc)
-		if err != nil {
-			return nil, fmt.Errorf("obsidian: build client: %w", err)
-		}
+		// obsidian.IndexNotes. A read-only integration does not get to take
+		// the server down: a half-configured vault logs a warning and starts
+		// with the vault off, the same tolerance githubClient gets below.
+		obsidianClients.Set(bootObsidianClient(ctx, settingsSvc))
+		watchObsidianSettings(settingsSvc, obsidianClients)
 
 		// A read-only integration does not get to take the server down. The
 		// builder still reports precisely why it could not be constructed —
@@ -772,7 +765,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// A kind that collides with a core stage is refused there and logged.
 	registerModuleStageKinds(orch, pluginRegistry)
 
-	mcpHandler := provideMCPHandler(entClient, orch, sched, taskBroadcaster, projectBroadcaster, refineRunner, memRepo, memRetriever, grantUsageRepo, askerArg, obsidianClient, githubClient, newModuleToolSource(pluginRegistry))
+	mcpHandler := provideMCPHandler(entClient, orch, sched, taskBroadcaster, projectBroadcaster, refineRunner, memRepo, memRetriever, grantUsageRepo, askerArg, obsidianClients, githubClient, newModuleToolSource(pluginRegistry))
 
 	var histImporter *histsvc.Importer
 	var historyHandler *apihistory.Handler
@@ -853,12 +846,12 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// (di_pipeline.go) applies here — nobody is watching this run resolve a
 	// capability question, so an ask decision must deny rather than hold the
 	// HTTP response open for a human who is not there. Mounted even when
-	// obsidianClient is nil (vault unconfigured); the handler itself answers
+	// the vault is unconfigured; the handler itself answers
 	// 503 for that case rather than the route not existing at all, mirroring
 	// how auth.Handler stays mounted with a nil OAuthProvider.
 	var obsidianHandler *apiobsidian.Handler
 	if entClient != nil {
-		obsidianHandler = apiobsidian.NewHandler(obsidianClient, memRepo, memory.Gate{
+		obsidianHandler = apiobsidian.NewHandler(obsidianClients, memRepo, memory.Gate{
 			Capabilities: repo.NewCapabilityRepo(entClient),
 			Grants:       repo.NewGrantRepo(entClient),
 			GrantUsage:   grantUsageRepo,
@@ -1200,7 +1193,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		Eval:                evalService,
 		Settings:            settingsSvc,
 		SetupManager:        setupManager,
-		Obsidian:            obsidianClient,
+		Obsidian:            obsidianClients,
 		GitHub:              githubClient,
 		Cleanup:             cleanup,
 	}, nil

@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -170,23 +172,50 @@ type repoSummary struct {
 	Repo         string            `json:"repo"`
 	PullRequests []pullRequestView `json:"pullRequests"`
 	Error        string            `json:"error,omitempty"`
+	// False for a repository only the involves:@me search reached: merge refuses it.
+	Mergeable bool `json:"mergeable"`
 }
 
 type summaryResponse struct {
 	Repos []repoSummary `json:"repos"`
 }
 
-// summaryPRLimit is how many open pull requests each repository contributes.
-// A cockpit panel is a glance, not a list view.
+// summaryPRLimit is how many open pull requests each configured repository
+// contributes on its own. summaryPRCap can still raise a repository above
+// this once the involves:@me search adds more of that repository's pull
+// requests to the merge — see summary().
 const summaryPRLimit = 5
+
+// summaryPRCap is the most pull requests the summary route returns in total,
+// across every configured repository plus whatever the involves:@me search
+// adds. A cockpit panel is a glance, not a list view.
+const summaryPRCap = 20
+
+// summaryCandidate is one pull request still competing for a place in the
+// capped, merged summary — either returned by a configured repository's own
+// pull list, or found by the involves:@me search. Checks is looked up only
+// after the merge settles, so a PR the cap drops never pays for one.
+type summaryCandidate struct {
+	repo string
+	pr   githubapp.PullRequest
+}
 
 // summary answers GET /api/github/summary: the cockpit panel's data in one
 // request, per spec §4.2.
+//
+// It merges two sources: each configured repository's own open pull requests
+// (summaryPRLimit each), and the involves:@me search, which reaches pull
+// requests anywhere on GitHub the token can see — including ones in a
+// configured repository beyond that repository's own limit. The merge is
+// deduped by repo#number (a repository's own answer always wins over a
+// search hit for the same pull request, since it carries the head SHA a
+// checks lookup needs), sorted by updatedAt descending, and capped at
+// summaryPRCap before any check-run lookup runs.
 func (h *Handler) summary(w http.ResponseWriter, r *http.Request) error {
 	if err := h.ready(); err != nil {
 		return err
 	}
-	repos := h.client.Repos()
+	repoNames := h.client.Repos()
 
 	// One capability check for the whole summary, against "" — the request
 	// names no single repository. A grant narrowed by pattern to one
@@ -197,37 +226,85 @@ func (h *Handler) summary(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	out := summaryResponse{Repos: make([]repoSummary, 0, len(repos))}
-	for _, name := range repos {
+	var merged []summaryCandidate
+	seen := make(map[string]bool)
+	repoErrors := make(map[string]string, len(repoNames))
+
+	for _, name := range repoNames {
 		prs, err := h.client.OpenPullRequests(r.Context(), name, summaryPRLimit)
 		if err != nil {
 			// A per-repository failure is embedded as text, not surfaced as
 			// an HTTP status: the summary as a whole still answers 200 so the
 			// other repositories are not blanked by one that failed.
-			out.Repos = append(out.Repos, repoSummary{Repo: name, PullRequests: []pullRequestView{}, Error: err.Error()})
+			repoErrors[name] = err.Error()
 			continue
 		}
-		views := make([]pullRequestView, 0, len(prs))
 		for _, p := range prs {
-			// A failed check-run lookup falls back to noChecksView rather
-			// than propagating the error: the PR list this repository
-			// already answered with must not be blanked by a lookup that
-			// merely enriches it, the same rule the repository loop above
-			// applies to OpenPullRequests itself.
-			checks := noChecksView(p.URL)
-			if summary, err := h.client.Checks(r.Context(), name, p.HeadSHA); err == nil {
-				checks = checksView{
-					State: string(summary.State), Passed: summary.Passed,
-					Failed: summary.Failed, Total: summary.Total, URL: p.URL + "/checks",
-				}
-			}
-			views = append(views, pullRequestView{
-				Number: p.Number, Title: p.Title, Author: p.Author,
-				URL: p.URL, Draft: p.Draft, UpdatedAt: p.UpdatedAt,
-				Checks: checks,
-			})
+			seen[name+"#"+strconv.Itoa(p.Number)] = true
+			merged = append(merged, summaryCandidate{repo: name, pr: p})
 		}
-		out.Repos = append(out.Repos, repoSummary{Repo: name, PullRequests: views})
+	}
+
+	// A failed search does not fail the summary either — the same
+	// partial-failure rule the repository loop above and the Checks lookup
+	// below both follow. It just means no pull requests are added from it.
+	if involved, err := h.client.InvolvedPullRequests(r.Context()); err == nil {
+		for _, ip := range involved {
+			key := ip.Repo + "#" + strconv.Itoa(ip.Number)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			merged = append(merged, summaryCandidate{repo: ip.Repo, pr: githubapp.PullRequest{
+				Number: ip.Number, Title: ip.Title, URL: ip.URL, UpdatedAt: ip.UpdatedAt,
+			}})
+		}
+	}
+
+	sort.SliceStable(merged, func(i, j int) bool { return merged[i].pr.UpdatedAt.After(merged[j].pr.UpdatedAt) })
+	if len(merged) > summaryPRCap {
+		merged = merged[:summaryPRCap]
+	}
+
+	byRepo := make(map[string][]pullRequestView, len(repoNames))
+	order := append([]string(nil), repoNames...)
+	orderSeen := make(map[string]bool, len(repoNames))
+	for _, name := range repoNames {
+		orderSeen[name] = true
+	}
+
+	for _, m := range merged {
+		// A failed check-run lookup falls back to noChecksView rather than
+		// propagating the error: the PR this loop already has must not be
+		// dropped by a lookup that merely enriches it. A pull request the
+		// search found outside the allow-list lands in the same fallback,
+		// since Checks refuses it (checkRepo) before it ever needs the empty
+		// head SHA a search hit carries.
+		checks := noChecksView(m.pr.URL)
+		if summary, err := h.client.Checks(r.Context(), m.repo, m.pr.HeadSHA); err == nil {
+			checks = checksView{
+				State: string(summary.State), Passed: summary.Passed,
+				Failed: summary.Failed, Total: summary.Total, URL: m.pr.URL + "/checks",
+			}
+		}
+		byRepo[m.repo] = append(byRepo[m.repo], pullRequestView{
+			Number: m.pr.Number, Title: m.pr.Title, Author: m.pr.Author,
+			URL: m.pr.URL, Draft: m.pr.Draft, UpdatedAt: m.pr.UpdatedAt,
+			Checks: checks,
+		})
+		if !orderSeen[m.repo] {
+			orderSeen[m.repo] = true
+			order = append(order, m.repo)
+		}
+	}
+
+	out := summaryResponse{Repos: make([]repoSummary, 0, len(order))}
+	for _, name := range order {
+		views := byRepo[name]
+		if views == nil {
+			views = []pullRequestView{}
+		}
+		out.Repos = append(out.Repos, repoSummary{Repo: name, PullRequests: views, Error: repoErrors[name], Mergeable: h.client.AllowsRepo(name)})
 	}
 	apierr.WriteJSON(w, http.StatusOK, out)
 	return nil

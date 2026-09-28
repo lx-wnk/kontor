@@ -34,6 +34,13 @@ func (c *graphCache) refresh(ctx context.Context, build graphBuilder) (obsidiana
 	return c.rebuild(ctx, build, false)
 }
 
+// reset drops the cached graph, forcing the next get to rebuild.
+func (c *graphCache) reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.graph = nil
+}
+
 func (c *graphCache) cached() (obsidianapp.Graph, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

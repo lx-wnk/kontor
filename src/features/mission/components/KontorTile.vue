@@ -113,6 +113,7 @@ async function renewSession() {
         >
           End
         </button>
+        <slot name="actions" />
       </template>
     </AgentSessionPane>
 
@@ -144,6 +145,7 @@ async function renewSession() {
         >
           End
         </button>
+        <slot name="actions" />
       </header>
 
       <div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-app">

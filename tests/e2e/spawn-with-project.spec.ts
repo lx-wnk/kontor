@@ -94,7 +94,7 @@ test('spawn dialog shows project picker and hydrates cwd from default folder', a
     await expect(permissionListbox.getByRole('option', { name: 'Auto-accept edits', exact: true })).toHaveCount(1)
     await expect(permissionListbox.getByRole('option', { name: 'Bypass all permissions (dangerous)', exact: true })).toHaveCount(1)
     // Close the panel again — it must not intercept the Cancel click below.
-    await permSelect.click()
+    await page.keyboard.press('Escape')
     await permissionListbox.waitFor({ state: 'detached' })
 
     // 12. Cancel — we don't want to actually spawn a Claude process. Scope to

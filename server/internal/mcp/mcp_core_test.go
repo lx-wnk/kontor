@@ -143,6 +143,40 @@ func TestMCPHandler_ToolsList_ReturnsRegisteredTools(t *testing.T) {
 	assert.Equal(t, "list_tasks", tool["name"])
 }
 
+// TestMCPHandler_ToolsList_OmitsUnavailableTool proves a def whose Available
+// returns false is filtered out of tools/list on every request, not baked
+// into the once-built sorted snapshot — an agent must never discover a tool
+// it cannot currently call.
+func TestMCPHandler_ToolsList_OmitsUnavailableTool(t *testing.T) {
+	available := false
+	registry := make(ToolRegistry)
+	registry.Register(&ToolDef{
+		Name:        "list_tasks",
+		Description: "List all tasks",
+		InputSchema: map[string]any{"type": "object"},
+		Handler: func(ctx context.Context, args map[string]any) (*ToolResult, error) {
+			return OK([]string{})
+		},
+		Available: func() bool { return available },
+	})
+
+	handler := MCPHandler(registry, nil, nil)
+	listNames := func() []any {
+		resp := doRPC(t, handler, map[string]any{
+			"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": map[string]any{},
+		})
+		result := resp["result"].(map[string]any)
+		return result["tools"].([]any)
+	}
+
+	assert.Empty(t, listNames(), "unavailable tool must not be listed")
+
+	available = true
+	tools := listNames()
+	require.Len(t, tools, 1)
+	assert.Equal(t, "list_tasks", tools[0].(map[string]any)["name"])
+}
+
 // ---------------------------------------------------------------------------
 // MCPHandler — tools/call — no auth → scope error
 // ---------------------------------------------------------------------------

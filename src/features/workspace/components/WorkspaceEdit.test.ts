@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { useViewState } from '@/composables/useViewState'
+import { openListboxDom, optionByLabel, selectByLabel } from '@/utils/testSelect'
 import { WIDGET_SPECS } from '../widgetSpecs'
 
 // Real panels would fetch from jsdom; the swap/add candidates are the four
@@ -68,7 +69,7 @@ describe('edit mode', () => {
 
   it('swaps a tile in place from its chrome, keeping anchor and span', async () => {
     const w = mount(WorkspaceGrid, { props: { page, editing: true } })
-    await w.get('[data-testid="workspace-swap-agents"]').setValue('pipeline')
+    await selectByLabel(w.get('[data-testid="workspace-swap-agents"]').element, 'Pipeline')
     expect(w.emitted('change')?.[0]?.[0]).toMatchObject({ tiles: [{ widget: 'pipeline', col: 1, row: 1, colSpan: 3, rowSpan: 3 }, { widget: 'github' }] })
     w.unmount()
   })
@@ -224,10 +225,13 @@ describe('drag and resize', () => {
 describe('workspace edit bar', () => {
   it('adds a tile, excluding widgets already on the page', async () => {
     const w = mount(WorkspaceEditBar, { props: { page, refusal: null } })
-    const options = w.findAll('option').map(o => o.attributes('value')).filter(v => v)
-    expect(options).not.toContain('agents')
-    expect(options).not.toContain('github')
-    await w.get('[data-testid="workspace-add"]').setValue('pipeline')
+    const panel = await openListboxDom(w.get('[data-testid="workspace-add"]').element)
+    const labels = Array.from(panel.querySelectorAll('[role="option"]'), o => o.textContent?.trim())
+    expect(labels).toContain('Pipeline')
+    expect(labels).not.toContain('Agents')
+    expect(labels).not.toContain('GitHub')
+    optionByLabel(panel, 'Pipeline').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
     await w.get('[data-testid="workspace-add-submit"]').trigger('click')
     expect(w.emitted('change')?.[0]?.[0]).toMatchObject({ tiles: [{ widget: 'agents' }, { widget: 'github' }, { widget: 'pipeline' }] })
     w.unmount()

@@ -20,8 +20,8 @@ import (
 // response, so an ask decision may legitimately hold for a human's answer
 // instead of having to fail closed.
 type ObsidianDeps struct {
-	Client *obsidian.Client
-	Gate   memory.Gate
+	Clients *obsidian.ClientHolder
+	Gate    memory.Gate
 	// Caller resolves the stage run on the request's credential into the task
 	// and routine capability contexts the grant chain is ranked against. The
 	// zero value resolves to nothing, which is exactly how a machine-wide key
@@ -36,15 +36,13 @@ type ObsidianDeps struct {
 // the memory tools.
 func obsidianScope() repo.Scope { return repo.GlobalScope() }
 
+func obsidianAvailable(d ObsidianDeps) func() bool {
+	return func() bool { return d.Clients.Get() != nil }
+}
+
 // RegisterObsidianTools registers the 4 Obsidian vault MCP tools into the
-// given registry. When d.Client is nil — the vault is unconfigured — no
-// tools are registered at all: an agent discovering a tool it can never use
-// is worse than not discovering it, and the registry supports conditional
-// registration trivially since this is just an ordinary function call.
+// given registry; each is listed only while a vault is configured.
 func RegisterObsidianTools(registry mcp.ToolRegistry, d ObsidianDeps) {
-	if d.Client == nil {
-		return
-	}
 	registerObsidianRead(registry, d)
 	registerObsidianSearch(registry, d)
 	registerObsidianWrite(registry, d)
@@ -55,6 +53,7 @@ func registerObsidianRead(registry mcp.ToolRegistry, d ObsidianDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "obsidian_read",
 		Description: "Read the raw content of a note from the configured Obsidian vault.",
+		Available:   obsidianAvailable(d),
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -63,6 +62,10 @@ func registerObsidianRead(registry mcp.ToolRegistry, d ObsidianDeps) {
 			"required": []string{"path"},
 		},
 		Handler: func(ctx context.Context, args map[string]any) (*mcp.ToolResult, error) {
+			client := d.Clients.Get()
+			if client == nil {
+				return nil, mcp.Fail("obsidian_read: obsidian vault not configured")
+			}
 			rawPath, err := mcp.StringArg(args, "path")
 			if err != nil {
 				return nil, err
@@ -74,7 +77,7 @@ func registerObsidianRead(registry mcp.ToolRegistry, d ObsidianDeps) {
 			// pattern-narrowed grant. A normalization failure is a malformed
 			// request (the client would refuse it too), not a permission
 			// question, so it fails before Authorize runs.
-			notePath, err := d.Client.NormalizeNotePath(rawPath)
+			notePath, err := client.NormalizeNotePath(rawPath)
 			if err != nil {
 				return nil, mcp.Fail("obsidian_read: " + err.Error())
 			}
@@ -83,7 +86,7 @@ func registerObsidianRead(registry mcp.ToolRegistry, d ObsidianDeps) {
 			if err := d.Gate.Authorize(ctx, obsidian.CapabilityRead, notePath, obsidianScope(), d.Caller.Contexts(ctx)...); err != nil {
 				return nil, mcp.Fail("obsidian_read: " + err.Error())
 			}
-			content, err := d.Client.Read(ctx, notePath)
+			content, err := client.Read(ctx, notePath)
 			if err != nil {
 				return nil, mcp.Fail("obsidian_read: " + err.Error())
 			}
@@ -96,6 +99,7 @@ func registerObsidianSearch(registry mcp.ToolRegistry, d ObsidianDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "obsidian_search",
 		Description: "Search the whole Obsidian vault for notes matching a query.",
+		Available:   obsidianAvailable(d),
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -104,6 +108,10 @@ func registerObsidianSearch(registry mcp.ToolRegistry, d ObsidianDeps) {
 			"required": []string{"query"},
 		},
 		Handler: func(ctx context.Context, args map[string]any) (*mcp.ToolResult, error) {
+			client := d.Clients.Get()
+			if client == nil {
+				return nil, mcp.Fail("obsidian_search: obsidian vault not configured")
+			}
 			query, err := mcp.StringArg(args, "query")
 			if err != nil {
 				return nil, err
@@ -126,7 +134,7 @@ func registerObsidianSearch(registry mcp.ToolRegistry, d ObsidianDeps) {
 			// VaultRoot — an existence disclosure past the boundary
 			// resolveVaultPath enforces on every other call, and against paths
 			// a follow-up obsidian_read would then refuse anyway.
-			results, err := d.Client.SearchUnderRoot(ctx, query)
+			results, err := client.SearchUnderRoot(ctx, query)
 			if err != nil {
 				return nil, mcp.Fail("obsidian_search: " + err.Error())
 			}
@@ -139,6 +147,7 @@ func registerObsidianWrite(registry mcp.ToolRegistry, d ObsidianDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "obsidian_write",
 		Description: "Create or overwrite a note in the configured Obsidian vault. Destructive: overwrites any existing content at the path.",
+		Available:   obsidianAvailable(d),
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -148,6 +157,10 @@ func registerObsidianWrite(registry mcp.ToolRegistry, d ObsidianDeps) {
 			"required": []string{"path", "content"},
 		},
 		Handler: func(ctx context.Context, args map[string]any) (*mcp.ToolResult, error) {
+			client := d.Clients.Get()
+			if client == nil {
+				return nil, mcp.Fail("obsidian_write: obsidian vault not configured")
+			}
 			rawPath, err := mcp.StringArg(args, "path")
 			if err != nil {
 				return nil, err
@@ -158,14 +171,14 @@ func registerObsidianWrite(registry mcp.ToolRegistry, d ObsidianDeps) {
 			}
 			// See registerObsidianRead's identical comment: normalize
 			// before the gate, use the same value for both calls.
-			notePath, err := d.Client.NormalizeNotePath(rawPath)
+			notePath, err := client.NormalizeNotePath(rawPath)
 			if err != nil {
 				return nil, mcp.Fail("obsidian_write: " + err.Error())
 			}
 			if err := d.Gate.Authorize(ctx, obsidian.CapabilityWrite, notePath, obsidianScope(), d.Caller.Contexts(ctx)...); err != nil {
 				return nil, mcp.Fail("obsidian_write: " + err.Error())
 			}
-			if err := d.Client.Write(ctx, notePath, content); err != nil {
+			if err := client.Write(ctx, notePath, content); err != nil {
 				return nil, mcp.Fail("obsidian_write: " + err.Error())
 			}
 			return mcp.OK(map[string]any{"path": notePath})
@@ -177,6 +190,7 @@ func registerObsidianDelete(registry mcp.ToolRegistry, d ObsidianDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "obsidian_delete",
 		Description: "Delete a note from the configured Obsidian vault. Irreversible.",
+		Available:   obsidianAvailable(d),
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -185,20 +199,24 @@ func registerObsidianDelete(registry mcp.ToolRegistry, d ObsidianDeps) {
 			"required": []string{"path"},
 		},
 		Handler: func(ctx context.Context, args map[string]any) (*mcp.ToolResult, error) {
+			client := d.Clients.Get()
+			if client == nil {
+				return nil, mcp.Fail("obsidian_delete: obsidian vault not configured")
+			}
 			rawPath, err := mcp.StringArg(args, "path")
 			if err != nil {
 				return nil, err
 			}
 			// See registerObsidianRead's identical comment: normalize
 			// before the gate, use the same value for both calls.
-			notePath, err := d.Client.NormalizeNotePath(rawPath)
+			notePath, err := client.NormalizeNotePath(rawPath)
 			if err != nil {
 				return nil, mcp.Fail("obsidian_delete: " + err.Error())
 			}
 			if err := d.Gate.Authorize(ctx, obsidian.CapabilityDelete, notePath, obsidianScope(), d.Caller.Contexts(ctx)...); err != nil {
 				return nil, mcp.Fail("obsidian_delete: " + err.Error())
 			}
-			if err := d.Client.Delete(ctx, notePath); err != nil {
+			if err := client.Delete(ctx, notePath); err != nil {
 				return nil, mcp.Fail("obsidian_delete: " + err.Error())
 			}
 			return mcp.OK(map[string]any{"path": notePath, "deleted": true})

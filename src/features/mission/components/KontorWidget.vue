@@ -121,10 +121,13 @@ onKeyStroke('Escape', () => {
 
   <Teleport to="body">
     <div v-if="open" ref="overlay" data-testid="kontor-expanded" class="fixed z-40 flex flex-col overflow-hidden rounded-xl border border-accent bg-card shadow-2xl transition-[height] duration-200 motion-reduce:transition-none" :style="box">
-      <button type="button" data-testid="kontor-collapse" aria-label="Collapse Kontor (Esc)" class="absolute right-2 top-2 z-10 rounded border border-line-strong px-1.5 text-[12px] text-fg-mute" @click="collapse">
-        ▾
-      </button>
-      <KontorTile class="h-full min-h-0 flex-1" />
+      <KontorTile class="h-full min-h-0 flex-1">
+        <template #actions>
+          <button type="button" data-testid="kontor-collapse" title="Minimize Kontor (Esc)" class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft hover:border-accent hover:text-fg" @click="collapse">
+            Minimize ▾
+          </button>
+        </template>
+      </KontorTile>
     </div>
   </Teleport>
 </template>

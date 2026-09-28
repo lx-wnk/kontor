@@ -3,6 +3,7 @@ package github_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -315,6 +316,75 @@ func TestSummaryChecksLookupFailureDoesNotBlankThePullRequest(t *testing.T) {
 	require.Equal(t, "none", byNumber[2], "a failed check-run lookup must read as 'none', not an error")
 	require.Equal(t, "success", byNumber[1], "the other pull request's checks must be unaffected")
 }
+
+// TestSummaryMergesInvolvedPullRequestsDedupedAndCapped proves the
+// involves:@me search adds pull requests from repositories beyond the
+// configured allow-list, that a search hit duplicating a configured
+// repository's own pull request is dropped in favour of the richer answer,
+// and that the merged total never exceeds summaryPRCap.
+func TestSummaryMergesInvolvedPullRequestsDedupedAndCapped(t *testing.T) {
+	h, grants, ctx := newEnvWithUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/pulls"):
+			_ = json.NewEncoder(w).Encode([]map[string]any{summaryPullFixture(42, "configured", "sha-42")})
+		case strings.HasSuffix(r.URL.Path, "/search/issues"):
+			items := []map[string]any{{
+				// Duplicates the configured repo's own PR #42: must not be
+				// counted twice, and the configured repo's title must win.
+				"number": 42, "title": "duplicate", "html_url": "https://example.test/dup",
+				"repository_url": "https://api.github.com/repos/" + testRepo,
+				"updated_at":     "2026-09-02T00:00:00Z",
+			}}
+			for i := range 24 {
+				items = append(items, map[string]any{
+					"number": 100 + i, "title": fmt.Sprintf("involved %d", i),
+					"html_url":       fmt.Sprintf("https://example.test/other/%d", i),
+					"repository_url": "https://api.github.com/repos/other/repo",
+					"updated_at":     fmt.Sprintf("2026-09-01T00:%02d:00Z", i),
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		}
+	})
+	allowGlobally(t, grants, ctx, githubapp.CapabilityRead)
+	rec := do(t, h, http.MethodGet, "/api/github/summary", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Repos []struct {
+			Repo         string `json:"repo"`
+			Mergeable    bool   `json:"mergeable"`
+			PullRequests []struct {
+				Number int    `json:"number"`
+				Title  string `json:"title"`
+			} `json:"pullRequests"`
+		} `json:"repos"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+
+	total := 0
+	foundOtherRepo := false
+	for _, repo := range body.Repos {
+		total += len(repo.PullRequests)
+		require.Equal(t, repo.Repo == testRepo, repo.Mergeable, "only an allow-listed repository offers a merge: %s", repo.Repo)
+		if repo.Repo == "other/repo" {
+			foundOtherRepo = true
+		}
+		for _, pr := range repo.PullRequests {
+			if repo.Repo == testRepo && pr.Number == 42 {
+				require.Equal(t, "configured", pr.Title, "the configured repo's own PR must win over a search hit for the same repo#number")
+			}
+		}
+	}
+	require.Equal(t, summaryPRCapForTest, total, "the merged summary must be capped at 20 pull requests")
+	require.True(t, foundOtherRepo, "a search hit outside the configured allow-list must still be merged in")
+}
+
+// summaryPRCapForTest mirrors the unexported summaryPRCap constant so this
+// test breaks loudly, not silently, if that cap ever changes.
+const summaryPRCapForTest = 20
 
 // TestNoResponseEverCarriesTheToken is spec §6 row 5, on the HTTP surface.
 //
