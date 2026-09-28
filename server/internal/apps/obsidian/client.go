@@ -230,6 +230,22 @@ func resolveVaultPath(root, notePath string) (string, error) {
 	return strings.TrimPrefix(joined, "/"), nil
 }
 
+// RootRelative maps a path relative to the whole vault — as an agent's REST
+// URL or MCP call names it — onto the graph's form, relative to root. ok is
+// false for an empty root, the root itself, or anything outside it.
+func RootRelative(root, vaultPath string) (string, bool) {
+	if root == "" || vaultPath == "" {
+		return "", false
+	}
+	rootClean := path.Clean("/" + root)
+	full := path.Clean("/" + vaultPath)
+	rel, ok := strings.CutPrefix(full, rootClean+"/")
+	if !ok || rel == "" {
+		return "", false
+	}
+	return rel, true
+}
+
 // NormalizeNotePath resolves notePath against VaultRoot exactly as
 // newRequest does before building a vault HTTP request, and returns the
 // canonical vault-relative form: any ".." segment collapsed, with the

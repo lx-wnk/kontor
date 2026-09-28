@@ -56,7 +56,7 @@ export function flyFrame(from: Camera, to: { wx: number, wy: number, k: number }
   return centredOn(cx + (to.wx - cx) * q, cy + (to.wy - cy) * q, k, width, height)
 }
 
-// The ring grows with the legend it clears, so it docks once it no longer fits the stage.
-export function launchersDocked(rel: number, scale: number, agentRingPx: number, stagePx: number): boolean {
-  return rel > DOCK_REL || launcherRingRadius(scale, agentRingPx) * scale > stagePx / 2 - LAUNCHER_PX / 2
+// The ring grows with the legend it clears and with the zoom, so it docks once it no longer fits the stage.
+export function launchersDocked(rel: number, k0: number, agentRingPx: number, stagePx: number): boolean {
+  return rel > DOCK_REL || launcherRingRadius(k0, agentRingPx) * k0 * rel > stagePx / 2 - LAUNCHER_PX / 2
 }

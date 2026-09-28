@@ -5,8 +5,8 @@ import type { Sector } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
-import { useEventListener } from '@vueuse/core'
-import { computed, inject, onMounted, ref, shallowRef, watch } from 'vue'
+import { useEventListener, useNow } from '@vueuse/core'
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { NEEDS_YOU, OPEN_SETTINGS } from '@/composables/openTask'
 import { useSidebar } from '@/composables/useSidebar'
 import { pageView, useViewState } from '@/composables/useViewState'
@@ -17,11 +17,12 @@ import { attentionFor } from '@/utils/attention'
 import { isTypingTarget } from '@/utils/isTypingTarget'
 import { NAV_ITEMS } from '@/utils/navConfig'
 import { agentDisplayStatus } from '@/utils/statusColors'
-import { useHubCamera } from '../composables/useHubCamera'
+import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
+import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
@@ -43,7 +44,7 @@ if (!openSettings)
 
 const hub = ref<HTMLElement | null>(null)
 const stage = ref<HTMLElement | null>(null)
-const { cam, size, rel, level, dragging, zoomBy, panBy, flyTo, fit, centreWorld } = useHubCamera(stage, { onTap: tapNote })
+const { cam, k0, size, rel, level, dragging, zoomBy, panBy, flyTo, fit, centreWorld } = useHubCamera(stage, { onTap: tapNote })
 const { status: graphStatus, message: graphMessage, notes, refresh: refreshGraph, recentNotes, noteByPath } = useObsidianGraph()
 const { agents } = useAgents({ autoStart: false })
 const { ask, overlayOpen } = useKontorSession()
@@ -52,7 +53,16 @@ const { activeView } = useViewState()
 const { layout, wide } = useWorkspace()
 const { requestNewPage } = useSidebar()
 const listOpen = ref(false)
-const openCard = ref<{ kind: 'agent', pid: number } | { kind: 'note', path: string } | null>(null)
+type HubCard = { kind: 'agent', pid: number } | { kind: 'note', path: string }
+const openCard = ref<HubCard | null>(null)
+let cameraBeforeCard: [number, number, number] | null = null
+// Runs after useHubCamera's own unmount hook, so it overrides the zoomed-in card view it saved.
+onUnmounted(() => {
+  if (cameraBeforeCard) {
+    const [wx, wy, r] = cameraBeforeCard
+    lastHubView.value = { wx, wy, rel: r }
+  }
+})
 
 const SECTOR_FLY_RADIUS = 260
 const SECTOR_FLY_REL = 2.6
@@ -132,7 +142,20 @@ const listNotes = computed(() => vaultNotes.value.length ? recentNotes(LIST_NOTE
 function openNote(index: number) {
   const note = vaultNotes.value[index]
   if (note)
-    openCard.value = { kind: 'note', path: note.path }
+    showCard({ kind: 'note', path: note.path })
+}
+
+function showCard(card: HubCard) {
+  if (!openCard.value)
+    cameraBeforeCard = [...centreWorld(), rel.value]
+  openCard.value = card
+}
+
+function closeCard() {
+  openCard.value = null
+  if (cameraBeforeCard)
+    flyTo(...cameraBeforeCard)
+  cameraBeforeCard = null
 }
 
 function flyToNote(index: number, relTarget: number) {
@@ -157,10 +180,11 @@ onMounted(() => refreshGraph())
 useEventListener(window, 'focus', () => refreshGraph())
 const stagePx = computed(() => Math.min(size.value.width, size.value.height))
 const ringPx = computed(() => agentRingPx(live.value.length, stagePx.value))
-const ringOnScreenPx = computed(() => agentRadius(cam.value.k, false, ringPx.value) * cam.value.k)
+const baseRingPx = computed(() => agentRadius(k0.value, false, ringPx.value) * k0.value)
+const ringOnScreenPx = computed(() => baseRingPx.value * rel.value)
 
 const placed = computed(() => {
-  const k = cam.value.k
+  const k = k0.value
   const { sectors, sectorOfProject } = plan.value
   return sectors.flatMap((sector) => {
     const members = live.value.filter(a => sectorOfProject.get(a.projectName) === sector.key)
@@ -176,14 +200,14 @@ const placed = computed(() => {
 
 // How far the agents actually reach: a sector's agents are staggered outward tier by tier, so the
 // legend and the launchers must clear the outermost tier in use, not the base ring.
-const outerRingOnScreenPx = computed(() => Math.max(ringOnScreenPx.value, ...placed.value.map(p => Math.hypot(p.x, p.y) * cam.value.k)))
-const sectorNameRadius = computed(() => sectorLabelRadius(cam.value.k, outerRingOnScreenPx.value))
-const docked = computed(() => launchersDocked(rel.value, cam.value.k, outerRingOnScreenPx.value, stagePx.value))
+const outerRingBasePx = computed(() => Math.max(baseRingPx.value, ...placed.value.map(p => Math.hypot(p.x, p.y) * k0.value)))
+const sectorNameRadius = computed(() => sectorLabelRadius(k0.value, outerRingBasePx.value))
+const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const launchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value))
 const listLaunchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value, Infinity))
-const launcherBoxes = computed(() => launchers.value.map((_, i) => launcherBox(i, docked.value, cam.value, outerRingOnScreenPx.value)))
+const launcherBoxes = computed(() => launchers.value.map((_, i) => launcherBox(i, docked.value, cam.value, k0.value, outerRingBasePx.value)))
 // A launcher is opaque chrome. The ring clears the map by construction; the docked rail is fixed to
 // the screen while the map pans under it, so whatever it covers is unreachable and stays undrawn.
 function coveredByRail(box: LabelBox): boolean {
@@ -197,6 +221,13 @@ const placedScreen = computed(() => placed.value.map(p => ({ p, screen: toScreen
 const drawnAgents = computed(() => new Set(placedScreen.value
   .filter(({ screen: [sx, sy] }) => !coveredByRail(agentDotBox(sx, sy)))
   .map(({ p }) => p.agent.pid)))
+
+const EDGE_CLOCK_MS = 30_000
+// Edges fade and expire on this clock too: an idle agent sends no SSE tick to redraw them.
+const edgeNow = useNow({ interval: EDGE_CLOCK_MS })
+const notesByPath = computed(() => new Map(vaultNotes.value.map(n => [n.path, n])))
+const edges = computed(() => liveEdges(placed.value, drawnAgents.value, notesByPath.value, edgeNow.value.getTime()))
+const listAgents = computed(() => placed.value.map(p => ({ ...p, notes: agentNoteRows(p.agent, notesByPath.value, edgeNow.value.getTime()) })))
 
 const showSectorNames = computed(() => vaultNotes.value.length > 0)
 
@@ -313,7 +344,7 @@ watch([listOpen, openCard], () => {
 
 function escape() {
   if (openCard.value)
-    openCard.value = null
+    closeCard()
   else if (listOpen.value)
     toggleList()
   else
@@ -368,7 +399,7 @@ function onEscape(e: KeyboardEvent) {
 }
 
 function flyToAgent(agent: Agent) {
-  openCard.value = { kind: 'agent', pid: agent.pid }
+  showCard({ kind: 'agent', pid: agent.pid })
   const hit = placed.value.find(p => p.agent.pid === agent.pid)
   if (hit)
     flyTo(hit.x, hit.y, AGENT_FLY_REL)
@@ -458,6 +489,7 @@ watch(hubFocusRequest, (target) => {
         :colours="brain.colours"
         :notes="vaultNotes"
         :links="brain.links"
+        :edges="edges"
         :hub-notes="brain.hubNotes"
         :selected="cardNote?.index ?? null"
       />
@@ -483,7 +515,7 @@ watch(hubFocusRequest, (target) => {
         @sector="sector => flyTo(...polar(SECTOR_FLY_RADIUS, sectorMid(sector)), SECTOR_FLY_REL)"
         @measure="sizes => labelSizes = sizes"
       />
-      <HubLaunchers :launchers="launchers" :cam="cam" :docked="docked" :agent-ring-px="outerRingOnScreenPx" @launch="launch" />
+      <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
       <HubControls
         :level="level"
         :wide="wide === HUB_WIDGET"
@@ -534,7 +566,7 @@ watch(hubFocusRequest, (target) => {
     </div>
     <HubList
       v-if="listOpen"
-      :agents="placed"
+      :agents="listAgents"
       :notes="listNotes"
       :graph-status="graphStatus"
       :graph-message="graphMessage"
@@ -544,7 +576,7 @@ watch(hubFocusRequest, (target) => {
       @launch="launchFromList"
       @close="listOpen = false"
     />
-    <HubAgentCard v-if="cardAgent" :agent="cardAgent" @close="openCard = null" />
+    <HubAgentCard v-if="cardAgent" :agent="cardAgent" @close="closeCard" />
     <HubNoteCard
       v-if="cardNote"
       :key="cardNote.path"
@@ -554,7 +586,7 @@ watch(hubFocusRequest, (target) => {
       :kontor-blocked="askBlocked"
       @fly="index => flyToNote(index, Math.max(rel, CHIP_FLY_MIN_REL))"
       @ask="openKontor"
-      @close="openCard = null"
+      @close="closeCard"
     />
   </section>
 </template>

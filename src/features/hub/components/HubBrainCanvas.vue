@@ -2,6 +2,8 @@
 import type { HubNote } from '../composables/useObsidianGraph'
 import type { Camera, HubLevel } from '../hubCamera'
 import type { LabelCandidate } from '../hubCanvas'
+import type { HubEdge } from '../hubEdges'
+import type { NoteTouchKind } from '@/types'
 import { useMutationObserver } from '@vueuse/core'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { toScreen } from '../hubCamera'
@@ -18,11 +20,14 @@ const props = defineProps<{
   links: ReadonlyArray<[number, number]>
   hubNotes: ReadonlySet<number>
   selected: number | null
+  edges: ReadonlyArray<HubEdge>
 }>()
 
 const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
 const LINK_ALPHA: Record<HubLevel, number> = { 0: 0.28, 1: 0.55, 2: 0.8 }
 const LINK_WIDTH_PX = 0.7
+const EDGE_WIDTH_PX = 1.2
+const EDGE_DASH: Record<NoteTouchKind, number[]> = { read: [4, 3], write: [1, 3] }
 const NOTE_ALPHA = 0.75
 const HUB_NOTE_SCALE = 1.9
 const HALO_SCALE = 2.6
@@ -67,6 +72,24 @@ function drawLinks({ ctx, screen, onStage, token }: Scene) {
     ctx.lineTo(...screen[to])
   }
   ctx.stroke()
+}
+
+function drawEdges({ ctx, screen, token }: Scene) {
+  if (props.edges.length === 0)
+    return
+  ctx.strokeStyle = token('--accent')
+  ctx.lineWidth = EDGE_WIDTH_PX
+  for (const edge of props.edges) {
+    ctx.globalAlpha = edge.alpha
+    ctx.setLineDash(EDGE_DASH[edge.kind])
+    ctx.lineCap = edge.kind === 'write' ? 'round' : 'butt'
+    ctx.beginPath()
+    ctx.moveTo(...toScreen(props.cam, ...edge.from))
+    ctx.lineTo(...screen[edge.to])
+    ctx.stroke()
+  }
+  ctx.setLineDash([])
+  ctx.lineCap = 'butt'
 }
 
 function strokeHalos({ ctx, screen, visible, radius, now, token }: Scene) {
@@ -211,6 +234,7 @@ function draw() {
     token: name => style.getPropertyValue(name).trim(),
   }
   drawLinks(scene)
+  drawEdges(scene)
   strokeHalos(scene)
   fillNotes(scene)
   drawLabels(scene)

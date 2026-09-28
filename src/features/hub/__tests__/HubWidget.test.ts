@@ -8,6 +8,7 @@ import { useSidebar } from '@/composables/useSidebar'
 import { useViewState } from '@/composables/useViewState'
 import { DEFAULT_LAYOUT, failedWidgets, useWorkspace } from '@/features/workspace'
 import HubBrainCanvas from '../components/HubBrainCanvas.vue'
+import { lastHubView } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
@@ -100,6 +101,7 @@ afterEach(() => {
   useWorkspace().layout.value = DEFAULT_LAYOUT
   useWorkspace().wide.value = null
   hubFocusRequest.value = null
+  lastHubView.value = null
   failedWidgets.clear()
 })
 
@@ -207,6 +209,10 @@ function distanceFromCore(w: Hub, pid: number): number {
   return Math.hypot(sx - core.sx, sy - core.sy)
 }
 
+function camera(w: Hub): number[] {
+  return /translate\(([-\d.e]+),([-\d.e]+)\) scale\(([-\d.e]+)\)/.exec(w.get('svg g').attributes('transform')!)!.slice(1).map(Number)
+}
+
 function scale(w: Awaited<ReturnType<typeof mountHub>>): number {
   return Number(/scale\(([-\d.]+)\)/.exec(w.get('svg g').attributes('transform')!)![1])
 }
@@ -270,6 +276,21 @@ describe('hubWidget', () => {
     const crowded = await mountHub()
     expect(launcherX(crowded)).toBe(30)
     crowded.unmount()
+  })
+
+  it('moves the agents and the launcher ring with the map when it zooms', async () => {
+    const w = await mountHub()
+    const launcherFromCore = () => {
+      const core = translateOf(w.get('[data-testid="hub-core"]'))
+      const { sx, sy } = translateOf(w.get('[data-testid^="hub-launcher-"]'))
+      return Math.hypot(sx - core.sx, sy - core.sy)
+    }
+    const agentBefore = distanceFromCore(w, 101)
+    const launcherBefore = launcherFromCore()
+    await press(w, '-')
+    expect(distanceFromCore(w, 101)).toBeCloseTo(agentBefore / 1.4)
+    expect(launcherFromCore()).toBeCloseTo(launcherBefore / 1.4)
+    w.unmount()
   })
 
   it('draws no sector names without notes, where every sector is one agent\'s project', async () => {
@@ -574,9 +595,10 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  it('flies to an agent picked in the orbit and opens its card; Escape from the focused list closes the card, then the list, then fits', async () => {
+  it('flies to an agent picked in the orbit and opens its card; Escape from the focused list closes the card and flies back, then closes the list, then fits', async () => {
     const w = await mountHub()
     const stage = w.get('[data-testid="hub-stage"]').element
+    await press(w, '+')
     await w.get('[data-testid="hub-agent-101"]').trigger('click')
     expect(scale(w)).toBeCloseTo(3)
     expect(w.get('[role="dialog"][aria-label="Kontor Hub"]').text()).toContain('Working')
@@ -588,13 +610,45 @@ describe('hubWidget', () => {
     await pressFocused('Escape')
     expect(w.find(LIST).exists()).toBe(false)
     expect(document.activeElement).toBe(stage)
-    expect(scale(w)).toBeCloseTo(3)
+    expect(scale(w)).toBeCloseTo(1.4)
     await pressFocused('Escape')
     expect(scale(w)).toBeCloseTo(1)
     w.unmount()
   })
 
-  it('closes the card on Escape pressed inside it and hands focus back to the stage', async () => {
+  it('flies back to the camera the first card opened from when the last card closes', async () => {
+    const w = await mountHub()
+    await press(w, '+')
+    await dragBy(w, 40, -30)
+    const before = camera(w)
+    await w.get('[data-testid="hub-agent-101"]').trigger('click')
+    expect(scale(w)).toBeCloseTo(3)
+    await press(w, 'L')
+    await w.findAll('[data-testid="hub-list-agent"]').find(r => r.attributes('aria-label') === 'Web App, Quiet')!.trigger('click')
+    expect(w.find('[role="dialog"][aria-label="Web App"]').exists()).toBe(true)
+
+    await w.get('[role="dialog"][aria-label="Web App"] button[aria-label="Close card"]').trigger('click')
+
+    expect(w.find('[role="dialog"]').exists()).toBe(false)
+    camera(w).forEach((v, i) => expect(v).toBeCloseTo(before[i]))
+    w.unmount()
+  })
+
+  it('comes back to the camera from before the card when the hub is left with a card open', async () => {
+    const w = await mountHub()
+    await press(w, '+')
+    await dragBy(w, 40, -30)
+    const before = camera(w)
+    await w.get('[data-testid="hub-agent-101"]').trigger('click')
+    w.unmount()
+
+    const again = await mountHub()
+
+    camera(again).forEach((v, i) => expect(v).toBeCloseTo(before[i]))
+    again.unmount()
+  })
+
+  it('closes the card on Escape pressed inside it, hands focus back to the stage and flies back', async () => {
     const w = await mountHub()
     await w.get('[data-testid="hub-agent-101"]').trigger('click')
     const open = w.findAll('[aria-label="Kontor Hub"] button').find(b => b.text() === 'Open session')!
@@ -602,7 +656,7 @@ describe('hubWidget', () => {
     await pressFocused('Escape')
     expect(w.find('[aria-label="Kontor Hub"]').exists()).toBe(false)
     expect(document.activeElement).toBe(w.get('[data-testid="hub-stage"]').element)
-    expect(scale(w)).toBeCloseTo(3)
+    expect(scale(w)).toBeCloseTo(1)
     w.unmount()
   })
 
@@ -894,7 +948,7 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  it('flies from a link chip to the linked note at least at rel 3 and opens its card; Escape closes the card first', async () => {
+  it('flies from a link chip to the linked note at least at rel 3 and opens its card; Escape closes the card first and flies back to where the first card opened', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [{ ...vaultNote(0, 'alpha/one.md'), links: [1] }, { ...vaultNote(1, 'beta/two.md'), backlinks: [0] }]
     const w = await mountHub()
@@ -907,7 +961,7 @@ describe('hubWidget', () => {
     await pressFocused('Escape')
     expect(w.find('[role="dialog"][aria-label="beta/two.md"]').exists()).toBe(false)
     expect(w.getComponent(HubBrainCanvas).props('selected')).toBeNull()
-    expect(scale(w)).toBeCloseTo(5)
+    expect(scale(w)).toBeCloseTo(1)
     w.unmount()
   })
 

@@ -73,7 +73,7 @@ func (t *staleTracker) record(pid int, snap liveSnapshot) {
 // longer live. Tracked pids are forgotten only via dismiss (the DELETE
 // endpoint), not by inspecting the discovery file — the bridge deletes that file
 // on exit, so its absence no longer means "dismissed".
-func (t *staleTracker) buildStale(livePIDs map[int]bool, baselineCost float64) []sdk.Agent {
+func (t *staleTracker) buildStale(livePIDs map[int]bool, baselineCost float64, notePath func(string) (string, bool)) []sdk.Agent {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -89,7 +89,7 @@ func (t *staleTracker) buildStale(livePIDs map[int]bool, baselineCost float64) [
 			// leak for this process-scoped registry; no age-out by design.
 			continue
 		}
-		out = append(out, buildFinishedAgent(pid, snap, session, baselineCost))
+		out = append(out, buildFinishedAgent(pid, snap, session, baselineCost, notePath))
 	}
 	return out
 }
@@ -105,7 +105,7 @@ func (t *staleTracker) dismiss(pid int) {
 // card from a cached snapshot plus freshly parsed session data. Uptime is left
 // zero because the process is gone.
 // Keep sdk.Agent field population in parity with buildAgent in merger.go — a new sdk.Agent field must be added to both.
-func buildFinishedAgent(pid int, snap liveSnapshot, session *parser.SessionData, baselineCost float64) sdk.Agent {
+func buildFinishedAgent(pid int, snap liveSnapshot, session *parser.SessionData, baselineCost float64, notePath func(string) (string, bool)) sdk.Agent {
 	provider := snap.provider
 	if provider == "" {
 		provider = sdk.ProviderClaude
@@ -130,6 +130,8 @@ func buildFinishedAgent(pid int, snap liveSnapshot, session *parser.SessionData,
 		LastActivity:              session.LastActivity.Format(time.RFC3339),
 		CurrentAction:             strPtr(session.CurrentAction),
 		LastTools:                 append(make([]sdk.RecentTool, 0), session.LastTools...),
+		SessionTitle:              session.SessionTitle,
+		RecentNotes:               agentNotes(session.RecentNotes, notePath, time.Now()),
 		Tasks:                     append(make([]sdk.TaskInfo, 0), session.Tasks...),
 		Subagents:                 buildSubagents(session),
 		TokenUsage:                session.TokenUsage,

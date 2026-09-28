@@ -170,8 +170,8 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
       :key="agent.pid"
       type="button"
       :data-testid="`hub-agent-${agent.pid}`"
-      :aria-label="`${friendlyProjectName(agent.projectName)}, ${statusLabel(state)}${needsOperator ? ', needs you' : ''}`"
-      :title="friendlyProjectName(agent.projectName)"
+      :aria-label="`${friendlyProjectName(agent.projectName)}${agent.sessionTitle ? `, ${agent.sessionTitle}` : ''}, ${statusLabel(state)}${needsOperator ? ', needs you' : ''}`"
+      :title="agent.sessionTitle ? `${friendlyProjectName(agent.projectName)}: ${agent.sessionTitle}` : friendlyProjectName(agent.projectName)"
       class="group pointer-events-auto relative flex -translate-x-1/2 -translate-y-[9px] cursor-pointer"
       :class="!showsAgent(agent.pid) && 'invisible'"
       :style="at(x, y)"
@@ -190,6 +190,8 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :style="labelStyle(agent.pid, x, y, agentLabelKey(agent.projectName, state))"
       >
         <span data-testid="hub-label-name" class="max-w-[14ch] truncate">{{ friendlyProjectName(agent.projectName) }}</span>
+        <!-- Hover only: the measured, culled label stays the short one. -->
+        <span v-if="agent.sessionTitle" data-testid="hub-label-title" class="hidden max-w-[32ch] truncate text-fg-mute group-hover:inline group-focus-visible:inline">{{ agent.sessionTitle }}</span>
         <em class="not-italic" :class="needsOperator ? 'text-warning-text' : 'text-fg-mute'">{{ statusLabel(state) }}</em>
       </span>
     </button>

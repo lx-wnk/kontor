@@ -247,3 +247,26 @@ func TestOpenNoteRefusesAnEscapeBeforeAnyRequest(t *testing.T) {
 		t.Errorf("requests = %v, want none", got)
 	}
 }
+
+func TestRootRelative(t *testing.T) {
+	tests := []struct {
+		root, vaultPath, want string
+		ok                    bool
+	}{
+		{"claude-memory", "claude-memory/private/x.md", "private/x.md", true},
+		{"claude-memory/", "claude-memory/x.md", "x.md", true},
+		{"claude-memory", "claude-memory/a/../b.md", "b.md", true},
+		{"claude-memory", "claude-memory/../other/x.md", "", false},
+		{"claude-memory", "other/x.md", "", false},
+		{"claude-memory", "claude-memory-old/x.md", "", false},
+		{"claude-memory", "claude-memory", "", false},
+		{"", "claude-memory/x.md", "", false},
+		{"claude-memory", "", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := obsidian.RootRelative(tt.root, tt.vaultPath)
+		if got != tt.want || ok != tt.ok {
+			t.Errorf("RootRelative(%q, %q) = (%q, %v), want (%q, %v)", tt.root, tt.vaultPath, got, ok, tt.want, tt.ok)
+		}
+	}
+}

@@ -169,3 +169,29 @@ test('the docked needs-you queue stays inside a 6×6 hub at 1280×700', async ({
   expect(queueBox.x + queueBox.width).toBeLessThanOrEqual(hubBox.x + hubBox.width + 0.5)
   expect(queueBox.y + queueBox.height).toBeLessThanOrEqual(hubBox.y + hubBox.height + 0.5)
 })
+
+test('L lists the notes an agent touched under that agent, and only notes on the map', async ({ page }) => {
+  const at = new Date().toISOString()
+  const agents = [{
+    ...fakeAgents()[0],
+    recentNotes: [
+      { path: 'Work/note-0.md', kind: 'read', at },
+      { path: 'Private/note-1.md', kind: 'write', at },
+      { path: 'Elsewhere/unknown.md', kind: 'read', at },
+    ],
+  }]
+  await page.route('**/api/obsidian/graph', route => route.fulfill({ json: fakeGraph() }))
+  await page.route('/api/agents', route => route.fulfill({ json: agents }))
+  await page.route('/api/agents/stream', route => route.fulfill({
+    status: 200,
+    contentType: 'text/event-stream',
+    body: `data: ${JSON.stringify({ agents })}\n\n`,
+  }))
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  await page.getByTestId('hub-stage').press('l')
+  const rows = page.getByRole('dialog', { name: 'Zentrale as a list' }).getByTestId('hub-list-agent-note')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0)).toHaveAttribute('aria-label', /^note-0, read /)
+  await expect(rows.nth(1)).toHaveAttribute('aria-label', /^note-1, wrote /)
+})

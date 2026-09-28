@@ -284,12 +284,16 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// Seed the spawner command allow-list from settings (ApplyRestart).
 	services.SetSpawnerAllowedCommands(settingsSvc.StringSlice("spawn.allowedCommands"))
 
+	noteRoot := settingsSvc.String("obsidian.vaultRoot")
 	agentMerger := merger.New(
 		merger.WithRegistry(providerRegistry),
 		merger.WithScanFn(func(ctx context.Context) ([]scanner.ProcessInfo, error) {
 			return scanner.ScanProcessesWithDetector(ctx, providerRegistry)
 		}),
 		merger.WithScreenProbe(merger.RealScreenProbe),
+		merger.WithNotePathFn(func(vaultPath string) (string, bool) {
+			return obsidian.RootRelative(noteRoot, vaultPath)
+		}),
 	)
 
 	taskBase := sse.NewBroadcaster()

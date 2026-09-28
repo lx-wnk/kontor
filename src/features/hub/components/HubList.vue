@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { GraphStatus } from '../composables/useObsidianGraph'
+import type { AgentNoteRow } from '../hubEdges'
 import type { Launcher } from '../hubLaunchers'
-import type { Agent } from '@/types'
+import type { Agent, NoteTouchKind } from '@/types'
 import type { AgentDisplayStatus } from '@/utils/statusColors'
 import { computed, inject, onMounted, ref } from 'vue'
 import AppChip from '@/components/ui/AppChip.vue'
@@ -12,7 +13,7 @@ import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { LIST_GRAPH_NOTICES } from '../hubGraphNotices'
 
 const props = defineProps<{
-  agents: ReadonlyArray<{ agent: Agent, state: AgentDisplayStatus }>
+  agents: ReadonlyArray<{ agent: Agent, state: AgentDisplayStatus, notes?: ReadonlyArray<AgentNoteRow> }>
   notes: ReadonlyArray<{ path: string, title: string, sector: string, mtimeMs: number }>
   graphStatus: GraphStatus
   graphMessage: string
@@ -40,6 +41,7 @@ const noteNotice = computed<string | null>(() => {
 
 const HEADING = 'mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wider text-fg-mute'
 const ROW = 'flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1 text-left text-[13px] text-fg hover:bg-raised'
+const TOUCH_VERB: Record<NoteTouchKind, string> = { read: 'read', write: 'wrote' }
 </script>
 
 <template>
@@ -63,20 +65,33 @@ const ROW = 'flex w-full cursor-pointer items-center justify-between gap-3 round
     <p v-if="agents.length === 0" class="px-2 text-[13px] text-fg-mute">
       No agents running.
     </p>
-    <button
-      v-for="{ agent, state } in agents"
-      :key="agent.pid"
-      type="button"
-      data-testid="hub-list-agent"
-      :aria-label="`${friendlyProjectName(agent.projectName)}, ${statusLabel(state)}`"
-      :class="ROW"
-      @click="emit('agent', agent)"
-    >
-      <span>{{ friendlyProjectName(agent.projectName) }}</span>
-      <AppChip :tone="agentStatusTone(state)">
-        {{ statusLabel(state) }}
-      </AppChip>
-    </button>
+    <div v-for="{ agent, state, notes: agentNotes } in agents" :key="agent.pid" role="group" :aria-labelledby="`hub-list-agent-${agent.pid}`">
+      <button
+        :id="`hub-list-agent-${agent.pid}`"
+        type="button"
+        data-testid="hub-list-agent"
+        :aria-label="`${friendlyProjectName(agent.projectName)}, ${statusLabel(state)}`"
+        :class="ROW"
+        @click="emit('agent', agent)"
+      >
+        <span>{{ friendlyProjectName(agent.projectName) }}</span>
+        <AppChip :tone="agentStatusTone(state)">
+          {{ statusLabel(state) }}
+        </AppChip>
+      </button>
+      <button
+        v-for="n in agentNotes ?? []"
+        :key="`${n.kind}:${n.path}`"
+        type="button"
+        data-testid="hub-list-agent-note"
+        :aria-label="`${n.title}, ${TOUCH_VERB[n.kind]} ${formatRelativeThenDate(n.at)}`"
+        :class="`${ROW} pl-6`"
+        @click="emit('note', n.path)"
+      >
+        <span>{{ n.title }}</span>
+        <span class="text-fg-mute">{{ TOUCH_VERB[n.kind] }} · {{ formatRelativeThenDate(n.at) }}</span>
+      </button>
+    </div>
 
     <h3 :class="HEADING">
       Recently touched

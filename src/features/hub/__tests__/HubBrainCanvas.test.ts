@@ -57,6 +57,7 @@ function mountBrain(props: Partial<InstanceType<typeof HubBrainCanvas>['$props']
       links: [],
       hubNotes: new Set<number>(),
       selected: null,
+      edges: [],
       ...props,
     },
   })
@@ -182,5 +183,23 @@ describe('hubBrainCanvas', () => {
     await nextFrame()
     document.documentElement.classList.remove('dark')
     expect(named('clearRect')).toHaveLength(1)
+  })
+
+  it('strokes read edges dashed and write edges dotted, faded by age, then resets the dash', async () => {
+    mountBrain({ edges: [
+      { from: [0, 0], to: 1, kind: 'read', alpha: 0.9 },
+      { from: [0, 0], to: 2, kind: 'write', alpha: 0.5 },
+    ] })
+    await nextFrame()
+    expect(named('setLineDash').map(c => c.args[0])).toEqual([[4, 3], [1, 3], []])
+    const lines = named('lineTo')
+    expect(lines.map(c => c.state.globalAlpha)).toEqual([0.9, 0.5])
+    expect(lines.map(c => c.state.lineCap)).toEqual(['butt', 'round'])
+  })
+
+  it('touches no dash state when there are no edges', async () => {
+    mountBrain()
+    await nextFrame()
+    expect(named('setLineDash')).toHaveLength(0)
   })
 })

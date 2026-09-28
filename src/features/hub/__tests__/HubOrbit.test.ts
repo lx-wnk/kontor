@@ -100,6 +100,19 @@ describe('hubOrbit', () => {
     const button = w.get('[data-testid="hub-agent-1"]')
     expect(button.attributes('title')).toBe('Kontor Hub')
     expect(button.get('[data-testid="hub-label-name"]').classes()).toEqual(expect.arrayContaining(['truncate', 'max-w-[14ch]']))
+    expect(button.find('[data-testid="hub-label-title"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('shows the session title on hover and names it in the title and the accessible name', async () => {
+    const w = mountOrbit(0)
+    await w.setProps({ agents: [{ ...ORBIT_AGENTS[0], agent: { ...agent(1, 'kontor-hub'), sessionTitle: 'Fix the zoom' } }] })
+    const button = w.get('[data-testid="hub-agent-1"]')
+    expect(button.attributes('title')).toBe('Kontor Hub: Fix the zoom')
+    expect(button.attributes('aria-label')).toBe('Kontor Hub, Fix the zoom, Working')
+    const title = button.get('[data-testid="hub-label-title"]')
+    expect(title.text()).toBe('Fix the zoom')
+    expect(title.classes()).toEqual(expect.arrayContaining(['hidden', 'group-hover:inline']))
     w.unmount()
   })
 

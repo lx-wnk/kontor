@@ -23,7 +23,7 @@ func TestStaleTracker_EmitsFinishedForDeadChannelAgent(t *testing.T) {
 	)
 	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl", projectPath: "/proj", provider: sdk.ProviderClaude})
 
-	stale := tr.buildStale(map[int]bool{}, 0) // pid 42 no longer live
+	stale := tr.buildStale(map[int]bool{}, 0, nil) // pid 42 no longer live
 
 	if len(stale) != 1 {
 		t.Fatalf("want 1 stale agent, got %d", len(stale))
@@ -43,13 +43,13 @@ func TestStaleTracker_DismissForgets(t *testing.T) {
 	tr := newTestTracker(map[string]*parser.SessionData{"/p/s1.jsonl": {SessionID: "s1", LastActivity: time.Now()}})
 	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl"})
 
-	if got := tr.buildStale(map[int]bool{}, 0); len(got) != 1 {
+	if got := tr.buildStale(map[int]bool{}, 0, nil); len(got) != 1 {
 		t.Fatalf("want 1 stale agent before dismiss, got %d", len(got))
 	}
 
 	tr.dismiss(42)
 
-	if got := tr.buildStale(map[int]bool{}, 0); len(got) != 0 {
+	if got := tr.buildStale(map[int]bool{}, 0, nil); len(got) != 0 {
 		t.Fatalf("want tracker to have forgotten pid 42 after dismiss, got %d", len(got))
 	}
 }
@@ -59,11 +59,11 @@ func TestStaleTracker_RetainsOnParseErrorThenEmitsWhenParseSucceeds(t *testing.T
 	tr.parseFn = func(path string) (*parser.SessionData, error) { return nil, errors.New("boom") }
 	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl", projectPath: "/proj", provider: sdk.ProviderClaude})
 
-	if got := tr.buildStale(map[int]bool{}, 0); len(got) != 0 {
+	if got := tr.buildStale(map[int]bool{}, 0, nil); len(got) != 0 {
 		t.Fatalf("want 0 on parse error, got %d", len(got))
 	}
 	// still erroring: tracker must retain the pid (retry, not forget)
-	if got := tr.buildStale(map[int]bool{}, 0); len(got) != 0 {
+	if got := tr.buildStale(map[int]bool{}, 0, nil); len(got) != 0 {
 		t.Fatalf("want 0 on second parse error, got %d", len(got))
 	}
 
@@ -71,7 +71,7 @@ func TestStaleTracker_RetainsOnParseErrorThenEmitsWhenParseSucceeds(t *testing.T
 	tr.parseFn = func(path string) (*parser.SessionData, error) {
 		return &parser.SessionData{SessionID: "s1", LastActivity: time.Now()}, nil
 	}
-	stale := tr.buildStale(map[int]bool{}, 0)
+	stale := tr.buildStale(map[int]bool{}, 0, nil)
 	if len(stale) != 1 {
 		t.Fatalf("want 1 finished agent after parse recovers, got %d", len(stale))
 	}
@@ -86,7 +86,7 @@ func TestStaleTracker_SkipsWhenSessionIDEmpty(t *testing.T) {
 	)
 	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl"})
 
-	if got := tr.buildStale(map[int]bool{}, 0); len(got) != 0 {
+	if got := tr.buildStale(map[int]bool{}, 0, nil); len(got) != 0 {
 		t.Fatalf("want 0 for empty SessionID, got %d", len(got))
 	}
 }
@@ -95,8 +95,24 @@ func TestStaleTracker_SkipsLivePID(t *testing.T) {
 	tr := newTestTracker(map[string]*parser.SessionData{"/p/s1.jsonl": {SessionID: "s1", LastActivity: time.Now()}})
 	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl"})
 
-	stale := tr.buildStale(map[int]bool{42: true}, 0) // pid 42 still live
+	stale := tr.buildStale(map[int]bool{42: true}, 0, nil) // pid 42 still live
 	if len(stale) != 0 {
 		t.Fatalf("want 0 (pid still live), got %d", len(stale))
+	}
+}
+
+func TestStaleTracker_FinishedAgentCarriesRecentNotes(t *testing.T) {
+	tr := newTestTracker(map[string]*parser.SessionData{
+		"/p/s1.jsonl": {
+			SessionID:    "s1",
+			LastActivity: time.Now(),
+			RecentNotes:  []parser.NoteTouch{{Path: "claude-memory/a.md", Kind: sdk.NoteTouchKindWrite, At: time.Now()}},
+		},
+	})
+	tr.record(42, liveSnapshot{sessionID: "s1", path: "/p/s1.jsonl", projectPath: "/proj", provider: sdk.ProviderClaude})
+
+	stale := tr.buildStale(map[int]bool{}, 0, rootRelative)
+	if len(stale) != 1 || len(stale[0].RecentNotes) != 1 || stale[0].RecentNotes[0].Path != "a.md" {
+		t.Fatalf("want one finished agent carrying a.md, got %+v", stale)
 	}
 }
