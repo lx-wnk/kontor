@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import type { Agent, PipelineTask } from './types'
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, provide, ref, watch, watchEffect } from 'vue'
 import { useAgents } from '@/features/agents/composables/useAgents'
 import BacklogForm from '@/features/pipeline/components/BacklogForm.vue'
 import { useTasks } from '@/features/pipeline/composables/useTasks'
-import ApiKeySettings from '@/features/settings/components/ApiKeySettings.vue'
 import LoginPage from './components/LoginPage.vue'
 import OnboardingFlow from './components/onboarding/OnboardingFlow.vue'
 import ServerReconnectOverlay from './components/ServerReconnectOverlay.vue'
@@ -13,12 +12,15 @@ import AppShell from './components/shell/AppShell.vue'
 import AppSidebar from './components/shell/AppSidebar.vue'
 import AppStatusBar from './components/shell/AppStatusBar.vue'
 import AppTopbar from './components/shell/AppTopbar.vue'
+import PageLoadError from './components/shell/PageLoadError.vue'
 import SkeletonCard from './components/shell/SkeletonCard.vue'
 import SpawnDialog from './components/SpawnDialog.vue'
 import SpotlightSearch from './components/SpotlightSearch.vue'
 import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
+import { needsYouPlacement } from './composables/needsYouPlacement'
+import { NEEDS_YOU, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
 import { usePendingPermissions } from './composables/usePendingPermissions'
@@ -30,15 +32,24 @@ import { toast } from './composables/useToast'
 import { useTodayCost } from './composables/useTodayCost'
 import { useUsage } from './composables/useUsage'
 import { useUser } from './composables/useUser'
-import { useViewState } from './composables/useViewState'
-import MissionControlView from './features/mission/MissionControlView.vue'
+import { pageIdOf, resolveView, useViewState } from './composables/useViewState'
+import { NeedsYouQueue, rankNextThings } from './features/mission'
+import { useWorkspace, ZENTRALE_PAGE_ID } from './features/workspace'
 import { formatCost } from './utils/format'
 
 // PERF-BUNDLE1: AgentModal is only ever rendered on agent selection — split into its own chunk
 const AgentModal = defineAsyncComponent(() => import('@/features/agents/components/AgentModal.vue'))
 // F-PERF-019: top-level heavy views loaded on demand — each becomes its own chunk
-const CockpitView = defineAsyncComponent(() => import('@/features/cockpit/components/CockpitView.vue'))
-// Async since the cockpit took over as the landing view: the dashboard is no
+// A failed chunk stays failed until a reload: defineAsyncComponent caches the rejection.
+const workspaceChunkFailed = ref(false)
+const WorkspacePage = defineAsyncComponent({
+  loader: () => import('@/features/workspace/components/WorkspacePage.vue').catch((err) => {
+    workspaceChunkFailed.value = true
+    throw err
+  }),
+  errorComponent: PageLoadError,
+})
+// Async since the Zentrale took over as the landing view: the dashboard is no
 // longer on the first-paint path, and a static import keeps its whole subtree
 // in the entry chunk, which has a size budget CI enforces.
 const DashboardView = defineAsyncComponent(() => import('@/features/cockpit/components/DashboardView.vue'))
@@ -54,6 +65,9 @@ const TaskModal = defineAsyncComponent(() => import('@/features/pipeline/compone
 const RefinementChat = defineAsyncComponent(() => import('@/features/pipeline/components/RefinementChat.vue'))
 const PlanReviewPanel = defineAsyncComponent(() => import('@/features/pipeline/components/PlanReviewPanel.vue'))
 const EditGateModal = defineAsyncComponent(() => import('./components/EditGateModal.vue'))
+// The settings panel and its statically-imported tabs (Spawner, Project, Grant, …)
+// are the largest module reachable from the entry chunk — load on demand.
+const ApiKeySettings = defineAsyncComponent(() => import('@/features/settings/components/ApiKeySettings.vue'))
 
 const { user, authEnabled, loaded, loadUser } = useUser()
 const { homedir, loadServerConfig } = useServerConfig()
@@ -69,6 +83,7 @@ const { canInstall, promptInstall } = useInstallPrompt()
 const { theme, toggleTheme } = useTheme()
 
 const { activeView, dashboardLayout } = useViewState()
+const workspace = useWorkspace()
 const { handleShortcut: handleSidebarShortcut } = useSidebar()
 const { resolveAgent, approveAll } = usePermissionResolve()
 
@@ -79,11 +94,25 @@ onMounted(() => {
 
 const { agents, costTrend, filteredAgents, attentionAgents, attentionCount, pendingCapabilityDecisions, selectedAgent, isLoading, error, selectAgent, selectAgentWhenAvailable, startStream: startAgents } = useAgents({ autoStart: false })
 const { tasks, selectedTask, selectTask, startStream: startTasks } = useTasks({ autoStart: false })
-const { items: permissionItems, approve: approvePermission, deny: denyPermission, decide: decidePermission } = usePendingPermissions(tasks)
+// The one usePendingPermissions(tasks) instance — provided below so every
+// consumer (the needs-you queue, the title count) reads the same cache.
+const pendingPermissions = usePendingPermissions(tasks)
+provide(PENDING_PERMISSIONS, pendingPermissions)
+const { items: permissionItems, approve: approvePermission, deny: denyPermission, decide: decidePermission } = pendingPermissions
 const combinedAttentionCount = computed(() => attentionCount.value + permissionItems.value.length + pendingCapabilityDecisions.value.length)
 // Today's persisted spend — reuses the shared cost-summary logic so the footer
 // and Cost view agree. Distinct from totalCost (cost of agents running now).
 const { todayUsd, start: startTodayCost } = useTodayCost()
+
+// Ranked once per tick and provided — every queue and the hub core read this
+// same list instead of each re-ranking on every SSE tick.
+const needsYou = computed(() => rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value))
+provide(NEEDS_YOU, needsYou)
+const needsYouCount = computed(() => needsYou.value.length)
+const BASE_TITLE = document.title
+watchEffect(() => {
+  document.title = needsYouCount.value ? `(${needsYouCount.value}) ${BASE_TITLE}` : BASE_TITLE
+})
 
 // Start data streams and fetch onboarding status only after auth is confirmed —
 // avoids 401 flood while login page is shown (onboarding status is behind the
@@ -93,6 +122,8 @@ watch(loaded, (isLoaded) => {
     startAgents()
     startTasks()
     startTodayCost()
+    // Here, not only when a workspace page mounts: page titles and palette entries are needed on every view.
+    void useWorkspace().load()
     fetchOnboardingStatus().then(() => {
       if (onboardingStatus.value && !onboardingStatus.value.completed)
         showOnboardingFlow()
@@ -100,9 +131,17 @@ watch(loaded, (isLoaded) => {
   }
 }, { immediate: true })
 
-// Move focus to main content on view change for keyboard/screen-reader users
+// Move focus to main content on view change for keyboard/screen-reader users;
+// a wide tile is per window, so it doesn't survive navigating to another page either.
 watch(activeView, () => {
+  workspace.wide.value = null
   nextTick(() => document.getElementById('main-content')?.focus())
+})
+
+// A wide tile would hide most of the page's tiles from the editor.
+watch(() => workspace.editing.value, (e) => {
+  if (e)
+    workspace.wide.value = null
 })
 
 const live = computed(() => !error.value)
@@ -243,6 +282,19 @@ function navigateTo(target: { agent?: Agent, taskId?: string }) {
   })
 }
 
+// Widgets open a task through this — App.vue owns navigation.
+provide(OPEN_TASK, (taskId: string) => navigateTo({ taskId }))
+
+const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
+const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === 'hub'))
+// Before the layout has loaded a page id cannot be judged missing; loaded is a
+// source of its own because a failed load flips it without replacing layout.
+watch([activeView, workspace.layout, workspace.loaded], () => {
+  if (workspace.loaded.value)
+    activeView.value = resolveView(activeView.value, workspace.layout.value.pages.map(p => p.id))
+}, { immediate: true })
+const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value, pageHasHub: pageHasHub.value, error: !!error.value }))
+
 // Single routing rule: plan_review tasks open the plan panel, all others the generic modal.
 function openTask(t: PipelineTask) {
   if (t.currentStage === 'plan_review') {
@@ -288,18 +340,29 @@ onMounted(() => usageComposable.start())
               + New Task
             </button>
             <button
-              v-else-if="activeView === 'dashboard' || activeView === 'cockpit'"
+              v-else-if="activeView === 'dashboard' || activeView === 'zentrale'"
               type="button"
               class="bg-accent text-white rounded-lg px-3 py-1.5 text-[13px] font-semibold hover:brightness-110 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
               @click="showSpawnDialog = true"
             >
               + New Agent
             </button>
+            <button
+              v-if="currentPageId !== null && !error && !workspaceChunkFailed && workspace.loaded.value && !workspace.locked.value"
+              type="button"
+              data-testid="workspace-edit-toggle"
+              :aria-pressed="workspace.editing.value"
+              class="h-8 rounded-md border border-line-strong px-3 text-[12.5px] text-fg-soft"
+              @click="workspace.editing.value = !workspace.editing.value"
+            >
+              {{ workspace.editing.value ? 'Done' : 'Edit layout' }}
+            </button>
           </template>
         </AppTopbar>
       </template>
 
-      <div class="p-5 flex flex-col min-h-full">
+      <div class="p-5 flex flex-col min-h-full" :class="{ 'h-full': currentPageId !== null }">
+        <NeedsYouQueue v-if="needsYouPlace.strip" variant="strip" :kinds="needsYouPlace.kinds" class="mb-3" />
         <div v-if="isLoading && activeView === 'dashboard'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           <SkeletonCard v-for="n in 6" :key="n" />
         </div>
@@ -307,11 +370,7 @@ onMounted(() => usageComposable.start())
           Error: {{ error }}
         </p>
 
-        <MissionControlView
-          v-else-if="activeView === 'mission'"
-          @open-task="(taskId: string) => navigateTo({ taskId })"
-        />
-        <CockpitView v-else-if="activeView === 'cockpit'" />
+        <WorkspacePage v-else-if="currentPageId !== null" :key="currentPageId" :page-id="currentPageId" class="min-h-0 flex-1" />
 
         <DashboardView
           v-else-if="activeView === 'dashboard'"

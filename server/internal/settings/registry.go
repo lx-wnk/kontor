@@ -132,6 +132,10 @@ var definitions = func() map[string]Definition {
 		{Key: "usage.budget.session", Type: TypeInt, Default: "0", Apply: ApplyLive, Category: "usage", validate: nonNegativeInt("usage.budget.session")},
 		{Key: "usage.budget.weekly", Type: TypeInt, Default: "0", Apply: ApplyLive, Category: "usage", validate: nonNegativeInt("usage.budget.weekly")},
 		{Key: "onboarding.completed", Type: TypeBool, Default: "false", Apply: ApplyLive, Category: "onboarding"},
+		// workspace.layout is the operator's arrangement of pages and tiles, as
+		// JSON. Empty means the built-in layout. Edited on the page itself, never
+		// in the settings list (AppSettings hides the category).
+		{Key: "workspace.layout", Type: TypeString, Default: "", Apply: ApplyLive, Category: "workspace", validate: validWorkspaceLayout},
 		{Key: "obsidian.apiKey", Type: TypeString, Secret: true, Apply: ApplyRestart, Category: "obsidian"},
 		{Key: "obsidian.baseURL", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "obsidian"},
 		{Key: "obsidian.vaultRoot", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "obsidian"},

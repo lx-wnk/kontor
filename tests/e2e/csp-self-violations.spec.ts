@@ -22,7 +22,7 @@ test.describe('the app does not violate its own CSP', () => {
 
     await stubAuthDisabled(page)
     await page.goto('/')
-    await expect(page.getByTestId('cockpit')).toBeVisible()
+    await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
 
     expect(violations, violations.join('\n')).toEqual([])
   })

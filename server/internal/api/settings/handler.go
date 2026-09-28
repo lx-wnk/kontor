@@ -24,9 +24,7 @@ func (h *Handler) MountRead(r chi.Router) {
 	r.Get("/api/settings", apierr.ErrorMiddleware(h.list))
 }
 
-// MountWrite registers the mutating settings route on r. Callers must gate
-// this behind admin authorization: settings include auth.mode, git.allowPush,
-// and worktree.force, which are RCE/lockout-equivalent.
+// MountWrite registers PATCH /api/settings/{key}; the router mounts it behind session auth only (local-trust posture).
 func (h *Handler) MountWrite(r chi.Router) {
 	r.Patch("/api/settings/{key}", apierr.ErrorMiddleware(h.patch))
 }

@@ -8,7 +8,7 @@ import { openListboxOptions, selectListboxOption } from './helpers'
 /**
  * Clear localStorage keys that useSidebar and useStatusBar read on module
  * initialisation so each test starts from a clean reactive state. Also pins
- * the landing view to the dashboard — the cockpit is the default landing
+ * the landing view to the dashboard — the Zentrale is the default landing
  * view now (see the 'landing view' describe below), but this suite exercises
  * the dashboard view itself, not the default.
  */
@@ -142,10 +142,10 @@ test.describe('dashboard view', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('landing view', () => {
-  test('cockpit is the default view on a first visit', async ({ page }) => {
+  test('the Zentrale is the default view on a first visit', async ({ page }) => {
     await stubAuthDisabled(page)
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Cockpit')
-    await expect(page.getByTestId('cockpit')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Zentrale')
+    await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
   })
 })

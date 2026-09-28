@@ -453,7 +453,7 @@ held open for a human to click through. This does not depend on whether an
 an `ask` decision fails closed anyway, but a merge with a `reach` class
 would still surface as a held request the moment `KONTOR_AUTH` and an
 asker were both configured, and a merge is not the decision this project
-wants one tired approval away from happening by accident. The cockpit's **Merge**
+wants one tired approval away from happening by accident. The GitHub tile's **Merge**
 button calls that same gated route and is refused the same way without a
 grant; it adds a second barrier of its own rather than removing one, replacing
 itself with a confirmation that names the repository, number and title, so a

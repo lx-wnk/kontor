@@ -8,6 +8,7 @@ import AppButton from './ui/AppButton.vue'
 
 const props = defineProps<{
   detectedConfirm: DetectedConfirm
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -80,6 +81,7 @@ function handleSubmit() {
         variant="primary"
         size="sm"
         data-testid="detected-confirm-send-btn"
+        :disabled="disabled"
         @click="handleSubmit"
       >
         Send answer

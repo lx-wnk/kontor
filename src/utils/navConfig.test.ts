@@ -21,12 +21,9 @@ describe('navConfig', () => {
     }
   })
 
-  // Mission is the entry point: it answers "what now", which is the question
-  // asked on arrival. Cockpit stays second, as the fuller overview.
-  it('mission is the first Monitor item and has a title', () => {
-    expect(NAV_ITEMS[0].view).toBe('mission')
-    expect(viewTitle('mission')).toBe('Mission')
-    expect(viewTitle('cockpit')).toBe('Cockpit')
+  it('the Zentrale is the first Monitor item and has a title', () => {
+    expect(NAV_ITEMS[0].view).toBe('zentrale')
+    expect(viewTitle('zentrale')).toBe('Zentrale')
   })
 
   it('groups are Monitor, Build and Insights', () => {
@@ -46,5 +43,11 @@ describe('navConfig', () => {
   it('viewTitle returns the label for a view', () => {
     expect(viewTitle('dashboard')).toBe('Dashboard')
     expect(viewTitle('cost')).toBe('Cost')
+  })
+
+  it('viewTitle returns a page\'s own title, and no core title for an unknown page', () => {
+    const pages = [{ id: 'zentrale', title: 'Zentrale' }, { id: 'p-a', title: 'Morning' }]
+    expect(viewTitle('page:p-a', pages)).toBe('Morning')
+    expect(viewTitle('page:p-gone', pages)).toBe('')
   })
 })

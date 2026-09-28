@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
+import { DEFAULT_LAYOUT, useWorkspace } from '@/features/workspace'
 import SpotlightSearch from './SpotlightSearch.vue'
 
 const activeView = ref('dashboard')
@@ -52,6 +53,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
+  useWorkspace().layout.value = DEFAULT_LAYOUT
 })
 
 describe('spotlightSearch', () => {
@@ -112,14 +114,27 @@ describe('spotlightSearch commands and hand-off', () => {
     wrapper.unmount()
   })
 
+  it('offers a navigation command for a page of the operator\'s own, but none for the Zentrale page', async () => {
+    const { layout } = useWorkspace()
+    layout.value = { version: 1, pages: [...DEFAULT_LAYOUT.pages, { id: 'p-a', title: 'Morning', tiles: [] }] }
+    const wrapper = await openSpotlight('go to')
+    expect(document.querySelector('[data-testid="spotlight-command-view:page:zentrale"]')).toBeNull()
+    const option = document.querySelector('[data-testid="spotlight-command-view:page:p-a"]')
+    expect(option?.textContent).toContain('Go to Morning')
+    ;(option as HTMLElement).click()
+    await flushPromises()
+    expect(activeView.value).toBe('page:p-a')
+    wrapper.unmount()
+  })
+
   // Text that matched nothing goes to the Kontor session, never to the backlog.
-  it('hands free text that matched nothing to Kontor and switches to mission', async () => {
+  it('hands free text that matched nothing to Kontor and switches to the Zentrale', async () => {
     const wrapper = await openSpotlight('plan phase 4 of the dashboard')
     expect(document.querySelector('[data-testid="spotlight-kontor"]')?.textContent).toContain('Kontor')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushPromises()
     expect(send).toHaveBeenCalledWith('plan phase 4 of the dashboard')
-    expect(activeView.value).toBe('mission')
+    expect(activeView.value).toBe('zentrale')
     expect(document.querySelector('input[placeholder]')).toBeNull()
     wrapper.unmount()
   })
@@ -177,6 +192,38 @@ describe('spotlightSearch commands and hand-off', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushPromises()
     expect(send).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  // The reply has to land somewhere visible, so hand-off finds the Kontor tile
+  // before it navigates rather than always jumping to the Zentrale.
+  it('navigates to an own page when the Zentrale has no Kontor tile but an own page does', async () => {
+    const { layout } = useWorkspace()
+    layout.value = {
+      version: 1,
+      pages: [
+        { id: 'zentrale', title: 'Zentrale', tiles: [] },
+        { id: 'p-a', title: 'Morning', tiles: [{ widget: 'kontor', col: 1, row: 1, colSpan: 3, rowSpan: 1 }] },
+      ],
+    }
+    const wrapper = await openSpotlight('plan phase 4')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(send).toHaveBeenCalledWith('plan phase 4')
+    expect(activeView.value).toBe('page:p-a')
+    wrapper.unmount()
+  })
+
+  it('stays put and reports the missing tile when no page has a Kontor tile', async () => {
+    const { layout } = useWorkspace()
+    layout.value = { version: 1, pages: [{ id: 'zentrale', title: 'Zentrale', tiles: [] }] }
+    activeView.value = 'pipeline'
+    const wrapper = await openSpotlight('plan phase 4')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(send).not.toHaveBeenCalled()
+    expect(activeView.value).toBe('pipeline')
+    expect(document.querySelector('[data-testid="spotlight-problem"]')?.textContent).toContain('Kontor has no tile')
     wrapper.unmount()
   })
 })

@@ -1,5 +1,7 @@
-import { mount } from '@vue/test-utils'
+import type { WorkspaceLayout } from '../../features/workspace'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, ref } from 'vue'
 
 // Provide a minimal localStorage stub (jsdom not active at this test path level).
 const store: Record<string, string> = {}
@@ -11,6 +13,26 @@ globalThis.localStorage = {
   length: 0,
   key: () => null,
 }
+
+let ws: ReturnType<typeof workspaceStub>
+
+function workspaceStub(pages: WorkspaceLayout['pages']) {
+  return {
+    layout: ref<WorkspaceLayout>({ version: 1, pages }),
+    loaded: ref(true),
+    locked: ref<string | null>(null),
+    editing: ref(false),
+    save: vi.fn(async (next: WorkspaceLayout) => {
+      ws.layout.value = next
+      return true
+    }),
+  }
+}
+
+vi.mock('@/features/workspace', async importOriginal => ({
+  ...await importOriginal<typeof import('../../features/workspace')>(),
+  useWorkspace: () => ws,
+}))
 
 async function load() {
   vi.resetModules()
@@ -31,7 +53,13 @@ const props = {
 }
 
 describe('appSidebar', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    ws = workspaceStub([
+      { id: 'zentrale', title: 'Zentrale', tiles: [] },
+      { id: 'p-a', title: 'Morning', tiles: [] },
+    ])
+  })
 
   it('renders group headers when expanded (pinned)', async () => {
     const { AppSidebar, useSidebar } = await load()
@@ -90,10 +118,10 @@ describe('appSidebar', () => {
   it('the rule is the visible one when collapsed', async () => {
     const { AppSidebar } = await load()
     const w = mount(AppSidebar, { props })
-    // Three groups, so two rules — always in the DOM, crossfaded against the
+    // Four groups (three core, one of pages), so three rules — always in the DOM, crossfaded against the
     // caption inside the same reserved box so nothing resizes on expansion.
     const dividers = w.findAll('[data-testid="nav-group-divider"]')
-    expect(dividers).toHaveLength(2)
+    expect(dividers).toHaveLength(3)
     for (const divider of dividers)
       expect(divider.classes()).toContain('opacity-100')
 
@@ -128,7 +156,7 @@ describe('appSidebar', () => {
     const w = mount(AppSidebar, { props })
     // Still in the DOM (crossfade, not removal) — just faded out.
     const dividers = w.findAll('[data-testid="nav-group-divider"]')
-    expect(dividers).toHaveLength(2)
+    expect(dividers).toHaveLength(3)
     for (const divider of dividers)
       expect(divider.classes()).toContain('opacity-0')
 
@@ -234,5 +262,102 @@ describe('appSidebar', () => {
     await nav.trigger('focusin')
     await nav.trigger('focusout', { relatedTarget: nav.element.querySelector('button') })
     expect(nav.classes()).toContain('w-[220px]')
+  })
+
+  it('lists the operator\'s own pages, not the Zentrale, and opens one', async () => {
+    const { AppSidebar, useViewState } = await load()
+    const w = mount(AppSidebar, { props })
+    const pages = w.get('[data-testid="nav-pages"]')
+    expect(pages.get('[data-testid="nav-page-p-a"]').text()).toContain('Morning')
+    expect(pages.find('[data-testid="nav-page-zentrale"]').exists()).toBe(false)
+
+    await w.get('[data-testid="nav-page-p-a"]').trigger('click')
+    expect(useViewState().activeView.value).toBe('page:p-a')
+    expect(w.get('[data-testid="nav-page-p-a"]').attributes('aria-current')).toBe('page')
+  })
+
+  it('creates a named page, opens it and turns on edit mode', async () => {
+    const { AppSidebar, useViewState } = await load()
+    const w = mount(AppSidebar, { props, attachTo: document.body })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await nextTick()
+    const input = w.get('[data-testid="nav-new-page-input"]')
+    expect(document.activeElement).toBe(input.element)
+    await input.setValue('Evening')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    const saved = ws.save.mock.calls[0]![0]
+    expect(saved.pages).toHaveLength(3)
+    expect(saved.pages[2]).toMatchObject({ title: 'Evening', tiles: [] })
+    expect(useViewState().activeView.value).toBe(`page:${saved.pages[2]!.id}`)
+    expect(ws.editing.value).toBe(true)
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('cancels a new page on Escape or an empty title', async () => {
+    const { AppSidebar } = await load()
+    const w = mount(AppSidebar, { props, attachTo: document.body })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await w.get('[data-testid="nav-new-page-input"]').setValue('Evening')
+    await w.get('[data-testid="nav-new-page-input"]').trigger('keydown', { key: 'Escape' })
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await w.get('[data-testid="nav-new-page-input"]').setValue('   ')
+    await w.get('[data-testid="nav-new-page-input"]').trigger('keydown', { key: 'Enter' })
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(false)
+    expect(ws.save).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('neither opens nor edits a page the store refused to save', async () => {
+    const { AppSidebar, useViewState } = await load()
+    ws.save.mockResolvedValueOnce(false)
+    const w = mount(AppSidebar, { props })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    await w.get('[data-testid="nav-new-page-input"]').setValue('Evening')
+    await w.get('[data-testid="nav-new-page-input"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(ws.save).toHaveBeenCalledTimes(1)
+    expect(useViewState().activeView.value).toBe('zentrale')
+    expect(ws.editing.value).toBe(false)
+    expect(w.find('[data-testid="nav-new-page-input"]').exists()).toBe(true)
+  })
+
+  // Refuse, never displace: the input stays open and says why.
+  it('keeps the input open with the reason when a page cannot be added', async () => {
+    const { AppSidebar } = await load()
+    const w = mount(AppSidebar, { props })
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    const input = w.get('[data-testid="nav-new-page-input"]')
+    await input.setValue('x'.repeat(81))
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(ws.save).not.toHaveBeenCalled()
+    expect((input.element as HTMLInputElement).validationMessage).toMatch(/1 to 80 characters/)
+  })
+
+  // The input swaps in for the button inside the same box, so no row below moves.
+  it('swaps the new-page button for its input inside one fixed box', async () => {
+    const { AppSidebar } = await load()
+    const w = mount(AppSidebar, { props })
+    const box = () => w.get('[data-testid="nav-new-page-slot"]')
+    expect(box().classes()).toContain('h-10')
+    await w.get('[data-testid="nav-new-page"]').trigger('click')
+    expect(box().find('[data-testid="nav-new-page-input"]').exists()).toBe(true)
+    expect(box().classes()).toContain('h-10')
+  })
+
+  // Adding onto the built-in layout before the stored one arrives would save over it.
+  it('offers no new page until the layout has loaded, nor while it is locked', async () => {
+    const { AppSidebar } = await load()
+    ws.loaded.value = false
+    const w = mount(AppSidebar, { props })
+    expect(w.find('[data-testid="nav-new-page"]').exists()).toBe(false)
+    ws.loaded.value = true
+    ws.locked.value = 'unreadable'
+    await nextTick()
+    expect(w.find('[data-testid="nav-new-page"]').exists()).toBe(false)
   })
 })

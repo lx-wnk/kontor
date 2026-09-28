@@ -71,6 +71,13 @@ describe('gitHubPanel', () => {
     expectOnly(await mountPanel(), 'notAsked')
   })
 
+  it('renders the icon', async () => {
+    stubFetch(200, { repos: [] })
+    const wrapper = await mountPanel()
+    expect(wrapper.get('header').text()).toContain('⌂')
+    wrapper.unmount()
+  })
+
   it('reports a 403 as denied, with the server reason, and shows no rows', async () => {
     stubFetch(403, { error: 'capability denied: github.read' })
     const wrapper = await mountPanel()

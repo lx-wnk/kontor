@@ -32,13 +32,6 @@ const rows = computed(() => props.tasks.map(t => ({
 
 <template>
   <aside class="flex flex-col min-h-0" aria-label="Live work">
-    <div class="px-5 pt-4 pb-3 border-b border-line flex items-baseline gap-2">
-      <h2 class="text-[13.5px] font-bold text-fg">
-        Live work
-      </h2>
-      <span class="font-mono text-[11px] text-fg-mute">{{ rows.length }} running</span>
-    </div>
-
     <div v-if="rows.length === 0" class="px-5 py-4 text-[12.5px] text-fg-mute leading-relaxed">
       Nothing is running. A task started from the pipeline appears here while it works.
     </div>

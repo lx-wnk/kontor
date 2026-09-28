@@ -33,8 +33,13 @@
 | Pipeline stage labels (client) | `src/utils/stageLabels.ts` | `STAGE_LABELS`, `STAGE_DESCRIPTIONS` |
 | Shared task option lists (client) | `src/utils/taskOptions.ts` | `TASK_PRIORITY_OPTIONS`, `TASK_AUTONOMY_OPTIONS`, `TaskPriority`, `TaskAutonomy` |
 | Shared UI component types (client) | `src/components/ui/selectOption.ts` | `SelectOption<T>` |
+| Workspace layout rules (client) | `src/features/workspace/layout.ts` | `GRID_COLUMNS`, `ZENTRALE_PAGE_ID`, `PAGE_ID_PATTERN`, `WIDGET_ID_PATTERN`, `DEFAULT_LAYOUT` |
+| Workspace layout rules (server, hand-kept parity with the client) | `server/internal/settings/workspace_layout.go` | `workspaceColumns`, `workspacePageID`, `workspaceWidgetID`, caps |
+| Widget catalogue (titles, spans, minimums) | `src/features/workspace/widgetSpecs.ts` | `WIDGET_SPECS` |
+| Widget components | `src/features/workspace/widgetRegistry.ts` | `WIDGETS`, `widgetIds()` |
+| Needs-you placement rule | `src/composables/needsYouPlacement.ts` | `needsYouPlacement` |
 
-**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module.
+**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`.
 
 **How to apply:** Before adding any constant or utility function, grep the codebase for existing implementations. If one already exists, import it — never copy it. If adding a new shared value, put it in the canonical location first, then import everywhere.
 

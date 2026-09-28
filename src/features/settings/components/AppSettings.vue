@@ -23,9 +23,13 @@ function showNotice(kind: 'success' | 'warning', text: string) {
   noticeTimer = setTimeout(() => (notice.value = null), 5000)
 }
 
+// Categories edited on their own surface. A raw JSON field for the workspace
+// here would be a second editor that bypasses the page's placement rules.
+const HIDDEN_CATEGORIES = new Set(['workspace'])
+
 const groups = computed(() => {
   const byCategory = new Map<string, SettingView[]>()
-  for (const item of items.value) {
+  for (const item of items.value.filter(i => !HIDDEN_CATEGORIES.has(i.category))) {
     const list = byCategory.get(item.category) ?? []
     list.push(item)
     byCategory.set(item.category, list)

@@ -116,7 +116,7 @@ const message = computed(() => {
 </script>
 
 <template>
-  <CockpitPanel id="github" title="GitHub" :state="state" :message="message">
+  <CockpitPanel id="github" title="GitHub" icon="⌂" :state="state" :message="message">
     <p
       v-if="repoFailures.length > 0"
       data-testid="cockpit-github-partial-failure"
