@@ -141,4 +141,39 @@ describe('useTerminalSocket', () => {
     expect(lastSocket().readyState).toBe(MockWebSocket.CLOSED)
     expect(status.value).toBe('closed')
   })
+
+  it('sends the last requested size on open when resize() was called before open', () => {
+    const { resize } = useTerminalSocket(1, { onData: vi.fn() })
+
+    resize(80, 24)
+    expect(lastSocket().sent).toHaveLength(0)
+
+    lastSocket().open()
+
+    expect(lastSocket().sent).toHaveLength(1)
+    expect(lastSocket().sent[0]).toBe(JSON.stringify({ resize: { cols: 80, rows: 24 } }))
+  })
+
+  it('resends the last requested size on every reconnect', () => {
+    const { resize } = useTerminalSocket(1, { onData: vi.fn() })
+    resize(80, 24)
+    lastSocket().open()
+
+    lastSocket().close() // unexpected close schedules a reconnect
+    vi.advanceTimersByTime(SSE_RETRY_DELAY_MS)
+    lastSocket().open()
+
+    expect(lastSocket().sent).toHaveLength(1)
+    expect(lastSocket().sent[0]).toBe(JSON.stringify({ resize: { cols: 80, rows: 24 } }))
+  })
+
+  it('does not duplicate the resize frame when resize() is called again after open', () => {
+    const { resize } = useTerminalSocket(1, { onData: vi.fn() })
+    lastSocket().open()
+
+    resize(80, 24)
+
+    expect(lastSocket().sent).toHaveLength(1)
+    expect(lastSocket().sent[0]).toBe(JSON.stringify({ resize: { cols: 80, rows: 24 } }))
+  })
 })

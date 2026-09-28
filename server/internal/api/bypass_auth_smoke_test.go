@@ -17,6 +17,7 @@ import (
 	apigithub "github.com/lx-wnk/kontor/server/internal/api/github"
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
+	apikontorsession "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
 	apiplugins "github.com/lx-wnk/kontor/server/internal/api/plugins"
@@ -178,9 +179,19 @@ func buildBypassRouter(t *testing.T) http.Handler {
 		PluginRegistry:         plugin.New(""),
 		PluginLifecycleHandler: apiplugins.NewLifecycle(stubPluginController{}),
 	}
+	// Stub, never the real service: the route walk must not be able to spawn a
+	// process.
+	deps.KontorSessionHandler = apikontorsession.New(stubKontorSessions{})
 
 	return NewRouter(deps)
 }
+
+type stubKontorSessions struct{}
+
+func (stubKontorSessions) Current(context.Context) (int, bool, error)       { return 0, false, nil }
+func (stubKontorSessions) Start(context.Context, string) (int, bool, error) { return 1, true, nil }
+func (stubKontorSessions) Renew(context.Context, string) (int, error)       { return 1, nil }
+func (stubKontorSessions) End(context.Context, string) error                { return nil }
 
 // bypassSkip reports routes that legitimately do NOT pass through the session-auth
 // group in bypass mode and therefore may return 401/403 by design.

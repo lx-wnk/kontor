@@ -55,6 +55,7 @@ var (
 		{Name: "active", Type: field.TypeBool, Default: true},
 		{Name: "kind", Type: field.TypeString, Default: "user"},
 		{Name: "stage_run_id", Type: field.TypeString, Default: ""},
+		{Name: "session_pid", Type: field.TypeInt, Nullable: true},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
@@ -78,7 +79,7 @@ var (
 			{
 				Name:    "apikey_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[7]},
+				Columns: []*schema.Column{APIKeysColumns[8]},
 			},
 		},
 	}

@@ -48,3 +48,18 @@ func IsPidAlive(pid int) bool {
 	}
 	return false
 }
+
+// ParentPID returns pid's parent process id via `ps -o ppid=`, which BSD
+// (macOS) and Linux ps both support with the same flags — one implementation
+// instead of a platform-specific /proc/<pid>/stat parse.
+func ParentPID(pid int) (int, error) {
+	out, err := exec.Command("ps", "-o", "ppid=", "-p", strconv.Itoa(pid)).Output() //nolint:gosec
+	if err != nil {
+		return 0, fmt.Errorf("proc: ParentPID(%d): %w", pid, err)
+	}
+	ppid, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, fmt.Errorf("proc: ParentPID(%d): parse %q: %w", pid, out, err)
+	}
+	return ppid, nil
+}

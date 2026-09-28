@@ -25,6 +25,7 @@ export function useTerminalSocket(pid: number, opts: UseTerminalSocketOptions): 
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let closed = false
+  let lastSize: { cols: number, rows: number } | null = null
 
   function clearReconnectTimer(): void {
     if (reconnectTimer) {
@@ -40,6 +41,8 @@ export function useTerminalSocket(pid: number, opts: UseTerminalSocketOptions): 
 
     socket.onopen = () => {
       status.value = 'open'
+      if (lastSize)
+        socket.send(JSON.stringify({ resize: lastSize }))
     }
 
     socket.onmessage = (e) => {
@@ -66,6 +69,7 @@ export function useTerminalSocket(pid: number, opts: UseTerminalSocketOptions): 
   }
 
   function resize(cols: number, rows: number): void {
+    lastSize = { cols, rows }
     if (ws?.readyState === WebSocket.OPEN)
       ws.send(JSON.stringify({ resize: { cols, rows } }))
   }

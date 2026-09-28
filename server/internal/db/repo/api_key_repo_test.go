@@ -2,6 +2,8 @@ package repo_test
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -275,4 +277,70 @@ func TestApiKey_DeleteExpiredSparesAKeyExpiringExactlyAtTheCutoff(t *testing.T) 
 	n, err = r.DeleteExpired(ctx, cutoff.Add(time.Nanosecond))
 	require.NoError(t, err)
 	require.Equal(t, 1, n, "a cutoff past the expiry must sweep the key")
+}
+
+func TestApiKey_KontorSessionLifecycle(t *testing.T) {
+	r := repo.NewApiKeyRepo(openTestDB(t))
+	ctx := t.Context()
+
+	none, err := r.ActiveKontorSession(ctx)
+	require.NoError(t, err)
+	require.Nil(t, none)
+
+	k, err := r.Create(ctx, repo.CreateApiKeyInput{Name: "kontor-session", Hash: "ks", Scopes: []string{"tasks:read"}, Kind: repo.ApiKeyKindKontorSession})
+	require.NoError(t, err)
+	require.Nil(t, k.SessionPid)
+	require.NoError(t, r.SetSessionPID(ctx, k.ID, 4242))
+
+	got, err := r.ActiveKontorSession(ctx)
+	require.NoError(t, err)
+	require.Equal(t, k.ID, got.ID)
+	require.Equal(t, 4242, *got.SessionPid)
+
+	n, err := r.RevokeKontorSessions(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	got, err = r.ActiveKontorSession(ctx)
+	require.NoError(t, err)
+	require.Nil(t, got)
+}
+
+func TestApiKey_RevokeKontorSessionsSparesOtherKinds(t *testing.T) {
+	r := repo.NewApiKeyRepo(openTestDB(t))
+	ctx := t.Context()
+	_, err := r.Create(ctx, repo.CreateApiKeyInput{Name: "u", Hash: "user"})
+	require.NoError(t, err)
+	_, err = r.Create(ctx, repo.CreateApiKeyInput{Name: "k", Hash: "kontor", Kind: repo.ApiKeyKindKontorSession})
+	require.NoError(t, err)
+
+	n, err := r.RevokeKontorSessions(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	_, err = r.GetByHash(ctx, "user")
+	require.NoError(t, err, "a user key must survive ending the session")
+}
+
+// Down path: ent auto-migrate only adds columns, so a rollback is the manual
+// DROP COLUMN below. The test proves it is one statement (no index or
+// constraint references the column) and that the next boot re-adds it.
+func TestApiKey_SessionPidColumnDownPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "kontor.db")
+	b, err := db.Open(path)
+	require.NoError(t, err)
+	k, err := repo.NewApiKeyRepo(b.Client).Create(t.Context(), repo.CreateApiKeyInput{Name: "u", Hash: "h"})
+	require.NoError(t, err)
+	require.NoError(t, b.Close())
+
+	raw, err := sql.Open("sqlite", "file:"+path)
+	require.NoError(t, err)
+	_, err = raw.Exec(`ALTER TABLE api_keys DROP COLUMN session_pid`)
+	require.NoError(t, err)
+	require.NoError(t, raw.Close())
+
+	b, err = db.Open(path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+	got, err := repo.NewApiKeyRepo(b.Client).GetByID(t.Context(), k.ID)
+	require.NoError(t, err)
+	require.Nil(t, got.SessionPid)
 }

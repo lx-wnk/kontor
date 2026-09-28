@@ -468,6 +468,40 @@ func TestBuildSpawnEnv_ForwardsDashboardPrefix(t *testing.T) {
 	require.Contains(t, env, "DASHBOARD_MCP_URL=http://example.com")
 }
 
+func TestBuildSpawnEnv_StripsInheritedSessionIdentity(t *testing.T) {
+	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "abc")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "def")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/config")
+
+	opts := pipeline.SpawnAgentOptions{
+		Task:     &ent.Task{ID: "t5"},
+		StageRun: &ent.StageRun{ID: "r5"},
+	}
+	env := pipeline.BuildSpawnEnv(opts)
+
+	for _, inherited := range []string{"CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ID", "CLAUDECODE"} {
+		for _, e := range env {
+			require.False(t, strings.HasPrefix(e, inherited+"="),
+				"%s must not be inherited from the server's own session, got: %s", inherited, e)
+		}
+	}
+	require.Contains(t, env, "CLAUDE_CONFIG_DIR=/config")
+}
+
+func TestBuildSpawnEnv_SpawnerExplicitEnv_KeepsInheritedKeyByOperatorIntent(t *testing.T) {
+	t.Setenv("CLAUDE_EFFORT", "ambient-value")
+
+	opts := pipeline.SpawnAgentOptions{
+		Task:     &ent.Task{ID: "t6"},
+		StageRun: &ent.StageRun{ID: "r6"},
+		Spawner:  &ent.Spawner{Env: map[string]string{"CLAUDE_EFFORT": "high"}},
+	}
+	env := pipeline.BuildSpawnEnv(opts)
+
+	require.Contains(t, env, "CLAUDE_EFFORT=high")
+}
+
 // ---------------------------------------------------------------------------
 // CQ-06 — writeSettingsFile failure must fail loud under restrictive autonomy
 // ---------------------------------------------------------------------------

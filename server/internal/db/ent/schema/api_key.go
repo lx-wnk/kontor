@@ -27,6 +27,10 @@ func (ApiKey) Fields() []ent.Field {
 		// stage_run_id is the attribution a capability context is resolved from.
 		// Empty for a user key.
 		field.String("stage_run_id").Default(""),
+		// session_pid is the process a kontor_session key belongs to. Nil until
+		// the spawn returns a pid. Not indexed: SQLite refuses DROP COLUMN on an
+		// indexed column, and dropping it is the down path.
+		field.Int("session_pid").Optional().Nillable(),
 		// expires_at is a hard stop independent of active: the orchestrator
 		// revoking on a terminal transition and this timestamp are two nets, and
 		// a server that dies between spawn and transition only trips the second.

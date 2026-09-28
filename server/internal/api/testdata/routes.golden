@@ -3,6 +3,7 @@ CONNECT /api/plugins/{id}/proxy/*
 DELETE /*
 DELETE /api/agents/{pid}/channel
 DELETE /api/grants/{id}
+DELETE /api/kontor-session
 DELETE /api/me
 DELETE /api/memory/entries/{id}
 DELETE /api/plugins/{id}/proxy/*
@@ -43,6 +44,7 @@ GET /api/github/summary
 GET /api/grants
 GET /api/history/import/status
 GET /api/hooks/pending
+GET /api/kontor-session
 GET /api/me
 GET /api/memory/entries
 GET /api/memory/injections
@@ -126,6 +128,8 @@ POST /api/hooks/notification
 POST /api/hooks/permission
 POST /api/hooks/pre-tool
 POST /api/hooks/respond
+POST /api/kontor-session
+POST /api/kontor-session/renew
 POST /api/memory/entries
 POST /api/memory/spaces
 POST /api/obsidian/index

@@ -41,7 +41,7 @@ const stubs = {
   AgentChatStream: true,
   CrossLinkBanner: true,
   MachineBadge: true,
-  PromptInput: true,
+  PromptInput: { name: 'PromptInput', template: '<div />', methods: { focus() {} } },
   SubAgentList: true,
   TaskList: true,
   ToolTimeline: true,

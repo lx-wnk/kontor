@@ -83,6 +83,20 @@ func (_c *ApiKeyCreate) SetNillableStageRunID(v *string) *ApiKeyCreate {
 	return _c
 }
 
+// SetSessionPid sets the "session_pid" field.
+func (_c *ApiKeyCreate) SetSessionPid(v int) *ApiKeyCreate {
+	_c.mutation.SetSessionPid(v)
+	return _c
+}
+
+// SetNillableSessionPid sets the "session_pid" field if the given value is not nil.
+func (_c *ApiKeyCreate) SetNillableSessionPid(v *int) *ApiKeyCreate {
+	if v != nil {
+		_c.SetSessionPid(*v)
+	}
+	return _c
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_c *ApiKeyCreate) SetExpiresAt(v time.Time) *ApiKeyCreate {
 	_c.mutation.SetExpiresAt(v)
@@ -271,6 +285,10 @@ func (_c *ApiKeyCreate) createSpec() (*ApiKey, *sqlgraph.CreateSpec) {
 		_spec.SetField(apikey.FieldStageRunID, field.TypeString, value)
 		_node.StageRunID = value
 	}
+	if value, ok := _c.mutation.SessionPid(); ok {
+		_spec.SetField(apikey.FieldSessionPid, field.TypeInt, value)
+		_node.SessionPid = &value
+	}
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = &value
@@ -404,6 +422,30 @@ func (u *ApiKeyUpsert) SetStageRunID(v string) *ApiKeyUpsert {
 // UpdateStageRunID sets the "stage_run_id" field to the value that was provided on create.
 func (u *ApiKeyUpsert) UpdateStageRunID() *ApiKeyUpsert {
 	u.SetExcluded(apikey.FieldStageRunID)
+	return u
+}
+
+// SetSessionPid sets the "session_pid" field.
+func (u *ApiKeyUpsert) SetSessionPid(v int) *ApiKeyUpsert {
+	u.Set(apikey.FieldSessionPid, v)
+	return u
+}
+
+// UpdateSessionPid sets the "session_pid" field to the value that was provided on create.
+func (u *ApiKeyUpsert) UpdateSessionPid() *ApiKeyUpsert {
+	u.SetExcluded(apikey.FieldSessionPid)
+	return u
+}
+
+// AddSessionPid adds v to the "session_pid" field.
+func (u *ApiKeyUpsert) AddSessionPid(v int) *ApiKeyUpsert {
+	u.Add(apikey.FieldSessionPid, v)
+	return u
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (u *ApiKeyUpsert) ClearSessionPid() *ApiKeyUpsert {
+	u.SetNull(apikey.FieldSessionPid)
 	return u
 }
 
@@ -575,6 +617,34 @@ func (u *ApiKeyUpsertOne) SetStageRunID(v string) *ApiKeyUpsertOne {
 func (u *ApiKeyUpsertOne) UpdateStageRunID() *ApiKeyUpsertOne {
 	return u.Update(func(s *ApiKeyUpsert) {
 		s.UpdateStageRunID()
+	})
+}
+
+// SetSessionPid sets the "session_pid" field.
+func (u *ApiKeyUpsertOne) SetSessionPid(v int) *ApiKeyUpsertOne {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.SetSessionPid(v)
+	})
+}
+
+// AddSessionPid adds v to the "session_pid" field.
+func (u *ApiKeyUpsertOne) AddSessionPid(v int) *ApiKeyUpsertOne {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.AddSessionPid(v)
+	})
+}
+
+// UpdateSessionPid sets the "session_pid" field to the value that was provided on create.
+func (u *ApiKeyUpsertOne) UpdateSessionPid() *ApiKeyUpsertOne {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.UpdateSessionPid()
+	})
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (u *ApiKeyUpsertOne) ClearSessionPid() *ApiKeyUpsertOne {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.ClearSessionPid()
 	})
 }
 
@@ -919,6 +989,34 @@ func (u *ApiKeyUpsertBulk) SetStageRunID(v string) *ApiKeyUpsertBulk {
 func (u *ApiKeyUpsertBulk) UpdateStageRunID() *ApiKeyUpsertBulk {
 	return u.Update(func(s *ApiKeyUpsert) {
 		s.UpdateStageRunID()
+	})
+}
+
+// SetSessionPid sets the "session_pid" field.
+func (u *ApiKeyUpsertBulk) SetSessionPid(v int) *ApiKeyUpsertBulk {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.SetSessionPid(v)
+	})
+}
+
+// AddSessionPid adds v to the "session_pid" field.
+func (u *ApiKeyUpsertBulk) AddSessionPid(v int) *ApiKeyUpsertBulk {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.AddSessionPid(v)
+	})
+}
+
+// UpdateSessionPid sets the "session_pid" field to the value that was provided on create.
+func (u *ApiKeyUpsertBulk) UpdateSessionPid() *ApiKeyUpsertBulk {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.UpdateSessionPid()
+	})
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (u *ApiKeyUpsertBulk) ClearSessionPid() *ApiKeyUpsertBulk {
+	return u.Update(func(s *ApiKeyUpsert) {
+		s.ClearSessionPid()
 	})
 }
 

@@ -241,14 +241,17 @@ type SpawnPolicy interface {
 
 // spawnPolicy is the production implementation.
 type spawnPolicy struct {
-	roots RootsProvider // may be nil → no project-root restriction
+	roots      RootsProvider // may be nil → no project-root restriction
+	extraRoots []string
 }
 
 // NewSpawnPolicy constructs a SpawnPolicy. roots provides the set of allowed
 // project root paths; pass nil to enforce only the sensitive-dir blacklist (for
 // use in dev/bypass-auth mode where no DB is available).
-func NewSpawnPolicy(roots RootsProvider) SpawnPolicy {
-	return &spawnPolicy{roots: roots}
+// extraRoots are fixed directories the server owns (e.g. the Kontor session
+// dir); they pass the root check but never the blacklist.
+func NewSpawnPolicy(roots RootsProvider, extraRoots ...string) SpawnPolicy {
+	return &spawnPolicy{roots: roots, extraRoots: extraRoots}
 }
 
 // canonicalize resolves cwd to an absolute, symlink-resolved path.
@@ -284,6 +287,12 @@ func (p *spawnPolicy) Allow(ctx context.Context, cwd string) error {
 	// Unconditional blacklist — sensitive home directories always blocked.
 	if err := checkBlacklist(cwdAbs); err != nil {
 		return err
+	}
+
+	for _, root := range p.extraRoots {
+		if rootAbs, err := canonicalize(root); err == nil && isUnder(cwdAbs, rootAbs) {
+			return nil
+		}
 	}
 
 	// When no roots provider is configured, skip the project-root check.

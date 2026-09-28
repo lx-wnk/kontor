@@ -25,6 +25,8 @@ const (
 	FieldKind = "kind"
 	// FieldStageRunID holds the string denoting the stage_run_id field in the database.
 	FieldStageRunID = "stage_run_id"
+	// FieldSessionPid holds the string denoting the session_pid field in the database.
+	FieldSessionPid = "session_pid"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldActive,
 	FieldKind,
 	FieldStageRunID,
+	FieldSessionPid,
 	FieldExpiresAt,
 	FieldCreatedAt,
 	FieldLastUsedAt,
@@ -103,6 +106,11 @@ func ByKind(opts ...sql.OrderTermOption) OrderOption {
 // ByStageRunID orders the results by the stage_run_id field.
 func ByStageRunID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStageRunID, opts...).ToFunc()
+}
+
+// BySessionPid orders the results by the session_pid field.
+func BySessionPid(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSessionPid, opts...).ToFunc()
 }
 
 // ByExpiresAt orders the results by the expires_at field.

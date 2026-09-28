@@ -454,36 +454,43 @@ func (m *SpawnManager) launchInteractive(binary string, args, env []string, cwd,
 		}
 		return pid, m.pollExitWatch(pid, channelCfgPath), nil
 	default: // transportPTY
-		self, serr := channelconfig.SelfBinaryPath()
-		if serr != nil {
-			return 0, nil, serr
-		}
-		hostArgs := append([]string{channelconfig.SubcommandPtyHost, "--", binary}, args...)
-		cmd := exec.Command(self, hostArgs...)
-		cmd.Dir = cwd
-		cmd.Env = env
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		pipe, _ := cmd.StdoutPipe()
-		if err := execStart(cmd); err != nil {
-			return 0, nil, err
-		}
-		pid, empty, rerr := readFirstPID(pipe)
-		// Empty output means the transport produced no pid (test stub or a failed
-		// start), so there is no watch to clean up the cfg — remove it here.
-		if empty {
-			if channelCfgPath != "" {
-				_ = os.Remove(channelCfgPath)
-			}
-			return 0, func() {}, nil
-		}
-		if rerr != nil {
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
-			return 0, nil, rerr
-		}
-		return pid, m.subprocessExitWatch(cmd, pid, channelCfgPath), nil
+		return m.launchPTY(binary, args, env, cwd, channelCfgPath)
 	}
+}
+
+// launchPTY starts binary under a detached pty-host subprocess that owns the
+// pty and prints the child PID on its first stdout line. It returns the
+// claude PID and a watch closure to run in a goroutine.
+func (m *SpawnManager) launchPTY(binary string, args, env []string, cwd, channelCfgPath string) (int, func(), error) {
+	self, serr := channelconfig.SelfBinaryPath()
+	if serr != nil {
+		return 0, nil, serr
+	}
+	hostArgs := append([]string{channelconfig.SubcommandPtyHost, "--", binary}, args...)
+	cmd := exec.Command(self, hostArgs...)
+	cmd.Dir = cwd
+	cmd.Env = env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	pipe, _ := cmd.StdoutPipe()
+	if err := execStart(cmd); err != nil {
+		return 0, nil, err
+	}
+	pid, empty, rerr := readFirstPID(pipe)
+	// Empty output means the transport produced no pid (test stub or a failed
+	// start), so there is no watch to clean up the cfg — remove it here.
+	if empty {
+		if channelCfgPath != "" {
+			_ = os.Remove(channelCfgPath)
+		}
+		return 0, func() {}, nil
+	}
+	if rerr != nil {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return 0, nil, rerr
+	}
+	return pid, m.subprocessExitWatch(cmd, pid, channelCfgPath), nil
 }
 
 // newSpawnID returns a short random hex token for naming a tmux session.
@@ -997,6 +1004,9 @@ func resolveSpawnEnv(s *ent.Spawner) []string {
 			continue
 		}
 		k, v := kv[:i], kv[i+1:]
+		if _, inherited := envsec.InheritedSessionEnvKeys[k]; inherited {
+			continue
+		}
 		merged[k] = v
 		if strings.HasPrefix(k, "DASHBOARD_") || strings.HasPrefix(k, "KONTOR_") || strings.HasPrefix(k, "CLAUDE_") {
 			dashboard[k] = v

@@ -4,8 +4,8 @@ import { usePendingPermissions } from '@/composables/usePendingPermissions'
 import { useAgents } from '@/features/agents'
 import { GitHubPanel, MemoryPanel } from '@/features/cockpit'
 import { useTasks } from '@/features/pipeline'
+import KontorTile from './components/KontorTile.vue'
 import LiveWorkRail from './components/LiveWorkRail.vue'
-import MissionInput from './components/MissionInput.vue'
 import NextThing from './components/NextThing.vue'
 import { rankNextThings } from './composables/useNextThing'
 
@@ -37,14 +37,14 @@ const remaining = computed(() => Math.max(0, ranked.value.length - 1))
       <LiveWorkRail :tasks="running" />
     </div>
 
-    <div class="flex-grow min-w-0 flex flex-col justify-center gap-6 px-10 py-8">
+    <div class="flex-grow min-w-0 flex flex-col gap-6 px-10 py-8">
       <NextThing
         :next="next"
         :remaining="remaining"
         @resolved="refreshPending"
         @open="(id) => emit('openTask', id)"
       />
-      <MissionInput @captured="(id) => emit('openTask', id)" />
+      <KontorTile class="flex-1" />
     </div>
 
     <div class="w-[360px] shrink-0 border-l border-line p-4 flex flex-col gap-4 overflow-y-auto">

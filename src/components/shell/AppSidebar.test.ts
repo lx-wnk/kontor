@@ -87,13 +87,19 @@ describe('appSidebar', () => {
     expect(w.text()).toContain('Reconnecting')
   })
 
-  it('separates the nav groups with a rule when collapsed', async () => {
+  it('the rule is the visible one when collapsed', async () => {
     const { AppSidebar } = await load()
     const w = mount(AppSidebar, { props })
-    // Three groups, so two rules — the group captions that carry the split when
-    // expanded are hidden in the icon rail.
-    expect(w.findAll('[data-testid="nav-group-divider"]')).toHaveLength(2)
-    expect(w.text()).not.toContain('Monitor')
+    // Three groups, so two rules — always in the DOM, crossfaded against the
+    // caption inside the same reserved box so nothing resizes on expansion.
+    const dividers = w.findAll('[data-testid="nav-group-divider"]')
+    expect(dividers).toHaveLength(2)
+    for (const divider of dividers)
+      expect(divider.classes()).toContain('opacity-100')
+
+    const captions = w.findAll('[data-testid="nav-group-slot"] span').filter(s => s.text() === 'Monitor')
+    expect(captions).toHaveLength(1)
+    expect(captions[0]!.classes()).toContain('opacity-0')
   })
 
   // Expanding must not change how many rows sit above any nav item. The caption
@@ -116,11 +122,19 @@ describe('appSidebar', () => {
       expect(slot.classes()).toContain('h-7')
   })
 
-  it('drops the rules again once the captions are back', async () => {
+  it('the caption is the visible one once the rules are back to hairlines', async () => {
     const { AppSidebar, useSidebar } = await load()
     useSidebar().togglePinned()
     const w = mount(AppSidebar, { props })
-    expect(w.findAll('[data-testid="nav-group-divider"]')).toHaveLength(0)
+    // Still in the DOM (crossfade, not removal) — just faded out.
+    const dividers = w.findAll('[data-testid="nav-group-divider"]')
+    expect(dividers).toHaveLength(2)
+    for (const divider of dividers)
+      expect(divider.classes()).toContain('opacity-0')
+
+    const captions = w.findAll('[data-testid="nav-group-slot"] span').filter(s => s.text() === 'Monitor')
+    expect(captions).toHaveLength(1)
+    expect(captions[0]!.classes()).toContain('opacity-100')
   })
 
   it('keeps the rail at icon width while the hovered nav floats over the content', async () => {

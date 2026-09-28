@@ -111,6 +111,33 @@ func (_u *ApiKeyUpdate) SetNillableStageRunID(v *string) *ApiKeyUpdate {
 	return _u
 }
 
+// SetSessionPid sets the "session_pid" field.
+func (_u *ApiKeyUpdate) SetSessionPid(v int) *ApiKeyUpdate {
+	_u.mutation.ResetSessionPid()
+	_u.mutation.SetSessionPid(v)
+	return _u
+}
+
+// SetNillableSessionPid sets the "session_pid" field if the given value is not nil.
+func (_u *ApiKeyUpdate) SetNillableSessionPid(v *int) *ApiKeyUpdate {
+	if v != nil {
+		_u.SetSessionPid(*v)
+	}
+	return _u
+}
+
+// AddSessionPid adds value to the "session_pid" field.
+func (_u *ApiKeyUpdate) AddSessionPid(v int) *ApiKeyUpdate {
+	_u.mutation.AddSessionPid(v)
+	return _u
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (_u *ApiKeyUpdate) ClearSessionPid() *ApiKeyUpdate {
+	_u.mutation.ClearSessionPid()
+	return _u
+}
+
 // SetExpiresAt sets the "expires_at" field.
 func (_u *ApiKeyUpdate) SetExpiresAt(v time.Time) *ApiKeyUpdate {
 	_u.mutation.SetExpiresAt(v)
@@ -214,6 +241,15 @@ func (_u *ApiKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.StageRunID(); ok {
 		_spec.SetField(apikey.FieldStageRunID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SessionPid(); ok {
+		_spec.SetField(apikey.FieldSessionPid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSessionPid(); ok {
+		_spec.AddField(apikey.FieldSessionPid, field.TypeInt, value)
+	}
+	if _u.mutation.SessionPidCleared() {
+		_spec.ClearField(apikey.FieldSessionPid, field.TypeInt)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
@@ -326,6 +362,33 @@ func (_u *ApiKeyUpdateOne) SetNillableStageRunID(v *string) *ApiKeyUpdateOne {
 	if v != nil {
 		_u.SetStageRunID(*v)
 	}
+	return _u
+}
+
+// SetSessionPid sets the "session_pid" field.
+func (_u *ApiKeyUpdateOne) SetSessionPid(v int) *ApiKeyUpdateOne {
+	_u.mutation.ResetSessionPid()
+	_u.mutation.SetSessionPid(v)
+	return _u
+}
+
+// SetNillableSessionPid sets the "session_pid" field if the given value is not nil.
+func (_u *ApiKeyUpdateOne) SetNillableSessionPid(v *int) *ApiKeyUpdateOne {
+	if v != nil {
+		_u.SetSessionPid(*v)
+	}
+	return _u
+}
+
+// AddSessionPid adds value to the "session_pid" field.
+func (_u *ApiKeyUpdateOne) AddSessionPid(v int) *ApiKeyUpdateOne {
+	_u.mutation.AddSessionPid(v)
+	return _u
+}
+
+// ClearSessionPid clears the value of the "session_pid" field.
+func (_u *ApiKeyUpdateOne) ClearSessionPid() *ApiKeyUpdateOne {
+	_u.mutation.ClearSessionPid()
 	return _u
 }
 
@@ -462,6 +525,15 @@ func (_u *ApiKeyUpdateOne) sqlSave(ctx context.Context) (_node *ApiKey, err erro
 	}
 	if value, ok := _u.mutation.StageRunID(); ok {
 		_spec.SetField(apikey.FieldStageRunID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SessionPid(); ok {
+		_spec.SetField(apikey.FieldSessionPid, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedSessionPid(); ok {
+		_spec.AddField(apikey.FieldSessionPid, field.TypeInt, value)
+	}
+	if _u.mutation.SessionPidCleared() {
+		_spec.ClearField(apikey.FieldSessionPid, field.TypeInt)
 	}
 	if value, ok := _u.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)

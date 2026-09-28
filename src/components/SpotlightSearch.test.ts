@@ -3,20 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import SpotlightSearch from './SpotlightSearch.vue'
 
-const createTask = vi.fn()
-const suggestFolders = vi.fn()
-const projects = ref<Array<{ id: string, name: string }>>([])
 const activeView = ref('dashboard')
 let searchBody: unknown = { tasks: [], agents: [] }
 
-vi.mock('@/features/pipeline', () => ({
-  createTask: (...args: unknown[]) => createTask(...args),
-}))
-vi.mock('@/composables/useProjectFolders', () => ({
-  suggestFolders: (...args: unknown[]) => suggestFolders(...args),
-}))
-vi.mock('@/composables/useProjects', () => ({
-  useProjects: () => ({ projects }),
+const send = vi.fn()
+const refresh = vi.fn(async () => {})
+const kontorError = ref('')
+const kontorPid = ref<number | null>(null)
+vi.mock('@/features/mission/composables/useKontorSession', () => ({
+  useKontorSession: () => ({ send: (...a: unknown[]) => send(...a), refresh: () => refresh(), error: kontorError, pid: kontorPid }),
 }))
 vi.mock('@/composables/useViewState', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/composables/useViewState')>()
@@ -46,13 +41,12 @@ async function openSpotlight(text: string) {
 
 beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch)
-  createTask.mockReset()
-  suggestFolders.mockReset()
   searchBody = { tasks: [], agents: [] }
-  projects.value = [{ id: 'p1', name: 'Dashboard' }]
-  suggestFolders.mockResolvedValue([{ path: '/repo', isDefault: true }])
-  createTask.mockResolvedValue({ id: 't1' })
   activeView.value = 'dashboard'
+  send.mockReset().mockResolvedValue(true)
+  refresh.mockReset().mockImplementation(async () => {})
+  kontorError.value = ''
+  kontorPid.value = null
 })
 
 afterEach(() => {
@@ -107,7 +101,7 @@ describe('spotlightSearch', () => {
   })
 })
 
-describe('spotlightSearch commands and capture', () => {
+describe('spotlightSearch commands and hand-off', () => {
   it('offers a navigation command for a matching view and runs it', async () => {
     const wrapper = await openSpotlight('pipeline')
     const option = document.querySelector('[data-testid="spotlight-command-view:pipeline"]')
@@ -118,42 +112,71 @@ describe('spotlightSearch commands and capture', () => {
     wrapper.unmount()
   })
 
-  // One line, no project picked, no slug typed: the capture the origin
-  // document asked for. If this ever passes quietly, the field lost its point.
-  it('captures free text that matched nothing as a backlog task', async () => {
-    const wrapper = await openSpotlight('teach the field to capture')
+  // Text that matched nothing goes to the Kontor session, never to the backlog.
+  it('hands free text that matched nothing to Kontor and switches to mission', async () => {
+    const wrapper = await openSpotlight('plan phase 4 of the dashboard')
+    expect(document.querySelector('[data-testid="spotlight-kontor"]')?.textContent).toContain('Kontor')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushPromises()
-    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'teach the field to capture',
-      cwd: '/repo',
-      projectId: 'p1',
-    }))
-    expect(createTask.mock.calls[0][0].slug).toMatch(/^[a-z0-9-]+$/)
-    expect(wrapper.emitted('captured')).toEqual([['t1']])
+    expect(send).toHaveBeenCalledWith('plan phase 4 of the dashboard')
+    expect(activeView.value).toBe('mission')
+    expect(document.querySelector('input[placeholder]')).toBeNull()
     wrapper.unmount()
   })
 
-  it('says so instead of failing silently when no project exists', async () => {
-    projects.value = []
+  it('keeps the dialog open with the reason when Kontor cannot take the text', async () => {
+    send.mockImplementation(async () => {
+      kontorError.value = 'Could not start a Kontor session.'
+      return false
+    })
     const wrapper = await openSpotlight('something')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushPromises()
-    expect(createTask).not.toHaveBeenCalled()
-    expect(document.querySelector('[data-testid="spotlight-problem"]')?.textContent)
-      .toContain('No project exists yet')
+    expect(document.querySelector('[data-testid="spotlight-problem"]')?.textContent).toContain('Could not start a Kontor session.')
+    expect(document.querySelector('input[placeholder]')).not.toBeNull()
     wrapper.unmount()
   })
 
-  // A search hit and a capture are mutually exclusive: text that found
-  // something must never also be swallowed as a new backlog item.
-  it('does not capture when the search found a result', async () => {
-    searchBody = { tasks: [{ id: 'x1', title: 'existing', currentStage: 'ready' }], agents: [] }
-    const wrapper = await openSpotlight('existing')
-    expect(document.querySelector('[data-testid="spotlight-capture"]')).toBeNull()
+  it('refuses a slash command when no session runs, and does not send it', async () => {
+    const wrapper = await openSpotlight('/grant Bash')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushPromises()
-    expect(createTask).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-testid="spotlight-problem"]')?.textContent).toContain('running Kontor session')
+    expect(document.querySelector('input[placeholder]')).not.toBeNull()
+    wrapper.unmount()
+  })
+
+  it('finds a session that started before this page load and sends the slash command', async () => {
+    refresh.mockImplementation(async () => {
+      kontorPid.value = 4321
+    })
+    const wrapper = await openSpotlight('/compact')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(refresh).toHaveBeenCalled()
+    expect(send).toHaveBeenCalledWith('/compact')
+    expect(document.querySelector('[data-testid="spotlight-problem"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('sends a slash command to the running session', async () => {
+    kontorPid.value = 1234
+    const wrapper = await openSpotlight('/compact')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(send).toHaveBeenCalledWith('/compact')
+    wrapper.unmount()
+  })
+
+  // A search hit and a hand-off are mutually exclusive.
+  it('does not hand off when the search found a result', async () => {
+    searchBody = { tasks: [{ id: 'x1', title: 'existing', currentStage: 'ready' }], agents: [] }
+    const wrapper = await openSpotlight('existing')
+    expect(document.querySelector('[data-testid="spotlight-kontor"]')).toBeNull()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushPromises()
+    expect(send).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

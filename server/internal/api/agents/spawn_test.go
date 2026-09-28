@@ -512,6 +512,33 @@ func TestMergeEnv_NilSpawner_StripsSecrets(t *testing.T) {
 	}
 }
 
+func TestMergeEnv_NilSpawner_StripsInheritedSessionIdentity(t *testing.T) {
+	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "abc")
+	t.Setenv("CLAUDE_CODE_SESSION_ID", "def")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/config")
+
+	env := resolveSpawnEnv(nil)
+	for _, inherited := range []string{"CLAUDE_CODE_CHILD_SESSION", "CLAUDE_CODE_SESSION_ID", "CLAUDECODE"} {
+		if envValue(env, inherited) != "" {
+			t.Fatalf("%s must not be inherited from the server's own session", inherited)
+		}
+	}
+	if envValue(env, "CLAUDE_CONFIG_DIR") != "/config" {
+		t.Fatalf("CLAUDE_CONFIG_DIR must still be forwarded, got %q", envValue(env, "CLAUDE_CONFIG_DIR"))
+	}
+}
+
+func TestMergeEnv_SpawnerExplicitEnv_KeepsInheritedKeyByOperatorIntent(t *testing.T) {
+	t.Setenv("CLAUDE_EFFORT", "ambient-value")
+
+	s := &ent.Spawner{ID: "spwn_effort", Env: map[string]string{"CLAUDE_EFFORT": "high"}}
+	env := resolveSpawnEnv(s)
+	if envValue(env, "CLAUDE_EFFORT") != "high" {
+		t.Fatalf("spawner-declared CLAUDE_EFFORT must survive, got %q", envValue(env, "CLAUDE_EFFORT"))
+	}
+}
+
 func TestSpawn_CustomAdapter_ReservedFlagRejected(t *testing.T) {
 	setAllowedCommands(t, "npx")
 	row := &ent.Spawner{
