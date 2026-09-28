@@ -300,12 +300,12 @@ jobs:
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
       - name: Build server binary with embedded SPA
-        # scripts/e2e-server.sh rebuilds through `task` only when bin/agent-dashboard
+        # scripts/e2e-server.sh rebuilds through `task` only when bin/kontor
         # is missing or older than a source file; building it here keeps go-task
         # out of the runner.
         run: |
           pnpm build
-          cd server && go build -o ../bin/agent-dashboard ./cmd/serve/...
+          cd server && go build -o ../bin/kontor ./cmd/serve/...
       - name: Run Playwright suite
         run: pnpm test:e2e
 

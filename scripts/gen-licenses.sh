@@ -74,18 +74,18 @@ collect_go() {
   if [[ "${gowork_off}" == "true" ]]; then
     (cd "${dir}" && GOWORK=off GOOS="${goos}" go build ./... 2>/dev/null || true)
     (cd "${dir}" && GOWORK=off GOOS="${goos}" "${GO_LICENSES}" report ./... \
-      --ignore github.com/lx-wnk/agent-dashboard) || st=$?
+      --ignore github.com/lx-wnk/kontor) || st=$?
   else
     (cd "${dir}" && GOOS="${goos}" go build ./... 2>/dev/null || true)
     (cd "${dir}" && GOOS="${goos}" "${GO_LICENSES}" report ./... \
-      --ignore github.com/lx-wnk/agent-dashboard) || st=$?
+      --ignore github.com/lx-wnk/kontor) || st=$?
   fi
   GO_LICENSES_STATUS=${st}
 }
 
 # A module is expected to contribute at least one row when the package graph
 # go-licenses walks — `./...` without tests — reaches a module outside our own
-# module family (the same "github.com/lx-wnk/agent-dashboard" prefix passed to
+# module family (the same "github.com/lx-wnk/kontor" prefix passed to
 # --ignore above). Deriving this from go.mod requires instead would hard-fail a
 # module whose only external require is test-only (testify, go-cmp): go.mod
 # lists it, go-licenses never sees it, and zero rows would be correct.
@@ -113,10 +113,10 @@ module_expects_go_rows() {
     exit 1
   fi
 
-  # No trailing '/': the plugin modules are named agent-dashboard-plugin-*, and
+  # No trailing '/': the plugin modules are named kontor-plugin-*, and
   # go-licenses' --ignore is a bare HasPrefix too. Adding one would reclassify
   # every plugin as third-party and hard-fail the five that have no deps.
-  grep -qv '^github\.com/lx-wnk/agent-dashboard' <<<"${dep_modules}"
+  grep -qv '^github\.com/lx-wnk/kontor' <<<"${dep_modules}"
 }
 
 # Prints the hand-runnable go-licenses invocation for one module, so both
@@ -124,9 +124,9 @@ module_expects_go_rows() {
 print_module_repro_cmd() {
   local dir="$1" gowork_off="$2" goos="$3"
   if [[ "${gowork_off}" == "true" ]]; then
-    echo "  (cd ${dir} && GOWORK=off GOOS=${goos} ${GO_LICENSES} report ./... --ignore github.com/lx-wnk/agent-dashboard)" >&2
+    echo "  (cd ${dir} && GOWORK=off GOOS=${goos} ${GO_LICENSES} report ./... --ignore github.com/lx-wnk/kontor)" >&2
   else
-    echo "  (cd ${dir} && GOOS=${goos} ${GO_LICENSES} report ./... --ignore github.com/lx-wnk/agent-dashboard)" >&2
+    echo "  (cd ${dir} && GOOS=${goos} ${GO_LICENSES} report ./... --ignore github.com/lx-wnk/kontor)" >&2
   fi
 }
 
