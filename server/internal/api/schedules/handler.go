@@ -92,9 +92,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("schedules.list: %w", err)
 	}
-	views := make([]scheduleView, len(rows))
+	views := make([]ScheduleView, len(rows))
 	for i, s := range rows {
-		views[i] = toView(s)
+		views[i] = ToView(s)
 	}
 	return jsonReply(w, http.StatusOK, views)
 }
@@ -108,7 +108,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) error {
 		}
 		return fmt.Errorf("schedules.get: %w", err)
 	}
-	return jsonReply(w, http.StatusOK, toView(s))
+	return jsonReply(w, http.StatusOK, ToView(s))
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
@@ -152,29 +152,28 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 	next := nextRunOrNil(cronExpr, tz)
 
 	in := repo.CreateTaskScheduleInput{
-		Name:                body.Name,
-		Enabled:             body.Enabled,
-		CronExpr:            cronExpr,
-		Timezone:            tz,
-		Catchup:             body.Catchup,
-		SlugPrefix:          body.SlugPrefix,
-		Title:               body.Title,
-		Description:         body.Description,
-		Cwd:                 body.Cwd,
-		SourceBranch:        body.SourceBranch,
-		TargetBranch:        body.TargetBranch,
-		Priority:            body.Priority,
-		MaxIterations:       body.MaxIterations,
-		TokenBudget:         body.TokenBudget,
-		CostBudgetCents:     body.CostBudgetCents,
-		StageTimeoutSeconds: body.StageTimeoutSeconds,
-		SilverBullet:        body.SilverBullet,
-		ProjectID:           strPtrOrNil(body.ProjectID),
-		SpawnerID:           strPtrOrNil(body.SpawnerID),
-		PermissionTemplate:  body.PermissionTemplate,
-		UserID:              &userID,
-		NextRunAt:           next,
-		RunMode:             runMode,
+		Name:               body.Name,
+		Enabled:            body.Enabled,
+		CronExpr:           cronExpr,
+		Timezone:           tz,
+		Catchup:            body.Catchup,
+		SlugPrefix:         body.SlugPrefix,
+		Title:              body.Title,
+		Description:        body.Description,
+		Cwd:                body.Cwd,
+		SourceBranch:       body.SourceBranch,
+		TargetBranch:       body.TargetBranch,
+		Priority:           body.Priority,
+		MaxIterations:      body.MaxIterations,
+		TokenBudget:        body.TokenBudget,
+		CostBudgetCents:    body.CostBudgetCents,
+		SilverBullet:       body.SilverBullet,
+		ProjectID:          strPtrOrNil(body.ProjectID),
+		SpawnerID:          strPtrOrNil(body.SpawnerID),
+		PermissionTemplate: body.PermissionTemplate,
+		UserID:             &userID,
+		NextRunAt:          next,
+		RunMode:            runMode,
 	}
 	if body.Applications != nil {
 		in.Applications = *body.Applications
@@ -187,7 +186,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("schedules.create: %w", err)
 	}
-	return jsonReply(w, http.StatusCreated, toView(s))
+	return jsonReply(w, http.StatusCreated, ToView(s))
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
@@ -277,7 +276,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("schedules.update: %w", err)
 	}
-	return jsonReply(w, http.StatusOK, toView(s))
+	return jsonReply(w, http.StatusOK, ToView(s))
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {

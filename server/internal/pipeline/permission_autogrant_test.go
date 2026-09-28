@@ -37,14 +37,14 @@ func TestFilePermissionRequest_AutonomyAnswersForItself(t *testing.T) {
 
 			autonomy := tc.autonomy
 			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-				Slug:                "autogrant-" + tc.autonomy,
-				Title:               "Auto-grant",
-				Cwd:                 "/tmp",
-				CurrentStage:        "implementation",
-				Priority:            "medium",
-				MaxIterations:       3,
-				StageTimeoutSeconds: 1800,
-				Autonomy:            &autonomy,
+				Slug:          "autogrant-" + tc.autonomy,
+				Title:         "Auto-grant",
+				Cwd:           "/tmp",
+				CurrentStage:  "implementation",
+				Priority:      "medium",
+				MaxIterations: 3,
+
+				Autonomy: &autonomy,
 			})
 			require.NoError(t, err)
 

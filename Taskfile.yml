@@ -174,6 +174,31 @@ tasks:
       - rm -f "bin/Kontor.dmg"
       - hdiutil create -volname "Kontor" -srcfolder "bin/Kontor.app" -ov -format UDZO "bin/Kontor.dmg"
 
+  desktop:bundle:
+    desc: Replace the binary in bin/Kontor.app (from desktop:dist), stamp version and codesign (macOS; requires KONTOR_SIGN_IDENTITY)
+    platforms: [darwin]
+    vars:
+      APP: bin/Kontor.app
+      # CFBundleExecutable, rendered from desktop/wails.json "outputfilename".
+      BINARY: bin/Kontor.app/Contents/MacOS/kontor-desktop
+    # Checked before the build touches the bundle: a failure after the binary
+    # swap would leave bin/Kontor.app with a broken signature.
+    preconditions:
+      - sh: test -f '{{.BINARY}}'
+        msg: "bin/Kontor.app/Contents/MacOS/kontor-desktop is missing — run 'task desktop:dist' once first"
+      - sh: test -n "$KONTOR_SIGN_IDENTITY"
+        msg: KONTOR_SIGN_IDENTITY is not set — see docs/code-signing.md
+      - sh: security find-identity -v -p codesigning 2>/dev/null | grep -qF "$KONTOR_SIGN_IDENTITY"
+        msg: "KONTOR_SIGN_IDENTITY is not a valid code-signing identity in the keychain — run 'security find-identity -v -p codesigning', then see docs/code-signing.md"
+    cmds:
+      - task: build:desktop
+      - rm -f '{{.BINARY}}'
+      - cp bin/kontor-desktop '{{.BINARY}}'
+      - /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString {{.VERSION}}' '{{.APP}}/Contents/Info.plist'
+      - /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion {{.VERSION}}' '{{.APP}}/Contents/Info.plist'
+      - codesign --force --deep --sign "$KONTOR_SIGN_IDENTITY" --identifier com.lxwnk.kontor '{{.APP}}'
+      - codesign --verify --deep --strict '{{.APP}}'
+
   test:
     desc: Run all tests (all modules)
     cmds:
@@ -195,6 +220,11 @@ tasks:
       - cd sdk && golangci-lint fmt --diff ./... && golangci-lint run ./...
       - cd server && golangci-lint fmt --diff ./... && golangci-lint run ./...
       - for d in plugins/*/; do [ -d "$d" ] || continue; (cd "$d" && GOWORK=off golangci-lint fmt --diff ./... && GOWORK=off golangci-lint run ./...) || exit 1; done
+
+  changelog:check:
+    desc: 'Fail when CHANGELOG.md repeats a release heading or a ### heading within one release'
+    cmds:
+      - sh scripts/check-changelog-headings.sh
 
   generate:
     desc: Run go generate (ent schemas) and tygo TS codegen

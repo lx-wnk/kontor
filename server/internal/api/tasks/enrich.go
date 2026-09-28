@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -21,67 +22,85 @@ import (
 // which drops silverBullet: false and planMode: false from the payload instead
 // of sending them, and leaks the empty edges container.
 type TaskResponse struct {
-	ID                  string                 `json:"id"`
-	Slug                string                 `json:"slug"`
-	Title               string                 `json:"title"`
-	Description         *string                `json:"description"`
-	Cwd                 string                 `json:"cwd"`
-	WorktreePath        *string                `json:"worktreePath"`
-	SourceBranch        *string                `json:"sourceBranch"`
-	TargetBranch        *string                `json:"targetBranch"`
-	CurrentStage        string                 `json:"currentStage"`
-	Kind                string                 `json:"kind"`
-	RoutineID           *string                `json:"routineId"`
-	Priority            string                 `json:"priority"`
-	Autonomy            string                 `json:"autonomy"`
-	UserID              *string                `json:"userId"`
-	ParentTaskID        *string                `json:"parentTaskId"`
-	ProjectID           *string                `json:"projectId"`
-	SpawnerID           *string                `json:"spawnerId"`
-	MaxIterations       int                    `json:"maxIterations"`
-	TokenBudget         *int                   `json:"tokenBudget"`
-	CostBudgetCents     *int                   `json:"costBudgetCents"`
-	StageTimeoutSeconds int                    `json:"stageTimeoutSeconds"`
-	SilverBullet        bool                   `json:"silverBullet"`
-	PlanMode            bool                   `json:"planMode"`
-	Rank                *float64               `json:"rank"`
-	Metadata            map[string]interface{} `json:"metadata"`
-	CreatedAt           time.Time              `json:"createdAt"`
-	UpdatedAt           time.Time              `json:"updatedAt"`
+	ID              string                 `json:"id"`
+	Slug            string                 `json:"slug"`
+	Title           string                 `json:"title"`
+	Description     *string                `json:"description"`
+	Cwd             string                 `json:"cwd"`
+	WorktreePath    *string                `json:"worktreePath"`
+	SourceBranch    *string                `json:"sourceBranch"`
+	TargetBranch    *string                `json:"targetBranch"`
+	CurrentStage    string                 `json:"currentStage"`
+	Kind            string                 `json:"kind"`
+	RoutineID       *string                `json:"routineId"`
+	Priority        string                 `json:"priority"`
+	Autonomy        string                 `json:"autonomy"`
+	UserID          *string                `json:"userId"`
+	ParentTaskID    *string                `json:"parentTaskId"`
+	ProjectID       *string                `json:"projectId"`
+	SpawnerID       *string                `json:"spawnerId"`
+	MaxIterations   int                    `json:"maxIterations"`
+	TokenBudget     *int                   `json:"tokenBudget"`
+	CostBudgetCents *int                   `json:"costBudgetCents"`
+	SilverBullet    bool                   `json:"silverBullet"`
+	PlanMode        bool                   `json:"planMode"`
+	Rank            *float64               `json:"rank"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	CreatedAt       time.Time              `json:"createdAt"`
+	UpdatedAt       time.Time              `json:"updatedAt"`
+	DraftPrNumber   *int                   `json:"draftPrNumber"`
+	DraftPrUrl      *string                `json:"draftPrUrl"`
 }
 
 // ToTaskResponse maps a stored task onto the wire shape src/types.ts declares as
 // PipelineTask's non-computed half.
 func ToTaskResponse(t *ent.Task) TaskResponse {
-	return TaskResponse{
-		ID:                  t.ID,
-		Slug:                t.Slug,
-		Title:               t.Title,
-		Description:         t.Description,
-		Cwd:                 t.Cwd,
-		WorktreePath:        t.WorktreePath,
-		SourceBranch:        t.SourceBranch,
-		TargetBranch:        t.TargetBranch,
-		CurrentStage:        t.CurrentStage,
-		Kind:                t.Kind,
-		RoutineID:           t.RoutineID,
-		Priority:            t.Priority,
-		Autonomy:            t.Autonomy,
-		UserID:              t.UserID,
-		ParentTaskID:        t.ParentTaskID,
-		ProjectID:           t.ProjectID,
-		SpawnerID:           t.SpawnerID,
-		MaxIterations:       t.MaxIterations,
-		TokenBudget:         t.TokenBudget,
-		CostBudgetCents:     t.CostBudgetCents,
-		StageTimeoutSeconds: t.StageTimeoutSeconds,
-		SilverBullet:        t.SilverBullet,
-		PlanMode:            t.PlanMode,
-		Rank:                t.Rank,
-		Metadata:            t.Metadata,
-		CreatedAt:           t.CreatedAt,
-		UpdatedAt:           t.UpdatedAt,
+	resp := TaskResponse{
+		ID:              t.ID,
+		Slug:            t.Slug,
+		Title:           t.Title,
+		Description:     t.Description,
+		Cwd:             t.Cwd,
+		WorktreePath:    t.WorktreePath,
+		SourceBranch:    t.SourceBranch,
+		TargetBranch:    t.TargetBranch,
+		CurrentStage:    t.CurrentStage,
+		Kind:            t.Kind,
+		RoutineID:       t.RoutineID,
+		Priority:        t.Priority,
+		Autonomy:        t.Autonomy,
+		UserID:          t.UserID,
+		ParentTaskID:    t.ParentTaskID,
+		ProjectID:       t.ProjectID,
+		SpawnerID:       t.SpawnerID,
+		MaxIterations:   t.MaxIterations,
+		TokenBudget:     t.TokenBudget,
+		CostBudgetCents: t.CostBudgetCents,
+		SilverBullet:    t.SilverBullet,
+		PlanMode:        t.PlanMode,
+		Rank:            t.Rank,
+		Metadata:        t.Metadata,
+		CreatedAt:       t.CreatedAt,
+		UpdatedAt:       t.UpdatedAt,
 	}
+	// JSON numbers decode as float64 in map[string]any, so the type assertion
+	// for pr_number must target float64, not int.
+	if t.Metadata != nil {
+		if n, ok := t.Metadata["pr_number"].(float64); ok {
+			num := int(n)
+			resp.DraftPrNumber = &num
+		}
+		// pr_url is writable through task metadata; only an http(s) URL may reach an href.
+		if u, ok := t.Metadata["pr_url"].(string); ok && isHTTPURL(u) {
+			resp.DraftPrUrl = &u
+		}
+	}
+	return resp
+}
+
+func isHTTPURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // EnrichedTask is a task plus the fields computed at read time. The embedded

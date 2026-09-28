@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { Sector } from '../hubGeometry'
+import type { AgentProject, Sector } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
@@ -13,6 +13,7 @@ import { pageView, useViewState } from '@/composables/useViewState'
 import { useAgents } from '@/features/agents'
 import { NeedsYouQueue, useKontorAgent, useKontorSession } from '@/features/mission'
 import { failedWidgets, HUB_WIDGET, pageWithWidget, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
+import { agentProjectKey } from '@/utils/agentGroup'
 import { attentionFor } from '@/utils/attention'
 import { isTypingTarget } from '@/utils/isTypingTarget'
 import { NAV_ITEMS } from '@/utils/navConfig'
@@ -95,13 +96,14 @@ function blocksOnOperator(agent: Agent): boolean {
 
 const live = computed(() => agents.value.filter(a => a.status !== 'finished').sort((a, b) => a.pid - b.pid))
 // Equal joined names return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
-const liveProjectNames = computed<string[]>((previous) => {
-  const names = live.value.map(a => a.projectName)
-  return previous && names.join('\n') === previous.join('\n') ? previous : names
+const liveProjects = computed<AgentProject[]>((previous) => {
+  const projects = live.value.map(a => ({ key: agentProjectKey(a), label: a.projectName }))
+  const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}`).join('\n')
+  return previous && signature(projects) === signature(previous) ? previous : projects
 })
 // A refetch passes through 'loading'; a failed refetch keeps the last good notes too, so the brain and an open note card don't blank.
 const vaultNotes = computed(() => graphStatus.value === 'ready' || graphStatus.value === 'loading' || graphStatus.value === 'failed' ? notes.value : [])
-const plan = computed(() => planSectors(vaultNotes.value.map(n => n.path), liveProjectNames.value))
+const plan = computed(() => planSectors(vaultNotes.value.map(n => n.path), liveProjects.value))
 const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
 
 // A note the sector plan does not place is drawn nowhere: off stage, so the canvas skips it and it
@@ -187,7 +189,7 @@ const placed = computed(() => {
   const k = k0.value
   const { sectors, sectorOfProject } = plan.value
   return sectors.flatMap((sector) => {
-    const members = live.value.filter(a => sectorOfProject.get(a.projectName) === sector.key)
+    const members = live.value.filter(a => sectorOfProject.get(agentProjectKey(a)) === sector.key)
     const angles = agentAngles(members.length, sector)
     return members.map((agent, i) => {
       const needsOperator = blocksOnOperator(agent)

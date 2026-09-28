@@ -16,14 +16,13 @@ func TestTaskRepo_CreateAndGet(t *testing.T) {
 
 	desc := "fix the login"
 	task, err := r.Create(ctx, repo.CreateTaskInput{
-		Slug:                "fix-login",
-		Title:               "Fix Login",
-		Description:         &desc,
-		Cwd:                 "/tmp/proj",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Slug:          "fix-login",
+		Title:         "Fix Login",
+		Description:   &desc,
+		Cwd:           "/tmp/proj",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "fix-login", task.Slug)
@@ -45,7 +44,7 @@ func TestTaskRepo_Update_CurrentStage(t *testing.T) {
 	task, err := r.Create(ctx, repo.CreateTaskInput{
 		Slug: "my-task", Title: "My Task", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -64,7 +63,7 @@ func TestTaskRepo_Delete(t *testing.T) {
 	task, err := r.Create(ctx, repo.CreateTaskInput{
 		Slug: "to-delete", Title: "Delete Me", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -84,8 +83,8 @@ func TestTaskRepo_Update_MetadataClear(t *testing.T) {
 	task, err := r.Create(ctx, repo.CreateTaskInput{
 		Slug: "meta-task", Title: "Meta Task", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		Metadata: meta,
+		MaxIterations: 20,
+		Metadata:      meta,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, task.Metadata)
@@ -105,15 +104,15 @@ func TestTaskRepo_ListForUser_UnscopedSeesAll(t *testing.T) {
 	_, err := r.Create(ctx, repo.CreateTaskInput{
 		Slug: "task-u1", Title: "Task U1", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		UserID: &uid1,
+		MaxIterations: 20,
+		UserID:        &uid1,
 	})
 	require.NoError(t, err)
 	_, err = r.Create(ctx, repo.CreateTaskInput{
 		Slug: "task-u2", Title: "Task U2", Cwd: "/tmp",
 		CurrentStage: "backlog", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
-		UserID: &uid2,
+		MaxIterations: 20,
+		UserID:        &uid2,
 	})
 	require.NoError(t, err)
 
@@ -150,7 +149,7 @@ func TestTaskRepo_ListPickable(t *testing.T) {
 		_, err := r.Create(ctx, repo.CreateTaskInput{
 			Slug: tc.slug, Title: tc.slug, Cwd: "/tmp",
 			CurrentStage: tc.stage, Priority: "medium",
-			MaxIterations: 20, StageTimeoutSeconds: 1800,
+			MaxIterations: 20,
 		})
 		require.NoError(t, err)
 	}
@@ -229,14 +228,13 @@ func TestTaskRepo_RerankBetween(t *testing.T) {
 			// Seed the task under test with a known initial rank so it doesn't
 			// accidentally match any neighbor value.
 			target, err := r.Create(ctx, repo.CreateTaskInput{
-				Slug:                "target",
-				Title:               "Target",
-				Cwd:                 "/tmp",
-				CurrentStage:        "backlog",
-				Priority:            "medium",
-				MaxIterations:       20,
-				StageTimeoutSeconds: 1800,
-				Rank:                ptrFloat(9999.0),
+				Slug:          "target",
+				Title:         "Target",
+				Cwd:           "/tmp",
+				CurrentStage:  "backlog",
+				Priority:      "medium",
+				MaxIterations: 20,
+				Rank:          ptrFloat(9999.0),
 			})
 			require.NoError(t, err)
 
@@ -244,14 +242,13 @@ func TestTaskRepo_RerankBetween(t *testing.T) {
 
 			if tc.beforeRank != nil {
 				before, err := r.Create(ctx, repo.CreateTaskInput{
-					Slug:                "before",
-					Title:               "Before",
-					Cwd:                 "/tmp",
-					CurrentStage:        "backlog",
-					Priority:            "medium",
-					MaxIterations:       20,
-					StageTimeoutSeconds: 1800,
-					Rank:                tc.beforeRank,
+					Slug:          "before",
+					Title:         "Before",
+					Cwd:           "/tmp",
+					CurrentStage:  "backlog",
+					Priority:      "medium",
+					MaxIterations: 20,
+					Rank:          tc.beforeRank,
 				})
 				require.NoError(t, err)
 				beforeID = before.ID
@@ -259,14 +256,13 @@ func TestTaskRepo_RerankBetween(t *testing.T) {
 
 			if tc.afterRank != nil {
 				after, err := r.Create(ctx, repo.CreateTaskInput{
-					Slug:                "after",
-					Title:               "After",
-					Cwd:                 "/tmp",
-					CurrentStage:        "backlog",
-					Priority:            "medium",
-					MaxIterations:       20,
-					StageTimeoutSeconds: 1800,
-					Rank:                tc.afterRank,
+					Slug:          "after",
+					Title:         "After",
+					Cwd:           "/tmp",
+					CurrentStage:  "backlog",
+					Priority:      "medium",
+					MaxIterations: 20,
+					Rank:          tc.afterRank,
 				})
 				require.NoError(t, err)
 				afterID = after.ID
@@ -296,8 +292,8 @@ func TestTaskRepo_CountActiveBySourceBranch(t *testing.T) {
 		task, err := r.Create(ctx, repo.CreateTaskInput{
 			Slug: slug, Title: slug, Cwd: "/tmp",
 			CurrentStage: stage, Priority: "medium",
-			MaxIterations: 20, StageTimeoutSeconds: 1800,
-			SourceBranch: &b,
+			MaxIterations: 20,
+			SourceBranch:  &b,
 		})
 		require.NoError(t, err)
 		return task.ID

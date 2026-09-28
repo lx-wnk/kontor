@@ -68,7 +68,7 @@ func TestProvideScheduler_RunModeReachesTheCreatedTask(t *testing.T) {
 		t.Run(tc.runMode, func(t *testing.T) {
 			s, err := schedRepo.Create(ctx, repo.CreateTaskScheduleInput{
 				Name: "routine-" + tc.runMode, CronExpr: "0 9 * * *", SlugPrefix: "routine-" + tc.runMode,
-				Title: "Routine", Cwd: t.TempDir(), MaxIterations: 20, StageTimeoutSeconds: 1800,
+				Title: "Routine", Cwd: t.TempDir(), MaxIterations: 20,
 				RunMode: tc.runMode,
 			})
 			if err != nil {

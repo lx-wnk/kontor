@@ -42,6 +42,26 @@ func TestReadyHandler_TransitionsToImplementation(t *testing.T) {
 	require.True(t, audited)
 }
 
+func TestReadyHandler_TransitionsToPlanReviewWhenPlanMode(t *testing.T) {
+	h := pipeline.GetHandlerForStage("ready")
+	require.NotNil(t, h)
+	require.False(t, h.RequiresAgent())
+
+	ctx := &pipeline.StageContext{
+		Ctx:      context.Background(),
+		Task:     &ent.Task{Slug: "my-task", CurrentStage: "ready", PlanMode: true},
+		StageRun: &ent.StageRun{Stage: "ready"},
+		RecordAudit: func(action string, _ map[string]any) {
+		},
+		RequestPermission: func(tool, pattern, reason string) *ent.PermissionRequest { return nil },
+	}
+	transition, err := h.Execute(ctx)
+	require.NoError(t, err)
+	next, ok := transition.(pipeline.NextTransition)
+	require.True(t, ok)
+	require.Equal(t, "plan_review", next.Stage)
+}
+
 func TestBacklogHandler_WaitsUser(t *testing.T) {
 	h := pipeline.GetHandlerForStage("backlog")
 	require.NotNil(t, h)
@@ -256,7 +276,7 @@ func TestAgentStageHandler_IssueTaskAPIKeyErrorIsNotFatal(t *testing.T) {
 
 	ctx := &pipeline.StageContext{
 		Ctx:               context.Background(),
-		Task:              &ent.Task{Title: "Fix the retry loop", Cwd: "/tmp/proj-key-err", StageTimeoutSeconds: 1800},
+		Task:              &ent.Task{Title: "Fix the retry loop", Cwd: "/tmp/proj-key-err"},
 		StageRun:          &ent.StageRun{Stage: "implementation", ID: "sr-key-err"},
 		RecordAudit:       func(string, map[string]any) {},
 		RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },
@@ -285,7 +305,8 @@ func TestAgentStageHandler_IssueTaskAPIKeySuccessReachesSpawnOptions(t *testing.
 	var gotTimeout time.Duration
 	ctx := &pipeline.StageContext{
 		Ctx:               context.Background(),
-		Task:              &ent.Task{Title: "Fix the retry loop", Cwd: "/tmp/proj-key-ok", StageTimeoutSeconds: 1800},
+		Task:              &ent.Task{Title: "Fix the retry loop", Cwd: "/tmp/proj-key-ok"},
+		StageTimeout:      1800 * time.Second,
 		StageRun:          &ent.StageRun{Stage: "implementation", ID: "sr-key-ok"},
 		RecordAudit:       func(string, map[string]any) {},
 		RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },
@@ -300,11 +321,37 @@ func TestAgentStageHandler_IssueTaskAPIKeySuccessReachesSpawnOptions(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, "tok", captured.TaskAPIToken)
 	require.Equal(t, "sr-key-ok", gotStageRunID)
-	// StageTimeoutSeconds is an int count of SECONDS: taking the duration as
-	// `_` here let the unit on the conversion drift unnoticed, and a key
-	// minted with a millisecond TTL dies before its agent's first call.
 	require.Equal(t, 1800*time.Second, gotTimeout,
-		"the stage timeout must reach the issuer as seconds, not as raw units")
+		"the stage timeout must reach the issuer as a duration")
+}
+
+func TestAgentStageHandler_IssueTaskAPIKeyUsesStageTimeoutNotTaskColumn(t *testing.T) {
+	var captured pipeline.SpawnAgentOptions
+	spawnFn := func(opts pipeline.SpawnAgentOptions) (pipeline.SpawnResult, error) {
+		captured = opts
+		return pipeline.SpawnResult{PID: 123}, nil
+	}
+	handler := pipeline.NewAgentStageHandlerForTest("implementation", spawnFn)
+
+	var gotTimeout time.Duration
+	ctx := &pipeline.StageContext{
+		Ctx:               context.Background(),
+		Task:              &ent.Task{Title: "MCP-created task", Cwd: "/tmp/proj-key-global"},
+		StageTimeout:      3600 * time.Second,
+		StageRun:          &ent.StageRun{Stage: "implementation", ID: "sr-key-global"},
+		RecordAudit:       func(string, map[string]any) {},
+		RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },
+		IssueTaskAPIKey: func(_ context.Context, _ string, timeout time.Duration) (string, error) {
+			gotTimeout = timeout
+			return "tok", nil
+		},
+	}
+
+	_, err := handler.Execute(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "tok", captured.TaskAPIToken)
+	require.Equal(t, 3600*time.Second, gotTimeout,
+		"the global stage timeout must reach the issuer")
 }
 
 // TestAgentStageHandler_MemoryBlockInNativeUserPromptNotSystemPrompt is the
@@ -569,7 +616,7 @@ func TestAgentStageHandler_ApplicationResolutionFailureFailsBeforeSpawn(t *testi
 	minted := false
 	ctx := &pipeline.StageContext{
 		Ctx:               context.Background(),
-		Task:              &ent.Task{Title: "Reply to mail", Cwd: "/tmp/proj-apps", StageTimeoutSeconds: 1800},
+		Task:              &ent.Task{Title: "Reply to mail", Cwd: "/tmp/proj-apps"},
 		StageRun:          &ent.StageRun{Stage: "implementation", ID: "sr-apps"},
 		RecordAudit:       func(string, map[string]any) {},
 		RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },

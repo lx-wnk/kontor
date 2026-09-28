@@ -52,63 +52,61 @@ func IsValidRunMode(mode string) bool {
 type CreateTaskScheduleInput struct {
 	// OwnerModule names the module that brought this routine, empty for one a
 	// human created. It decides who may change the row later.
-	OwnerModule         string
-	Name                string
-	Enabled             *bool
-	NLText              *string
-	CronExpr            string
-	Timezone            string
-	Catchup             string
-	SlugPrefix          string
-	Title               string
-	Description         *string
-	Cwd                 string
-	SourceBranch        *string
-	TargetBranch        *string
-	Priority            string
-	MaxIterations       int
-	TokenBudget         *int
-	CostBudgetCents     *int
-	StageTimeoutSeconds int
-	SilverBullet        bool
-	ProjectID           *string
-	SpawnerID           *string
-	PermissionTemplate  *string
-	Metadata            map[string]any
-	UserID              *string
-	NextRunAt           *time.Time
-	Applications        []string
-	RunMode             string
+	OwnerModule        string
+	Name               string
+	Enabled            *bool
+	NLText             *string
+	CronExpr           string
+	Timezone           string
+	Catchup            string
+	SlugPrefix         string
+	Title              string
+	Description        *string
+	Cwd                string
+	SourceBranch       *string
+	TargetBranch       *string
+	Priority           string
+	MaxIterations      int
+	TokenBudget        *int
+	CostBudgetCents    *int
+	SilverBullet       bool
+	ProjectID          *string
+	SpawnerID          *string
+	PermissionTemplate *string
+	Metadata           map[string]any
+	UserID             *string
+	NextRunAt          *time.Time
+	Applications       []string
+	RunMode            string
 }
 
 // UpdateTaskScheduleInput patches schedule fields. Nil pointers leave a field
 // unchanged. Template fields and the cron definition can all be edited.
 type UpdateTaskScheduleInput struct {
-	Name                *string
-	Enabled             *bool
-	NLText              *string
-	CronExpr            *string
-	Timezone            *string
-	Catchup             *string
-	SlugPrefix          *string
-	Title               *string
-	Description         *string
-	Cwd                 *string
-	SourceBranch        *string
-	TargetBranch        *string
-	Priority            *string
-	MaxIterations       *int
-	TokenBudget         *int
-	CostBudgetCents     *int
-	StageTimeoutSeconds *int
-	SilverBullet        *bool
-	ProjectID           *string
-	SpawnerID           *string
-	PermissionTemplate  *string
-	Metadata            map[string]any
-	NextRunAt           *time.Time
-	Applications        *[]string
-	RunMode             *string
+	Name               *string
+	Enabled            *bool
+	NLText             *string
+	CronExpr           *string
+	Timezone           *string
+	Catchup            *string
+	SlugPrefix         *string
+	Title              *string
+	Description        *string
+	Cwd                *string
+	SourceBranch       *string
+	TargetBranch       *string
+	Priority           *string
+	MaxIterations      *int
+	TokenBudget        *int
+	CostBudgetCents    *int
+	SilverBullet       *bool
+	ProjectID          *string
+	SpawnerID          *string
+	PermissionTemplate *string
+	Metadata           map[string]any
+	NextRunAt          *time.Time
+	Applications       *[]string
+	RunMode            *string
 }
 
 // FireStateInput records the result of a fire: the spawned task and the next
@@ -142,7 +140,6 @@ func (r *entTaskScheduleRepo) Create(ctx context.Context, in CreateTaskScheduleI
 		SetTitle(in.Title).
 		SetCwd(in.Cwd).
 		SetMaxIterations(in.MaxIterations).
-		SetStageTimeoutSeconds(in.StageTimeoutSeconds).
 		SetSilverBullet(in.SilverBullet).
 		SetOwnerModule(in.OwnerModule)
 
@@ -262,9 +259,6 @@ func (r *entTaskScheduleRepo) Update(ctx context.Context, id string, in UpdateTa
 	}
 	if in.MaxIterations != nil {
 		q = q.SetMaxIterations(*in.MaxIterations)
-	}
-	if in.StageTimeoutSeconds != nil {
-		q = q.SetStageTimeoutSeconds(*in.StageTimeoutSeconds)
 	}
 	if in.SilverBullet != nil {
 		q = q.SetSilverBullet(*in.SilverBullet)

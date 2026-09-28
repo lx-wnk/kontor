@@ -75,6 +75,8 @@ func (r *Runner) run(ctx context.Context, cwd string, combined bool, args ...str
 	// #nosec G204 -- r.bin is the PATH-resolved git binary from NewRunner, never caller-supplied; caller-supplied branch names and paths reach argv only, which exec.CommandContext passes without a shell.
 	cmd := exec.CommandContext(ctx, r.bin, args...)
 	cmd.Dir = cwd
+	// No terminal: a credential prompt would otherwise hang until the timeout.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if combined {
 		out, err := cmd.CombinedOutput()
 		return string(out), err

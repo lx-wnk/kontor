@@ -22,7 +22,8 @@ type NextTransition struct {
 }
 
 type DoneTransition struct {
-	Output map[string]any
+	Output        map[string]any
+	MetadataPatch map[string]any
 }
 
 type FailTransition struct {
@@ -97,6 +98,9 @@ type StageContext struct {
 	UserAdditionalPrompt string
 	MCPToken             string
 	MCPUrl               string
+
+	// StageTimeout is the global stageTimeoutSeconds the kill check enforces; 0 means none.
+	StageTimeout time.Duration
 
 	// AllowGitPush mirrors OrchestratorOptions.AllowGitPush for the current stage,
 	// gating whether spawned agents may run `git push`.
@@ -319,11 +323,22 @@ type OrchestratorOptions struct {
 	// Nil-safe — no-op when absent.
 	CheckpointerStopFn func(taskID string)
 
-	// HasUnpushedWorkFn reports whether a terminal task's worktree still holds
-	// unpushed commits or uncommitted changes. When it returns true, terminal
-	// cleanup retains the worktree instead of force-removing it, so the work is
-	// not orphaned. Nil disables the check (cleanup behaves as before).
+	// HasUnpushedWorkFn reports whether a task's worktree still holds unpushed
+	// commits or uncommitted changes. When it returns true, terminal cleanup
+	// retains the worktree instead of force-removing it, so the work is not
+	// orphaned. Nil disables both this check and finalization's unpushed-work check.
 	HasUnpushedWorkFn func(ctx context.Context, task *ent.Task) bool
+
+	// PushFn pushes the task branch to origin. Called off the tick loop when
+	// finalization completes and the task allows git push. Production wires
+	// ProductionPushFn; tests inject a stub. When nil, push is skipped.
+	PushFn func(ctx context.Context, task *ent.Task) error
+
+	// CreateDraftPRFn creates a draft PR for the task branch against the given
+	// base. Returns the PR number and URL. Production wires
+	// ProductionCreateDraftPRFn; tests inject a stub. When nil, PR creation is
+	// skipped.
+	CreateDraftPRFn func(ctx context.Context, worktreePath, branch, base, title, prBody string) (prNumber int, prURL string, err error)
 
 	// ResolveSpawner returns the effective DB spawner row for a task right
 	// before the native Claude path is taken. When nil, stage handlers spawn

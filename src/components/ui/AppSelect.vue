@@ -11,6 +11,7 @@ const props = withDefaults(defineProps<{
   ariaLabel?: string
   disabled?: boolean
   size?: 'default' | 'compact'
+  placeholder?: string
 }>(), {
   size: 'default',
 })
@@ -36,6 +37,7 @@ const TRIGGER_CLASS = 'bg-card border border-line rounded-md text-fg focus-visib
 const panelId = useId()
 const buttonRef = ref<HTMLButtonElement | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
+const openTriggerRef = ref<HTMLDivElement | null>(null)
 const panelRef = ref<HTMLDivElement | null>(null)
 
 const isOpen = ref(false)
@@ -44,8 +46,9 @@ const activeIndex = ref(-1)
 const inputSize = ref<{ width?: string, height?: string }>({})
 const panelPosition = ref<{ top?: string, bottom?: string, left: string, minWidth: string, maxWidth: string }>({ left: '0px', minWidth: '0px', maxWidth: '0px' })
 
+// While open, the trigger is the input plus its chevron, so a mousedown on the chevron is not an outside mousedown.
 function triggerEl(): HTMLElement | null {
-  return inputRef.value ?? buttonRef.value
+  return openTriggerRef.value ?? buttonRef.value
 }
 
 // One-shot suppression for the click that follows a dismissing outside
@@ -153,8 +156,8 @@ function updatePosition() {
     : { top: `${rect.bottom}px`, left: `${left}px`, minWidth: `${rect.width}px`, maxWidth: `${maxWidth}px` }
 }
 
-// The input stands in for the (hidden, still mounted) button while open,
-// sized to it so the surrounding layout does not jump.
+// The input and its chevron stand in for the (hidden, still mounted) button
+// while open, sized to it so the surrounding layout does not jump.
 async function openPanel(initialQuery = '') {
   if (props.disabled || isOpen.value)
     return
@@ -323,28 +326,38 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <input
-    v-if="isOpen"
-    :id="id"
-    ref="inputRef"
-    type="text"
-    role="combobox"
-    aria-expanded="true"
-    aria-autocomplete="list"
-    :aria-controls="panelId"
-    :aria-activedescendant="activeOptionId"
-    :aria-label="ariaLabel"
-    autocomplete="off"
-    spellcheck="false"
-    :value="query"
-    :placeholder="selectedLabel"
-    :class="[$attrs.class, sizeClass, TRIGGER_CLASS]"
-    class="placeholder:text-fg-mute"
-    :style="inputSize"
-    @input="onInput"
-    @keydown="onInputKeydown"
-    @blur="closePanel()"
-  >
+  <div v-if="isOpen" ref="openTriggerRef" :class="$attrs.class" class="relative inline-flex" :style="inputSize">
+    <input
+      :id="id"
+      ref="inputRef"
+      type="text"
+      role="combobox"
+      aria-expanded="true"
+      aria-autocomplete="list"
+      :aria-controls="panelId"
+      :aria-activedescendant="activeOptionId"
+      :aria-label="ariaLabel"
+      autocomplete="off"
+      spellcheck="false"
+      :value="query"
+      :placeholder="selectedLabel || placeholder"
+      :class="[sizeClass, TRIGGER_CLASS]"
+      class="w-full placeholder:text-fg-mute pr-7"
+      @input="onInput"
+      @keydown="onInputKeydown"
+      @blur="closePanel()"
+    >
+    <button
+      type="button"
+      tabindex="-1"
+      aria-hidden="true"
+      class="absolute right-0 inset-y-0 flex items-center px-2 text-fg-mute text-xs leading-none cursor-pointer"
+      @mousedown.prevent
+      @click="closePanel({ refocus: true })"
+    >
+      ▾
+    </button>
+  </div>
   <button
     v-show="!isOpen"
     :id="isOpen ? undefined : id"
@@ -362,7 +375,7 @@ onUnmounted(() => {
     @click="toggle"
     @keydown="onButtonKeydown"
   >
-    <span class="truncate" :title="selectedLabel || undefined">{{ selectedLabel }}</span>
+    <span class="truncate" :title="selectedLabel || undefined">{{ selectedLabel || placeholder }}</span>
     <span aria-hidden="true" class="text-fg-mute text-xs leading-none flex-shrink-0">▾</span>
   </button>
 

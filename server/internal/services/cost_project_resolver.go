@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
@@ -36,13 +37,60 @@ type CostProjectResolver struct {
 
 	mu       sync.Mutex
 	cache    map[string][2]string // cwd → {path, name}
-	folders0 []folderEntry        // loaded once, sorted by path length desc
+	folders0 ProjectFolderIndex   // loaded once
 	loaded   bool
 }
 
 type folderEntry struct {
-	path string
-	name string
+	path      string
+	projectID string
+	name      string
+}
+
+// ProjectFolderIndex matches a cwd to the registered project folder that
+// contains it, most specific folder first.
+type ProjectFolderIndex []folderEntry
+
+// NewProjectFolderIndex indexes rows, which need their project edge loaded
+// (ProjectFolderRepo.ListAll loads it).
+func NewProjectFolderIndex(rows []*ent.ProjectFolder) ProjectFolderIndex {
+	idx := make(ProjectFolderIndex, 0, len(rows))
+	for _, f := range rows {
+		e := folderEntry{path: filepath.Clean(f.Path)}
+		if f.Edges.Project != nil {
+			e.projectID = f.Edges.Project.ID
+			e.name = f.Edges.Project.Name
+		}
+		idx = append(idx, e)
+	}
+	sort.Slice(idx, func(i, j int) bool { return len(idx[i].path) > len(idx[j].path) })
+	return idx
+}
+
+// Match returns the ID and name of the project whose folder contains cwd.
+func (idx ProjectFolderIndex) Match(cwd string) (projectID, name string, ok bool) {
+	if cwd == "" {
+		return "", "", false
+	}
+	f, found := matchFolder(filepath.Clean(cwd), idx)
+	if !found || f.projectID == "" {
+		return "", "", false
+	}
+	return f.projectID, f.name, true
+}
+
+// matchFolder returns the first folder that is clean or an ancestor of it;
+// folders must be sorted longest path first.
+func matchFolder(clean string, folders []folderEntry) (folderEntry, bool) {
+	for _, f := range folders {
+		if f.path == "" {
+			continue
+		}
+		if clean == f.path || strings.HasPrefix(clean, f.path+string(filepath.Separator)) {
+			return f, true
+		}
+	}
+	return folderEntry{}, false
 }
 
 // NewCostProjectResolver builds a resolver backed by the dashboard ProjectFolder
@@ -86,17 +134,7 @@ func (r *CostProjectResolver) ensureFoldersLocked(ctx context.Context) {
 	if err != nil {
 		return // leave folders0 empty; resolution falls through to git/basename
 	}
-	for _, f := range rows {
-		name := ""
-		if f.Edges.Project != nil {
-			name = f.Edges.Project.Name
-		}
-		r.folders0 = append(r.folders0, folderEntry{path: filepath.Clean(f.Path), name: name})
-	}
-	// Longest path first so the first prefix match is the most specific folder.
-	sort.Slice(r.folders0, func(i, j int) bool {
-		return len(r.folders0[i].path) > len(r.folders0[j].path)
-	})
+	r.folders0 = NewProjectFolderIndex(rows)
 }
 
 // resolveUncached applies the three-tier precedence for a single cwd.
@@ -104,17 +142,12 @@ func resolveUncached(ctx context.Context, cwd string, folders []folderEntry) (st
 	clean := filepath.Clean(cwd)
 
 	// 1. Dashboard folder prefix match (folders are sorted longest-first).
-	for _, f := range folders {
-		if f.path == "" {
-			continue
+	if f, ok := matchFolder(clean, folders); ok {
+		name := f.name
+		if name == "" {
+			name = filepath.Base(f.path)
 		}
-		if clean == f.path || strings.HasPrefix(clean, f.path+string(filepath.Separator)) {
-			name := f.name
-			if name == "" {
-				name = filepath.Base(f.path)
-			}
-			return f.path, name
-		}
+		return f.path, name
 	}
 
 	// 2. Git repo root, with worktrees collapsed onto the main checkout.

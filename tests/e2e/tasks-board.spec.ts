@@ -16,7 +16,6 @@ const TASK: PipelineTask = {
   maxIterations: 3,
   tokenBudget: 0,
   costBudgetCents: 0,
-  stageTimeoutSeconds: 0,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   metadata: {},

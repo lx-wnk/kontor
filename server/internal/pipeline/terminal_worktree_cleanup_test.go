@@ -52,14 +52,14 @@ func orchWithRemoveFn(t *testing.T, bundle *db.DBBundle, spy *removeWorktreeSpy)
 func seedTaskWithWorktree(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, slug, stage string) *ent.Task {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               slug,
-		Cwd:                 "/tmp",
-		CurrentStage:        stage,
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
-		SourceBranch:        strptr("feat/" + slug),
+		Slug:          slug,
+		Title:         slug,
+		Cwd:           "/tmp",
+		CurrentStage:  stage,
+		Priority:      "medium",
+		MaxIterations: 3,
+
+		SourceBranch: strptr("feat/" + slug),
 	})
 	require.NoError(t, err)
 	wt := "/tmp/wt/" + slug
@@ -135,13 +135,12 @@ func TestTerminalCleanup_NoWorktreeNoOp(t *testing.T) {
 	orch, taskRepo := orchWithRemoveFn(t, bundle, spy)
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "no-wt",
-		Title:               "no-wt",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "no-wt",
+		Title:         "no-wt",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 

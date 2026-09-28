@@ -12,209 +12,8 @@ from [Conventional Commits](https://www.conventionalcommits.org/) by GoReleaser.
 
 Preparing the first public release.
 
-### Fixed
-
-- The desktop app no longer hangs at start when opened from Finder. Watching Claude's config in the home directory opened every entry there, including `~/Desktop`, which waits on a macOS privacy prompt; the config file is now polled instead.
-- **A half-filled Obsidian setup no longer stops the server from starting.**
-  Boot used to fail outright when only some of `obsidian.baseURL`,
-  `obsidian.vaultRoot` and `obsidian.apiKey` were set; it now logs a warning
-  and starts with the vault off, the same tolerance a broken GitHub
-  configuration already has.
-- **The hub graph no longer shows the previous vault after switching.** The
-  cached graph survived a live Obsidian settings save because it was keyed
-  only by time, not by which vault built it; swapping vaults now drops the
-  cache immediately instead of serving the old vault's notes for up to 60s.
-- **GitHub tile rows no longer overflow the tile.** The pull request title
-  shared one row with its checks, `repo#number` and the Merge button, so a
-  long title or a wide checks label pushed the row past the tile's width and
-  turned the whole panel's `overflow-y-auto` into a horizontal scrollbar too.
-  Each row is now two lines: the title truncates with an ellipsis on its own
-  line, `repo#number` and the checks/merge controls sit on the line below.
-- **Token totals no longer double-count under concurrent refreshes.** When the
-  agent stream, a hook-triggered rescan and an HTTP read refreshed the same
-  active session at once, each added the newly appended messages, inflating
-  that agent's tokens and cost. An appended region is now counted once.
-- **A widget whose chunk failed once recovers after a successful reload.**
-  A tile that failed to load stayed recorded as failed even after a remount
-  loaded its chunk, so the hub kept the needs-you strip visible beside it and
-  kept refusing to open the Kontor tile. A successful load now clears the
-  record.
-- **The entry chunk cleared its bundle budget again.** The workspace widget
-  registry statically imported all nine widgets — and the cockpit, mission and
-  analytics code they pull in — so `App.vue`'s own static import of
-  `ApiKeySettings.vue`, the largest module reachable from the entry point, put
-  the chunk 5 KB over budget. Both now load through `defineAsyncComponent`.
-- **A stored `page:zentrale` no longer falls through oddly.** `resolveView`
-  folds it, and any stored page id that fails the page-id pattern, into the
-  core `zentrale` view instead of treating it as an ordinary page lookup; a
-  whitespace-only stored layout is now treated as empty on the server exactly
-  as `parseLayout` already treats it on the client.
-- **The Kontor overlay no longer re-places itself while you scroll inside
-  it.** Its capturing scroll listener ran `getBoundingClientRect` on every
-  scroll underneath it, including the session transcript's own scrolling; it
-  now skips scrolls the overlay itself contains.
-- **The Insights nav group no longer jumps as pages load in.** The
-  `+ New page` slot used to mount only once the layout had loaded, so the
-  bottom-anchored Insights group visibly shifted the moment it appeared; the
-  slot — and its button, disabled until then — now renders from first paint.
-  The Pages group's caption also duplicated the core groups' caption markup;
-  both now render through one shared `NavGroupCaption`.
-- **Only one Done button shows while editing a page, and edit mode ends when
-  you navigate away.** The topbar's `Edit layout` toggle and the edit bar's
-  own `Done` button both closed edit mode; the topbar button now hides while
-  editing instead. Edit mode also used to survive navigating to another view
-  and back, leaving a stale edit bar open over whatever the operator went to
-  next; `App.vue`'s existing `activeView` watcher now ends it on every
-  navigation. The delete confirmation stayed armed across a rename, so a
-  second click right after renaming the page could delete it instead of
-  confirming the new title; it now disarms as soon as the title input
-  changes or the rename is saved.
-- **A page created or deleted from the sidebar keeps focus, and choosing any
-  view lands focus in its content instead of stranding it on the nav button
-  just activated (SC 2.4.3).** `App.vue`'s `activeView` watcher is the sole,
-  declarative owner of post-navigation focus: `useViewState` gains
-  `focusAfterNavigation`, which a caller sets before navigating and the
-  watcher consumes once, falling back to `#main-content` only when nothing
-  was declared. Creating a page declares its own new nav item; deleting one
-  declares the Zentrale nav item, landing there even when the edit bar's
-  second confirmation removed the page from under the pointer.
-- **Edit layout and Done keep focus on a reachable control instead of
-  dropping it to `<body>`.** Entering edit mode hides the toggle button that
-  held focus, and Done unmounts the edit bar that held it after; each click
-  now moves focus itself — Edit layout to the edit bar's own Done button,
-  Done back to the toggle.
-- **A rate-limited project load no longer leaves the spawn picker empty.** A
-  429 on the boot `GET /api/projects` left the project list empty until the
-  60 s fallback poll, so the spawn dialog offered no project. The load now
-  retries through `fetchWithRateLimitRetry`, the same helper `useWorkspace`
-  already used for the layout.
-- **Ask Kontor keeps its prompt when the tile mounts with one already
-  pending.** `KontorTile`'s watch ran its `immediate` call during setup,
-  before the agent's own pane existed, so the first prompt was silently
-  consumed and lost. A prompt already pending at mount is now taken in
-  `onMounted` instead; a later one still arrives through the watch. Clicking
-  the hub's core with no prompt (an empty ask) no longer stages one either,
-  so it no longer wipes a draft already typed into an open overlay.
-- **The hub flies to a note or agent requested before its stage has a
-  size.** A focus request pending when the hub mounts — from a launcher, the
-  command palette, or a card's link — used to fly against a 1×1 stage and a
-  placeholder scale, landing on the wrong point or, under reduced motion,
-  losing the flight to the first resize. The camera now queues that flight
-  and applies it once the first real size arrives.
-- **Opening a card from the hub's list focuses it; closing one, or its
-  target disappearing, hands focus back to the stage.** The separate
-  agent-pid and note-path state a card was keyed on let a stale id reopen a
-  card whose target was already gone; one `openCard` value now makes at most
-  one card possible by construction.
-- **A widget whose chunk fails to load shows an error tile instead of a
-  blank one, and a failed hub chunk still shows the needs-you strip.**
-  `defineAsyncComponent` rendered nothing on a rejected loader — the case
-  when the server is rebuilt while a tab stays open — leaving a blank tile
-  with no way back. Each widget now renders the shell's `PageLoadError` on
-  that failure and records it in a reactive set, which `pageHasHub` also
-  checks, so a failed hub tile no longer hides what needs you.
-- **A whitespace-only `workspace.layout` no longer bypasses its 1 MiB size
-  cap.** The empty-value shortcut ran before the byte-length check, so a
-  value that was all whitespace skipped the cap regardless of size; the size
-  check now runs first.
-- **A note with a malformed `mtime` no longer blanks the whole hub graph.**
-  One bad value aborted the graph request entirely; that note is now skipped
-  and logged by path (never the raw value), the same handling a malformed
-  `links` value already got.
-- **A slash command installed mid-session appears without a reload.** The
-  prompt's command list was cached per session id for the life of the tab, so
-  a newly installed or enabled command stayed invisible and the cache kept one
-  entry per session id forever. Entries now expire after 60 seconds — the
-  lifetime the neighbouring graph caches already use — and writing one prunes
-  the expired ones.
-- **A tile dropped after the window changed size lands under the pointer.**
-  The workspace grid measured its rectangle once per drag, so a window resize,
-  an expanding sidebar or a scroll while a tile was held placed every
-  subsequent drop against the old geometry.
-- **Resizing the hub mid-flight still centres what was clicked.** A camera
-  flight fixed its target scale at launch, so a stage that changed size during
-  the 480 ms left the camera off the requested zoom level until the next
-  "fit"; a resize now cancels the flight and settles on its destination.
-- **The hub says so when the Kontor tile could not load, instead of
-  swallowing the question.** If the Kontor chunk 404s — the server was rebuilt
-  while the tab stayed open — the tile renders the page-load error and nothing
-  is left to receive a prompt. The hub's core and a note card's
-  "Ask Kontor about this" used to send one anyway and it vanished without a
-  trace; both are now disabled and name the reason, the same way they already
-  handle a layout with no Kontor tile at all.
-
-### Changed
-
-- **Every select can be filtered by typing.** Opening a select (click, arrow key, or just typing while it has focus) turns it into a text field that narrows the list by label as you type; arrow keys and Enter pick from the filtered list, Escape restores the previous choice, and a "No matches" row says when nothing fits. Only listed options can be picked. The workspace "Add a tile" and tile "Swap" pickers now use the same select.
-- **Obsidian status now tells you why the vault is unreachable, not just that it's configured.** `GET /api/obsidian/status` probes the vault with a cheap unauthenticated ping and reports `reachable` plus a short error and an actionable hint (self-signed certificate, wrong API key, Obsidian not running); the settings panel shows that hint under the Index button and disables it until the vault is reachable. A denied "Index now" run now links straight to the Grants settings instead of leaving you to find them yourself.
-- **Index now is disabled until the vault works.** The button used to be
-  clickable regardless of whether Obsidian was configured; the settings panel
-  now fetches `GET /api/obsidian/status` on load and after every save, and
-  disables the button with a hint until the vault is reachable.
-- **The GitHub tile lists open pull requests you are involved in, up to 20.**
-  `GET /api/github/summary` now merges each configured repository's own open
-  pull requests with whatever the `involves:@me` search finds across every
-  repository the token can see, deduped by repo#number, sorted by most
-  recently updated, and capped at 20 instead of the previous 5-per-repository,
-  8-shown limit.
-- Obsidian settings take effect as soon as they are saved; no restart.
-- **The four `obsidian_*` MCP tools follow the vault's live state, not a
-  startup snapshot.** Configuring a vault while the server is already running
-  used to leave the tools unlisted and uncallable until a restart; `tools/list`
-  and `tools/call` now re-check availability on every request, so the tools
-  appear the moment the vault is set and disappear the moment it is cleared —
-  with no server restart either way.
-- The hub returns to its previous zoom and position after closing a card or
-  coming back from a module.
-- The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
-  `lx-wnk/tap/kontor`, the container image is `ghcr.io/lx-wnk/kontor`, the macOS
-  bundle identifier is `com.lxwnk.kontor`, and the Go modules are
-  `github.com/lx-wnk/kontor/{sdk,server,desktop}` with plugins under
-  `github.com/lx-wnk/kontor-plugin-*`. The installer's environment variables are
-  now `KONTOR_BIN_DIR` and `KONTOR_VERSION`.
-- Configuration variables are now `KONTOR_*`. The old `DASHBOARD_*` names are
-  still read, the new ones win when both are set, and the server warns once at
-  boot when it found only old ones.
-- A new installation writes `~/.claude/kontor-tasks.db`; one that already has
-  `dashboard-tasks.db` keeps using it. The plugin encryption key is copied to
-  `kontor-secret.key` on first boot and the previous file is kept as a backup.
-- The hook script and its secret file keep their old names in this release. The
-  copy already installed in `~/.claude` has those paths baked in, so renaming
-  them without reinstalling the script would stop it authenticating.
-- **Every Zentrale tile gets the same frame.** `CockpitPanel` renders an icon,
-  an uppercase label and, when a tile has one, a key figure shown large above
-  its body — the prototype's header, now shared by every tile instead of each
-  one drawing its own.
-- **Workspace widgets load lazily.** Each of the nine widgets is a
-  `defineAsyncComponent` loader keyed by a `WidgetId` union instead of a
-  static import, so the index chunk pulls in only the widget actually shown,
-  and unknown ids are rejected at the type level.
-- **The page is called Kontor.** The browser tab title, and the base the
-  needs-you count prefixes, now read `Kontor` instead of `Agent Dashboard —
-  Claude Code agent monitor`.
-- **The sidebar stops moving the item you are aiming at.** Hovering the icon rail expanded it, and two things that render only in the expanded state changed the geometry underneath the pointer: the group captions (`MONITOR`, `BUILD`, `INSIGHTS`) inserted three rows, and the footer laid its three action buttons out in a row instead of a column, making it ~80px shorter. Because the last nav group is bottom-anchored with `mt-auto`, that second one lifted every Insights item by that much. Measured against the running app: `Workflows`, `Cost` and `Eval` moved 76px the moment the panel opened — nearly two rows — so a click begun over one of them landed on its neighbour. The caption now sits in a fixed-height box present in both states (the icon rail keeps its centred rule inside it), and the footer keeps one column layout throughout. After the fix those three rows sit at the same offsets in both states; the top five move 3px, from the title block that still appears only when expanded, which is well inside a 40px row. Both invariants have tests that fail against the old markup.
-- **The Eval view draws its charts on the first paint, and stops rate-limiting itself on the way there.** Two defects on the same screen, both visible only in a running app. The nine metric cards sat blank because the draw was triggered by a watcher on `snapshots` alone, while the `<svg>` it draws into is gated by `isLoading` as well — the watcher fired while the element did not exist yet, `renderChart` found a null ref and returned, and nothing re-triggered it until the 60-second poll replaced `snapshots` again. The watcher now covers both gates. (The same line moved from `queueMicrotask` to `nextTick`, which is the primitive that actually orders after Vue's DOM patch; on its own it changed nothing measurable, and the test proves it — reverting only that stays green.) Separately, the view fetched one request per metric, so a single page load sent 21 API requests in one second against the server's own per-IP burst of 20 and answered itself `429 Failed to load eval data`. `/api/eval/metrics` returns every metric without a `metric` filter, so the client now makes one request and groups the rows itself: 13 requests per second instead of 21. The composable test that asserted "at least ten fetches" had written the fan-out down as a requirement; it now asserts one. `CostAnalyticsView` got the same `nextTick` for the same reason its own comment already gave, though its charts survived the old primitive because their cards use `v-show` and the refs exist from mount — no defect was observed there.
-- **Mission control surfaces an agent's own question, not only a pipeline permission.** Its empty state promises that agents will interrupt there, but the centre ranked permission requests and plans waiting for approval and nothing else — so an agent holding an AskUserQuestion on its terminal left the centre reading "Nothing needs you" while the needs-you band showed the question one view away. `question` joins the ranking between `permission` and `plan`: a permission blocks a tool call already in flight, a question blocks the turn around it, a plan blocks nothing until a human looks. The centre renders the same `QuestionCard` and `ConfirmCard` the band renders rather than growing a second way to answer, and the review/submit screen that closes a multi-question flow counts too — leaving it out would have let the centre fall silent at the last step of the flow it had just surfaced. The POST both places send is now one function, `sendQuestionAnswer`. The centre's context line also stopped printing a trailing separator for items that carry no stage.
-- **An agent spawned from the dashboard is visible before it has written anything.** Claude writes no transcript until a turn closes, and the agent list is built by binding each process to its session file — so a spawned agent whose opening move is a question had no file, was dropped from `GET /api/agents` entirely, and the AskUserQuestion the pty broker was already holding had no agent to hang on. The dashboard showed nothing while the terminal, which talks to the pty directly, showed the question fine; that is the whole of "the selection only works in the terminal". Resolution now falls back to the session the process names on its own command line (`--session-id` / `--resume`), producing an agent with that id, the process start as its last activity and its turn marked open. A process that names no session — an unnamed `claude`, an internal daemon — is dropped exactly as before, as is a second process claiming a session another one already took, and the fallback is Claude-only because `--session-id` is a Claude CLI flag.
-- **The reply box no longer follows you into a subagent transcript.** It sat outside both branches of the agent modal, so opening a subagent swapped the transcript above it while the input below stayed bound to the parent session — anything typed there answered a session that was not on screen. The input now lives in the branch that shows the parent, and the subagent branch says why there is none: a subagent runs inside its parent's process and has no channel of its own. That branch also gained the header the session has — the subagent's kind, tokens spent and duration — so opening one shows what it cost rather than only what it said.
-- **An agent whose task answers for itself is no longer stopped to ask.** The orchestrator's permission-filing path wrote a pending request for every tool call and left it for a human, with no check on the task's autonomy — unlike the HTTP path, which has auto-approved allow-all tasks since June. Only ACP-spawned stages reach that path, so a setup without an ACP spawner never saw it; with one, every tool call parked the run. `filePermissionRequest` now resolves the row for a `spec_gated` or `full` task and records a `permission_auto_approved` audit entry. The row is still written rather than skipped, because the gate polls it. Application tools (`mcp__<server>__<tool>`) keep asking: their own grant governs, not the task's autonomy. Two checks the HTTP path also makes — already-granted task permissions and permission presets — are still missing here; the orchestrator has no preset repository, and the matching helpers are unexported in the API package, so closing that gap means extracting them rather than copying them.
-- **Mission control sees a task that owes a decision, not only one whose agent has already died.** The agent files its permission request in the same moment its run parks on `awaiting_user`, and its process exits a few seconds later. `blockedByPendingPermissions` — the flag the centre filtered on — requires the run to be terminal or the pid to be dead, so for those seconds the centre said "Nothing needs you" about a task that was waiting on exactly that. Measured at 3 seconds on a `manual`-autonomy task, but bounded only by how fast the process happens to exit. A new `hasPendingPermissions` ships on the wire: true whenever a non-cancelled task has unresolved requests, independent of run status. The centre filters on either flag. The task card and the overview tab still read `blockedByPendingPermissions` alone — they explain why a task is parked, which is the stranded case and remains the narrower one the orchestrator gates the next spawn on. Cancelled tasks are excluded: their leftover requests need no answer.
-- **`/grant <tool>` works for the first time.** It posted to `POST /api/permission-requests/{id}/resolve`, a route the server does not register, so it answered 404 from the day it was written; its unit test asserted that same URL and stayed green. It now goes through `POST /api/permission-requests/bulk-resolve` — the route the needs-you band already uses — with the `allow_once` decision.
-- **The "a new version is available" prompt is gone**, with `usePWA`. Nothing caches any more and the worker takes over on install, so no worker ever waits and the prompt could never appear. `SKIP_WAITING` stays: `refreshServiceWorker` still posts it.
-
-- **The service worker no longer caches the app, and evicts the cache an earlier build left behind.** `precacheAndRoute` is gone and the built worker has no `fetch` handler at all, so nothing can be served from a cache any more; on activation it deletes the workbox caches and claims open pages. Push notifications, the background replay of agent messages and skip-waiting are untouched — none of them needs a cache. The precache could only ever act while the server was down, and this SPA ships inside that server, so there was no API, no stream and nothing to render; what it did instead was serve a previous build's `index.html` against a restarted server that answers **404** for the very bundle that document names, while the status bar reported the app up to date. The new worker also takes over on install rather than waiting: with nothing precached there is nothing to swap under a running session, and waiting is what would have kept the eviction from ever running — the previous worker keeps control, the new one sits in `waiting`, and the stale cache is served on indefinitely. Consequences: there is no offline start, browsers that still require a `fetch` handler will not offer to install the app, and `usePWA`'s "new version available" prompt can no longer fire, because no worker ever waits. `vite-plugin-pwa` aborts the build unless the source mentions `self.__WB_MANIFEST`, and it searches the bundled worker where a bare expression is dropped as dead code, so the token is assigned to a global that nothing reads.
-
-- **The grant preset no longer allows anything, and no longer waits for a human to confirm it.** `POST /api/applications/{resourceId}/presets/{preset}` is replaced by `POST /api/applications/{resourceId}/denies`, which is idempotent and takes no routine. The `confirmed` and `allowForRoutine` fields, `ErrPresetUnconfirmed` and `ErrRoutineRequired` are removed. A preset that matches nothing is not an error: the application simply gets no default denies and every one of its tools asks.
-- **`~/.claude.json` is no longer read to decide what a run gets.** The resolver and the tool refresh take the definition from the application row, so the error for an attached application without one now reads `application "mail" is attached but has no server definition` instead of naming that file. An application reached only through **Attach to every run** and still without a definition is skipped silently rather than failing the run. The file is still read for the one-time import, the boot reconcile, onboarding and drift detection.
-- **Existing routines became `pipeline` routines and now actually run.** A one-shot migration (marker `routine-run-mode-pipeline` in `applied_migrations`) sets every routine that existed before run modes to `pipeline`; routines created afterwards default to `job`. The marker is required because the column default is `job`: after the upgrade an existing row and a newly created one are indistinguishable, so a second pass would turn new job routines into pipeline ones. The fires those routines produce changed with it — a `ready` task with `full` autonomy instead of a `backlog` task with `spec_gated`, which is what makes them run without a human.
-- **The board and the pipeline columns no longer show routine jobs.** `GET /api/tasks` returns pipeline tasks unless a `kind` is asked for, and the dashboard loads `?kind=all` so a job's permission request still reaches the needs-you band while the board and the cockpit's pipeline panel filter jobs out.
-- **`task_schedules.current_stage` is gone.** Nothing ever read it — a routine does not choose a stage, its run mode does — and the rename migration above no longer names it.
-- **Bulk-resolving permissions for an unknown task answers 404** instead of reporting zero resolved requests.
-- **Mission control and the cockpit are merged into the Zentrale.** A saved `mission` or `cockpit` view opens the Zentrale. What needs you is a queue in the page shell: docked in the Zentrale's hub, a strip above other pages, its count in the window title.
-- **A round of Zentrale fixes.** A layout that fails to load offers Retry; only one that is unreadable offers Reset. The workspace re-reads the saved layout when the window regains focus, so two windows no longer silently overwrite each other. Plan reviews that need you now appear on the Dashboard. A page whose code fails to load says so, offers Reload, and keeps what needs you on screen. Spotlight hands text to the page that holds the Kontor tile, or says there is none. A decision can no longer be triggered within half a second of the next request appearing.
-- **Pipeline stages renamed: `concept` is now `backlog`, `backlog` is now `ready`.** The holding pen where refinement chat runs is now called `backlog`, and the starting gun that auto-advances to implementation is now called `ready`. A one-shot data migration rewrites existing rows in `tasks.current_stage` and `stage_runs.stage` in collision-safe order (backlog→ready first, concept→backlog second). It also rewrote `task_schedules.current_stage` until that column was dropped — a routine never chose a stage, and nothing read the column. It runs exactly once, recorded in a new `applied_migrations` table, and it has to: the rename is chained, so a second pass would take the rows the first pass wrote as `backlog` and push them on to `ready` — every task parked in the refinement holding pen would start running by itself after a restart. The stored data cannot settle the question either, because a database holding no `concept` row is indistinguishable from a migrated one. `stage_runs.stage` is rewritten for all rows including terminal runs, because `GetLatestByTaskAndStage` lookups on non-terminal runs would break otherwise, and the rename is name normalization, not history falsification. The `refine.Concept` domain type, `inject_concept` tool name, and `conceptOutput`/`conceptJSON` variables are unchanged — they describe the domain object, not the pipeline stage.
-
 ### Added
+
 - Agents carry their session title (a /rename title, else Claude's generated one).
 - **Allow Obsidian indexing with one click from its settings.** The Obsidian panel now shows an "Allow indexing" button — on a denied "Index now" run, or proactively whenever `obsidian.search`, `obsidian.read`, or `memory.write` is missing a global allow grant — that creates exactly the missing grants and confirms once indexing is unblocked, without a detour through Settings → Grants.
 - **Live edges in the hub.** A dashed line runs from an agent to each vault
@@ -532,11 +331,95 @@ Preparing the first public release.
   from `task_permissions` at one fixed context and never reads the `grants` table; neither
   changes here. See [`docs/guides/security.md`](docs/guides/security.md#capabilities-and-the-permission-gate)
   and [`docs/guides/mcp.md`](docs/guides/mcp.md#pipeline-agents-already-have-a-key).
-
-### Deprecated
-- `GET /api/config/memory` (the config explorer's list of a project's context files — `CLAUDE.md`, skills, etc.) is superseded by `GET /api/config/context-files`, which returns the byte-identical response. The old route keeps answering (it now delegates to the new one and logs a deprecation notice once per process) so nothing breaks today, but new code should call the new route — freeing the name "memory" for the new memory store (see Added, above) is the reason for the rename. Removal is deferred to a later release, after clients have had time to move.
+- **A stage result submitted through `set_stage_output` now records an audit event.** A stage's structured result reaches the orchestrator on one of two channels: the `set_stage_output` MCP tool, which writes `stage_runs.output` directly and is used as-is, or a fenced JSON block scraped from the session transcript when the tool was unavailable. Both end in the same column, so afterwards nothing distinguished them — and the pipeline's single most common failure, `agent did not produce a ```json output block`, means *both* channels failed rather than that the agent botched a format. `POST /api/channel-stage-output` now records `stage_output_submitted` against the task, naming the stage run, stage and iteration, so the split between the two channels is countable. Rejected submissions record nothing, and a failing audit write is logged rather than failing an otherwise accepted result.
+- `task changelog:check` fails when `CHANGELOG.md` repeats a release heading or a `###` heading within one release section; CI runs the same script (`scripts/check-changelog-headings.sh`). New entries go into the existing subsections under `[Unreleased]`.
+- **Finalization pushes the branch and opens a draft PR.** When a worktree task
+  with push permitted (`git.allowPush`, or the task's `allowGitPush` metadata)
+  completes its finalization stage, the orchestrator pushes the feature branch
+  and opens a draft PR with the GitHub CLI (`gh`) against the repo's default
+  branch (`origin/HEAD`, else the task's source branch). The PR carries the
+  finalization summary, a test-plan checklist, open todos and unresolved
+  self-review findings under Known Issues; its number and link appear on the task
+  card. A failed push, or work still unpushed after it, fails finalization with
+  the reason. A failed PR creation (for example `gh` missing or logged out) does
+  not: the task reaches done and the error is kept in its `pr_error` metadata.
+  With push disabled — the default — the task reaches done as before, without a
+  push or PR; a worktree holding unpushed work is kept. The MCP `create_task` and `update_task` tools now
+  reject `allowGitPush` in metadata.
+- **Connected MCP clients learn when the Obsidian tools appear or disappear.** `GET /api/mcp` now opens a Server-Sent-Events stream, and `initialize` declares `capabilities.tools.listChanged: true`. Every `obsidian.*` settings save sends `notifications/tools/list_changed` on it, so a client re-reads `tools/list` instead of keeping a stale list until it reconnects. The stream sends a `: heartbeat` comment every 30 seconds, so an idle client does not time it out. Module (plugin) tools do not send it yet.
+- **`claude.configDir` setting.** Names the Claude config directory (absolute or `~/…`) the dashboard reads sessions and `.claude.json` from, so an app opened from Finder — which inherits no shell `CLAUDE_CONFIG_DIR` — still finds them. It wins over `CLAUDE_CONFIG_DIR` and applies after a restart.
+  Pipeline agents are started on the same directory unless their spawner names its own, and the slash-command and skill lists read from it. A running session whose environment shows no `CLAUDE_CONFIG_DIR` is still looked up under `~/.claude`, where the CLI writes it. The plugin secret key stays under `CLAUDE_CONFIG_DIR` or `~/.claude`, because it is loaded before settings can be read.
+- **`task desktop:bundle`.** Swaps a fresh build into an existing `bin/Kontor.app`, stamps the version and signs it with `KONTOR_SIGN_IDENTITY`, so macOS privacy grants survive rebuilds. See [docs/code-signing.md](docs/code-signing.md).
 
 ### Changed
+
+- **Obsidian status now tells you why the vault is unreachable, not just that it's configured.** `GET /api/obsidian/status` probes the vault with a cheap unauthenticated ping and reports `reachable` plus a short error and an actionable hint (self-signed certificate, wrong API key, Obsidian not running); the settings panel shows that hint under the Index button and disables it until the vault is reachable. A denied "Index now" run now links straight to the Grants settings instead of leaving you to find them yourself.
+- **Index now is disabled until the vault works.** The button used to be
+  clickable regardless of whether Obsidian was configured; the settings panel
+  now fetches `GET /api/obsidian/status` on load and after every save, and
+  disables the button with a hint until the vault is reachable.
+- **The GitHub tile lists open pull requests you are involved in, up to 20.**
+  `GET /api/github/summary` now merges each configured repository's own open
+  pull requests with whatever the `involves:@me` search finds across every
+  repository the token can see, deduped by repo#number, sorted by most
+  recently updated, and capped at 20 instead of the previous 5-per-repository,
+  8-shown limit.
+- Obsidian settings take effect as soon as they are saved; no restart.
+- **The four `obsidian_*` MCP tools follow the vault's live state, not a
+  startup snapshot.** Configuring a vault while the server is already running
+  used to leave the tools unlisted and uncallable until a restart; `tools/list`
+  and `tools/call` now re-check availability on every request, so the tools
+  appear the moment the vault is set and disappear the moment it is cleared —
+  with no server restart either way.
+- The hub returns to its previous zoom and position after closing a card or
+  coming back from a module.
+- The project is called **Kontor**. The binary is `kontor`, the Homebrew cask is
+  `lx-wnk/tap/kontor`, the container image is `ghcr.io/lx-wnk/kontor`, the macOS
+  bundle identifier is `com.lxwnk.kontor`, and the Go modules are
+  `github.com/lx-wnk/kontor/{sdk,server,desktop}` with plugins under
+  `github.com/lx-wnk/kontor-plugin-*`. The installer's environment variables are
+  now `KONTOR_BIN_DIR` and `KONTOR_VERSION`.
+- Configuration variables are now `KONTOR_*`. The old `DASHBOARD_*` names are
+  still read, the new ones win when both are set, and the server warns once at
+  boot when it found only old ones.
+- A new installation writes `~/.claude/kontor-tasks.db`; one that already has
+  `dashboard-tasks.db` keeps using it. The plugin encryption key is copied to
+  `kontor-secret.key` on first boot and the previous file is kept as a backup.
+- The hook script and its secret file keep their old names in this release. The
+  copy already installed in `~/.claude` has those paths baked in, so renaming
+  them without reinstalling the script would stop it authenticating.
+- **Every Zentrale tile gets the same frame.** `CockpitPanel` renders an icon,
+  an uppercase label and, when a tile has one, a key figure shown large above
+  its body — the prototype's header, now shared by every tile instead of each
+  one drawing its own.
+- **Workspace widgets load lazily.** Each of the nine widgets is a
+  `defineAsyncComponent` loader keyed by a `WidgetId` union instead of a
+  static import, so the index chunk pulls in only the widget actually shown,
+  and unknown ids are rejected at the type level.
+- **The page is called Kontor.** The browser tab title, and the base the
+  needs-you count prefixes, now read `Kontor` instead of `Agent Dashboard —
+  Claude Code agent monitor`.
+- **The sidebar stops moving the item you are aiming at.** Hovering the icon rail expanded it, and two things that render only in the expanded state changed the geometry underneath the pointer: the group captions (`MONITOR`, `BUILD`, `INSIGHTS`) inserted three rows, and the footer laid its three action buttons out in a row instead of a column, making it ~80px shorter. Because the last nav group is bottom-anchored with `mt-auto`, that second one lifted every Insights item by that much. Measured against the running app: `Workflows`, `Cost` and `Eval` moved 76px the moment the panel opened — nearly two rows — so a click begun over one of them landed on its neighbour. The caption now sits in a fixed-height box present in both states (the icon rail keeps its centred rule inside it), and the footer keeps one column layout throughout. After the fix those three rows sit at the same offsets in both states; the top five move 3px, from the title block that still appears only when expanded, which is well inside a 40px row. Both invariants have tests that fail against the old markup.
+- **The Eval view draws its charts on the first paint, and stops rate-limiting itself on the way there.** Two defects on the same screen, both visible only in a running app. The nine metric cards sat blank because the draw was triggered by a watcher on `snapshots` alone, while the `<svg>` it draws into is gated by `isLoading` as well — the watcher fired while the element did not exist yet, `renderChart` found a null ref and returned, and nothing re-triggered it until the 60-second poll replaced `snapshots` again. The watcher now covers both gates. (The same line moved from `queueMicrotask` to `nextTick`, which is the primitive that actually orders after Vue's DOM patch; on its own it changed nothing measurable, and the test proves it — reverting only that stays green.) Separately, the view fetched one request per metric, so a single page load sent 21 API requests in one second against the server's own per-IP burst of 20 and answered itself `429 Failed to load eval data`. `/api/eval/metrics` returns every metric without a `metric` filter, so the client now makes one request and groups the rows itself: 13 requests per second instead of 21. The composable test that asserted "at least ten fetches" had written the fan-out down as a requirement; it now asserts one. `CostAnalyticsView` got the same `nextTick` for the same reason its own comment already gave, though its charts survived the old primitive because their cards use `v-show` and the refs exist from mount — no defect was observed there.
+- **Mission control surfaces an agent's own question, not only a pipeline permission.** Its empty state promises that agents will interrupt there, but the centre ranked permission requests and plans waiting for approval and nothing else — so an agent holding an AskUserQuestion on its terminal left the centre reading "Nothing needs you" while the needs-you band showed the question one view away. `question` joins the ranking between `permission` and `plan`: a permission blocks a tool call already in flight, a question blocks the turn around it, a plan blocks nothing until a human looks. The centre renders the same `QuestionCard` and `ConfirmCard` the band renders rather than growing a second way to answer, and the review/submit screen that closes a multi-question flow counts too — leaving it out would have let the centre fall silent at the last step of the flow it had just surfaced. The POST both places send is now one function, `sendQuestionAnswer`. The centre's context line also stopped printing a trailing separator for items that carry no stage.
+- **An agent spawned from the dashboard is visible before it has written anything.** Claude writes no transcript until a turn closes, and the agent list is built by binding each process to its session file — so a spawned agent whose opening move is a question had no file, was dropped from `GET /api/agents` entirely, and the AskUserQuestion the pty broker was already holding had no agent to hang on. The dashboard showed nothing while the terminal, which talks to the pty directly, showed the question fine; that is the whole of "the selection only works in the terminal". Resolution now falls back to the session the process names on its own command line (`--session-id` / `--resume`), producing an agent with that id, the process start as its last activity and its turn marked open. A process that names no session — an unnamed `claude`, an internal daemon — is dropped exactly as before, as is a second process claiming a session another one already took, and the fallback is Claude-only because `--session-id` is a Claude CLI flag.
+- **The reply box no longer follows you into a subagent transcript.** It sat outside both branches of the agent modal, so opening a subagent swapped the transcript above it while the input below stayed bound to the parent session — anything typed there answered a session that was not on screen. The input now lives in the branch that shows the parent, and the subagent branch says why there is none: a subagent runs inside its parent's process and has no channel of its own. That branch also gained the header the session has — the subagent's kind, tokens spent and duration — so opening one shows what it cost rather than only what it said.
+- **An agent whose task answers for itself is no longer stopped to ask.** The orchestrator's permission-filing path wrote a pending request for every tool call and left it for a human, with no check on the task's autonomy — unlike the HTTP path, which has auto-approved allow-all tasks since June. Only ACP-spawned stages reach that path, so a setup without an ACP spawner never saw it; with one, every tool call parked the run. `filePermissionRequest` now resolves the row for a `spec_gated` or `full` task and records a `permission_auto_approved` audit entry. The row is still written rather than skipped, because the gate polls it. Application tools (`mcp__<server>__<tool>`) keep asking: their own grant governs, not the task's autonomy. Two checks the HTTP path also makes — already-granted task permissions and permission presets — are still missing here; the orchestrator has no preset repository, and the matching helpers are unexported in the API package, so closing that gap means extracting them rather than copying them.
+- **Mission control sees a task that owes a decision, not only one whose agent has already died.** The agent files its permission request in the same moment its run parks on `awaiting_user`, and its process exits a few seconds later. `blockedByPendingPermissions` — the flag the centre filtered on — requires the run to be terminal or the pid to be dead, so for those seconds the centre said "Nothing needs you" about a task that was waiting on exactly that. Measured at 3 seconds on a `manual`-autonomy task, but bounded only by how fast the process happens to exit. A new `hasPendingPermissions` ships on the wire: true whenever a non-cancelled task has unresolved requests, independent of run status. The centre filters on either flag. The task card and the overview tab still read `blockedByPendingPermissions` alone — they explain why a task is parked, which is the stranded case and remains the narrower one the orchestrator gates the next spawn on. Cancelled tasks are excluded: their leftover requests need no answer.
+- **`/grant <tool>` works for the first time.** It posted to `POST /api/permission-requests/{id}/resolve`, a route the server does not register, so it answered 404 from the day it was written; its unit test asserted that same URL and stayed green. It now goes through `POST /api/permission-requests/bulk-resolve` — the route the needs-you band already uses — with the `allow_once` decision.
+- **The "a new version is available" prompt is gone**, with `usePWA`. Nothing caches any more and the worker takes over on install, so no worker ever waits and the prompt could never appear. `SKIP_WAITING` stays: `refreshServiceWorker` still posts it.
+
+- **The service worker no longer caches the app, and evicts the cache an earlier build left behind.** `precacheAndRoute` is gone and the built worker has no `fetch` handler at all, so nothing can be served from a cache any more; on activation it deletes the workbox caches and claims open pages. Push notifications, the background replay of agent messages and skip-waiting are untouched — none of them needs a cache. The precache could only ever act while the server was down, and this SPA ships inside that server, so there was no API, no stream and nothing to render; what it did instead was serve a previous build's `index.html` against a restarted server that answers **404** for the very bundle that document names, while the status bar reported the app up to date. The new worker also takes over on install rather than waiting: with nothing precached there is nothing to swap under a running session, and waiting is what would have kept the eviction from ever running — the previous worker keeps control, the new one sits in `waiting`, and the stale cache is served on indefinitely. Consequences: there is no offline start, browsers that still require a `fetch` handler will not offer to install the app, and `usePWA`'s "new version available" prompt can no longer fire, because no worker ever waits. `vite-plugin-pwa` aborts the build unless the source mentions `self.__WB_MANIFEST`, and it searches the bundled worker where a bare expression is dropped as dead code, so the token is assigned to a global that nothing reads.
+
+- **The grant preset no longer allows anything, and no longer waits for a human to confirm it.** `POST /api/applications/{resourceId}/presets/{preset}` is replaced by `POST /api/applications/{resourceId}/denies`, which is idempotent and takes no routine. The `confirmed` and `allowForRoutine` fields, `ErrPresetUnconfirmed` and `ErrRoutineRequired` are removed. A preset that matches nothing is not an error: the application simply gets no default denies and every one of its tools asks.
+- **`~/.claude.json` is no longer read to decide what a run gets.** The resolver and the tool refresh take the definition from the application row, so the error for an attached application without one now reads `application "mail" is attached but has no server definition` instead of naming that file. An application reached only through **Attach to every run** and still without a definition is skipped silently rather than failing the run. The file is still read for the one-time import, the boot reconcile, onboarding and drift detection.
+- **Existing routines became `pipeline` routines and now actually run.** A one-shot migration (marker `routine-run-mode-pipeline` in `applied_migrations`) sets every routine that existed before run modes to `pipeline`; routines created afterwards default to `job`. The marker is required because the column default is `job`: after the upgrade an existing row and a newly created one are indistinguishable, so a second pass would turn new job routines into pipeline ones. The fires those routines produce changed with it — a `ready` task with `full` autonomy instead of a `backlog` task with `spec_gated`, which is what makes them run without a human.
+- **The board and the pipeline columns no longer show routine jobs.** `GET /api/tasks` returns pipeline tasks unless a `kind` is asked for, and the dashboard loads `?kind=all` so a job's permission request still reaches the needs-you band while the board and the cockpit's pipeline panel filter jobs out.
+- **`task_schedules.current_stage` is gone.** Nothing ever read it — a routine does not choose a stage, its run mode does — and the rename migration above no longer names it.
+- **Bulk-resolving permissions for an unknown task answers 404** instead of reporting zero resolved requests.
+- **Mission control and the cockpit are merged into the Zentrale.** A saved `mission` or `cockpit` view opens the Zentrale. What needs you is a queue in the page shell: docked in the Zentrale's hub, a strip above other pages, its count in the window title.
+- **A round of Zentrale fixes.** A layout that fails to load offers Retry; only one that is unreadable offers Reset. The workspace re-reads the saved layout when the window regains focus, so two windows no longer silently overwrite each other. Plan reviews that need you now appear on the Dashboard. A page whose code fails to load says so, offers Reload, and keeps what needs you on screen. Spotlight hands text to the page that holds the Kontor tile, or says there is none. A decision can no longer be triggered within half a second of the next request appearing.
+- **Pipeline stages renamed: `concept` is now `backlog`, `backlog` is now `ready`.** The holding pen where refinement chat runs is now called `backlog`, and the starting gun that auto-advances to implementation is now called `ready`. A one-shot data migration rewrites existing rows in `tasks.current_stage` and `stage_runs.stage` in collision-safe order (backlog→ready first, concept→backlog second). It also rewrote `task_schedules.current_stage` until that column was dropped — a routine never chose a stage, and nothing read the column. It runs exactly once, recorded in a new `applied_migrations` table, and it has to: the rename is chained, so a second pass would take the rows the first pass wrote as `backlog` and push them on to `ready` — every task parked in the refinement holding pen would start running by itself after a restart. The stored data cannot settle the question either, because a database holding no `concept` row is indistinguishable from a migrated one. `stage_runs.stage` is rewritten for all rows including terminal runs, because `GetLatestByTaskAndStage` lookups on non-terminal runs would break otherwise, and the rename is name normalization, not history falsification. The `refine.Concept` domain type, `inject_concept` tool name, and `conceptOutput`/`conceptJSON` variables are unchanged — they describe the domain object, not the pipeline stage.
 - The CLI folds into the single `agent-dashboard` binary — no more separate `dashboard` binary or `task build:cli` target. The CLI lived in its own main package built only by a local Taskfile target, so no release artifact ever shipped it; its subcommands include the offline lockout hatches (`agent-dashboard settings set auth.mode none`, `agent-dashboard grants add`, `agent-dashboard plugins disable`) that open SQLite directly and are meant to work while the server is down — exactly when building from source is not an option. Folding the CLI into `agent-dashboard` means every subcommand now ships in the same release artifact as the server, so a user who installed a release (not built from source) has the recovery path available too.
 - `task lint` and `task fmt` now agree with the CI job they exist to predict. `task lint` reported 967 phantom `undefined` errors whenever a Go newer than `.go-version` was on `PATH`: the newer toolchain writes export data golangci-lint cannot decode (`export data version 4 is greater than maximum supported version 2`), so every package failed to typecheck. `task fmt` had the mirror-image problem — it rewrote a file CI considers correctly formatted, because `gofmt` and the formatter `task lint` actually runs disagree on trailing-comment alignment in composite literals. The two failures have different causes: formatting depends on the toolchain golangci-lint was **built** with, typechecking on the one present at **run** time. A single top-level `GOTOOLCHAIN` derived from `.go-version` covers both, rather than an `env` block per target.
 - The agent modal drops its bottom drawer. Five unrelated things — tool timeline, hook events, tasks, subagents, a token table — used to share one 200px scrolling panel behind a `<details>` summary, next to a **Waterfall** tab squeezed into 300px and a **Terminal** tab. Now: session context (tasks, subagents, tools, hooks) sits beside the transcript, because it is what you read *while* reading the transcript; the transcript gets the full modal height; the token breakdown moved behind the same ⓘ affordance the agent card already uses; and the bottom is the prompt input alone.
@@ -590,24 +473,190 @@ Preparing the first public release.
   **including `auth.mode`** — require a **server restart** to take effect.
 
 - Interactive question answering no longer reads the JSONL transcript: both the **Needs you** triage band card and the Terminal tab's overlay are driven by the session's live rendered screen (see Added, above). The old flow only worked for tmux-backed sessions and left non-tmux sessions read-only; the new one works for any live-injectable session.
+- **Every select can be filtered by typing.** Opening a select (click, arrow key, or just typing while it has focus) turns it into a text field that narrows the list by label as you type; arrow keys and Enter pick from the filtered list, Escape restores the previous choice, and a "No matches" row says when nothing fits. Only listed options can be picked; the text field keeps the ▾ chevron, and clicking it closes the list again. The workspace "Add a tile" and tile "Swap" pickers now use the same select, with "Add a tile…" and "⇄ Swap…" shown as a placeholder instead of a disabled first entry in the list.
+- **A pull request outside `github.repos` reads "not tracked", not "no
+  checks".** Its check runs are never looked up, so `checks.state` is the new
+  `not_tracked` rather than `none`, and the tooltip names the setting to add it to.
+- **`github.repos` matches repository names case-insensitively, as GitHub
+  does.** `lx-wnk/Kontor` in the setting allows `lx-wnk/kontor` and vice
+  versa; search hits and capability grants use the configured spelling.
+- **Agents show their Kontor project.** Every agent running inside a
+  registered project folder, and every agent working a task that belongs to a
+  project, now carries that project's name and ID (`projectId` on the agent
+  payload) instead of its folder name; a task's own project wins over the
+  folder. Agents outside every project keep their folder name. Roster
+  grouping, the project filter and the hub's sectors key by project ID, so two
+  projects with the same name stay apart. A pending permission shows the same
+  project name as its agent card, and "Don't ask again" now names the folder
+  the rule is saved for.
+- **An agent's recent notes are read from a real shell syntax tree.** The
+  `curl …/vault/…` detection behind the hub's live edges now parses each Bash
+  command with `mvdan.cc/sh/v3` instead of regexes, so quoting, heredocs,
+  here-strings, `${…}` and `{ …; }` groups follow bash's own rules. Only
+  `curl` calls count: a vault URL in an `echo`, a commit message or any other
+  quoted text is no longer a read, and awk's `'{ a=1 }'` is no longer an
+  assignment. A prefix assignment (`F=… cmd`) only reaches its own command,
+  an unquoted heredoc body line ending in `\` continues into its closer as in
+  bash, and a command the parser rejects yields no touches at all.
+
+### Deprecated
+
+- `GET /api/config/memory` (the config explorer's list of a project's context files — `CLAUDE.md`, skills, etc.) is superseded by `GET /api/config/context-files`, which returns the byte-identical response. The old route keeps answering (it now delegates to the new one and logs a deprecation notice once per process) so nothing breaks today, but new code should call the new route — freeing the name "memory" for the new memory store (see Added, above) is the reason for the rename. Removal is deferred to a later release, after clients have had time to move.
 
 ### Removed
+
 - **Capture from the Mission input and Spotlight.** Both filed the text as a backlog item in the oldest project, whatever the text was about. Spotlight now hands text that matched nothing to the Kontor session and switches to Mission. `useCapture` (`captureTask`, `CaptureUnavailable`) is gone.
 - **The admin role is gone, because it never existed.** `is_admin` defaulted to false and no code path outside the generated ORM ever set it, so `RequireAdminOrBypass` rejected *every* authenticated user in JWT mode and passed *everything* through under `DASHBOARD_AUTH=none`. The five route groups it wrapped — settings writes, spawner CRUD, system prompts, plugin lifecycle, and admin restart — therefore protected nobody and blocked everybody, which is why nobody noticed: JWT mode could not configure a spawner or install a plugin at all. `RequireAdmin`, `RequireAdminOrBypass`, `adminPrivilegeTTL` and the `isAdmin`/`aga` JWT claims are removed, and `/api/me` no longer reports a role. **State the consequence plainly: under JWT auth those five groups are now reachable by any authenticated user, where they previously returned 403 to everyone.** Bypass mode is unchanged. Spawner CRUD remains RCE-equivalent — it is now guarded by authentication and the loopback bind alone, which is what the deleted middleware actually provided in the only mode anyone runs. Setting a project's `setup_command` (also an arbitrary `sh -c`) is now permitted *only* in loopback single-user mode rather than to a role nobody held. A second, unrelated job rode on the same flag: `TaskRepo.ListForUser` and `TaskScheduleRepo.ListForUser` use it to decide whether a listing is scoped to one user, and `BypassPayload()` set it to true — so a naive deletion would have hidden every task not owned by the implicit local user. That parameter is renamed `unscoped` and now follows the deployment mode, leaving both modes' visibility exactly as it was. The `is_admin` column stays in the schema: dropping it forces SQLite's 12-step table rebuild, which has broken this project's migrations before, and an unused boolean is cheaper than a broken migration.
 - The **Waterfall** view in the agent detail modal. It was broken and not worth repairing: it charted a session's tool calls on a d3 timeline that no longer matched the data it was given, and the transcript already answers the question it was meant to answer. The modal now shows the transcript directly instead of offering a two-way toggle with one working side. The d3 packages stay — the eval charts use them.
 - **`task_permission.pre_approved` is gone, because nothing ever read it.** Four writers set the flag — `BulkGrantPermissions`, the MCP `grant_permission` and `resolve_permission_request` tools, and the repo default — and no query, guard or handler ever branched on it, so it recorded a distinction that changed nothing. The one place it looked like a reader was the task **Permissions** tab, which rendered a `pre-approved` / `runtime` badge from `p.preApproved`; ent serialises the column as `pre_approved`, so that property was never present on the wire and the badge said `runtime` for every row it ever displayed. The field is dropped from the ent schema, from `CreateTaskPermissionInput`, from both MCP call sites, and the dead badge and its TypeScript field are removed with it. **The SQLite column stays on existing databases**: ent's auto-migrate is non-destructive and the project deliberately does not enable `WithDropColumn`, because dropping a column forces SQLite's table rebuild, which has broken this project's migrations before. The column was generated as `NOT NULL DEFAULT (false)`, so inserts that no longer mention it still succeed — `TestOpen_LegacyPreApprovedColumnSurvives` opens a pre-drop database on disk and proves both the read and the write path.
+- **Per-task and per-routine `stageTimeoutSeconds` is gone, because nothing ever read it.** The orchestrator's kill check and the stage-run key TTL read only the global `stageTimeoutSeconds` pipeline setting, which is unchanged. The field is dropped from the ent schema, the task API response, the routine create body (a client that still sends it is not rejected; the value is ignored), and the TypeScript `PipelineTask` type. **The `stage_timeout_seconds` columns stay on existing databases** so an older binary on the same database keeps working; they are generated as `NOT NULL DEFAULT (1800)`, so inserts that no longer mention them still succeed. They will be dropped in a later release.
 - **The Kontor tile shows its session as a chat, and every Kontor session runs in auto mode.** The tile rendered the session's raw terminal. Once the scanner lists the session, it now renders `AgentSessionPane` — the header, recent tools, transcript and prompt of the agent modal, which was split out of `AgentModal` so both use the same component — titled "Kontor" with **New** and **End** in its header; the pane's prompt replaces the tile input, and navigation stays in Spotlight. The pane is pinned inside the tile, so a long transcript scrolls there instead of growing the Mission column. Because the tile no longer has a terminal to answer a permission prompt in, `SpawnSession` pins `--permission-mode auto` instead of `default`: writes through the session's Kontor tools are decided by auto mode rather than a human prompt. The session's briefing said every write asks the operator first; it now says no write waits for approval and asks the session to confirm in chat before granting a permission, approving a plan or pending requests, merging, or creating anything unasked. AskUserQuestion screens still surface in the Mission centre, and the terminal stays on the session's agent card.
-
+- `/api/quota` handler and `usage-data/*.json` file reader (Claude Code never writes that file; the endpoint always returned null).
+- Pruned unused TS-era dependencies never imported by the shipped app: `express`,
+  `nodemailer`, `web-push`, `cookie-parser`, `supertest`, and their `@types/*`.
+- Inert `permissions` and `plugin.json slots[]` manifest fields removed from the `Descriptor` Go type and `plugin.schema.json`. Both were parsed but never enforced or consumed — a security-shaped field with no enforcement is misleading. Slot bindings for UI extensions are declared in `ui-manifest.json` (authoritative since SP4a); the `plugin.json` copy was a divergeable duplicate. Old manifests carrying these fields still load correctly (`additionalProperties: true`). The unused `Registry.AllWithCapability` method is also removed.
 
 ### Fixed
+
+- **Tasks created or changed through MCP reach the board without a reload.**
+  MCP tools used to send a `task_changed` event the board ignores, so a task an
+  agent created stayed invisible and opening it said "Task not found". They now
+  send `task_created` and `task_updated` with the same enriched task the HTTP API
+  sends, including its blocked and refine state.
+- The desktop app no longer hangs at start when opened from Finder. Watching Claude's config in the home directory opened every entry there, including `~/Desktop`, which waits on a macOS privacy prompt; the config file is now polled instead.
+- **A half-filled Obsidian setup no longer stops the server from starting.**
+  Boot used to fail outright when only some of `obsidian.baseURL`,
+  `obsidian.vaultRoot` and `obsidian.apiKey` were set; it now logs a warning
+  and starts with the vault off, the same tolerance a broken GitHub
+  configuration already has.
+- **The hub graph no longer shows the previous vault after switching.** The
+  cached graph survived a live Obsidian settings save because it was keyed
+  only by time, not by which vault built it; swapping vaults now drops the
+  cache immediately instead of serving the old vault's notes for up to 60s.
+- **GitHub tile rows no longer overflow the tile.** The pull request title
+  shared one row with its checks, `repo#number` and the Merge button, so a
+  long title or a wide checks label pushed the row past the tile's width and
+  turned the whole panel's `overflow-y-auto` into a horizontal scrollbar too.
+  Each row is now two lines: the title truncates with an ellipsis on its own
+  line, `repo#number` and the checks/merge controls sit on the line below.
+- **Token totals no longer double-count under concurrent refreshes.** When the
+  agent stream, a hook-triggered rescan and an HTTP read refreshed the same
+  active session at once, each added the newly appended messages, inflating
+  that agent's tokens and cost. An appended region is now counted once.
+- **A widget whose chunk failed once recovers after a successful reload.**
+  A tile that failed to load stayed recorded as failed even after a remount
+  loaded its chunk, so the hub kept the needs-you strip visible beside it and
+  kept refusing to open the Kontor tile. A successful load now clears the
+  record.
+- **The entry chunk cleared its bundle budget again.** The workspace widget
+  registry statically imported all nine widgets — and the cockpit, mission and
+  analytics code they pull in — so `App.vue`'s own static import of
+  `ApiKeySettings.vue`, the largest module reachable from the entry point, put
+  the chunk 5 KB over budget. Both now load through `defineAsyncComponent`.
+- **A stored `page:zentrale` no longer falls through oddly.** `resolveView`
+  folds it, and any stored page id that fails the page-id pattern, into the
+  core `zentrale` view instead of treating it as an ordinary page lookup; a
+  whitespace-only stored layout is now treated as empty on the server exactly
+  as `parseLayout` already treats it on the client.
+- **The Kontor overlay no longer re-places itself while you scroll inside
+  it.** Its capturing scroll listener ran `getBoundingClientRect` on every
+  scroll underneath it, including the session transcript's own scrolling; it
+  now skips scrolls the overlay itself contains.
+- **The Insights nav group no longer jumps as pages load in.** The
+  `+ New page` slot used to mount only once the layout had loaded, so the
+  bottom-anchored Insights group visibly shifted the moment it appeared; the
+  slot — and its button, disabled until then — now renders from first paint.
+  The Pages group's caption also duplicated the core groups' caption markup;
+  both now render through one shared `NavGroupCaption`.
+- **Only one Done button shows while editing a page, and edit mode ends when
+  you navigate away.** The topbar's `Edit layout` toggle and the edit bar's
+  own `Done` button both closed edit mode; the topbar button now hides while
+  editing instead. Edit mode also used to survive navigating to another view
+  and back, leaving a stale edit bar open over whatever the operator went to
+  next; `App.vue`'s existing `activeView` watcher now ends it on every
+  navigation. The delete confirmation stayed armed across a rename, so a
+  second click right after renaming the page could delete it instead of
+  confirming the new title; it now disarms as soon as the title input
+  changes or the rename is saved.
+- **A page created or deleted from the sidebar keeps focus, and choosing any
+  view lands focus in its content instead of stranding it on the nav button
+  just activated (SC 2.4.3).** `App.vue`'s `activeView` watcher is the sole,
+  declarative owner of post-navigation focus: `useViewState` gains
+  `focusAfterNavigation`, which a caller sets before navigating and the
+  watcher consumes once, falling back to `#main-content` only when nothing
+  was declared. Creating a page declares its own new nav item; deleting one
+  declares the Zentrale nav item, landing there even when the edit bar's
+  second confirmation removed the page from under the pointer.
+- **Edit layout and Done keep focus on a reachable control instead of
+  dropping it to `<body>`.** Entering edit mode hides the toggle button that
+  held focus, and Done unmounts the edit bar that held it after; each click
+  now moves focus itself — Edit layout to the edit bar's own Done button,
+  Done back to the toggle.
+- **A rate-limited project load no longer leaves the spawn picker empty.** A
+  429 on the boot `GET /api/projects` left the project list empty until the
+  60 s fallback poll, so the spawn dialog offered no project. The load now
+  retries through `fetchWithRateLimitRetry`, the same helper `useWorkspace`
+  already used for the layout.
+- **Ask Kontor keeps its prompt when the tile mounts with one already
+  pending.** `KontorTile`'s watch ran its `immediate` call during setup,
+  before the agent's own pane existed, so the first prompt was silently
+  consumed and lost. A prompt already pending at mount is now taken in
+  `onMounted` instead; a later one still arrives through the watch. Clicking
+  the hub's core with no prompt (an empty ask) no longer stages one either,
+  so it no longer wipes a draft already typed into an open overlay.
+- **The hub flies to a note or agent requested before its stage has a
+  size.** A focus request pending when the hub mounts — from a launcher, the
+  command palette, or a card's link — used to fly against a 1×1 stage and a
+  placeholder scale, landing on the wrong point or, under reduced motion,
+  losing the flight to the first resize. The camera now queues that flight
+  and applies it once the first real size arrives.
+- **Opening a card from the hub's list focuses it; closing one, or its
+  target disappearing, hands focus back to the stage.** The separate
+  agent-pid and note-path state a card was keyed on let a stale id reopen a
+  card whose target was already gone; one `openCard` value now makes at most
+  one card possible by construction.
+- **A widget whose chunk fails to load shows an error tile instead of a
+  blank one, and a failed hub chunk still shows the needs-you strip.**
+  `defineAsyncComponent` rendered nothing on a rejected loader — the case
+  when the server is rebuilt while a tab stays open — leaving a blank tile
+  with no way back. Each widget now renders the shell's `PageLoadError` on
+  that failure and records it in a reactive set, which `pageHasHub` also
+  checks, so a failed hub tile no longer hides what needs you.
+- **A whitespace-only `workspace.layout` no longer bypasses its 1 MiB size
+  cap.** The empty-value shortcut ran before the byte-length check, so a
+  value that was all whitespace skipped the cap regardless of size; the size
+  check now runs first.
+- **A note with a malformed `mtime` no longer blanks the whole hub graph.**
+  One bad value aborted the graph request entirely; that note is now skipped
+  and logged by path (never the raw value), the same handling a malformed
+  `links` value already got.
+- **A slash command installed mid-session appears without a reload.** The
+  prompt's command list was cached per session id for the life of the tab, so
+  a newly installed or enabled command stayed invisible and the cache kept one
+  entry per session id forever. Entries now expire after 60 seconds — the
+  lifetime the neighbouring graph caches already use — and writing one prunes
+  the expired ones.
+- **A tile dropped after the window changed size lands under the pointer.**
+  The workspace grid measured its rectangle once per drag, so a window resize,
+  an expanding sidebar or a scroll while a tile was held placed every
+  subsequent drop against the old geometry.
+- **Resizing the hub mid-flight still centres what was clicked.** A camera
+  flight fixed its target scale at launch, so a stage that changed size during
+  the 480 ms left the camera off the requested zoom level until the next
+  "fit"; a resize now cancels the flight and settles on its destination.
+- **The hub says so when the Kontor tile could not load, instead of
+  swallowing the question.** If the Kontor chunk 404s — the server was rebuilt
+  while the tab stayed open — the tile renders the page-load error and nothing
+  is left to receive a prompt. The hub's core and a note card's
+  "Ask Kontor about this" used to send one anyway and it vanished without a
+  trace; both are now disabled and name the reason, the same way they already
+  handle a layout with no Kontor tile at all.
 - **Agents spawned by a server that was itself started from a Claude Code session no longer inherit that session's identity.** `resolveSpawnEnv` and the pipeline's `BuildSpawnEnv` forwarded every `CLAUDE_`-prefixed variable from the server's own process environment, including the ones that bind a process to the specific session that launched it (`CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDECODE`, …). A spawned agent that inherited them resumed as a child of the parent session instead of writing its own transcript. Those keys are no longer copied from the server's own environment; a spawner's explicit `Env` may still set one deliberately. Configuration and auth vars (`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, …) are unaffected.
 - **Mission control was unreachable from the sidebar, and its live rail counted cancelled tasks as running.** Three defects, all found by opening the view rather than by a test. `mission` was in `ACTIVE_VIEWS` but not in `NAV_ITEMS`, so no nav entry existed and `viewTitle` fell back to "Dashboard" — a plausible wrong title instead of an obvious gap. The rail filtered by exclusion (`not done, not backlog, not ready`), which let `cancelled` and `on_hold` through; it now names the four stages that count. And a task off the stage track drew four full bars, because "off the track" was treated as finished; it now reads as not started, so a cancelled task can never look complete.
 - **`navConfig.test.ts` asserted its invariant against a list typed into the test.** Its name says "has one item per ActiveView" and it never imported `ACTIVE_VIEWS` — both sides of the comparison came from the author, so the missing mission entry shipped green. It now derives from `ACTIVE_VIEWS`, and a second case pins that no real view falls through to the Dashboard title.
 - A terminal opened in the Kontor tile or on an agent card starts at its real size instead of wrapping lines wrongly until the window is resized. `useTerminalSocket`'s `resize()` remembers the last requested size and sends it on every socket open, first connect and reconnect alike, instead of only while already connected.
 - **The sidebar expands without moving its items.** Hovering the collapsed sidebar mounted the brand block's two text lines while the nav was still 56px wide, so the status line wrapped, the block grew from 41 to 74px and every item in the upper groups dropped 33px and climbed back; the nav padding and the footer buttons' alignment also switched at the same moment. Labels are now always rendered inside fixed-size boxes and fade in with opacity while the width grows, the collapsed nav clips instead of scrolling sideways, and `tests/e2e/sidebar-hover.spec.ts` measures item positions frame by frame during expand and collapse.
 - **Chat bubbles stay inside the transcript.** A message holding an unbreakable run — a code block, a rule of box-drawing characters — sized its bubble to that run instead of to its column, so the agent modal cut text off at the right edge and scrolled sideways. The bubbles are capped at their column's width; code blocks scroll inside themselves as before.
-
-### Fixed
 - **Saving a routine in the dashboard works again.** The routine form sent `catchup` as a boolean while the server's field is a string, so every create and every update answered `400 invalid JSON body` — routines could only be created over MCP — and a routine set to `none` was displayed as `once`, because any non-empty string is truthy in that check. The form now sends and reads `none`/`once` as text. The existing form test never caught it: it stubs `fetch`, so the request was never decoded by the server.
 - **Allowing an application tool now has an effect.** A permission request for an MCP application tool waits for a human (since the previous release), but allowing it wrote only a `task_permissions` row — and on a task with allow-all autonomy (`spec_gated`, the default, or `full`) the spawner skips those rows entirely, while application tools reach a run only through the grants table. The agent was resumed without the tool it had just been given and asked again. `allow_once` for an application tool now also writes a grant in that task's context, which the application resolver already reads.
 
@@ -718,51 +767,6 @@ Preparing the first public release.
 - History import now shares one implementation across the API-key settings and cost-analytics views, so the API-key view gains the "already running" (409) and malformed-frame handling it previously lacked.
 - The parser session-cache TTL now tracks a configured non-default SSE interval, so idle-agent caching is not silently defeated when the scan loop is slowed down.
 - `Registry.Shutdown()` now actually waits for plugin processes to exit before returning, and SIGKILLs any straggler that ignores SIGTERM instead of leaving the escalation in a goroutine that died with the process. Previously the wait-then-escalate step ran detached, so `Shutdown` returned immediately — the server process could exit right after, and a plugin that ignored SIGTERM was never killed. All plugins are signalled and waited on against one shared 5s deadline (not 5s per plugin), so stopping several unresponsive plugins costs one timeout, not a multiple of it.
-
-### Accessibility
-
-- The xterm terminal view now enables screen-reader mode.
-- The Task modal's close button now has an accessible label.
-- Toast auto-dismiss now pauses while a toast has keyboard focus.
-
-### Docs
-
-- `CONTRIBUTING.md` told contributors to re-trigger the onboarding flow with `agent-dashboard settings set onboarding.completed false` and left out the restart. That key applies live only to the process that writes it, so against a running dev server the command reported success and the flow stayed hidden. The instruction now says why the restart is needed.
-- `PRIVACY.md` now discloses the issue-tracker import feature (GitHub / Jira) as an opt-in outbound data transfer.
-- Fixed a duplicate `ADR-0006` filename collision in `docs/architecture/adr/` — the eval-drift-detection ADR is renumbered to `ADR-0008`.
-
-### Added
-
-- **A stage result submitted through `set_stage_output` now records an audit event.** A stage's structured result reaches the orchestrator on one of two channels: the `set_stage_output` MCP tool, which writes `stage_runs.output` directly and is used as-is, or a fenced JSON block scraped from the session transcript when the tool was unavailable. Both end in the same column, so afterwards nothing distinguished them — and the pipeline's single most common failure, `agent did not produce a ```json output block`, means *both* channels failed rather than that the agent botched a format. `POST /api/channel-stage-output` now records `stage_output_submitted` against the task, naming the stage run, stage and iteration, so the split between the two channels is countable. Rejected submissions record nothing, and a failing audit write is logged rather than failing an otherwise accepted result.
-
-### Security
-
-- **A stage run's MCP credentials now end when its agent does, on every path that ends it.** Per-stage-run keys are revoked on the transitions that end a run (done, fail, next, both iterate branches), but three paths ended an agent without ending its run, leaving a usable key until `expires_at`:
-  - **Cancelling a task** wrote the terminal stage only on the task row, so the abandoned agent's stage run stayed `running` and kept its credential. Both cancel routes — `DELETE`-style cancel on the HTTP handler and the `task_cancel` MCP control tool — funnel through `NotifyTaskTerminated`, which now ends every non-terminal stage run of the task as `cancelled`. A run that already reached its own outcome is left untouched.
-  - **Requeueing a run** (rate-limit or infra retry) left its key valid, and once `sweepRequeueableRuns` promoted the run back to `pending` the respawn minted a **second** key for the same `stage_run_id` — two concurrently valid credentials, of which only the newer was ever revoked. A requeue is only ever decided from a completion result, so the agent has already exited; the run is now released at the transition.
-  - **`SpawnResult.Cleanup` had no production caller.** It deletes the temp `--mcp-config` file carrying the run's bearer token, and the settings allow-list entries the spawn wrote. `stage_handlers.go` read `.PID` off the result and discarded the rest, so those files accumulated in `os.TempDir()/dashboard-<uid>/` for the life of the machine. The file is `0600` inside a `0700` per-uid directory, so this was never an exposure to other OS users — but every agent the dashboard spawns runs as that same user and can read another run's token with `Bash` or `Read`. Cleanup is now registered per stage run and runs at the same moment the credentials are revoked. This narrows the window from unbounded to the agent's own lifetime; it does not isolate concurrent agents from each other, which the same-uid process model cannot do.
-
-  The registry is in-process: a server restart drops pending entries and leaves those files behind, where `expires_at` remains the only cap.
-
-- Go toolchain raised to 1.26.6 (pinned in `.go-version`), clearing five standard-library vulnerabilities `govulncheck` reports against 1.26.5: [GO-2026-6218](https://pkg.go.dev/vuln/GO-2026-6218) quadratic complexity in `net/url`'s `resolvePath`, [GO-2026-6090](https://pkg.go.dev/vuln/GO-2026-6090) unbounded post-handshake messages in `crypto/tls`, [GO-2026-6089](https://pkg.go.dev/vuln/GO-2026-6089) `ReadHeaderTimeout` not applied to the unencrypted HTTP/2 check in `net/http`, [GO-2026-5972](https://pkg.go.dev/vuln/GO-2026-5972) unbounded recursion in `encoding/asn1`, and [GO-2026-5026](https://pkg.go.dev/vuln/GO-2026-5026) Punycode label handling in `golang.org/x/net/idna`. No code changed: `govulncheck` evaluates the standard library of the toolchain in use, so the pin is the fix.
-- `plugins/oauthkit` is now vulnerability-scanned. It was present in the test and lint matrices but absent from the security matrix, so `govulncheck` had never run against the module that holds the shared OAuth CSRF and session handling. Deriving all matrices from one source closes the gap and prevents the next one.
-- Dependabot now covers every Go module. It was configured for four (`server`, `sdk`, `github-oauth`, `office365-oauth`) out of eight, leaving `desktop`, `oauthkit`, `voice-whisper`, `voice-webspeech` and `anthropic-spawner` without dependency updates.
-- Go toolchain raised to 1.26.5 (pinned in `.go-version`), clearing [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) / CVE-2026-42505 in the standard library's `crypto/tls`: TLS handshakes using Encrypted Client Hello could be de-anonymized by a passive network observer, because pre-shared-key identities were disclosed in the unencrypted client hello. `govulncheck` evaluates the standard library of the toolchain actually in use, not the `go` directive, so the pin is what closes this.
-- `golang.org/x/text` raised to v0.39.0, clearing [GO-2026-5970](https://pkg.go.dev/vuln/GO-2026-5970) — an infinite loop on invalid input, reachable from the ent migration path.
-- `PATCH /api/settings/*` is authenticated — it changes security-sensitive settings such as `auth.mode`, `git.allowPush`, and `worktree.force`. It was described here as admin-authorized; that is not what ships. The admin gate was removed across the router because nothing ever wrote `is_admin`, so it rejected every authenticated user and passed everything through in bypass mode. Under the default `auth.mode = none` these routes are reachable by any local process on the loopback interface with a matching `Origin` header — the posture is written up in [Authentication and the local-trust default](docs/guides/security.md#authentication-and-the-local-trust-default), and making the role grantable is tracked in [#427](https://github.com/lx-wnk/Agent-Dashboard/issues/427).
-- The agent bash allow-list filter now also rejects output redirection (`>`/`>>`/`<`), single-`&` backgrounding, and newline command separators, closing allow-list-widening patterns that could append to shell startup files or chain an extra command past the first-token check.
-- Provider session discovery now skips symbolic links, so a crafted symlink placed under a provider directory can no longer be read as a session file (arbitrary-file-read guard).
-- The dashboard-channel plugin now validates the `dashboard_reply` message argument and caps inbound `POST /message` bodies (64 KiB).
-
-### Removed
-
-- `/api/quota` handler and `usage-data/*.json` file reader (Claude Code never writes that file; the endpoint always returned null).
-- Pruned unused TS-era dependencies never imported by the shipped app: `express`,
-  `nodemailer`, `web-push`, `cookie-parser`, `supertest`, and their `@types/*`.
-- Inert `permissions` and `plugin.json slots[]` manifest fields removed from the `Descriptor` Go type and `plugin.schema.json`. Both were parsed but never enforced or consumed — a security-shaped field with no enforcement is misleading. Slot bindings for UI extensions are declared in `ui-manifest.json` (authoritative since SP4a); the `plugin.json` copy was a divergeable duplicate. Old manifests carrying these fields still load correctly (`additionalProperties: true`). The unused `Registry.AllWithCapability` method is also removed.
-
-### Fixed
-
 - Plugin enable/disable in the UI now calls the live lifecycle endpoints (`POST /api/plugins/{id}/activate` and `/deactivate`) instead of the `PATCH /api/settings/plugins-enabled/{id}` endpoint that was removed in SP2. Plugins with the `auth_provider` capability still require a server restart after activation; the UI surfaces this with a notice.
 - Terminal worktree cleanup no longer force-removes a finished task's worktree
   when its branch still holds unpushed commits or uncommitted changes. Previously,
@@ -819,9 +823,43 @@ Preparing the first public release.
 - Production build now embeds the real Vue SPA. `vite build` writes to
   `server/frontend/dist` (the `go:embed` source); previously it emitted to the
   repo-root `./dist`, so `task build` silently shipped the placeholder frontend.
+- **An agent's recent notes are read more accurately from its shell commands.**
+  A vault URL inside a heredoc body is no longer counted as a read, and
+  `curl -d path=x.md` no longer defines a variable. Assignments after
+  `then`/`do`/`else`, in `A=1 B=2` runs and inside `{ …; }` groups still
+  resolve, while `${F=…}` and awk's `{a=1}` no longer count as assignments.
+  A here-string or an unclosed `<<` no longer hides the commands after it.
+- **Routines changed through MCP show up without a reload.** `manage_schedule`
+  announced its changes as a task event the routines list ignored; it now
+  sends `schedule_changed` with the same routine view the HTTP API returns.
+- **Opening a task that is not in the loaded list fetches it.** Following a
+  link to a task the board had not loaded yet showed "Task not found"; the
+  task is now loaded from the server first.
+- **"Index now" says how many notes the vault search found, not only how many it added.** `POST /api/obsidian/index` returns `matched` next to `indexed`, and the panel reports "Indexed X new notes (Y found)", so a vault root that matches nothing (0 found) no longer looks the same as a vault that is already fully indexed.
+- **Settings validation errors no longer start with `settings.Set:`.** An unknown key or an invalid value reaches the `400` response as just the message, the same as a rejected Obsidian vault root already did.
+- **A slow keychain unlock no longer fails the GitHub CLI token read.** With `github.tokenSource = gh-cli`, a `gh auth token` that times out is tried once more before start fails, and the error now says it timed out instead of `signal: killed`.
+- **A repository listed twice in `github.repos` in different case shows up once.** `lx-wnk/kontor, LX-WNK/Kontor` now keeps only the first spelling, so the GitHub summary no longer lists the same repository twice.
+- **A project filter saved before project keys no longer empties the Agents roster.** A stored project name is migrated to that project's key once agents load; a stored value that matches no running project falls back to all projects.
+- **A slow finalization push no longer stalls the pipeline, and cancelling during it sticks.** The `git push` and draft-PR step runs off the orchestrator tick, so other tasks keep progressing while it waits on the network; cancelling the task aborts the push, opens no PR, and the task stays cancelled instead of being overwritten with done.
 
 ### Security
 
+- **A stage run's MCP credentials now end when its agent does, on every path that ends it.** Per-stage-run keys are revoked on the transitions that end a run (done, fail, next, both iterate branches), but three paths ended an agent without ending its run, leaving a usable key until `expires_at`:
+  - **Cancelling a task** wrote the terminal stage only on the task row, so the abandoned agent's stage run stayed `running` and kept its credential. Both cancel routes — `DELETE`-style cancel on the HTTP handler and the `task_cancel` MCP control tool — funnel through `NotifyTaskTerminated`, which now ends every non-terminal stage run of the task as `cancelled`. A run that already reached its own outcome is left untouched.
+  - **Requeueing a run** (rate-limit or infra retry) left its key valid, and once `sweepRequeueableRuns` promoted the run back to `pending` the respawn minted a **second** key for the same `stage_run_id` — two concurrently valid credentials, of which only the newer was ever revoked. A requeue is only ever decided from a completion result, so the agent has already exited; the run is now released at the transition.
+  - **`SpawnResult.Cleanup` had no production caller.** It deletes the temp `--mcp-config` file carrying the run's bearer token, and the settings allow-list entries the spawn wrote. `stage_handlers.go` read `.PID` off the result and discarded the rest, so those files accumulated in `os.TempDir()/dashboard-<uid>/` for the life of the machine. The file is `0600` inside a `0700` per-uid directory, so this was never an exposure to other OS users — but every agent the dashboard spawns runs as that same user and can read another run's token with `Bash` or `Read`. Cleanup is now registered per stage run and runs at the same moment the credentials are revoked. This narrows the window from unbounded to the agent's own lifetime; it does not isolate concurrent agents from each other, which the same-uid process model cannot do.
+
+  The registry is in-process: a server restart drops pending entries and leaves those files behind, where `expires_at` remains the only cap.
+
+- Go toolchain raised to 1.26.6 (pinned in `.go-version`), clearing five standard-library vulnerabilities `govulncheck` reports against 1.26.5: [GO-2026-6218](https://pkg.go.dev/vuln/GO-2026-6218) quadratic complexity in `net/url`'s `resolvePath`, [GO-2026-6090](https://pkg.go.dev/vuln/GO-2026-6090) unbounded post-handshake messages in `crypto/tls`, [GO-2026-6089](https://pkg.go.dev/vuln/GO-2026-6089) `ReadHeaderTimeout` not applied to the unencrypted HTTP/2 check in `net/http`, [GO-2026-5972](https://pkg.go.dev/vuln/GO-2026-5972) unbounded recursion in `encoding/asn1`, and [GO-2026-5026](https://pkg.go.dev/vuln/GO-2026-5026) Punycode label handling in `golang.org/x/net/idna`. No code changed: `govulncheck` evaluates the standard library of the toolchain in use, so the pin is the fix.
+- `plugins/oauthkit` is now vulnerability-scanned. It was present in the test and lint matrices but absent from the security matrix, so `govulncheck` had never run against the module that holds the shared OAuth CSRF and session handling. Deriving all matrices from one source closes the gap and prevents the next one.
+- Dependabot now covers every Go module. It was configured for four (`server`, `sdk`, `github-oauth`, `office365-oauth`) out of eight, leaving `desktop`, `oauthkit`, `voice-whisper`, `voice-webspeech` and `anthropic-spawner` without dependency updates.
+- Go toolchain raised to 1.26.5 (pinned in `.go-version`), clearing [GO-2026-5856](https://pkg.go.dev/vuln/GO-2026-5856) / CVE-2026-42505 in the standard library's `crypto/tls`: TLS handshakes using Encrypted Client Hello could be de-anonymized by a passive network observer, because pre-shared-key identities were disclosed in the unencrypted client hello. `govulncheck` evaluates the standard library of the toolchain actually in use, not the `go` directive, so the pin is what closes this.
+- `golang.org/x/text` raised to v0.39.0, clearing [GO-2026-5970](https://pkg.go.dev/vuln/GO-2026-5970) — an infinite loop on invalid input, reachable from the ent migration path.
+- `PATCH /api/settings/*` is authenticated — it changes security-sensitive settings such as `auth.mode`, `git.allowPush`, and `worktree.force`. It was described here as admin-authorized; that is not what ships. The admin gate was removed across the router because nothing ever wrote `is_admin`, so it rejected every authenticated user and passed everything through in bypass mode. Under the default `auth.mode = none` these routes are reachable by any local process on the loopback interface with a matching `Origin` header — the posture is written up in [Authentication and the local-trust default](docs/guides/security.md#authentication-and-the-local-trust-default), and making the role grantable is tracked in [#427](https://github.com/lx-wnk/Agent-Dashboard/issues/427).
+- The agent bash allow-list filter now also rejects output redirection (`>`/`>>`/`<`), single-`&` backgrounding, and newline command separators, closing allow-list-widening patterns that could append to shell startup files or chain an extra command past the first-token check.
+- Provider session discovery now skips symbolic links, so a crafted symlink placed under a provider directory can no longer be read as a session file (arbitrary-file-read guard).
+- The dashboard-channel plugin now validates the `dashboard_reply` message argument and caps inbound `POST /message` bodies (64 KiB).
 - Resolve all `pnpm audit` advisories: bump `dompurify` to `>=3.4.11` (the only
   production-reachable one) and `vite` to `>=6.4.3`; pin transitive `undici`
   (`^7.28.0`), `esbuild`, `@babel/core`, and `brace-expansion` via workspace
@@ -830,5 +868,18 @@ Preparing the first public release.
   limiting, audit logging, per-session token rotation, and control-character
   sanitization (PR #188).
 - Stage output submitted over the channel is accepted only from the stage run's own key or an operator key.
+- **`Agent.recentNotes` in `/api/agents/stream` is not gated by `memory.read`.** The stream carries vault-relative note paths (read or written in the last ten minutes) alongside the agent's shell commands and token usage. A per-viewer `memory.read` grant would scope-mismatch against the stream's existing ungated data; this is a documented trade-off rather than a gate. See [Security — Obsidian](docs/guides/security.md) for the full rationale.
+
+### Accessibility
+
+- The xterm terminal view now enables screen-reader mode.
+- The Task modal's close button now has an accessible label.
+- Toast auto-dismiss now pauses while a toast has keyboard focus.
+
+### Docs
+
+- `CONTRIBUTING.md` told contributors to re-trigger the onboarding flow with `agent-dashboard settings set onboarding.completed false` and left out the restart. That key applies live only to the process that writes it, so against a running dev server the command reported success and the flow stayed hidden. The instruction now says why the restart is needed.
+- `PRIVACY.md` now discloses the issue-tracker import feature (GitHub / Jira) as an opt-in outbound data transfer.
+- Fixed a duplicate `ADR-0006` filename collision in `docs/architecture/adr/` — the eval-drift-detection ADR is renumbered to `ADR-0008`.
 
 [Unreleased]: https://github.com/lx-wnk/Agent-Dashboard/commits/main

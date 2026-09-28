@@ -1,11 +1,15 @@
 package serverapp
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/mcp"
 	"github.com/lx-wnk/kontor/server/internal/secretbox"
 	"github.com/lx-wnk/kontor/server/internal/settings"
 	"github.com/stretchr/testify/assert"
@@ -154,7 +158,7 @@ func TestBootObsidianClient_FullTrioBuildsAClient(t *testing.T) {
 func TestWatchObsidianSettings_AppliesACompleteTrioWithoutARestart(t *testing.T) {
 	svc := newSettingsServiceForTest(t)
 	clients := obsidian.NewClientHolder(nil)
-	watchObsidianSettings(svc, clients)
+	watchObsidianSettings(svc, clients, nil)
 
 	require.NoError(t, svc.Set(t.Context(), "obsidian.baseURL", "https://127.0.0.1:27124"))
 	assert.Nil(t, clients.Get(), "a partial trio leaves the vault off without failing the save")
@@ -165,4 +169,90 @@ func TestWatchObsidianSettings_AppliesACompleteTrioWithoutARestart(t *testing.T)
 
 	require.NoError(t, svc.Set(t.Context(), "obsidian.apiKey", ""))
 	assert.Nil(t, clients.Get(), "breaking the trio turns the vault off again")
+}
+
+func TestWatchObsidianSettings_NotifiesMCPOnlyForObsidianKeys(t *testing.T) {
+	svc := newSettingsServiceForTest(t)
+	notifier := mcp.NewNotifier()
+	ch, unsub := notifier.Subscribe()
+	defer unsub()
+	watchObsidianSettings(svc, obsidian.NewClientHolder(nil), notifier)
+
+	require.NoError(t, svc.Set(t.Context(), "spawn.rateLimit", "6"))
+	assert.Empty(t, ch, "a non-obsidian save must not announce a tool-list change")
+
+	require.NoError(t, svc.Set(t.Context(), "obsidian.baseURL", "https://127.0.0.1:27124"))
+	require.Len(t, ch, 1, "an obsidian.* save must announce a tool-list change")
+	assert.Contains(t, string(<-ch), "notifications/tools/list_changed")
+}
+
+func TestValidateVaultRootOnSave_RejectsNonExistentRoot(t *testing.T) {
+	// Stub an HTTP server that returns 404 for unknown folders.
+	vault := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "good-root/") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(vault.Close)
+
+	svc := newSettingsServiceForTest(t)
+	client, err := obsidian.NewClient(obsidian.Config{
+		BaseURL:   vault.URL,
+		APIKey:    "test-key",
+		VaultRoot: "placeholder",
+		TLSMode:   "insecure-loopback",
+	})
+	require.NoError(t, err)
+	clients := obsidian.NewClientHolder(client)
+
+	validateVaultRootOnSave(svc, clients)
+
+	// Non-existent root is rejected.
+	err = svc.Set(t.Context(), "obsidian.vaultRoot", "bad-root")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bad-root")
+	assert.Contains(t, err.Error(), "not found")
+
+	// Existing root is accepted.
+	require.NoError(t, svc.Set(t.Context(), "obsidian.vaultRoot", "good-root"))
+
+	// Empty root (clearing) is accepted.
+	require.NoError(t, svc.Set(t.Context(), "obsidian.vaultRoot", ""))
+}
+
+func TestValidateVaultRootOnSave_UnreachableVaultDoesNotBlock(t *testing.T) {
+	// Stub an HTTP server that fails every request with a 500, simulating a
+	// vault that is reachable but broken (a refused connection hits the same
+	// non-ErrNotFound branch in validateVaultRootOnSave).
+	vault := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(vault.Close)
+
+	svc := newSettingsServiceForTest(t)
+	client, err := obsidian.NewClient(obsidian.Config{
+		BaseURL:   vault.URL,
+		APIKey:    "test-key",
+		VaultRoot: "placeholder",
+		TLSMode:   "insecure-loopback",
+	})
+	require.NoError(t, err)
+	clients := obsidian.NewClientHolder(client)
+
+	validateVaultRootOnSave(svc, clients)
+
+	require.NoError(t, svc.Set(t.Context(), "obsidian.vaultRoot", "some-root"),
+		"a probe failure other than ErrNotFound must not block the save")
+}
+
+func TestValidateVaultRootOnSave_NoClientDoesNotBlock(t *testing.T) {
+	svc := newSettingsServiceForTest(t)
+	clients := obsidian.NewClientHolder(nil)
+
+	validateVaultRootOnSave(svc, clients)
+
+	// No client = vault unreachable, save allowed.
+	require.NoError(t, svc.Set(t.Context(), "obsidian.vaultRoot", "any-root"))
 }

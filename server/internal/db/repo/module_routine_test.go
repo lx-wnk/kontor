@@ -23,7 +23,7 @@ func createRoutine(t *testing.T, r repo.TaskScheduleRepo, ctx context.Context, n
 	t.Helper()
 	row, err := r.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: name, CronExpr: "0 9 * * *", SlugPrefix: name, Title: name,
-		Cwd: "/tmp", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Cwd: "/tmp", MaxIterations: 20,
 		OwnerModule: owner,
 	})
 	require.NoError(t, err)

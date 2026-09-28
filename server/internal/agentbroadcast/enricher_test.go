@@ -11,6 +11,7 @@ import (
 	sdk "github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/merger"
 )
 
 // fakeStageRuns embeds repo.StageRunRepo so only ListBySessionIDs needs an
@@ -82,7 +83,7 @@ func TestPipelineTaskEnricher_SetsBothFieldsOnMatch(t *testing.T) {
 		"task-1": {ID: "task-1", Title: "Implement enricher"},
 	}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -94,7 +95,7 @@ func TestPipelineTaskEnricher_NoMatchLeavesEmpty(t *testing.T) {
 	stageRuns := fakeStageRuns{bySession: map[string]*ent.StageRun{}}
 	tasks := fakeTasks{byID: map[string]*ent.Task{}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-unknown"}, {SessionID: ""}}
 	enrich(context.Background(), agents)
 
@@ -108,7 +109,7 @@ func TestPipelineTaskEnricher_StageRunErrorLeavesEmptyNoPanic(t *testing.T) {
 	stageRuns := fakeStageRuns{err: errors.New("db down")}
 	tasks := fakeTasks{}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	require.NotPanics(t, func() { enrich(context.Background(), agents) })
 
@@ -122,7 +123,7 @@ func TestPipelineTaskEnricher_TaskErrorKeepsIDDropsTitle(t *testing.T) {
 	}}
 	tasks := fakeTasks{err: errors.New("db down")}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -131,7 +132,7 @@ func TestPipelineTaskEnricher_TaskErrorKeepsIDDropsTitle(t *testing.T) {
 }
 
 func TestPipelineTaskEnricher_NilReposNoop(t *testing.T) {
-	enrich := NewPipelineTaskEnricher(nil, nil, nil, nil, nil)
+	enrich := NewPipelineTaskEnricher(nil, nil, nil, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	require.NotPanics(t, func() { enrich(context.Background(), agents) })
 	require.Empty(t, agents[0].PipelineTaskID)
@@ -154,7 +155,7 @@ func TestPipelineTaskEnricher_PendingPermissions_TwoRequests(t *testing.T) {
 		},
 	}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -172,7 +173,7 @@ func TestPipelineTaskEnricher_PendingPermissions_NoStageRun(t *testing.T) {
 	tasks := fakeTasks{byID: map[string]*ent.Task{}}
 	perms := fakePermissions{byStageRun: map[string][]*ent.PermissionRequest{}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-no-run"}}
 	enrich(context.Background(), agents)
 
@@ -196,7 +197,7 @@ func TestPipelineTaskEnricher_PendingPermissions_ResolvedNotIncluded(t *testing.
 		"sr-1": {{ID: "req-pending", StageRunID: "sr-1", Tool: "Write", RequestedAt: ts}},
 	}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -213,7 +214,7 @@ func TestPipelineTaskEnricher_PendingPermissions_QueryErrorLeavesEmpty(t *testin
 	}}
 	perms := fakePermissions{err: errors.New("db down")}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	require.NotPanics(t, func() { enrich(context.Background(), agents) })
 
@@ -241,7 +242,7 @@ func TestPipelineTaskEnricher_MultiAgentBatchMatchesPerAgentResult(t *testing.T)
 		"sr-full": {{ID: "req-1", StageRunID: "sr-full", Tool: "Bash", RequestedAt: ts}},
 	}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil)
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, nil, nil, nil)
 	agents := []sdk.Agent{
 		{SessionID: "sess-full"},
 		{SessionID: "sess-bare"},
@@ -321,7 +322,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_LiveGlobalDenyGrant(t *testing.T) 
 	}}
 	grants := &fakeGrants{byCapability: map[string][]*ent.Grant{capName: {globalDenyGrant(capName)}}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -343,7 +344,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_GrantRevoked(t *testing.T) {
 	revoked.RevokedAt = &revokedAt
 	grants := &fakeGrants{byCapability: map[string][]*ent.Grant{capName: {revoked}}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -361,7 +362,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_BuiltinToolSkipsGrantsLookup(t *te
 	}}
 	grants := &fakeGrants{}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -382,7 +383,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_GrantsErrorLeavesFalseStillListed(
 	}}
 	grants := &fakeGrants{err: errors.New("db down")}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	require.NotPanics(t, func() { enrich(context.Background(), agents) })
 
@@ -405,7 +406,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_SameCapabilityOneLookupPerPass(t *
 	}}
 	grants := &fakeGrants{byCapability: map[string][]*ent.Grant{capName: {globalDenyGrant(capName)}}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
@@ -426,13 +427,159 @@ func TestPipelineTaskEnricher_DeniedByDefault_NoCapabilityRowIsDenied(t *testing
 	}}
 	grants := &fakeGrants{byCapability: map[string][]*ent.Grant{}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, missingCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, missingCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}}
 	enrich(context.Background(), agents)
 
 	require.Len(t, agents[0].PendingPermissions, 1)
 	require.True(t, agents[0].PendingPermissions[0].DeniedByDefault,
 		"a tool with no capability row resolves to deny, and the run's allow list agrees — the band must not offer a decision that would not take effect")
+}
+
+// fakeProjects embeds repo.ProjectRepo so only ListByIDs needs an
+// implementation.
+type fakeProjects struct {
+	repo.ProjectRepo
+	byID map[string]*ent.Project
+	err  error
+}
+
+func (f fakeProjects) ListByIDs(_ context.Context, ids []string) ([]*ent.Project, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	projects := make([]*ent.Project, 0, len(ids))
+	for _, id := range ids {
+		if p, ok := f.byID[id]; ok {
+			projects = append(projects, p)
+		}
+	}
+	return projects, nil
+}
+
+func TestPipelineTaskEnricher_SetsProjectNameFromKontorProject(t *testing.T) {
+	projectID := "proj-1"
+	stageRuns := fakeStageRuns{bySession: map[string]*ent.StageRun{
+		"sess-1": {TaskID: "task-1", SessionID: sessionPtr("sess-1")},
+	}}
+	tasks := fakeTasks{byID: map[string]*ent.Task{
+		"task-1": {ID: "task-1", Title: "Obsidian Vault Root Validation", ProjectID: &projectID},
+	}}
+	projects := fakeProjects{byID: map[string]*ent.Project{
+		"proj-1": {ID: "proj-1", Name: "kontor"},
+	}}
+
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, projects)
+	agents := []sdk.Agent{{SessionID: "sess-1", ProjectName: "obsidian-vault-root-validation"}}
+	enrich(context.Background(), agents)
+
+	require.Equal(t, "kontor", agents[0].ProjectName, "ProjectName must be the Kontor project name, not the worktree cwd basename")
+	require.Equal(t, "proj-1", agents[0].ProjectID)
+	require.Equal(t, "task-1", agents[0].PipelineTaskID)
+}
+
+func TestPipelineTaskEnricher_KeepsProjectNameWhenTaskHasNoProject(t *testing.T) {
+	stageRuns := fakeStageRuns{bySession: map[string]*ent.StageRun{
+		"sess-1": {TaskID: "task-1", SessionID: sessionPtr("sess-1")},
+	}}
+	tasks := fakeTasks{byID: map[string]*ent.Task{
+		"task-1": {ID: "task-1", Title: "Ad-hoc fix"},
+	}}
+	projects := fakeProjects{byID: map[string]*ent.Project{}}
+
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, projects)
+	agents := []sdk.Agent{{SessionID: "sess-1", ProjectName: "my-worktree"}}
+	enrich(context.Background(), agents)
+
+	require.Equal(t, "my-worktree", agents[0].ProjectName, "ProjectName stays as cwd basename when task has no ProjectID")
+}
+
+func TestPipelineTaskEnricher_ProjectLookupErrorKeepsProjectName(t *testing.T) {
+	projectID := "proj-1"
+	stageRuns := fakeStageRuns{bySession: map[string]*ent.StageRun{
+		"sess-1": {TaskID: "task-1", SessionID: sessionPtr("sess-1")},
+	}}
+	tasks := fakeTasks{byID: map[string]*ent.Task{
+		"task-1": {ID: "task-1", Title: "Implement enricher", ProjectID: &projectID},
+	}}
+	projects := fakeProjects{err: errors.New("db down")}
+
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, projects)
+	agents := []sdk.Agent{{SessionID: "sess-1", ProjectName: "my-worktree"}}
+	require.NotPanics(t, func() { enrich(context.Background(), agents) })
+
+	require.Equal(t, "my-worktree", agents[0].ProjectName, "a failed project lookup keeps the cwd basename")
+	require.Equal(t, "Implement enricher", agents[0].PipelineTaskTitle, "a failed project lookup must not drop the task annotation")
+}
+
+// fakeFolders embeds repo.ProjectFolderRepo so only ListAll needs an
+// implementation.
+type fakeFolders struct {
+	repo.ProjectFolderRepo
+	rows []*ent.ProjectFolder
+	err  error
+}
+
+func (f fakeFolders) ListAll(context.Context) ([]*ent.ProjectFolder, error) {
+	return f.rows, f.err
+}
+
+func kontorFolders() fakeFolders {
+	return fakeFolders{rows: []*ent.ProjectFolder{{
+		Path:  "/code/agent-dashboard",
+		Edges: ent.ProjectFolderEdges{Project: &ent.Project{ID: "proj-1", Name: "kontor"}},
+	}}}
+}
+
+func TestProjectFolderEnricher_ResolvesEveryAgentByFolder(t *testing.T) {
+	enrich := NewProjectFolderEnricher(kontorFolders())
+	agents := []sdk.Agent{
+		{SessionID: "sess-adhoc", CWD: "/code/agent-dashboard/server", ProjectName: "server"},
+		{SessionID: "sess-other", CWD: "/code/elsewhere", ProjectName: "elsewhere"},
+	}
+	enrich(context.Background(), agents)
+
+	require.Equal(t, "proj-1", agents[0].ProjectID)
+	require.Equal(t, "kontor", agents[0].ProjectName, "an ad-hoc agent in a project folder gets that project")
+	require.Empty(t, agents[1].ProjectID)
+	require.Equal(t, "elsewhere", agents[1].ProjectName, "an agent outside every project folder keeps its folder name")
+}
+
+func TestProjectFolderEnricher_LookupErrorLeavesAgentsUntouched(t *testing.T) {
+	enrich := NewProjectFolderEnricher(fakeFolders{err: errors.New("db down")})
+	agents := []sdk.Agent{{CWD: "/code/agent-dashboard", ProjectName: "agent-dashboard"}}
+	enrich(context.Background(), agents)
+
+	require.Empty(t, agents[0].ProjectID)
+	require.Equal(t, "agent-dashboard", agents[0].ProjectName)
+}
+
+func TestEnricherChain_TaskProjectWinsOverFolderMatch(t *testing.T) {
+	taskProject := "proj-2"
+	stageRuns := fakeStageRuns{bySession: map[string]*ent.StageRun{
+		"sess-1": {TaskID: "task-1", SessionID: sessionPtr("sess-1")},
+	}}
+	tasks := fakeTasks{byID: map[string]*ent.Task{
+		"task-1": {ID: "task-1", Title: "T", ProjectID: &taskProject},
+	}}
+	projects := fakeProjects{byID: map[string]*ent.Project{
+		"proj-2": {ID: "proj-2", Name: "website"},
+	}}
+
+	enrich := merger.ChainEnrichers(
+		NewProjectFolderEnricher(kontorFolders()),
+		NewPipelineTaskEnricher(stageRuns, tasks, nil, nil, nil, projects),
+	)
+	agents := []sdk.Agent{
+		{SessionID: "sess-1", CWD: "/code/agent-dashboard/.worktrees/t", ProjectName: "t"},
+		{SessionID: "sess-adhoc", CWD: "/code/agent-dashboard", ProjectName: "agent-dashboard"},
+	}
+	enrich(context.Background(), agents)
+
+	require.Equal(t, "proj-2", agents[0].ProjectID, "the task's project overrides the folder match")
+	require.Equal(t, "website", agents[0].ProjectName)
+	require.Equal(t, "proj-1", agents[1].ProjectID, "an ad-hoc agent in the same folder still resolves by folder")
+	require.Equal(t, "kontor", agents[1].ProjectName)
 }
 
 func TestPipelineTaskEnricher_DeniedByDefault_IsPerTaskNotPerTool(t *testing.T) {
@@ -453,7 +600,7 @@ func TestPipelineTaskEnricher_DeniedByDefault_IsPerTaskNotPerTool(t *testing.T) 
 	taskDeny := &ent.Grant{ID: "grant-task", CapabilityName: capName, ContextKind: "task", ContextRef: "task-1", Mode: "deny"}
 	grants := &fakeGrants{byCapability: map[string][]*ent.Grant{capName: {taskDeny}}}
 
-	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{})
+	enrich := NewPipelineTaskEnricher(stageRuns, tasks, perms, grants, fakeCapabilities{}, nil)
 	agents := []sdk.Agent{{SessionID: "sess-1"}, {SessionID: "sess-2"}}
 	enrich(context.Background(), agents)
 

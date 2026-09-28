@@ -54,6 +54,9 @@ func StageRunAllowedTools() []string {
 // being wound down.
 const StageKeyTTLBuffer = 5 * time.Minute
 
+// MaxStageKeyTTL bounds a key whose stage has no timeout configured.
+const MaxStageKeyTTL = 24 * time.Hour
+
 // StageKeyIssuer mints and revokes the ephemeral MCP credentials a pipeline
 // stage run presents to /api/mcp. It is the only writer of
 // repo.ApiKeyKindStageRun rows.
@@ -71,7 +74,11 @@ func (i StageKeyIssuer) Issue(ctx context.Context, stageRunID string, stageTimeo
 		return "", fmt.Errorf("mcp: refusing to issue a key with no stage run — it would be unattributable and unrevocable")
 	}
 	token := GenerateAPIToken()
-	expires := time.Now().Add(stageTimeout + StageKeyTTLBuffer)
+	ttl := stageTimeout + StageKeyTTLBuffer
+	if stageTimeout <= 0 {
+		ttl = MaxStageKeyTTL
+	}
+	expires := time.Now().Add(ttl)
 	if _, err := i.Keys.Create(ctx, repo.CreateApiKeyInput{
 		Name:       "stage-run " + stageRunID,
 		Hash:       HashToken(token),

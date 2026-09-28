@@ -41,13 +41,12 @@ func makeOrchestratorFull(t *testing.T) (*pipeline.PipelineOrchestrator, repo.Ta
 func makeRequeuedRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo, nextRetryAt time.Time) (*repo.CreateTaskInput, string) {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "requeue-sweep-test",
-		Title:               "Requeue Sweep Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "requeue-sweep-test",
+		Title:         "Requeue Sweep Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -119,13 +118,12 @@ func TestSweepOrphanRuns_RequeuedRunOnParkedTask_Reaped(t *testing.T) {
 
 	// Create a task in "cancelled" state (parked).
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                "orphan-requeued-test",
-		Title:               "Orphan Requeued Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "cancelled",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          "orphan-requeued-test",
+		Title:         "Orphan Requeued Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "cancelled",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 
@@ -159,13 +157,12 @@ func TestSweepOrphanRuns_RequeuedRunOnParkedTask_Reaped(t *testing.T) {
 func makeRunningRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo, slug string, pid *int, startedAt time.Time) string {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               "Running Orphan Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         "Running Orphan Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 

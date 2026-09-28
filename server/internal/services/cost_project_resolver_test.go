@@ -6,7 +6,33 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 )
+
+func TestProjectFolderIndex_Match(t *testing.T) {
+	idx := NewProjectFolderIndex([]*ent.ProjectFolder{
+		{Path: "/code/acme", Edges: ent.ProjectFolderEdges{Project: &ent.Project{ID: "p-acme", Name: "Acme"}}},
+		{Path: "/code/acme/sub/", Edges: ent.ProjectFolderEdges{Project: &ent.Project{ID: "p-sub", Name: "Sub"}}},
+		{Path: "/code/orphan"},
+	})
+
+	id, name, ok := idx.Match("/code/acme/sub/pkg")
+	assert.True(t, ok)
+	assert.Equal(t, "p-sub", id)
+	assert.Equal(t, "Sub", name)
+
+	id, _, ok = idx.Match("/code/acme/other")
+	assert.True(t, ok)
+	assert.Equal(t, "p-acme", id)
+
+	_, _, ok = idx.Match("/code/acme-tools")
+	assert.False(t, ok, "prefix match must stop at a path separator")
+	_, _, ok = idx.Match("/code/orphan/x")
+	assert.False(t, ok, "a folder without a loaded project is no match")
+	_, _, ok = idx.Match("")
+	assert.False(t, ok)
+}
 
 func TestResolveUncached_DashboardFolderMatchWins(t *testing.T) {
 	// ensureFoldersLocked sorts folders longest-first; mirror that ordering here.

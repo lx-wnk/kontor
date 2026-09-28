@@ -75,7 +75,7 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	if err := h.svc.Set(r.Context(), key, body.Value); err != nil {
 		var verr *settingssvc.ValidationError
 		if errors.As(err, &verr) {
-			return fmt.Errorf("%w: %s", apierr.ErrBadRequest, err.Error())
+			return &apierr.AppError{Status: http.StatusBadRequest, Message: verr.Error()}
 		}
 		return fmt.Errorf("settings.patch: %w", err)
 	}

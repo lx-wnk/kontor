@@ -19,6 +19,7 @@ type RefineDeps struct {
 	Runner    *refine.Runner
 	Advance   func(ctx context.Context, taskID string) error
 	Revoke    func(ctx context.Context, stageRunID string) error
+	Broadcast func(ctx context.Context, eventType, taskID string)
 }
 
 // RegisterRefineTools registers the refinement MCP tools into the registry.
@@ -69,6 +70,7 @@ func registerInjectConcept(registry mcp.ToolRegistry, d RefineDeps) {
 			if err := refineapi.InjectConcept(ctx, refineapi.InjectDeps{Turns: d.Turns, Runner: d.Runner}, taskID, concept); err != nil {
 				return nil, mcp.Fail("inject_concept: " + err.Error())
 			}
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			status, _ := d.Runner.State(taskID)
 			return mcp.OK(map[string]any{"status": status})
 		},
@@ -130,6 +132,7 @@ func registerApproveSpec(registry mcp.ToolRegistry, d RefineDeps) {
 			if err != nil {
 				return nil, mcp.Fail("approve_spec: " + err.Error())
 			}
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			return mcp.OK(map[string]any{"task": task})
 		},
 	})

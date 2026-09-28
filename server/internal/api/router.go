@@ -646,6 +646,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 	// Mounted outside the JWT group so OAuth-less clients can reach it.
 	if deps.MCPHandler != nil {
 		r.With(authRateLimiter, mcp.McpAuthMiddleware(deps.ApiKeyRepo)).Post(mcp.EndpointPath, deps.MCPHandler.ServeHTTP)
+		r.With(authRateLimiter, mcp.McpAuthMiddleware(deps.ApiKeyRepo)).Get(mcp.EndpointPath, deps.MCPHandler.ServeHTTP)
 	}
 
 	// Vue SPA catch-all — must be last (after all API routes)

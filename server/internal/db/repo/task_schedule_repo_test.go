@@ -27,9 +27,6 @@ func newSchedule(t *testing.T, r repo.TaskScheduleRepo, name string, in repo.Cre
 	if in.MaxIterations == 0 {
 		in.MaxIterations = 20
 	}
-	if in.StageTimeoutSeconds == 0 {
-		in.StageTimeoutSeconds = 1800
-	}
 	s, err := r.Create(context.Background(), in)
 	if err != nil {
 		t.Fatalf("create schedule %q: %v", name, err)
@@ -141,13 +138,12 @@ func TestTaskScheduleRepo_CreateCreatesResourceRow(t *testing.T) {
 	schedules, resources, ctx := newScheduleRepoWithResources(t)
 
 	s, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		Name:                "nightly",
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          "nightly",
-		Title:               "Nightly run",
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Name:          "nightly",
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    "nightly",
+		Title:         "Nightly run",
+		Cwd:           "/tmp",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -179,13 +175,12 @@ func TestTaskScheduleRepo_DeleteOrphansResourceRow(t *testing.T) {
 	schedules, resources, ctx := newScheduleRepoWithResources(t)
 
 	s, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		Name:                "ephemeral",
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          "eph",
-		Title:               "Ephemeral",
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Name:          "ephemeral",
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    "eph",
+		Title:         "Ephemeral",
+		Cwd:           "/tmp",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -209,13 +204,12 @@ func TestTaskScheduleRepo_SetEnabledSyncsResourceState(t *testing.T) {
 	schedules, resources, ctx := newScheduleRepoWithResources(t)
 
 	s, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		Name:                "toggle",
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          "toggle",
-		Title:               "Toggle",
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Name:          "toggle",
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    "toggle",
+		Title:         "Toggle",
+		Cwd:           "/tmp",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -244,13 +238,12 @@ func TestTaskScheduleRepo_UpdateRefreshesResourceName(t *testing.T) {
 	schedules, resources, ctx := newScheduleRepoWithResources(t)
 
 	s, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		Name:                "original",
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          "orig",
-		Title:               "Original",
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Name:          "original",
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    "orig",
+		Title:         "Original",
+		Cwd:           "/tmp",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -288,13 +281,12 @@ func TestTaskScheduleRepo_EveryConstructedRepoSyncsResources(t *testing.T) {
 	resources := repo.NewResourceRepo(bundle.Client)
 
 	s, err := schedules.Create(ctx, repo.CreateTaskScheduleInput{
-		Name:                "wired",
-		CronExpr:            "0 9 * * *",
-		SlugPrefix:          "wired",
-		Title:               "Wired run",
-		Cwd:                 "/tmp",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Name:          "wired",
+		CronExpr:      "0 9 * * *",
+		SlugPrefix:    "wired",
+		Title:         "Wired run",
+		Cwd:           "/tmp",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)

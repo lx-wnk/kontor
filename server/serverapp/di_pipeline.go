@@ -145,6 +145,8 @@ func provideOrchestrator(
 		HasUnpushedWorkFn: func(ctx context.Context, task *ent.Task) bool {
 			return worktreeManager.HasUnpushedWork(ctx, task)
 		},
+		PushFn:                pipeline.ProductionPushFn,
+		CreateDraftPRFn:       pipeline.ProductionCreateDraftPRFn,
 		ResolveSpawner:        resolveFn,
 		ResolveAdditionalDirs: resolveAdditionalDirs(folderRepo),
 		// InjectMemory is a bound method value, not a function reference: it

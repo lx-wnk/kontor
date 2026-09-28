@@ -23,13 +23,12 @@ func openEnrichDB(t *testing.T) *db.DBBundle {
 func createEnrichTask(t *testing.T, taskRepo repo.TaskRepo, slug, stage string) string {
 	t.Helper()
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               slug,
-		Cwd:                 "/tmp",
-		CurrentStage:        stage,
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         slug,
+		Cwd:           "/tmp",
+		CurrentStage:  stage,
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	return task.ID

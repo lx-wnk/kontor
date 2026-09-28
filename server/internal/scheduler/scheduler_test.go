@@ -35,13 +35,12 @@ func newHarness(t *testing.T, now time.Time) *testHarness {
 	created := &[]string{}
 	createFn := func(ctx context.Context, spec NewTaskSpec) (string, error) {
 		task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
-			Slug:                spec.Slug,
-			Title:               spec.Title,
-			Cwd:                 spec.Cwd,
-			CurrentStage:        "backlog",
-			Priority:            "medium",
-			MaxIterations:       20,
-			StageTimeoutSeconds: 1800,
+			Slug:          spec.Slug,
+			Title:         spec.Title,
+			Cwd:           spec.Cwd,
+			CurrentStage:  "backlog",
+			Priority:      "medium",
+			MaxIterations: 20,
 		})
 		if err != nil {
 			return "", err
@@ -68,7 +67,6 @@ func mkSchedule(t *testing.T, r repo.TaskScheduleRepo, in repo.CreateTaskSchedul
 	in.Title = "Nightly"
 	in.Cwd = "/tmp"
 	in.MaxIterations = 20
-	in.StageTimeoutSeconds = 1800
 	s, err := r.Create(context.Background(), in)
 	if err != nil {
 		t.Fatalf("create schedule: %v", err)
@@ -105,7 +103,7 @@ func TestTick_SkipOnOverlap(t *testing.T) {
 	// Simulate a prior in-flight task (non-terminal stage).
 	prior, err := h.tasks.Create(context.Background(), repo.CreateTaskInput{
 		Slug: "prior", Title: "Prior", Cwd: "/tmp", CurrentStage: "implementation",
-		Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("create prior task: %v", err)
@@ -147,7 +145,7 @@ func TestTick_SkipWhileRunWaitsForHuman(t *testing.T) {
 
 	prior, err := h.tasks.Create(context.Background(), repo.CreateTaskInput{
 		Slug: "prior-waiting", Title: "Prior Waiting", Cwd: "/tmp", CurrentStage: "implementation",
-		Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("create prior task: %v", err)

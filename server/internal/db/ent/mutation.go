@@ -25534,58 +25534,56 @@ func (m *SystemPromptMutation) ResetEdge(name string) error {
 // TaskMutation represents an operation that mutates the Task nodes in the graph.
 type TaskMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *string
-	slug                     *string
-	title                    *string
-	description              *string
-	cwd                      *string
-	worktree_path            *string
-	source_branch            *string
-	target_branch            *string
-	current_stage            *string
-	priority                 *string
-	user_id                  *string
-	parent_task_id           *string
-	max_iterations           *int
-	addmax_iterations        *int
-	token_budget             *int
-	addtoken_budget          *int
-	cost_budget_cents        *int
-	addcost_budget_cents     *int
-	stage_timeout_seconds    *int
-	addstage_timeout_seconds *int
-	silver_bullet            *bool
-	plan_mode                *bool
-	autonomy                 *string
-	metadata                 *map[string]interface{}
-	project_id               *string
-	spawner_id               *string
-	routine_id               *string
-	kind                     *string
-	applications             *[]string
-	appendapplications       []string
-	rank                     *float64
-	addrank                  *float64
-	created_at               *time.Time
-	updated_at               *time.Time
-	clearedFields            map[string]struct{}
-	stage_runs               map[string]struct{}
-	removedstage_runs        map[string]struct{}
-	clearedstage_runs        bool
-	permissions              map[string]struct{}
-	removedpermissions       map[string]struct{}
-	clearedpermissions       bool
-	dependencies             map[string]struct{}
-	removeddependencies      map[string]struct{}
-	cleareddependencies      bool
-	dependents               map[string]struct{}
-	removeddependents        map[string]struct{}
-	cleareddependents        bool
-	done                     bool
-	oldValue                 func(context.Context) (*Task, error)
-	predicates               []predicate.Task
+	op                   Op
+	typ                  string
+	id                   *string
+	slug                 *string
+	title                *string
+	description          *string
+	cwd                  *string
+	worktree_path        *string
+	source_branch        *string
+	target_branch        *string
+	current_stage        *string
+	priority             *string
+	user_id              *string
+	parent_task_id       *string
+	max_iterations       *int
+	addmax_iterations    *int
+	token_budget         *int
+	addtoken_budget      *int
+	cost_budget_cents    *int
+	addcost_budget_cents *int
+	silver_bullet        *bool
+	plan_mode            *bool
+	autonomy             *string
+	metadata             *map[string]interface{}
+	project_id           *string
+	spawner_id           *string
+	routine_id           *string
+	kind                 *string
+	applications         *[]string
+	appendapplications   []string
+	rank                 *float64
+	addrank              *float64
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	stage_runs           map[string]struct{}
+	removedstage_runs    map[string]struct{}
+	clearedstage_runs    bool
+	permissions          map[string]struct{}
+	removedpermissions   map[string]struct{}
+	clearedpermissions   bool
+	dependencies         map[string]struct{}
+	removeddependencies  map[string]struct{}
+	cleareddependencies  bool
+	dependents           map[string]struct{}
+	removeddependents    map[string]struct{}
+	cleareddependents    bool
+	done                 bool
+	oldValue             func(context.Context) (*Task, error)
+	predicates           []predicate.Task
 }
 
 var _ ent.Mutation = (*TaskMutation)(nil)
@@ -26360,62 +26358,6 @@ func (m *TaskMutation) ResetCostBudgetCents() {
 	m.cost_budget_cents = nil
 	m.addcost_budget_cents = nil
 	delete(m.clearedFields, task.FieldCostBudgetCents)
-}
-
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (m *TaskMutation) SetStageTimeoutSeconds(i int) {
-	m.stage_timeout_seconds = &i
-	m.addstage_timeout_seconds = nil
-}
-
-// StageTimeoutSeconds returns the value of the "stage_timeout_seconds" field in the mutation.
-func (m *TaskMutation) StageTimeoutSeconds() (r int, exists bool) {
-	v := m.stage_timeout_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStageTimeoutSeconds returns the old "stage_timeout_seconds" field's value of the Task entity.
-// If the Task object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *TaskMutation) OldStageTimeoutSeconds(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStageTimeoutSeconds is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStageTimeoutSeconds requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStageTimeoutSeconds: %w", err)
-	}
-	return oldValue.StageTimeoutSeconds, nil
-}
-
-// AddStageTimeoutSeconds adds i to the "stage_timeout_seconds" field.
-func (m *TaskMutation) AddStageTimeoutSeconds(i int) {
-	if m.addstage_timeout_seconds != nil {
-		*m.addstage_timeout_seconds += i
-	} else {
-		m.addstage_timeout_seconds = &i
-	}
-}
-
-// AddedStageTimeoutSeconds returns the value that was added to the "stage_timeout_seconds" field in this mutation.
-func (m *TaskMutation) AddedStageTimeoutSeconds() (r int, exists bool) {
-	v := m.addstage_timeout_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetStageTimeoutSeconds resets all changes to the "stage_timeout_seconds" field.
-func (m *TaskMutation) ResetStageTimeoutSeconds() {
-	m.stage_timeout_seconds = nil
-	m.addstage_timeout_seconds = nil
 }
 
 // SetSilverBullet sets the "silver_bullet" field.
@@ -27201,7 +27143,7 @@ func (m *TaskMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TaskMutation) Fields() []string {
-	fields := make([]string, 0, 27)
+	fields := make([]string, 0, 26)
 	if m.slug != nil {
 		fields = append(fields, task.FieldSlug)
 	}
@@ -27243,9 +27185,6 @@ func (m *TaskMutation) Fields() []string {
 	}
 	if m.cost_budget_cents != nil {
 		fields = append(fields, task.FieldCostBudgetCents)
-	}
-	if m.stage_timeout_seconds != nil {
-		fields = append(fields, task.FieldStageTimeoutSeconds)
 	}
 	if m.silver_bullet != nil {
 		fields = append(fields, task.FieldSilverBullet)
@@ -27319,8 +27258,6 @@ func (m *TaskMutation) Field(name string) (ent.Value, bool) {
 		return m.TokenBudget()
 	case task.FieldCostBudgetCents:
 		return m.CostBudgetCents()
-	case task.FieldStageTimeoutSeconds:
-		return m.StageTimeoutSeconds()
 	case task.FieldSilverBullet:
 		return m.SilverBullet()
 	case task.FieldPlanMode:
@@ -27382,8 +27319,6 @@ func (m *TaskMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldTokenBudget(ctx)
 	case task.FieldCostBudgetCents:
 		return m.OldCostBudgetCents(ctx)
-	case task.FieldStageTimeoutSeconds:
-		return m.OldStageTimeoutSeconds(ctx)
 	case task.FieldSilverBullet:
 		return m.OldSilverBullet(ctx)
 	case task.FieldPlanMode:
@@ -27515,13 +27450,6 @@ func (m *TaskMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCostBudgetCents(v)
 		return nil
-	case task.FieldStageTimeoutSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStageTimeoutSeconds(v)
-		return nil
 	case task.FieldSilverBullet:
 		v, ok := value.(bool)
 		if !ok {
@@ -27623,9 +27551,6 @@ func (m *TaskMutation) AddedFields() []string {
 	if m.addcost_budget_cents != nil {
 		fields = append(fields, task.FieldCostBudgetCents)
 	}
-	if m.addstage_timeout_seconds != nil {
-		fields = append(fields, task.FieldStageTimeoutSeconds)
-	}
 	if m.addrank != nil {
 		fields = append(fields, task.FieldRank)
 	}
@@ -27643,8 +27568,6 @@ func (m *TaskMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTokenBudget()
 	case task.FieldCostBudgetCents:
 		return m.AddedCostBudgetCents()
-	case task.FieldStageTimeoutSeconds:
-		return m.AddedStageTimeoutSeconds()
 	case task.FieldRank:
 		return m.AddedRank()
 	}
@@ -27676,13 +27599,6 @@ func (m *TaskMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddCostBudgetCents(v)
-		return nil
-	case task.FieldStageTimeoutSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddStageTimeoutSeconds(v)
 		return nil
 	case task.FieldRank:
 		v, ok := value.(float64)
@@ -27840,9 +27756,6 @@ func (m *TaskMutation) ResetField(name string) error {
 		return nil
 	case task.FieldCostBudgetCents:
 		m.ResetCostBudgetCents()
-		return nil
-	case task.FieldStageTimeoutSeconds:
-		m.ResetStageTimeoutSeconds()
 		return nil
 	case task.FieldSilverBullet:
 		m.ResetSilverBullet()
@@ -29540,53 +29453,51 @@ func (m *TaskPermissionMutation) ResetEdge(name string) error {
 // TaskScheduleMutation represents an operation that mutates the TaskSchedule nodes in the graph.
 type TaskScheduleMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *string
-	name                     *string
-	enabled                  *bool
-	nl_text                  *string
-	cron_expr                *string
-	timezone                 *string
-	catchup                  *string
-	slug_prefix              *string
-	title                    *string
-	description              *string
-	cwd                      *string
-	source_branch            *string
-	target_branch            *string
-	priority                 *string
-	run_mode                 *string
-	max_iterations           *int
-	addmax_iterations        *int
-	token_budget             *int
-	addtoken_budget          *int
-	cost_budget_cents        *int
-	addcost_budget_cents     *int
-	stage_timeout_seconds    *int
-	addstage_timeout_seconds *int
-	silver_bullet            *bool
-	project_id               *string
-	spawner_id               *string
-	permission_template      *string
-	metadata                 *map[string]interface{}
-	next_run_at              *time.Time
-	last_run_at              *time.Time
-	last_task_id             *string
-	last_skipped_at          *time.Time
-	skipped_count            *int
-	addskipped_count         *int
-	resource_id              *string
-	owner_module             *string
-	applications             *[]string
-	appendapplications       []string
-	user_id                  *string
-	created_at               *time.Time
-	updated_at               *time.Time
-	clearedFields            map[string]struct{}
-	done                     bool
-	oldValue                 func(context.Context) (*TaskSchedule, error)
-	predicates               []predicate.TaskSchedule
+	op                   Op
+	typ                  string
+	id                   *string
+	name                 *string
+	enabled              *bool
+	nl_text              *string
+	cron_expr            *string
+	timezone             *string
+	catchup              *string
+	slug_prefix          *string
+	title                *string
+	description          *string
+	cwd                  *string
+	source_branch        *string
+	target_branch        *string
+	priority             *string
+	run_mode             *string
+	max_iterations       *int
+	addmax_iterations    *int
+	token_budget         *int
+	addtoken_budget      *int
+	cost_budget_cents    *int
+	addcost_budget_cents *int
+	silver_bullet        *bool
+	project_id           *string
+	spawner_id           *string
+	permission_template  *string
+	metadata             *map[string]interface{}
+	next_run_at          *time.Time
+	last_run_at          *time.Time
+	last_task_id         *string
+	last_skipped_at      *time.Time
+	skipped_count        *int
+	addskipped_count     *int
+	resource_id          *string
+	owner_module         *string
+	applications         *[]string
+	appendapplications   []string
+	user_id              *string
+	created_at           *time.Time
+	updated_at           *time.Time
+	clearedFields        map[string]struct{}
+	done                 bool
+	oldValue             func(context.Context) (*TaskSchedule, error)
+	predicates           []predicate.TaskSchedule
 }
 
 var _ ent.Mutation = (*TaskScheduleMutation)(nil)
@@ -30445,62 +30356,6 @@ func (m *TaskScheduleMutation) ResetCostBudgetCents() {
 	delete(m.clearedFields, taskschedule.FieldCostBudgetCents)
 }
 
-// SetStageTimeoutSeconds sets the "stage_timeout_seconds" field.
-func (m *TaskScheduleMutation) SetStageTimeoutSeconds(i int) {
-	m.stage_timeout_seconds = &i
-	m.addstage_timeout_seconds = nil
-}
-
-// StageTimeoutSeconds returns the value of the "stage_timeout_seconds" field in the mutation.
-func (m *TaskScheduleMutation) StageTimeoutSeconds() (r int, exists bool) {
-	v := m.stage_timeout_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStageTimeoutSeconds returns the old "stage_timeout_seconds" field's value of the TaskSchedule entity.
-// If the TaskSchedule object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *TaskScheduleMutation) OldStageTimeoutSeconds(ctx context.Context) (v int, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStageTimeoutSeconds is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStageTimeoutSeconds requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStageTimeoutSeconds: %w", err)
-	}
-	return oldValue.StageTimeoutSeconds, nil
-}
-
-// AddStageTimeoutSeconds adds i to the "stage_timeout_seconds" field.
-func (m *TaskScheduleMutation) AddStageTimeoutSeconds(i int) {
-	if m.addstage_timeout_seconds != nil {
-		*m.addstage_timeout_seconds += i
-	} else {
-		m.addstage_timeout_seconds = &i
-	}
-}
-
-// AddedStageTimeoutSeconds returns the value that was added to the "stage_timeout_seconds" field in this mutation.
-func (m *TaskScheduleMutation) AddedStageTimeoutSeconds() (r int, exists bool) {
-	v := m.addstage_timeout_seconds
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// ResetStageTimeoutSeconds resets all changes to the "stage_timeout_seconds" field.
-func (m *TaskScheduleMutation) ResetStageTimeoutSeconds() {
-	m.stage_timeout_seconds = nil
-	m.addstage_timeout_seconds = nil
-}
-
 // SetSilverBullet sets the "silver_bullet" field.
 func (m *TaskScheduleMutation) SetSilverBullet(b bool) {
 	m.silver_bullet = &b
@@ -31289,7 +31144,7 @@ func (m *TaskScheduleMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TaskScheduleMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 33)
 	if m.name != nil {
 		fields = append(fields, taskschedule.FieldName)
 	}
@@ -31340,9 +31195,6 @@ func (m *TaskScheduleMutation) Fields() []string {
 	}
 	if m.cost_budget_cents != nil {
 		fields = append(fields, taskschedule.FieldCostBudgetCents)
-	}
-	if m.stage_timeout_seconds != nil {
-		fields = append(fields, taskschedule.FieldStageTimeoutSeconds)
 	}
 	if m.silver_bullet != nil {
 		fields = append(fields, taskschedule.FieldSilverBullet)
@@ -31434,8 +31286,6 @@ func (m *TaskScheduleMutation) Field(name string) (ent.Value, bool) {
 		return m.TokenBudget()
 	case taskschedule.FieldCostBudgetCents:
 		return m.CostBudgetCents()
-	case taskschedule.FieldStageTimeoutSeconds:
-		return m.StageTimeoutSeconds()
 	case taskschedule.FieldSilverBullet:
 		return m.SilverBullet()
 	case taskschedule.FieldProjectID:
@@ -31511,8 +31361,6 @@ func (m *TaskScheduleMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldTokenBudget(ctx)
 	case taskschedule.FieldCostBudgetCents:
 		return m.OldCostBudgetCents(ctx)
-	case taskschedule.FieldStageTimeoutSeconds:
-		return m.OldStageTimeoutSeconds(ctx)
 	case taskschedule.FieldSilverBullet:
 		return m.OldSilverBullet(ctx)
 	case taskschedule.FieldProjectID:
@@ -31673,13 +31521,6 @@ func (m *TaskScheduleMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCostBudgetCents(v)
 		return nil
-	case taskschedule.FieldStageTimeoutSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStageTimeoutSeconds(v)
-		return nil
 	case taskschedule.FieldSilverBullet:
 		v, ok := value.(bool)
 		if !ok {
@@ -31809,9 +31650,6 @@ func (m *TaskScheduleMutation) AddedFields() []string {
 	if m.addcost_budget_cents != nil {
 		fields = append(fields, taskschedule.FieldCostBudgetCents)
 	}
-	if m.addstage_timeout_seconds != nil {
-		fields = append(fields, taskschedule.FieldStageTimeoutSeconds)
-	}
 	if m.addskipped_count != nil {
 		fields = append(fields, taskschedule.FieldSkippedCount)
 	}
@@ -31829,8 +31667,6 @@ func (m *TaskScheduleMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTokenBudget()
 	case taskschedule.FieldCostBudgetCents:
 		return m.AddedCostBudgetCents()
-	case taskschedule.FieldStageTimeoutSeconds:
-		return m.AddedStageTimeoutSeconds()
 	case taskschedule.FieldSkippedCount:
 		return m.AddedSkippedCount()
 	}
@@ -31862,13 +31698,6 @@ func (m *TaskScheduleMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddCostBudgetCents(v)
-		return nil
-	case taskschedule.FieldStageTimeoutSeconds:
-		v, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.AddStageTimeoutSeconds(v)
 		return nil
 	case taskschedule.FieldSkippedCount:
 		v, ok := value.(int)
@@ -32059,9 +31888,6 @@ func (m *TaskScheduleMutation) ResetField(name string) error {
 		return nil
 	case taskschedule.FieldCostBudgetCents:
 		m.ResetCostBudgetCents()
-		return nil
-	case taskschedule.FieldStageTimeoutSeconds:
-		m.ResetStageTimeoutSeconds()
 		return nil
 	case taskschedule.FieldSilverBullet:
 		m.ResetSilverBullet()

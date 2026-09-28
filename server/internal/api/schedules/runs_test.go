@@ -31,7 +31,7 @@ func newRunsServer(t *testing.T) (scheduleID, taskAID, taskBID string, get func(
 	s1, err := schedRepo.Create(ctx, repo.CreateTaskScheduleInput{
 		Name: "inbox", CronExpr: "*/5 * * * *", SlugPrefix: "inbox",
 		Title: "Inbox", Cwd: "/tmp", Priority: "medium",
-		MaxIterations: 20, StageTimeoutSeconds: 1800,
+		MaxIterations: 20,
 	})
 	require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func newRunsServer(t *testing.T) (scheduleID, taskAID, taskBID string, get func(
 	// task A: done job with one completed run bearing a summary.
 	taskA, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "a", Title: "Task A", Cwd: "/tmp", CurrentStage: "done",
-		Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 20,
 		Kind: "job", RoutineID: &s1.ID,
 	})
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func newRunsServer(t *testing.T) (scheduleID, taskAID, taskBID string, get func(
 	time.Sleep(1100 * time.Millisecond)
 	taskB, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "b", Title: "Task B", Cwd: "/tmp", CurrentStage: "job",
-		Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 20,
 		Kind: "job", RoutineID: &s1.ID,
 	})
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func newRunsServer(t *testing.T) (scheduleID, taskAID, taskBID string, get func(
 	// task C belongs to a different routine and must not appear.
 	_, err = taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "c", Title: "Task C", Cwd: "/tmp", CurrentStage: "job",
-		Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 20,
 		Kind: "job", RoutineID: &otherRoutine,
 	})
 	require.NoError(t, err)

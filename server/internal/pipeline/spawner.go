@@ -13,6 +13,7 @@ import (
 
 	"github.com/lx-wnk/kontor/server/internal/capability"
 	"github.com/lx-wnk/kontor/server/internal/channelconfig"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/envsec"
@@ -488,6 +489,14 @@ func BuildSpawnEnv(opts SpawnAgentOptions) []string {
 				break
 			}
 		}
+	}
+
+	// A spawner's own profile outranks the server's; without one the child runs
+	// on the dir the server reads (setting, else inherited env).
+	if opts.Spawner != nil && opts.Spawner.Env[claudeconfig.EnvVar] != "" {
+		merged[claudeconfig.EnvVar] = expandLeadingTilde(opts.Spawner.Env[claudeconfig.EnvVar])
+	} else if dir := claudeconfig.ExplicitDir(); dir != "" {
+		merged[claudeconfig.EnvVar] = dir
 	}
 
 	// Stage 3: dashboard-controlled identifiers (highest precedence).

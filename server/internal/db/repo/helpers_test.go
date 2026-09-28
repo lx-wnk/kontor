@@ -23,13 +23,12 @@ func openDB(t *testing.T) *ent.Client {
 func createTask(t *testing.T, r repo.TaskRepo, slug string) string {
 	t.Helper()
 	task, err := r.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               "Test Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         "Test Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
 	})
 	if err != nil {
 		t.Fatalf("create task %q: %v", slug, err)

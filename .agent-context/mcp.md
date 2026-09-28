@@ -1,6 +1,6 @@
 # MCP Endpoint
 
-A stateless StreamableHTTP MCP server at `POST /api/mcp` — each request is self-contained (no server-side session map).
+A stateless StreamableHTTP MCP server at `POST /api/mcp` — each request is self-contained (no server-side session map). `GET /api/mcp` opens an SSE stream (`mcp.Notifier`, over `sse.Broadcaster`) that carries `notifications/tools/list_changed`, fired by `watchObsidianSettings` on every `obsidian.*` save, plus a `: heartbeat` comment every `sse.HeartbeatInterval`.
 
 ## Authentication
 

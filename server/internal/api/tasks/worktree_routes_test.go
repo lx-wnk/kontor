@@ -54,13 +54,12 @@ func newWorktreeTestHandler(t *testing.T, fake tasks.WorktreeStatusProvider) (st
 	broadcaster := sse.NewTaskBroadcaster(sse.NewBroadcaster())
 
 	task, err := taskRepo.Create(testCtx(t), repo.CreateTaskInput{
-		Slug:                "wt-test",
-		Title:               "WT Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 300,
+		Slug:          "wt-test",
+		Title:         "WT Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)

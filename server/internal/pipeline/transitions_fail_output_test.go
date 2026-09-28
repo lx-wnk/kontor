@@ -16,7 +16,7 @@ func TestFailTransition_KeepsTheRunsExistingOutput(t *testing.T) {
 
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug: "fail-keeps-output", Title: "t", Cwd: "/tmp", CurrentStage: "plan_review",
-		Priority: "medium", MaxIterations: 3, StageTimeoutSeconds: 1800,
+		Priority: "medium", MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "plan_review", SessionName: "fko-0"})

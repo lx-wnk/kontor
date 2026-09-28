@@ -70,7 +70,7 @@ func mustStageRun(t *testing.T, client *ent.Client) string {
 	stageRunSeq++
 	task, err := repo.NewTaskRepo(client).Create(ctx, repo.CreateTaskInput{
 		Slug: fmt.Sprintf("memory-http-task-%d", stageRunSeq), Title: "Test Task", Cwd: "/tmp",
-		CurrentStage: "backlog", Priority: "medium", MaxIterations: 20, StageTimeoutSeconds: 1800,
+		CurrentStage: "backlog", Priority: "medium", MaxIterations: 20,
 	})
 	require.NoError(t, err)
 	run, err := repo.NewStageRunRepo(client).Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "backlog", Iteration: 1})

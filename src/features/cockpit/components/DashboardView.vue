@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PermissionDecision } from '@/features/pipeline'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AutoApprovingStrip from '@/components/AutoApprovingStrip.vue'
 import ChannelScriptCallout from '@/components/shell/ChannelScriptCallout.vue'
 import DashboardToolbar from '@/components/shell/DashboardToolbar.vue'
@@ -9,7 +9,7 @@ import { useNow } from '@/composables/useNow'
 import { useSpawners } from '@/composables/useSpawners'
 import { useViewState } from '@/composables/useViewState'
 import { AgentCardGrid, AgentTable, AgentTriageBand, EmptyAgentState, useAgents } from '@/features/agents'
-import { groupAgents, sortAgents } from '@/utils/agentGroup'
+import { agentProjectKey, groupAgents, sortAgents } from '@/utils/agentGroup'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
 
 defineProps<{
@@ -36,7 +36,7 @@ const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(n
 const rosterAgents = computed(() => {
   let base = filteredAgents.value
   if (dashboardProject.value !== 'all')
-    base = base.filter(a => a.projectName === dashboardProject.value)
+    base = base.filter(a => agentProjectKey(a) === dashboardProject.value)
   if (dashboardSpawner.value !== 'all')
     base = base.filter(a => a.spawnerId === dashboardSpawner.value)
   return sortAgents(base, dashboardSort.value, nowMs.value)
@@ -44,8 +44,23 @@ const rosterAgents = computed(() => {
 const rosterGroups = computed(() => groupAgents(rosterAgents.value, dashboardGroup.value))
 const projectOptions = computed(() => [
   { value: 'all', label: 'All projects' },
-  ...[...new Set(agents.value.map(a => a.projectName))].sort().map(n => ({ value: n, label: friendlyProjectName(n) })),
+  ...[...new Map(agents.value.map(a => [agentProjectKey(a), friendlyProjectName(a.projectName)])).entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label)),
 ])
+// Before project keys, the stored filter held a raw projectName; migrate it once
+// agents are known, and fall back to 'all' rather than an empty roster.
+let projectMigrated = false
+watch(agents, (list) => {
+  if (projectMigrated || list.length === 0)
+    return
+  projectMigrated = true
+  const stored = dashboardProject.value
+  if (stored === 'all' || list.some(a => agentProjectKey(a) === stored))
+    return
+  const legacy = list.find(a => a.projectName === stored)
+  dashboardProject.value = legacy ? agentProjectKey(legacy) : 'all'
+}, { immediate: true })
 const spawnerOptions = computed(() => [
   { value: 'all', label: 'All spawners' },
   ...spawners.value.map(s => ({ value: s.id, label: s.name })),

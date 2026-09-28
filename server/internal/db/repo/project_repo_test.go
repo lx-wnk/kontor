@@ -78,6 +78,25 @@ func TestProjectRepo_ListAndListWithFolderCount(t *testing.T) {
 	require.Equal(t, 0, counts[p2.ID])
 }
 
+func TestProjectRepo_ListByIDs(t *testing.T) {
+	client := openTestDB(t)
+	r := repo.NewProjectRepo(client)
+
+	p1, err := r.Create(t.Context(), "A", "a", nil, nil, nil, nil)
+	require.NoError(t, err)
+	_, err = r.Create(t.Context(), "B", "b", nil, nil, nil, nil)
+	require.NoError(t, err)
+
+	got, err := r.ListByIDs(t.Context(), []string{p1.ID, "missing"})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, p1.ID, got[0].ID)
+
+	none, err := r.ListByIDs(t.Context(), nil)
+	require.NoError(t, err)
+	require.Empty(t, none)
+}
+
 func TestProjectRepo_Update(t *testing.T) {
 	client := openTestDB(t)
 	r := repo.NewProjectRepo(client)

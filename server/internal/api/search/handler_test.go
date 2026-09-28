@@ -98,10 +98,10 @@ func TestSearch_TaskFTS(t *testing.T) {
 	// Insert a task row directly via raw SQL so the FTS5 trigger fires.
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := bundle.DB.Exec(`
-		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"task-id-fts-1", "fts-test-slug", "FTSUniqueKeywordXYZ", "/tmp/test",
-		"backlog", "medium", 20, 1800, false, now, now,
+		"backlog", "medium", 20, false, now, now,
 	)
 	if err != nil {
 		t.Fatalf("insert task: %v", err)
@@ -149,10 +149,10 @@ func TestSearch_TaskVisibility_NonAdmin(t *testing.T) {
 
 	// Insert a task owned by alice.
 	_, err = bundle.DB.Exec(`
-		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, user_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, user_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"task-alice", "alice-task", "ScopingTestAlice", "/tmp/alice",
-		"backlog", "medium", 20, 1800, false, "user-alice", now, now,
+		"backlog", "medium", 20, false, "user-alice", now, now,
 	)
 	if err != nil {
 		t.Fatalf("insert alice task: %v", err)
@@ -160,10 +160,10 @@ func TestSearch_TaskVisibility_NonAdmin(t *testing.T) {
 
 	// Insert a task owned by bob.
 	_, err = bundle.DB.Exec(`
-		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, stage_timeout_seconds, silver_bullet, user_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, user_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"task-bob", "bob-task", "ScopingTestBob", "/tmp/bob",
-		"backlog", "medium", 20, 1800, false, "user-bob", now, now,
+		"backlog", "medium", 20, false, "user-bob", now, now,
 	)
 	if err != nil {
 		t.Fatalf("insert bob task: %v", err)

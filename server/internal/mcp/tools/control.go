@@ -32,7 +32,7 @@ type ControlDeps struct {
 	AuditRepo    repo.AuditEventRepo
 	Orchestrator ControlOrchestrator         // may be nil in tests
 	RefineReader tasksapi.RefineStatusReader // may be nil; lets advance_task see refine status
-	Broadcast    func(taskID string)
+	Broadcast    func(ctx context.Context, eventType, taskID string)
 }
 
 // RegisterControlTools registers all control tools into the given registry.
@@ -79,7 +79,7 @@ func registerAdvanceTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if d.AuditRepo != nil {
 				_ = d.AuditRepo.RecordTaskAudit(ctx, id, nil, "task_advanced", "task:"+id, map[string]any{"actor": "mcp", "primary": res.Primary, "dispatched": res.Dispatched})
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 			return mcp.OK(res)
 		},
 	})
@@ -116,7 +116,7 @@ func registerHoldTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if d.AuditRepo != nil {
 				_ = d.AuditRepo.RecordTaskAudit(ctx, id, nil, "task_held", "task:"+id, map[string]any{"actor": "mcp", "fromStage": task.CurrentStage})
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 			return mcp.OK(map[string]any{"task": updated})
 		},
 	})
@@ -164,7 +164,7 @@ func registerResumeTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if d.AuditRepo != nil {
 				_ = d.AuditRepo.RecordTaskAudit(ctx, id, nil, "task_resumed", "task:"+id, map[string]any{"actor": "mcp", "hadPrompt": additionalPrompt != ""})
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 			task, _ = d.TaskRepo.GetByID(ctx, id)
 			return mcp.OK(map[string]any{"task": task, "stageRun": sr})
 		},
@@ -201,7 +201,7 @@ func registerProgressTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if stageRun == nil {
 				return nil, mcp.Fail("Task cannot progress (terminal, not found, or no free runner slot)")
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 			// Refresh task after progression; ignore error — stale data is better than an error on success.
 			task, _ := d.TaskRepo.GetByID(ctx, id)
 			return mcp.OK(map[string]any{"task": task, "stageRun": stageRun})
@@ -241,7 +241,7 @@ func registerCancelTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if d.Orchestrator != nil {
 				d.Orchestrator.NotifyTaskTerminated(ctx, id, "cancelled")
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 
 			// Refresh task after cancel; ignore error — stale data is better than an error on success.
 			task, _ = d.TaskRepo.GetByID(ctx, id)
@@ -296,7 +296,7 @@ func registerRetryTask(registry mcp.ToolRegistry, d ControlDeps) {
 			if stageRun == nil {
 				return nil, mcp.Fail("Task could not be re-queued (terminal, missing, or no failed/requeued run)")
 			}
-			safeBroadcast(d.Broadcast, id)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", id)
 			// Refresh task after re-queue; ignore error — stale data is better than an error on success.
 			task, _ = d.TaskRepo.GetByID(ctx, id)
 			return mcp.OK(map[string]any{"task": task, "stageRun": stageRun})
@@ -358,6 +358,7 @@ func registerGrantPermission(registry mcp.ToolRegistry, d ControlDeps) {
 			if err != nil {
 				return nil, mcp.Fail("grant_permission: " + err.Error())
 			}
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			return mcp.OK(perm)
 		},
 	})
@@ -401,6 +402,8 @@ func registerResolvePermissionRequest(registry mcp.ToolRegistry, d ControlDeps) 
 			var resumed bool
 			run, runErr := d.SRRepo.GetByID(ctx, req.StageRunID)
 			if runErr == nil && run != nil {
+				// The request is resolved even when the grant or resume below fails.
+				defer safeBroadcast(d.Broadcast, ctx, "task_updated", run.TaskID)
 				if outcome == repo.OutcomeGranted {
 					in := repo.CreateTaskPermissionInput{
 						TaskID:         run.TaskID,
@@ -429,7 +432,6 @@ func registerResolvePermissionRequest(registry mcp.ToolRegistry, d ControlDeps) 
 							"warning":  "ResumeFromUser failed: " + resumeErr.Error(),
 						})
 					}
-					safeBroadcast(d.Broadcast, run.TaskID)
 					resumed = true
 				}
 			} else if outcome == repo.OutcomeGranted {
@@ -478,7 +480,7 @@ func registerApproveAllPending(registry mcp.ToolRegistry, d ControlDeps) {
 				return nil, mcp.Fail(err.Error())
 			}
 
-			safeBroadcast(d.Broadcast, taskID)
+			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			return mcp.OK(res)
 		},
 	})

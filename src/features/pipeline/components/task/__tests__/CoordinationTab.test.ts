@@ -20,7 +20,6 @@ function makeTask(overrides: Record<string, unknown> = {}) {
     maxIterations: 10,
     tokenBudget: null,
     costBudgetCents: null,
-    stageTimeoutSeconds: 3600,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     metadata: null,

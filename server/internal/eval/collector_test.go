@@ -32,15 +32,14 @@ func TestCollector_BucketsByDimension(t *testing.T) {
 
 	// Task A: spawner="spawnerA", model="claude-opus-4"
 	taskA, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "task-a",
-		Title:               "Task A",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implement",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("spawnerA"),
-		Metadata:            map[string]any{"model": "claude-opus-4"},
+		Slug:          "task-a",
+		Title:         "Task A",
+		Cwd:           "/tmp",
+		CurrentStage:  "implement",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("spawnerA"),
+		Metadata:      map[string]any{"model": "claude-opus-4"},
 	})
 	if err != nil {
 		t.Fatalf("create taskA: %v", err)
@@ -48,14 +47,13 @@ func TestCollector_BucketsByDimension(t *testing.T) {
 
 	// Task B: spawner="spawnerB", no model → "default"
 	taskB, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "task-b",
-		Title:               "Task B",
-		Cwd:                 "/tmp",
-		CurrentStage:        "review",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("spawnerB"),
+		Slug:          "task-b",
+		Title:         "Task B",
+		Cwd:           "/tmp",
+		CurrentStage:  "review",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("spawnerB"),
 	})
 	if err != nil {
 		t.Fatalf("create taskB: %v", err)
@@ -103,15 +101,14 @@ func TestCollector_SuccessRate(t *testing.T) {
 	tr := repo.NewTaskRepo(bundle.Client)
 
 	taskA, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "task-sr",
-		Title:               "SR Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implement",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("sp1"),
-		Metadata:            map[string]any{"model": "m1"},
+		Slug:          "task-sr",
+		Title:         "SR Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "implement",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("sp1"),
+		Metadata:      map[string]any{"model": "m1"},
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)
@@ -156,15 +153,14 @@ func TestCollector_MeanCostCents(t *testing.T) {
 	tr := repo.NewTaskRepo(bundle.Client)
 
 	taskA, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "task-cost",
-		Title:               "Cost Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implement",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("sp1"),
-		Metadata:            map[string]any{"model": "m1"},
+		Slug:          "task-cost",
+		Title:         "Cost Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "implement",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("sp1"),
+		Metadata:      map[string]any{"model": "m1"},
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)
@@ -204,15 +200,14 @@ func TestCollector_AwaitingUserRate(t *testing.T) {
 	tr := repo.NewTaskRepo(bundle.Client)
 
 	taskA, err := tr.Create(ctx, repo.CreateTaskInput{
-		Slug:                "task-await",
-		Title:               "Await Task",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implement",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		SpawnerID:           strPtr("sp1"),
-		Metadata:            map[string]any{"model": "m1"},
+		Slug:          "task-await",
+		Title:         "Await Task",
+		Cwd:           "/tmp",
+		CurrentStage:  "implement",
+		Priority:      "medium",
+		MaxIterations: 20,
+		SpawnerID:     strPtr("sp1"),
+		Metadata:      map[string]any{"model": "m1"},
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)

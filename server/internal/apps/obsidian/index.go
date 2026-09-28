@@ -56,21 +56,21 @@ func IndexNotes(
 	mem repo.MemoryRepo,
 	gate memory.Gate,
 	spaceID string,
-) (int, error) {
+) (indexed, matched int, err error) {
 	space, err := mem.GetSpaceByID(ctx, spaceID)
 	if err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: resolve space: %w", err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: resolve space: %w", err)
 	}
 	scope := repo.Scope{Kind: repo.ScopeKind(space.ScopeKind), Ref: space.ScopeRef}.Normalize()
 
 	if err := gate.Authorize(ctx, repo.CapabilityMemoryWrite, space.Slug, scope); err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", repo.CapabilityMemoryWrite, err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", repo.CapabilityMemoryWrite, err)
 	}
 
 	now := time.Now()
 	existing, err := mem.ListValid(ctx, space.ID, now)
 	if err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: list existing pointers: %w", err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: list existing pointers: %w", err)
 	}
 	priorPointers := make(map[string]string, len(existing)) // note path -> entry id
 	for _, e := range existing {
@@ -80,7 +80,7 @@ func IndexNotes(
 	}
 
 	if err := gate.Authorize(ctx, CapabilitySearch, "", scope); err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", CapabilitySearch, err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", CapabilitySearch, err)
 	}
 	// obsidian.read covers every Client.Read call this function makes below
 	// — both the new-note reads in the main loop and the existence probes
@@ -90,7 +90,7 @@ func IndexNotes(
 	// one note, and nothing in the capability schema expresses a
 	// per-note-path pattern for it to check instead.
 	if err := gate.Authorize(ctx, CapabilityRead, "", scope); err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", CapabilityRead, err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: %s: %w", CapabilityRead, err)
 	}
 
 	// Client.Search searches the whole vault, not just VaultRoot (see its
@@ -104,11 +104,11 @@ func IndexNotes(
 	// proof against a live vault has no test today.
 	results, err := client.SearchUnderRoot(ctx, "")
 	if err != nil {
-		return 0, fmt.Errorf("obsidian.IndexNotes: search: %w", err)
+		return 0, 0, fmt.Errorf("obsidian.IndexNotes: search: %w", err)
 	}
+	matched = len(results)
 
 	seen := make(map[string]bool, len(results))
-	indexed := 0
 	for _, r := range results {
 		notePath := r.Path
 		seen[notePath] = true
@@ -147,7 +147,7 @@ func IndexNotes(
 			SourceRef:  &sourceRef,
 			Confidence: 1,
 		}); err != nil {
-			return indexed, fmt.Errorf("obsidian.IndexNotes: create entry for %s: %w", notePath, err)
+			return indexed, matched, fmt.Errorf("obsidian.IndexNotes: create entry for %s: %w", notePath, err)
 		}
 		indexed++
 	}
@@ -168,11 +168,11 @@ func IndexNotes(
 			continue
 		}
 		if expireErr := mem.ExpireEntry(ctx, entryID, now); expireErr != nil {
-			return indexed, fmt.Errorf("obsidian.IndexNotes: expire stale pointer for %s: %w", notePath, expireErr)
+			return indexed, matched, fmt.Errorf("obsidian.IndexNotes: expire stale pointer for %s: %w", notePath, expireErr)
 		}
 	}
 
-	return indexed, nil
+	return indexed, matched, nil
 }
 
 // firstLine derives a short summary from a note body: its first non-blank

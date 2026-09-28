@@ -46,13 +46,12 @@ func (h *dispatchCaptureHandler) Execute(ctx *pipeline.StageContext) (pipeline.S
 func newHTTPSpawnTestTask(t *testing.T, taskRepo repo.TaskRepo, slug string) string {
 	t.Helper()
 	task, err := taskRepo.Create(context.Background(), repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               "HTTP Spawn Context Test",
-		Cwd:                 "/tmp",
-		CurrentStage:        "implementation",
-		Priority:            "medium",
-		MaxIterations:       3,
-		StageTimeoutSeconds: 1800,
+		Slug:          slug,
+		Title:         "HTTP Spawn Context Test",
+		Cwd:           "/tmp",
+		CurrentStage:  "implementation",
+		Priority:      "medium",
+		MaxIterations: 3,
 	})
 	require.NoError(t, err)
 	return task.ID

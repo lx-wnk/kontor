@@ -46,8 +46,6 @@ type Task struct {
 	TokenBudget *int `json:"token_budget,omitempty"`
 	// CostBudgetCents holds the value of the "cost_budget_cents" field.
 	CostBudgetCents *int `json:"cost_budget_cents,omitempty"`
-	// StageTimeoutSeconds holds the value of the "stage_timeout_seconds" field.
-	StageTimeoutSeconds int `json:"stage_timeout_seconds,omitempty"`
 	// SilverBullet holds the value of the "silver_bullet" field.
 	SilverBullet bool `json:"silver_bullet,omitempty"`
 	// PlanMode holds the value of the "plan_mode" field.
@@ -140,7 +138,7 @@ func (*Task) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case task.FieldRank:
 			values[i] = new(sql.NullFloat64)
-		case task.FieldMaxIterations, task.FieldTokenBudget, task.FieldCostBudgetCents, task.FieldStageTimeoutSeconds:
+		case task.FieldMaxIterations, task.FieldTokenBudget, task.FieldCostBudgetCents:
 			values[i] = new(sql.NullInt64)
 		case task.FieldID, task.FieldSlug, task.FieldTitle, task.FieldDescription, task.FieldCwd, task.FieldWorktreePath, task.FieldSourceBranch, task.FieldTargetBranch, task.FieldCurrentStage, task.FieldPriority, task.FieldUserID, task.FieldParentTaskID, task.FieldAutonomy, task.FieldProjectID, task.FieldSpawnerID, task.FieldRoutineID, task.FieldKind:
 			values[i] = new(sql.NullString)
@@ -258,12 +256,6 @@ func (_m *Task) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CostBudgetCents = new(int)
 				*_m.CostBudgetCents = int(value.Int64)
-			}
-		case task.FieldStageTimeoutSeconds:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field stage_timeout_seconds", values[i])
-			} else if value.Valid {
-				_m.StageTimeoutSeconds = int(value.Int64)
 			}
 		case task.FieldSilverBullet:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -458,9 +450,6 @@ func (_m *Task) String() string {
 		builder.WriteString("cost_budget_cents=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("stage_timeout_seconds=")
-	builder.WriteString(fmt.Sprintf("%v", _m.StageTimeoutSeconds))
 	builder.WriteString(", ")
 	builder.WriteString("silver_bullet=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SilverBullet))

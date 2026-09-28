@@ -135,11 +135,6 @@ func CostBudgetCents(v int) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldCostBudgetCents, v))
 }
 
-// StageTimeoutSeconds applies equality check predicate on the "stage_timeout_seconds" field. It's identical to StageTimeoutSecondsEQ.
-func StageTimeoutSeconds(v int) predicate.Task {
-	return predicate.Task(sql.FieldEQ(FieldStageTimeoutSeconds, v))
-}
-
 // SilverBullet applies equality check predicate on the "silver_bullet" field. It's identical to SilverBulletEQ.
 func SilverBullet(v bool) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldSilverBullet, v))
@@ -1103,46 +1098,6 @@ func CostBudgetCentsIsNil() predicate.Task {
 // CostBudgetCentsNotNil applies the NotNil predicate on the "cost_budget_cents" field.
 func CostBudgetCentsNotNil() predicate.Task {
 	return predicate.Task(sql.FieldNotNull(FieldCostBudgetCents))
-}
-
-// StageTimeoutSecondsEQ applies the EQ predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsEQ(v int) predicate.Task {
-	return predicate.Task(sql.FieldEQ(FieldStageTimeoutSeconds, v))
-}
-
-// StageTimeoutSecondsNEQ applies the NEQ predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsNEQ(v int) predicate.Task {
-	return predicate.Task(sql.FieldNEQ(FieldStageTimeoutSeconds, v))
-}
-
-// StageTimeoutSecondsIn applies the In predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsIn(vs ...int) predicate.Task {
-	return predicate.Task(sql.FieldIn(FieldStageTimeoutSeconds, vs...))
-}
-
-// StageTimeoutSecondsNotIn applies the NotIn predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsNotIn(vs ...int) predicate.Task {
-	return predicate.Task(sql.FieldNotIn(FieldStageTimeoutSeconds, vs...))
-}
-
-// StageTimeoutSecondsGT applies the GT predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsGT(v int) predicate.Task {
-	return predicate.Task(sql.FieldGT(FieldStageTimeoutSeconds, v))
-}
-
-// StageTimeoutSecondsGTE applies the GTE predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsGTE(v int) predicate.Task {
-	return predicate.Task(sql.FieldGTE(FieldStageTimeoutSeconds, v))
-}
-
-// StageTimeoutSecondsLT applies the LT predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsLT(v int) predicate.Task {
-	return predicate.Task(sql.FieldLT(FieldStageTimeoutSeconds, v))
-}
-
-// StageTimeoutSecondsLTE applies the LTE predicate on the "stage_timeout_seconds" field.
-func StageTimeoutSecondsLTE(v int) predicate.Task {
-	return predicate.Task(sql.FieldLTE(FieldStageTimeoutSeconds, v))
 }
 
 // SilverBulletEQ applies the EQ predicate on the "silver_bullet" field.

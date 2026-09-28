@@ -449,4 +449,58 @@ describe('appSelect', () => {
     await expect(button.trigger('keydown', { key: 'ArrowDown' })).resolves.not.toThrow()
     expect(panel()).not.toBeNull()
   })
+
+  it('clicking the chevron toggle button while open closes the panel and refocuses the trigger', async () => {
+    const w = mountSelect({ modelValue: 'a', options })
+    await w.get('button').trigger('click')
+    await flushPromises()
+    expect(panel()).not.toBeNull()
+    const chevron = input().nextElementSibling as HTMLButtonElement
+    // A real click is preceded by a mousedown, which the outside-mousedown listener sees first.
+    chevron.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }))
+    chevron.click()
+    await flushPromises()
+    expect(panel()).toBeNull()
+    expect(document.activeElement).toBe(w.get('button').element)
+  })
+
+  it('a caller class sits on the button when closed and on the input wrapper when open', async () => {
+    wrapper = mount(AppSelect, { props: { modelValue: 'a', options }, attrs: { class: 'flex-1 shrink-0' }, attachTo: document.body })
+    const button = wrapper.get('button').element
+    expect(button.classList.contains('flex-1')).toBe(true)
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    const openWrapper = input().parentElement!
+    expect(openWrapper.classList.contains('flex-1')).toBe(true)
+    expect(openWrapper.classList.contains('shrink-0')).toBe(true)
+    expect(input().classList.contains('flex-1')).toBe(false)
+  })
+
+  it('only one role=combobox element is visible (not display:none) while open', async () => {
+    const w = mountSelect({ modelValue: 'a', options })
+    await w.get('button').trigger('click')
+    await flushPromises()
+    const comboboxes = document.querySelectorAll<HTMLElement>('[role="combobox"]')
+    const visible = Array.from(comboboxes).filter(el => getComputedStyle(el).display !== 'none')
+    expect(visible).toHaveLength(1)
+    expect(visible[0].tagName).toBe('INPUT')
+  })
+
+  it('placeholder prop shows on the closed trigger when modelValue matches no option', () => {
+    const w = mountSelect({ modelValue: 'zzz', options, placeholder: 'Pick one…' })
+    expect(w.get('button').text()).toContain('Pick one…')
+  })
+
+  it('selected label takes precedence over placeholder prop', () => {
+    const w = mountSelect({ modelValue: 'b', options, placeholder: 'Pick one…' })
+    expect(w.get('button').text()).toContain('Option B')
+    expect(w.get('button').text()).not.toContain('Pick one…')
+  })
+
+  it('open input shows placeholder prop as hint when modelValue matches nothing', async () => {
+    const w = mountSelect({ modelValue: 'zzz', options, placeholder: 'Pick one…' })
+    await w.get('button').trigger('click')
+    await flushPromises()
+    expect(input().placeholder).toBe('Pick one…')
+  })
 })

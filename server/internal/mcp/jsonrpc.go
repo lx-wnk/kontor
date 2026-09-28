@@ -8,9 +8,14 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sort"
+	"time"
+
+	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
 const protocolVersion = "2024-11-05"
+
+var heartbeatFrame = sse.CommentFrame(sse.HeartbeatComment)
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -31,13 +36,15 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-// MCPHandler returns a chi-compatible http.HandlerFunc for POST /api/mcp.
-// It handles: initialize, tools/list, tools/call.
+// MCPHandler returns a chi-compatible http.Handler for /api/mcp. POST handles
+// initialize, tools/list, tools/call. GET opens an SSE stream that forwards
+// notifier notifications (e.g. notifications/tools/list_changed); GET answers
+// 405 when notifier is nil.
 // modules may be nil: a server built without a module source serves exactly the
 // core tools.
-func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToolAuthorizer) http.HandlerFunc {
+func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToolAuthorizer, notifier *Notifier) http.Handler {
 	coreDefs := sortedToolDefs(registry)
-	return func(w http.ResponseWriter, r *http.Request) {
+	postHandler := func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 		var req rpcRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -55,7 +62,7 @@ func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToo
 				JSONRPC: "2.0", ID: req.ID,
 				Result: map[string]any{
 					"protocolVersion": protocolVersion,
-					"capabilities":    map[string]any{"tools": map[string]any{}},
+					"capabilities":    map[string]any{"tools": map[string]any{"listChanged": notifier != nil}},
 					"serverInfo":      map[string]any{"name": ServerName, "version": "1.0.0"},
 				},
 			})
@@ -138,6 +145,47 @@ func MCPHandler(registry ToolRegistry, modules ModuleTools, moduleGate ModuleToo
 			writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{Code: -32601, Message: "method not found: " + req.Method}})
 		}
 	}
+	allow := http.MethodPost
+	if notifier != nil {
+		allow = http.MethodGet + ", " + http.MethodPost
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost:
+			postHandler(w, r)
+		case r.Method == http.MethodGet && notifier != nil:
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "streaming not supported", http.StatusInternalServerError)
+				return
+			}
+			// Subscribed before the headers flush, so a client holding its 200 misses no later change.
+			ch, unsub := notifier.Subscribe()
+			defer unsub()
+			sse.WriteHeaders(w)
+			flusher.Flush()
+			heartbeat := time.NewTicker(notifier.heartbeat)
+			defer heartbeat.Stop()
+			for {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-heartbeat.C:
+					_, _ = w.Write(heartbeatFrame)
+					flusher.Flush()
+				case frame, ok := <-ch:
+					if !ok {
+						return
+					}
+					_, _ = w.Write(frame)
+					flusher.Flush()
+				}
+			}
+		default:
+			w.Header().Set("Allow", allow)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 }
 
 // callHandler invokes def.Handler and converts any panic into an error so the

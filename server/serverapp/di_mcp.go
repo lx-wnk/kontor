@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	schedulesapi "github.com/lx-wnk/kontor/server/internal/api/schedules"
 	"github.com/lx-wnk/kontor/server/internal/apps/github"
 	"github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"github.com/lx-wnk/kontor/server/internal/capability"
@@ -18,8 +19,20 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
+// newMCPScheduleBroadcast sends the schedules HTTP view; a delete (nil) sends none, so clients re-fetch.
+func newMCPScheduleBroadcast(tb *sse.TaskBroadcaster) func(id string, s *ent.TaskSchedule) {
+	return func(id string, s *ent.TaskSchedule) {
+		var payload any
+		if s != nil {
+			payload = schedulesapi.ToView(s)
+		}
+		tb.Broadcast(sse.TaskEvent{Type: "schedule_changed", TaskID: id, Payload: payload})
+	}
+}
+
 func provideMCPHandler(
 	client *ent.Client,
+	broadcast func(ctx context.Context, eventType, taskID string),
 	orch *pipeline.PipelineOrchestrator,
 	sched *scheduler.Scheduler,
 	tb *sse.TaskBroadcaster,
@@ -32,6 +45,7 @@ func provideMCPHandler(
 	obsidianClients *obsidian.ClientHolder,
 	githubClient *github.Client,
 	modules mcp.ModuleTools,
+	notifier *mcp.Notifier,
 ) http.Handler {
 	if client == nil || orch == nil {
 		return nil
@@ -51,12 +65,10 @@ func provideMCPHandler(
 
 	caller := mcp.CallerResolver{StageRuns: srRepo, Tasks: taskRepo}
 
-	broadcast := func(taskID string) {
-		tb.Broadcast(sse.TaskEvent{Type: "task_changed", TaskID: taskID, Payload: map[string]string{}})
-	}
 	broadcastDeleted := func(taskID string) {
 		tb.Broadcast(sse.TaskEvent{Type: "task_deleted", TaskID: taskID, Payload: map[string]string{}})
 	}
+	scheduleBroadcast := newMCPScheduleBroadcast(tb)
 
 	registry := mcp.ToolRegistry{}
 	mcptools.RegisterReadTools(registry, mcptools.ReadDeps{
@@ -102,7 +114,8 @@ func provideMCPHandler(
 			_, err := orch.ProgressTask(ctx, taskID, nil)
 			return err
 		},
-		Revoke: mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
+		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
+		Broadcast: broadcast,
 	})
 	mcptools.RegisterPlanTools(registry, mcptools.PlanDeps{
 		Turns:     turnsRepo,
@@ -116,13 +129,14 @@ func provideMCPHandler(
 			_, err := orch.RequeueForUser(ctx, taskID, prompt)
 			return err
 		},
-		Revoke: mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
+		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
+		Broadcast: broadcast,
 	})
 	mcptools.RegisterScheduleTools(registry, mcptools.ScheduleDeps{
 		Repo:       repo.NewTaskScheduleRepo(client),
 		Translator: scheduler.NewNLCron(nil),
 		Runner:     sched,
-		Broadcast:  broadcast,
+		Broadcast:  scheduleBroadcast,
 	})
 	mcptools.RegisterCoordTools(registry, mcptools.CoordDeps{Scratch: scratchRepo, Locks: lockRepo})
 	mcptools.RegisterMemoryTools(registry, mcptools.MemoryDeps{
@@ -177,5 +191,5 @@ func provideMCPHandler(
 		},
 		grants: repo.NewGrantRepo(client),
 	}
-	return mcp.MCPHandler(registry, modules, moduleGate)
+	return mcp.MCPHandler(registry, modules, moduleGate, notifier)
 }

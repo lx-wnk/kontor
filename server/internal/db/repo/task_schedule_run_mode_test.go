@@ -40,7 +40,7 @@ func TestTaskSchedule_RunMode_CreateInvalid(t *testing.T) {
 	r := repo.NewTaskScheduleRepo(openDB(t))
 	_, err := r.Create(context.Background(), repo.CreateTaskScheduleInput{
 		Name: "invalid-run-mode", CronExpr: "0 9 * * *", SlugPrefix: "nightly", Title: "t", Cwd: "/tmp",
-		MaxIterations: 20, StageTimeoutSeconds: 1800, RunMode: "cron",
+		MaxIterations: 20, RunMode: "cron",
 	})
 	if err == nil || !strings.Contains(err.Error(), "run mode") {
 		t.Fatalf("err = %v, want error containing %q", err, "run mode")

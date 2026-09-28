@@ -516,6 +516,7 @@ describe('agentTriageBand capability decisions', () => {
     const item: PermissionItem = {
       taskId: 'task-1',
       projectName: 'demo',
+      cwd: '/work/checkout',
       title: 'Ship it',
       routineId: null,
       requests: [{
@@ -534,6 +535,7 @@ describe('agentTriageBand capability decisions', () => {
     })
     expect(wrapper.find('[data-testid="capability-decision-card"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Ship it')
+    expect(wrapper.text(), 'the remember label names the folder the preset is saved for').toContain('Don\'t ask again in checkout')
   })
 
   // ValueElided/ContextElided carry the cut count as their own field so a
@@ -644,6 +646,7 @@ describe('agentTriageBand capability cards vs. the bulk collapse', () => {
     const item: PermissionItem = {
       taskId: 'task-1',
       projectName: 'demo',
+      cwd: '/repo/demo',
       title: 'Ship it',
       routineId: null,
       requests: [
@@ -743,6 +746,7 @@ describe('agentTriageBand routine decisions', () => {
     return {
       taskId: 'task-1',
       projectName: 'demo',
+      cwd: '/repo/demo',
       title: 'Ship it',
       routineId: 'routine-1',
       requests: [applicationRequest()],
@@ -809,6 +813,7 @@ describe('agentTriageBand denied-by-default requests', () => {
     return {
       taskId: 'task-1',
       projectName: 'demo',
+      cwd: '/repo/demo',
       title: 'Ship it',
       routineId: null,
       requests: [plainRequest()],

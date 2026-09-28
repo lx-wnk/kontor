@@ -30,6 +30,7 @@
 | Frontend | `pnpm lint && pnpm typecheck && pnpm test` |
 | Go | `task test` (sdk + server, `-race`) and `go vet ./...` per module |
 | Go lint | `task lint` (golangci-lint, sdk + server) |
+| Changelog | `task changelog:check` (no duplicate `###` heading per release section; also runs in CI) |
 | E2E | `pnpm test:e2e` (Playwright; starts its own server on port 13199, never reuses one) |
 
 `go vet ./...` runs module-wide on purpose: a narrow `go test ./pkg/...` misses `_test.go` files in parent or

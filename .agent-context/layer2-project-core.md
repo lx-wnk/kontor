@@ -11,7 +11,7 @@
 - Server MUST bind to `127.0.0.1` — never `0.0.0.0` (reads sensitive Claude session data)
 - Subagents discovered from `~/.claude/projects/{encoded_path}/{sessionId}/subagents/*.jsonl`
 - Agent status thresholds: `activeThreshold` (30s) and `waitingThreshold` (5min) in `server/internal/merger/merger.go` (`CalculateStatus`); idle is the default case beyond `waitingThreshold` (no const)
-- **Keep project docs current with code.** Whenever a change adds, removes, or alters a user-facing feature, dependency, command, config, or workflow, update the affected docs in the SAME change — at minimum `README.md`, `CHANGELOG.md` (Keep a Changelog headings), and `CONTRIBUTING.md`, plus any other touched file (`docs/`, `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY_LICENSES.md`). Stale docs are a defect, not a follow-up. Verify every doc claim against actual code before writing it.
+- **Keep project docs current with code.** Whenever a change adds, removes, or alters a user-facing feature, dependency, command, config, or workflow, update the affected docs in the SAME change — at minimum `README.md`, `CHANGELOG.md` (Keep a Changelog headings), and `CONTRIBUTING.md`, plus any other touched file (`docs/`, `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY_LICENSES.md`). Stale docs are a defect, not a follow-up. Verify every doc claim against actual code before writing it. Append to the existing `### Added` / `### Changed` / `### Fixed` subsections under `[Unreleased]` — never create a second `### Heading` in the same release section; `task changelog:check` (`scripts/check-changelog-headings.sh`) enforces this as a local gate and in CI.
 
 ## Single Source of Truth (SSOT)
 

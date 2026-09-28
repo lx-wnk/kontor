@@ -160,6 +160,7 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 		UserAdditionalPrompt:  userAdditionalPrompt,
 		MCPToken:              o.opts.MCPToken,
 		MCPUrl:                o.opts.MCPUrl,
+		StageTimeout:          time.Duration(o.configCache.Number(ctx, stageTimeoutKey, defaultStageTimeoutSeconds)) * time.Second,
 		AllowGitPush:          o.opts.AllowGitPush,
 		AdditionalDirs:        additionalDirs,
 		SystemPromptRepo:      o.opts.SystemPromptRepo,

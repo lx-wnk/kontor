@@ -3,7 +3,7 @@ import type { Agent, PipelineTask } from './types'
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, provide, ref, watch, watchEffect } from 'vue'
 import { useAgents } from '@/features/agents/composables/useAgents'
 import BacklogForm from '@/features/pipeline/components/BacklogForm.vue'
-import { useTasks } from '@/features/pipeline/composables/useTasks'
+import { findOrFetchTask, useTasks } from '@/features/pipeline/composables/useTasks'
 import LoginPage from './components/LoginPage.vue'
 import OnboardingFlow from './components/onboarding/OnboardingFlow.vue'
 import ServerReconnectOverlay from './components/ServerReconnectOverlay.vue'
@@ -101,7 +101,7 @@ const { agents, costTrend, filteredAgents, attentionAgents, attentionCount, pend
 const { tasks, selectedTask, selectTask, startStream: startTasks } = useTasks({ autoStart: false })
 // The one usePendingPermissions(tasks) instance — provided below so every
 // consumer (the needs-you queue, the title count) reads the same cache.
-const pendingPermissions = usePendingPermissions(tasks)
+const pendingPermissions = usePendingPermissions(tasks, agents)
 provide(PENDING_PERMISSIONS, pendingPermissions)
 const { items: permissionItems, approve: approvePermission, deny: denyPermission, decide: decidePermission } = pendingPermissions
 const combinedAttentionCount = computed(() => attentionCount.value + permissionItems.value.length + pendingCapabilityDecisions.value.length)
@@ -272,21 +272,30 @@ function handleKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', handleKeydown))
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
+let navigationSeq = 0
 function navigateTo(target: { agent?: Agent, taskId?: string }) {
+  const seq = ++navigationSeq
   selectAgent(null)
   selectTask(null)
   nextTick(() => {
     if (target.agent)
       selectAgent(target.agent)
     if (target.taskId) {
-      const t = tasks.value.find(t => t.id === target.taskId)
-      if (t) {
-        openTask(t)
-      }
-      else {
-        console.warn('[navigateTo] task not found locally:', target.taskId)
-        toast.error('Task not found — it may belong to a different machine.')
-      }
+      void findOrFetchTask(target.taskId).then((task) => {
+        // A later navigation won while the fetch was in flight.
+        if (seq !== navigationSeq)
+          return
+        if (task) {
+          openTask(task)
+        }
+        else {
+          console.warn('[navigateTo] task not found after refetch:', target.taskId)
+          toast.error('Task not found on this machine.')
+        }
+      }).catch((err: unknown) => {
+        console.warn('[navigateTo] refetch failed:', err)
+        toast.error('Could not load the task.')
+      })
     }
   })
 }

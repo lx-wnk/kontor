@@ -14,14 +14,14 @@ func TestCreateTask_DefaultsToPipelineKind(t *testing.T) {
 	ctx := context.Background()
 
 	got, err := r.Create(ctx, repo.CreateTaskInput{
-		Slug:                "kind-default",
-		Title:               "Kind Default",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		Kind:                "",
+		Slug:          "kind-default",
+		Title:         "Kind Default",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
+
+		Kind: "",
 	})
 	require.NoError(t, err)
 	require.Equal(t, "pipeline", got.Kind)
@@ -33,14 +33,14 @@ func TestCreateTask_StoresJobKind(t *testing.T) {
 	ctx := context.Background()
 
 	got, err := r.Create(ctx, repo.CreateTaskInput{
-		Slug:                "kind-job",
-		Title:               "Kind Job",
-		Cwd:                 "/tmp",
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       20,
-		StageTimeoutSeconds: 1800,
-		Kind:                "job",
+		Slug:          "kind-job",
+		Title:         "Kind Job",
+		Cwd:           "/tmp",
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 20,
+
+		Kind: "job",
 	})
 	require.NoError(t, err)
 	require.Equal(t, "job", got.Kind)

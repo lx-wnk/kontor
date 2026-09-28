@@ -4,9 +4,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/stretchr/testify/require"
 )
+
+func TestScopes_ConfiguredDirWins(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", "/env")
+	t.Cleanup(claudeconfig.SetConfigDirProvider(func() string { return "/configured" }))
+	require.Equal(t, "/configured", DefaultScope("/p").ConfigDir)
+	require.Equal(t, "/configured", ResolveSpawnerScope(&ent.Spawner{}, "").ConfigDir)
+	require.Equal(t, "/configured", ResolveSessionScope("", "/cwd").ConfigDir)
+}
 
 func TestResolveSpawnerScope_ConfigDirFromEnvTildeExpanded(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", "/should/be/ignored")

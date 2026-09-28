@@ -201,6 +201,23 @@ describe('gitHubPanel', () => {
     expect(wrapper.findAll('[data-testid="cockpit-github-checks-42"]')).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('renders not_tracked for a PR whose repo is outside the allow-list', async () => {
+    stubFetch(200, {
+      repos: [{
+        repo: 'other/repo',
+        mergeable: false,
+        pullRequests: [{ number: 99, title: 'External', author: 'someone', url: 'https://example.test/99', draft: false, updatedAt: '2026-09-01T10:00:00Z', checks: { state: 'not_tracked', passed: 0, failed: 0, total: 0, url: 'https://example.test/99/checks' } }],
+      }],
+    })
+    const wrapper = await mountPanel()
+    const checks = wrapper.get('[data-testid="cockpit-github-checks-99"]')
+    expect(checks.text()).toContain('○')
+    expect(checks.text()).toContain('not tracked')
+    expect(checks.text()).not.toContain('-')
+    expect(checks.attributes('title')).toContain('github.repos')
+    wrapper.unmount()
+  })
 })
 
 describe('merging from the cockpit', () => {

@@ -56,13 +56,12 @@ func newWTManager(t *testing.T) (*services.WorktreeManager, repo.TaskRepo) {
 func createTestTask(t *testing.T, taskRepo repo.TaskRepo, slug, cwd string) string {
 	t.Helper()
 	task, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
-		Slug:                slug,
-		Title:               "T-" + slug,
-		Cwd:                 cwd,
-		CurrentStage:        "backlog",
-		Priority:            "medium",
-		MaxIterations:       5,
-		StageTimeoutSeconds: 300,
+		Slug:          slug,
+		Title:         "T-" + slug,
+		Cwd:           cwd,
+		CurrentStage:  "backlog",
+		Priority:      "medium",
+		MaxIterations: 5,
 	})
 	if err != nil {
 		t.Fatalf("create task: %v", err)

@@ -132,7 +132,8 @@ func (h *Handler) invalidateGraphCacheOnSwap(client *obsidianapp.Client) {
 }
 
 // index runs one obsidianapp.IndexNotes pass and reports how many new
-// pointer entries it created. Only one run is allowed in flight at a time
+// pointer entries it created ("indexed") out of the notes the vault search
+// found under the root ("matched"). Only one run is allowed in flight at a time
 // (h.running) — a second POST while one is running gets 409, not a race
 // against the first (see h.running's own doc comment for why that race is
 // dangerous: permanent duplicate pointers, not just a wasted request).
@@ -158,14 +159,14 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer h.running.Store(false)
 
-	count, err := obsidianapp.IndexNotes(r.Context(), client, h.mem, h.gate, h.spaceID)
+	indexed, matched, err := obsidianapp.IndexNotes(r.Context(), client, h.mem, h.gate, h.spaceID)
 	if err != nil {
 		if errors.Is(err, capability.ErrDenied) || errors.Is(err, capability.ErrAskRequired) {
 			return apierr.NewAppError(http.StatusForbidden, err.Error())
 		}
 		return err
 	}
-	apierr.WriteJSON(w, http.StatusOK, map[string]int{"indexed": count})
+	apierr.WriteJSON(w, http.StatusOK, map[string]int{"indexed": indexed, "matched": matched})
 	return nil
 }
 

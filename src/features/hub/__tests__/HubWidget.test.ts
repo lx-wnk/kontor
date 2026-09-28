@@ -30,8 +30,11 @@ const openSettings = vi.fn()
 
 vi.mock('../composables/useObsidianGraph', () => ({ useObsidianGraph: () => graph }))
 
+// One shared mtime: recentNotes sorts by it, so a clock tick between two vaultNote calls would reorder the list.
+const NOTE_MTIME_MS = Date.now() - NOTE_AGE_DAYS * DAY_MS
+
 function vaultNote(index: number, path: string): HubNote {
-  return { index, path, title: path, mtimeMs: Date.now() - NOTE_AGE_DAYS * DAY_MS, links: [], backlinks: [] }
+  return { index, path, title: path, mtimeMs: NOTE_MTIME_MS, links: [], backlinks: [] }
 }
 
 const agents = ref([
@@ -893,7 +896,7 @@ describe('hubWidget', () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
     const w = await mountHub()
-    const { sectors, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'])
+    const { sectors, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n })))
     const [x, y] = notePoint('alpha/one.md', sectors.find(s => s.key === sectorOfNote.get('alpha/one.md'))!, NOTE_AGE_DAYS)
     const stage = w.get('[data-testid="hub-stage"]').element
     for (const type of ['pointerdown', 'pointerup'])

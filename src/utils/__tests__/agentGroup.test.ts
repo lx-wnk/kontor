@@ -71,6 +71,20 @@ describe('sortAgents', () => {
 })
 
 describe('groupAgents', () => {
+  it('project: keys by project id, so equal names of different projects stay apart', () => {
+    const groups = groupAgents([
+      makeAgent({ pid: 1, projectId: 'p-1', projectName: 'Website' }),
+      makeAgent({ pid: 2, projectId: 'p-2', projectName: 'Website' }),
+      makeAgent({ pid: 3, projectId: 'p-1', projectName: 'Website' }),
+      makeAgent({ pid: 4, projectId: '', projectName: 'loose-folder' }),
+    ], 'project')
+    expect(groups.map(g => [g.key, g.agents.map(a => a.pid)])).toEqual([
+      ['p-1', [1, 3]],
+      ['p-2', [2]],
+      ['loose-folder', [4]],
+    ])
+  })
+
   it('none: returns single group with null label containing all agents', () => {
     const agents = [makeAgent({ pid: 1 }), makeAgent({ pid: 2 })]
     const groups = groupAgents(agents, 'none')

@@ -32,8 +32,8 @@ func listScopeRouter(t *testing.T, bypassAuth bool) *chi.Mux {
 		if _, err := taskRepo.Create(t.Context(), repo.CreateTaskInput{
 			Slug: slug, Title: slug, Cwd: "/tmp",
 			CurrentStage: "backlog", Priority: "medium",
-			MaxIterations: 20, StageTimeoutSeconds: 1800,
-			UserID: &uid,
+			MaxIterations: 20,
+			UserID:        &uid,
 		}); err != nil {
 			t.Fatalf("seed %s: %v", slug, err)
 		}

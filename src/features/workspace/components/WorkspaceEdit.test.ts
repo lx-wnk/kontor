@@ -236,6 +236,18 @@ describe('workspace edit bar', () => {
     expect(w.emitted('change')?.[0]?.[0]).toMatchObject({ tiles: [{ widget: 'agents' }, { widget: 'github' }, { widget: 'pipeline' }] })
     w.unmount()
   })
+
+  it('drops a chosen tile that becomes unavailable before Add', async () => {
+    const w = mount(WorkspaceEditBar, { props: { page, refusal: null } })
+    const panel = await openListboxDom(w.get('[data-testid="workspace-add"]').element)
+    optionByLabel(panel, 'Pipeline').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(w.get('[data-testid="workspace-add-submit"]').attributes('disabled')).toBeUndefined()
+    await w.setProps({ page: { ...page, tiles: [...page.tiles, { widget: 'pipeline', col: 7, row: 1, colSpan: 3, rowSpan: 3 }] } })
+    expect(w.get('[data-testid="workspace-add"]').text()).toContain('Add a tile…')
+    expect(w.get('[data-testid="workspace-add-submit"]').attributes('disabled')).toBeDefined()
+    w.unmount()
+  })
 })
 
 describe('page rename and delete', () => {

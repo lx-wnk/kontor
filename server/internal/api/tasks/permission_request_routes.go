@@ -136,7 +136,7 @@ func (h *Handler) createPermissionRequest(w http.ResponseWriter, r *http.Request
 					req = resolved
 				}
 			}
-			h.broadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
+			h.BroadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
 			return jsonReply(w, http.StatusCreated, toPermissionRequestResponse(req))
 		}
 
@@ -146,7 +146,7 @@ func (h *Handler) createPermissionRequest(w http.ResponseWriter, r *http.Request
 			if _, err2 := h.srRepo.Update(r.Context(), body.StageRunID, repo.UpdateStageRunInput{Status: &awaitingUser}); err2 != nil {
 				slog.Warn("createPermissionRequest: flip to awaiting_user failed", "stageRunID", body.StageRunID, "err", err2)
 			}
-			h.broadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
+			h.BroadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
 		}
 		if req.Outcome == nil && h.notifier != nil && h.approvalPushWanted(r.Context()) {
 			title := ""
@@ -418,7 +418,7 @@ func (h *Handler) bulkCreatePermissionRequests(w http.ResponseWriter, r *http.Re
 	// Broadcast for all paths: gated (new requests → awaiting_user flip) and
 	// allow-all (auto-approved → client refreshes the task state).
 	if hasNewRequests || taskIsAllowAll {
-		h.broadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
+		h.BroadcastEnrichedEvent(r.Context(), "permission_request", sr.TaskID)
 	}
 
 	return jsonReply(w, http.StatusOK, results)

@@ -46,13 +46,15 @@ func (e *StatusError) Error() string {
 // ParseRepos splits a comma-separated github.repos setting into owner/name
 // pairs, refusing anything that is not exactly one owner and one name. An
 // empty string parses to an empty list, which is how the application is
-// switched off.
+// switched off. An entry repeating an earlier one in another case is dropped,
+// keeping the first spelling, because the allow-list is case-insensitive.
 func ParseRepos(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
 	var out []string
+	seen := make(map[string]bool)
 	for _, part := range strings.Split(trimmed, ",") {
 		entry := strings.TrimSpace(part)
 		if entry == "" {
@@ -65,7 +67,10 @@ func ParseRepos(raw string) ([]string, error) {
 		if !validSegment(owner) || !validSegment(name) {
 			return nil, fmt.Errorf("github.repos: %q contains characters that are not valid in a repository path", entry)
 		}
-		out = append(out, entry)
+		if key := strings.ToLower(entry); !seen[key] {
+			seen[key] = true
+			out = append(out, entry)
+		}
 	}
 	return out, nil
 }
@@ -120,7 +125,7 @@ type Client struct {
 	http    *http.Client
 	baseURL *url.URL
 	token   string
-	repos   map[string]bool
+	repos   map[string]string // lower-cased owner/name -> configured spelling
 	order   []string
 }
 
@@ -163,11 +168,11 @@ func NewClient(cfg Config) (*Client, error) {
 		http:    &http.Client{Timeout: 20 * time.Second, Transport: transport},
 		baseURL: u,
 		token:   cfg.Token,
-		repos:   make(map[string]bool, len(cfg.Repos)),
+		repos:   make(map[string]string, len(cfg.Repos)),
 		order:   append([]string(nil), cfg.Repos...),
 	}
 	for _, r := range cfg.Repos {
-		c.repos[r] = true
+		c.repos[strings.ToLower(r)] = r
 	}
 	return c, nil
 }
@@ -183,10 +188,20 @@ func (c *Client) Repos() []string {
 // repository outside the list is refused without a capability question ever
 // being asked, and the same owner/name string then goes to both the gate and
 // the client.
-func (c *Client) AllowsRepo(name string) bool { return c.repos[name] }
+func (c *Client) AllowsRepo(name string) bool {
+	_, ok := c.CanonicalRepo(name)
+	return ok
+}
+
+// CanonicalRepo returns name in its configured spelling. GitHub treats
+// owner/name case-insensitively, so the allow-list does too.
+func (c *Client) CanonicalRepo(name string) (string, bool) {
+	configured, ok := c.repos[strings.ToLower(name)]
+	return configured, ok
+}
 
 func (c *Client) checkRepo(name string) error {
-	if !c.repos[name] {
+	if !c.AllowsRepo(name) {
 		return fmt.Errorf("%w: %s", ErrRepoNotAllowed, name)
 	}
 	return nil
@@ -356,6 +371,9 @@ func (c *Client) InvolvedPullRequests(ctx context.Context) ([]InvolvedPullReques
 		if repo == "" {
 			continue
 		}
+		if configured, ok := c.CanonicalRepo(repo); ok {
+			repo = configured
+		}
 		out = append(out, InvolvedPullRequest{
 			Repo: repo, Number: item.Number, Title: item.Title,
 			URL: item.HTMLURL, UpdatedAt: item.UpdatedAt,
@@ -365,8 +383,8 @@ func (c *Client) InvolvedPullRequests(ctx context.Context) ([]InvolvedPullReques
 }
 
 // CheckState is the coarse state of a commit's check runs, collapsed from
-// GitHub's per-run status/conclusion pairs into the four states the cockpit
-// panel draws.
+// GitHub's per-run status/conclusion pairs into the states the cockpit panel
+// draws.
 type CheckState string
 
 const (
@@ -377,6 +395,10 @@ const (
 	// commit, or the lookup itself failed — see Checks and handler.summary,
 	// which never lets a check-run failure blank an otherwise-working PR.
 	CheckStateNone CheckState = "none"
+	// CheckStateNotTracked means the repository is outside the configured
+	// allow-list, so no check-run lookup was attempted. Checks never returns
+	// it; handler.summary sets it.
+	CheckStateNotTracked CheckState = "not_tracked"
 )
 
 // CheckSummary is the aggregate check-run state of one commit.
@@ -395,6 +417,11 @@ type CheckSummary struct {
 func (c *Client) Checks(ctx context.Context, repoName, sha string) (CheckSummary, error) {
 	if err := c.checkRepo(repoName); err != nil {
 		return CheckSummary{}, err
+	}
+	// A search hit carries no head SHA; without this the request goes out as
+	// /commits//check-runs and spends rate limit on an answer about no commit.
+	if sha == "" {
+		return CheckSummary{}, errors.New("github: check runs need a commit SHA")
 	}
 	var raw struct {
 		TotalCount int `json:"total_count"`
@@ -475,11 +502,12 @@ func (c *Client) SearchIssues(ctx context.Context, query string) ([]SearchHit, e
 		// operator never listed. Every qualifier GitHub adds next would reopen
 		// that. A hit whose repository is not in the allow-list is dropped here
 		// no matter how it got into the result set.
-		if !c.repos[repo] {
+		configured, ok := c.CanonicalRepo(repo)
+		if !ok {
 			continue
 		}
 		out = append(out, SearchHit{
-			Repo:   repo,
+			Repo:   configured,
 			Number: item.Number,
 			Title:  item.Title,
 			URL:    item.HTMLURL,
@@ -587,7 +615,7 @@ func (c *Client) BoundQuery(query string) (string, error) {
 			// Narrowing to a repository the operator already listed is the
 			// commonest refinement of a multi-repo search and widens nothing,
 			// so it passes; anything else names a scope outside the list.
-			if qualifier == "repo:" && c.repos[strings.TrimPrefix(bare, "repo:")] {
+			if qualifier == "repo:" && c.AllowsRepo(strings.TrimPrefix(bare, "repo:")) {
 				continue
 			}
 			return "", fmt.Errorf("%w (found %q)", ErrQueryWidensScope, field)

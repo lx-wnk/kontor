@@ -398,6 +398,14 @@ jobs:
         # set, which adds `-tags production` in the build step above.
         run: CGO_ENABLED=1 go test -ldflags "-extldflags '-framework UniformTypeIdentifiers'" ./...
 
+  changelog:
+    name: CHANGELOG heading guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: No duplicate headings per release section
+        run: bash scripts/check-changelog-headings.sh
+
   pr-checks:
     name: PR Validation
     runs-on: ubuntu-latest

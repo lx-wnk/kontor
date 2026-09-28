@@ -414,6 +414,11 @@ export interface Agent {
   provider: Provider
   projectPath: string
   projectName: string
+  /**
+   * ProjectID is the Kontor project the agent works for; empty when none
+   * matches, and ProjectName is then the cwd's folder name.
+   */
+  projectId?: string
   cwd: string
   /**
    * ClaudeConfigDir is the value of CLAUDE_CONFIG_DIR detected in the running

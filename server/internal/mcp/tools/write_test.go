@@ -296,6 +296,36 @@ func TestUpdateTask_Autonomy_Persists(t *testing.T) {
 	require.Equal(t, "manual", updated["autonomy"], "autonomy must be updated")
 }
 
+func TestTaskMetadata_RejectsAllowGitPush(t *testing.T) {
+	deps := newWriteDepsForTest(t)
+	registry := mcp.ToolRegistry{}
+	RegisterWriteTools(registry, deps)
+
+	_, err := invokeCreateTask(t, registry, map[string]any{
+		"slug":     "push-escalate",
+		"title":    "Push Escalate",
+		"cwd":      "/tmp/push-escalate",
+		"metadata": map[string]any{"allowGitPush": true},
+	})
+	require.ErrorContains(t, err, "metadata key not allowed: allowGitPush")
+
+	out, err := invokeCreateTask(t, registry, map[string]any{
+		"slug":  "push-escalate-upd",
+		"title": "Push Escalate Update",
+		"cwd":   "/tmp/push-escalate-upd",
+	})
+	require.NoError(t, err)
+	taskMap, _ := out["task"].(map[string]any)
+	id, _ := taskMap["id"].(string)
+	require.NotEmpty(t, id)
+
+	_, err = invokeUpdateTask(t, registry, map[string]any{
+		"id":       id,
+		"metadata": map[string]any{"allowGitPush": true},
+	})
+	require.ErrorContains(t, err, "metadata key not allowed: allowGitPush")
+}
+
 // --- plan_mode ---
 
 func TestCreateTask_PlanMode_TrueIsPersisted(t *testing.T) {
@@ -358,4 +388,68 @@ func TestUpdateTask_PlanMode_Persists(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, true, updated["plan_mode"], "plan_mode must be updated to true")
+}
+
+// --- broadcast contract ---
+
+func TestCreateTask_BroadcastsTaskCreated(t *testing.T) {
+	deps := newWriteDepsForTest(t)
+
+	var calls int
+	var gotEventType, gotTaskID string
+	deps.Broadcast = func(ctx context.Context, eventType, taskID string) {
+		calls++
+		gotEventType = eventType
+		gotTaskID = taskID
+	}
+
+	registry := mcp.ToolRegistry{}
+	RegisterWriteTools(registry, deps)
+
+	_, err := invokeCreateTask(t, registry, map[string]any{
+		"slug":  "broadcast-create",
+		"title": "Broadcast Create",
+		"cwd":   t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
+	require.Equal(t, "task_created", gotEventType)
+	require.NotEmpty(t, gotTaskID)
+}
+
+func TestUpdateTask_BroadcastsTaskUpdated(t *testing.T) {
+	deps := newWriteDepsForTest(t)
+	ctx := context.Background()
+
+	task, err := deps.TaskRepo.Create(ctx, repo.CreateTaskInput{
+		Slug:          "broadcast-update",
+		Title:         "Broadcast Update",
+		Cwd:           t.TempDir(),
+		MaxIterations: 3,
+		Priority:      "normal",
+		CurrentStage:  "backlog",
+	})
+	require.NoError(t, err)
+
+	var calls int
+	var gotEventType, gotTaskID string
+	deps.Broadcast = func(ctx context.Context, eventType, taskID string) {
+		calls++
+		gotEventType = eventType
+		gotTaskID = taskID
+	}
+
+	registry := mcp.ToolRegistry{}
+	RegisterWriteTools(registry, deps)
+
+	_, err = invokeUpdateTask(t, registry, map[string]any{
+		"id":    task.ID,
+		"title": "New Title",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
+	require.Equal(t, "task_updated", gotEventType)
+	require.Equal(t, task.ID, gotTaskID)
 }

@@ -29,7 +29,6 @@ func createScheduleRaw(t *testing.T, client *ent.Client, name string, enabled bo
 		SetTitle(name).
 		SetCwd("/tmp").
 		SetMaxIterations(20).
-		SetStageTimeoutSeconds(1800).
 		SetEnabled(enabled).
 		Save(context.Background())
 	if err != nil {

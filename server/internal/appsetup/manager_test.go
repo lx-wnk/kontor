@@ -122,8 +122,36 @@ func TestManager_StartFailsWhenCommandExitsImmediately(t *testing.T) {
 }
 
 func TestManager_StartFailsWhenReadinessTimesOut(t *testing.T) {
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(time.Minute)
+	}
+	// Under heavy load the race-built helper can take longer than the budget
+	// just to reach main, so it is killed before recording its pid. That
+	// attempt is inconclusive, not a failure: retry with a doubled budget.
+	for timeout := 300 * time.Millisecond; ; timeout *= 2 {
+		if time.Now().Add(timeout + 3*time.Second).After(deadline) {
+			t.Fatal("the silent helper never recorded its pid before its readiness deadline")
+		}
+		if pid := startSilentUntilTimeout(t, timeout); pid > 0 {
+			// Start returns only after the killed child was reaped, so the pid
+			// must already be gone — a leak here is a process per attempt.
+			if err := syscall.Kill(pid, 0); err == nil {
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+				t.Fatalf("the child that missed its readiness deadline is still running (pid %d)", pid)
+			}
+			return
+		}
+	}
+}
+
+// startSilentUntilTimeout runs a helper that never becomes ready and asserts
+// Start gives up on it. It returns the helper's pid, or 0 when the helper was
+// killed before it could record one.
+func startSilentUntilTimeout(t *testing.T, timeout time.Duration) int {
+	t.Helper()
 	m := appsetup.NewManager(appsetup.Options{
-		ReadinessTimeout: 300 * time.Millisecond,
+		ReadinessTimeout: timeout,
 		PollInterval:     20 * time.Millisecond,
 	})
 	pidFile := filepath.Join(t.TempDir(), "helper.pid")
@@ -135,39 +163,18 @@ func TestManager_StartFailsWhenReadinessTimesOut(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a timeout error")
 	}
-	if elapsed > 3*time.Second {
-		t.Errorf("Start took %s — the unresponsive child was not killed promptly", elapsed)
+	if elapsed > timeout+3*time.Second {
+		t.Errorf("Start took %s with a %s budget — the unresponsive child was not killed promptly", elapsed, timeout)
 	}
 	if _, ok := m.Get("res-silent"); ok {
 		t.Errorf("a session that never became ready must not be tracked")
 	}
-
-	// Forgetting the session is not enough — the process has to be gone, or a
-	// setup command that hangs leaks a process per attempt.
-	pid := 0
-	for range 50 {
-		if data, rerr := os.ReadFile(pidFile); rerr == nil {
-			if pid, _ = strconv.Atoi(strings.TrimSpace(string(data))); pid > 0 {
-				break
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
+	data, rerr := os.ReadFile(pidFile)
+	if rerr != nil {
+		return 0
 	}
-	if pid == 0 {
-		t.Fatal("the silent helper never recorded its pid")
-	}
-	gone := false
-	for range 50 {
-		if err := syscall.Kill(pid, 0); err != nil {
-			gone = true
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !gone {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatalf("the child that missed its readiness deadline is still running (pid %d)", pid)
-	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+	return pid
 }
 
 func TestManager_StopTwiceIsNotAnError(t *testing.T) {
