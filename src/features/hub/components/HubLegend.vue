@@ -21,7 +21,7 @@ const visibleRows = computed(() => ROWS.filter(row => row.minLevel === undefined
 </script>
 
 <template>
-  <div>
+  <div class="flex flex-col-reverse items-start">
     <button
       type="button"
       aria-label="Show map legend"
@@ -36,7 +36,7 @@ const visibleRows = computed(() => ROWS.filter(row => row.minLevel === undefined
       role="region"
       aria-label="Map legend"
       data-testid="hub-legend"
-      class="mt-1.5 max-w-[16rem] rounded-[10px] border border-line-strong bg-card px-3 py-2.5 text-[11px] text-fg-mute shadow-lg"
+      class="mb-1.5 max-w-[16rem] rounded-[10px] border border-line-strong bg-card px-3 py-2.5 text-[11px] text-fg-mute shadow-lg"
     >
       <ul class="flex flex-col gap-1">
         <li v-for="row in visibleRows" :key="row.text" class="flex items-center gap-1.5">

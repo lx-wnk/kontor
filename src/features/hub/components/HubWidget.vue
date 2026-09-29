@@ -701,7 +701,7 @@ watch(hubFocusRequest, (target) => {
         @measure="sizes => labelSizes = sizes"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
-      <div class="absolute left-2.5 top-2.5 z-[2] flex items-start gap-1.5">
+      <div class="absolute bottom-12 left-2.5 z-[2] flex items-end gap-1.5">
         <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
         <div v-if="lensCounts" class="flex items-center gap-1.5" data-testid="hub-lenses">
           <button
