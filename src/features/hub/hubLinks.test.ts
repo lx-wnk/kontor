@@ -1,8 +1,8 @@
 import type { Sector } from './hubGeometry'
 import type { Point } from './hubLinks'
 import { describe, expect, it } from 'vitest'
-import { polar, sectorMid } from './hubGeometry'
-import { aggregateLinks, bundlePoints, LINK_CATEGORY_ANCHOR_R, LINK_LEAF_ANCHOR_R, linksOf, traceBundle } from './hubLinks'
+import { polar, sectorMid, SESSIONS_KIND } from './hubGeometry'
+import { aggregateLinks, bundlePoints, distanceToPolyline, isKnowHowLink, LINK_CATEGORY_ANCHOR_R, LINK_LEAF_ANCHOR_R, linksOf, nearestArc, sampleBundle, traceBundle } from './hubLinks'
 
 const catA: Sector = { key: 'catA', label: 'A', weight: 1, start: 0, end: 90 }
 const catB: Sector = { key: 'catB', label: 'B', weight: 1, start: 90, end: 180 }
@@ -96,5 +96,75 @@ describe('linksOf', () => {
     const links: Array<[number, number]> = [[0, 1], [1, 2], [3, 4]]
     expect(linksOf(links, 1)).toEqual([0, 1])
     expect(linksOf(links, 5)).toEqual([])
+  })
+})
+
+describe('sampleBundle', () => {
+  it('starts and ends at the input endpoints', () => {
+    const pts: Point[] = [[0, 0], [1, 1], [2, 2], [3, 3]]
+    const sampled = sampleBundle(pts)
+    expect(sampled[0]).toEqual(pts[0])
+    expect(sampled[sampled.length - 1]).toEqual(pts[pts.length - 1])
+  })
+
+  it('is a straight line for 2 points', () => {
+    const sampled = sampleBundle([[0, 0], [10, 10]], 4)
+    sampled.forEach(([x, y]) => expect(x).toBeCloseTo(y))
+  })
+
+  it('passes through the quadratic t=0.5 point for a 3-point curve', () => {
+    const p0: Point = [0, 0]
+    const c: Point = [10, 0]
+    const p2: Point = [10, 10]
+    const sampled = sampleBundle([p0, c, p2], 8)
+    const mid = sampled[4]
+    expect(mid[0]).toBeCloseTo((p0[0] + 2 * c[0] + p2[0]) / 4)
+    expect(mid[1]).toBeCloseTo((p0[1] + 2 * c[1] + p2[1]) / 4)
+  })
+})
+
+describe('distanceToPolyline', () => {
+  const line: Point[] = [[0, 0], [10, 0]]
+
+  it('is 0 for a point on the line', () => {
+    expect(distanceToPolyline([5, 0], line)).toBeCloseTo(0)
+  })
+
+  it('is the perpendicular distance for a nearby point', () => {
+    expect(distanceToPolyline([5, 1], line)).toBeCloseTo(1)
+  })
+
+  it('is large for a far point', () => {
+    expect(distanceToPolyline([100, 100], line)).toBeGreaterThan(50)
+  })
+})
+
+describe('nearestArc', () => {
+  const arcA = { id: 'a', line: [[0, 0], [10, 0]] as Point[] }
+  const arcB = { id: 'b', line: [[0, 10], [10, 10]] as Point[] }
+
+  it('picks the closest arc within tolerance', () => {
+    expect(nearestArc([arcA, arcB], [5, 0.5], 1)?.id).toBe('a')
+  })
+
+  it('returns null beyond tolerance', () => {
+    expect(nearestArc([arcA, arcB], [5, 5], 1)).toBeNull()
+  })
+
+  it('breaks ties by picking the first arc', () => {
+    const arcC = { id: 'c', line: [[0, 0], [10, 0]] as Point[] }
+    expect(nearestArc([arcA, arcC], [5, 5], 10)?.id).toBe('a')
+  })
+})
+
+describe('isKnowHowLink', () => {
+  it('is false when both ends are sessions', () => {
+    expect(isKnowHowLink(SESSIONS_KIND, SESSIONS_KIND)).toBe(false)
+  })
+
+  it('is true when either end is not sessions', () => {
+    expect(isKnowHowLink('knowhow', SESSIONS_KIND)).toBe(true)
+    expect(isKnowHowLink(SESSIONS_KIND, 'knowhow')).toBe(true)
+    expect(isKnowHowLink('knowhow', 'knowhow')).toBe(true)
   })
 })
