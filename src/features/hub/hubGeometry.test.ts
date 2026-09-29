@@ -35,6 +35,7 @@ import {
   sectorLabelRadius,
   sectorTiers,
   SESSIONS_KIND,
+  shadeMix,
   visibleRingLabels,
 } from './hubGeometry'
 
@@ -431,5 +432,15 @@ describe('leafColour', () => {
   it('takes its palette slot from its parent category, not from its own key', () => {
     const leaf = { key: 'work/babyone', label: 'babyone', weight: 1, start: 0, end: 10, parent: 'work' }
     expect(leafColour(leaf)).toBe(sectorColour('work'))
+  })
+})
+
+describe('shadeMix', () => {
+  it('returns the base colour unchanged when the shade is neutral', () => {
+    expect(shadeMix('var(--sector-3)', 0)).toBe('var(--sector-3)')
+  })
+  it('mixes toward white for a positive shade and black for a negative one', () => {
+    expect(shadeMix('var(--sector-3)', 12)).toBe('color-mix(in srgb, var(--sector-3), white 12%)')
+    expect(shadeMix('#ff8800', -8)).toBe('color-mix(in srgb, #ff8800, black 8%)')
   })
 })

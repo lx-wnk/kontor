@@ -13,7 +13,7 @@ import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
-import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, notePoint, planSectors } from '../hubGeometry'
+import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, notePoint, planSectors, sectorMid } from '../hubGeometry'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
 const NOTE_AGE_DAYS = 30
@@ -305,10 +305,10 @@ describe('hubWidget', () => {
   // An agent on a project that is no vault folder inserts `__other__`, which sorts first.
   it('keeps every sector its colour when a catch-all sector appears before it', async () => {
     graph.status.value = 'ready'
-    graph.notes.value = [vaultNote(0, 'misc/one.md'), vaultNote(1, 'private/two.md'), vaultNote(2, 'work/three.md')]
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md'), vaultNote(1, 'private/two.md'), vaultNote(2, 'work/three.md')]
     const colours = (w: Hub) => w.findAll('svg')[0].findAll('path').map(p => p.attributes('style'))
 
-    agents.value = [{ pid: 200, status: 'idle', projectName: 'misc', working: false }] as unknown as Agent[]
+    agents.value = [{ pid: 200, status: 'idle', projectName: 'proj', working: false }] as unknown as Agent[]
     const vaultOnly = await mountHub(TILE)
     const before = colours(vaultOnly)
     expect(before).toHaveLength(3)
@@ -896,13 +896,45 @@ describe('hubWidget', () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
     const w = await mountHub()
-    const { sectors, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n })))
-    const [x, y] = notePoint('alpha/one.md', sectors.find(s => s.key === sectorOfNote.get('alpha/one.md'))!, NOTE_AGE_DAYS)
+    const { leaves, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n })))
+    const [x, y] = notePoint('alpha/one.md', leaves.find(l => l.key === sectorOfNote.get('alpha/one.md'))!, NOTE_AGE_DAYS)
     const stage = w.get('[data-testid="hub-stage"]').element
     for (const type of ['pointerdown', 'pointerup'])
       stage.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: 545 + x, clientY: 565 + y }))
     await flushPromises()
     expect(scale(w)).toBeCloseTo(2.6)
+    w.unmount()
+  })
+
+  it('places an agent inside its project leaf\'s arc, not spread across the whole category', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/other/two.md'), vaultNote(2, 'private/x.md')]
+    agents.value = [{ pid: 900, status: 'idle', projectName: 'babyone', working: false }] as unknown as Agent[]
+    const w = await mountHub()
+
+    const { leaves, sectorOfProject } = planSectors(
+      graph.notes.value.map(n => n.path),
+      [{ key: 'babyone', label: 'babyone' }],
+    )
+    const leaf = leaves.find(l => l.key === sectorOfProject.get('babyone'))!
+    expect(leaf.label).toBe('babyone')
+
+    const core = translateOf(w.get('[data-testid="hub-core"]'))
+    const { sx, sy } = screenOf(w, 900)
+    const angle = Math.atan2(sy - core.sy, sx - core.sx) * 180 / Math.PI
+    expect(angle).toBeCloseTo(sectorMid(leaf))
+    w.unmount()
+  })
+
+  it('shows project leaf labels from the topics level, not at the overview level', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/other/two.md')]
+    const w = await mountHub()
+    const shownLeaves = () => w.findAll('[data-testid^="hub-leaf-"]').filter(l => !l.classes().includes('invisible'))
+
+    expect(shownLeaves()).toHaveLength(0)
+    await w.findAll('button').find(b => b.text() === 'Topics')!.trigger('click')
+    expect(shownLeaves().length).toBeGreaterThan(0)
     w.unmount()
   })
 

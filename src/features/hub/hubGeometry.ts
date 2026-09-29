@@ -72,6 +72,13 @@ export function leafShade(leafKey: string): number {
   return (hash01(leafKey) * 2 - 1) * 22
 }
 
+// Works with both a `var(--sector-N)` token (CSS) and a resolved colour (canvas fillStyle).
+export function shadeMix(base: string, shade: number): string {
+  if (shade === 0)
+    return base
+  return `color-mix(in srgb, ${base}, ${shade > 0 ? 'white' : 'black'} ${Math.abs(shade)}%)`
+}
+
 // Agents of one sector sit on sectorTiers(count) rings, so only every tiers-th of them shares a radius.
 export function sectorTiers(agentsInSector: number): number {
   return Math.min(Math.max(agentsInSector, 1), AGENT_SECTOR_TIERS_MAX)

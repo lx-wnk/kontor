@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { AgentProject, Sector } from '../hubGeometry'
+import type { AgentProject, Leaf } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
@@ -24,7 +24,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, wedgePath } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
 import HubAgentCard from './HubAgentCard.vue'
@@ -111,14 +111,14 @@ const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
 const OFF_MAP: [number, number] = [Number.NaN, Number.NaN]
 
 const brain = computed(() => {
-  const { sectors, sectorOfNote } = plan.value
-  const slotOf = new Map<string | undefined, { sector: Sector, colour: number }>(sectors.map(sector => [sector.key, { sector, colour: sectorColour(sector.key) }]))
+  const { leaves, sectorOfNote } = plan.value
+  const slotOf = new Map<string | undefined, { leaf: Leaf, colour: number }>(leaves.map(leaf => [leaf.key, { leaf, colour: leafColour(leaf) }]))
   const now = Date.now()
   const slots = vaultNotes.value.map(n => slotOf.get(sectorOfNote.get(n.path)))
   return {
     points: vaultNotes.value.map((n, i) => {
       const slot = slots[i]
-      return slot ? notePoint(n.path, slot.sector, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
+      return slot ? notePoint(n.path, slot.leaf, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
     }),
     colours: slots.map(s => s?.colour ?? 0),
     links: vaultNotes.value.flatMap(n => n.links.map((to): [number, number] => [n.index, to])),
@@ -131,10 +131,15 @@ const cardNote = computed(() => {
   return card?.kind === 'note' ? vaultNotes.value.find(n => n.path === card.path) ?? null : null
 })
 
-// Empty when the plan has no sector for the note: a blank label beside it, not a throw.
+// Empty when the plan has no leaf for the note: a blank label beside it, not a throw. A project
+// leaf appends its own name to the category's, a loose leaf has none to add.
 function sectorLabel(path: string): string {
-  const { sectors, sectorOfNote } = plan.value
-  return sectors.find(s => s.key === sectorOfNote.get(path))?.label ?? ''
+  const { sectors, leaves, sectorOfNote } = plan.value
+  const leaf = leaves.find(l => l.key === sectorOfNote.get(path))
+  if (!leaf)
+    return ''
+  const category = sectors.find(s => s.key === leaf.parent)?.label ?? ''
+  return leaf.label ? `${category}/${leaf.label}` : category
 }
 
 const listNotes = computed(() => vaultNotes.value.length ? recentNotes(LIST_NOTE_COUNT).map(n => ({ ...n, sector: sectorLabel(n.path) })) : [])
@@ -187,10 +192,10 @@ const ringOnScreenPx = computed(() => baseRingPx.value * rel.value)
 
 const placed = computed(() => {
   const k = k0.value
-  const { sectors, sectorOfProject } = plan.value
-  return sectors.flatMap((sector) => {
-    const members = live.value.filter(a => sectorOfProject.get(agentProjectKey(a)) === sector.key)
-    const angles = agentAngles(members.length, sector)
+  const { leaves, sectorOfProject } = plan.value
+  return leaves.flatMap((leaf) => {
+    const members = live.value.filter(a => sectorOfProject.get(agentProjectKey(a)) === leaf.key)
+    const angles = agentAngles(members.length, leaf)
     return members.map((agent, i) => {
       const needsOperator = blocksOnOperator(agent)
       const ring = agentSectorRingPx(ringPx.value, i, members.length, stagePx.value)
@@ -257,6 +262,18 @@ const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
 // Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well.
 const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !coveredByRail(s.box)).map(s => s.key)))
 
+// Project leaf labels join the legend from level 1 (HubOrbit gates the same way), skipping loose
+// leaves, which have nothing beyond their category name to show.
+const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
+  ? []
+  : plan.value.leaves.filter(leaf => leaf.label).map((leaf) => {
+      const [wx, wy] = polar(sectorNameRadius.value, sectorMid(leaf))
+      const [sx, sy] = toScreen(cam.value, wx, wy)
+      return { key: leaf.key, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }
+    }))
+
+const namedLeaves = computed(() => new Set(leafNames.value.filter(l => !coveredByRail(l.box)).map(l => l.key)))
+
 const labels = computed(() => {
   const sizes = labelSizes.value
   const drawn = placedScreen.value.filter(({ p }) => drawnAgents.value.has(p.agent.pid))
@@ -268,7 +285,7 @@ const labels = computed(() => {
     priority: agentPriority(p.needsOperator, p.state === 'working'),
   }))
   const dotObstacles = drawn.map(({ p, screen: [sx, sy] }) => ({ box: agentDotBox(sx, sy), ownerIndex: p.agent.pid }))
-  const obstacles = [...dotObstacles, ...sectorNames.value]
+  const obstacles = [...dotObstacles, ...sectorNames.value, ...leafNames.value]
   const directions = new Map(candidates.map((c, i) => [
     c.index,
     agentLabelDirection(c, sizes.get(c.text), inwardUnit(drawn[i].p.x, drawn[i].p.y), obstacles),
@@ -472,6 +489,15 @@ watch(hubFocusRequest, (target) => {
             fill-opacity="0.035"
             :style="{ fill: `var(--sector-${sectorColour(sector.key)})` }"
           />
+          <template v-if="level >= 1">
+            <path
+              v-for="leaf in plan.leaves"
+              :key="leaf.key"
+              :d="wedgePath(leaf.start, leaf.end)"
+              fill-opacity="0.035"
+              :style="{ fill: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+            />
+          </template>
           <circle
             v-for="ring in RINGS"
             :key="ring.label"
@@ -498,6 +524,7 @@ watch(hubFocusRequest, (target) => {
       <HubOrbit
         :cam="cam"
         :sectors="plan.sectors"
+        :leaves="plan.leaves"
         :agents="placed"
         :level="level"
         :running="running"
@@ -511,6 +538,7 @@ watch(hubFocusRequest, (target) => {
         :labelled-agents="labels.kept"
         :label-directions="labels.directions"
         :named-sectors="namedSectors"
+        :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
         @core="openKontor"
         @agent="flyToAgent"
