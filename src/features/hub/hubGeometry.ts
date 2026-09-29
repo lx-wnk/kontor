@@ -121,7 +121,9 @@ export function buildSectors(inputs: SectorInput[], start = -90, spanTotal = 360
   const agentsOf = sorted.map(s => Math.max(s.agents ?? 0, 0))
   const agentsTotal = agentsOf.reduce((sum, a) => sum + a, 0)
   const roots = sorted.map((s, i) => Math.sqrt(Math.max(s.weight + projectsOf[i], 0)))
-  const wanted = agentsOf.map(a => sectorFloorDeg(a, agentsTotal) * scale)
+  // sectorFloorDeg already answers in absolute degrees on the shared agent ring, not a share of
+  // spanTotal, so only the budget that caps their sum scales down with a narrower parent span.
+  const wanted = agentsOf.map(a => sectorFloorDeg(a, agentsTotal))
   const wantedSum = wanted.reduce((sum, f) => sum + f, 0)
   const floorBudget = SECTOR_FLOOR_BUDGET_DEG * scale
   // A floor is a best-effort minimum, never a claim on the arc: unscaled, fifteen of them fill it

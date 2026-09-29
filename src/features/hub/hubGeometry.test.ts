@@ -144,6 +144,29 @@ describe('buildSectors weight and floor inputs', () => {
   })
 })
 
+describe('buildSectors leaves within a narrower parent span', () => {
+  it('gives a project leaf its full label spacing, not a share shrunk by the parent span', () => {
+    const spanTotal = 180
+    const siblings = [
+      { key: 'heavy-a', label: 'heavy-a', weight: 8000 },
+      { key: 'heavy-b', label: 'heavy-b', weight: 6000 },
+      { key: 'target', label: 'target', weight: 1, agents: 2 },
+    ]
+    const target = buildSectors(siblings, -90, spanTotal).find(s => s.key === 'target')!
+    expect(span(target)).toBeGreaterThanOrEqual(sectorFloorDeg(2, 2) - 1e-6)
+  })
+
+  it('still caps agent floors to their share of a narrow parent span', () => {
+    const spanTotal = 90
+    const heavy = { key: 'heavy', label: 'heavy', weight: 10000 }
+    const crowded = Array.from({ length: 9 }, (_, i) => ({ key: `p${i}`, label: `p${i}`, weight: 1, agents: 2 }))
+    const sectors = buildSectors([heavy, ...crowded], -90, spanTotal)
+    const small = sectors.filter(s => s.key !== 'heavy')
+    const floorBudget = SECTOR_FLOOR_BUDGET_DEG * spanTotal / 360
+    expect(small.reduce((sum, s) => sum + span(s), 0)).toBeLessThanOrEqual(floorBudget + 1e-6)
+  })
+})
+
 describe('buildSectors with agents', () => {
   // The real vault: six folders and a catch-all, twelve agents, seven of them in the catch-all.
   const vault = [
