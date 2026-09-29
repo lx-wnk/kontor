@@ -140,10 +140,7 @@ export function sectorLabelBox(sx: number, sy: number, size: LabelSize = UNMEASU
   return { x: sx - size.w / 2, y: sy - size.h / 2, w: size.w, h: size.h }
 }
 
-// A wide sector's midpoint can land behind the docked launcher rail while most of its arc stays
-// free — the rail is a fixed screen rect, the arc is not. Slides the name outward from the mid,
-// nearest first and alternating sides, without crossing into a neighbour's arc. Margin keeps the
-// name off the sector's own boundary even on a very narrow arc.
+// Nearest to the midpoint first, alternating sides, never past the sector's own margins.
 export function sectorNameAngle(sector: Sector, fits: (deg: number) => boolean, stepDeg = 4): number | null {
   const width = sector.end - sector.start
   const margin = Math.min(stepDeg, width / 4)

@@ -70,12 +70,7 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 	for i, n := range g.Notes {
 		index[n.Path] = i
 	}
-	// macOS/Obsidian resolve vault links case-insensitively, so a link written
-	// with different casing than the file on disk (e.g. a directory renamed
-	// after the link was created) still resolves for Obsidian but misses an
-	// exact-string index lookup. Fall back to a case-folded index, but only
-	// when the folded key is unambiguous — two notes differing only by case
-	// make the target impossible to pick, so those links are skipped.
+	// Obsidian resolves links case-insensitively; a folded key shared by two notes is ambiguous and skipped.
 	foldIndex := make(map[string]int, len(g.Notes))
 	ambiguousFold := make(map[string]bool)
 	for i, n := range g.Notes {
