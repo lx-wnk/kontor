@@ -13,7 +13,11 @@ import {
   hash01,
   LAUNCHER_SECTOR_CLEARANCE_PX,
   launcherRingRadius,
+  leafColour,
+  leafShade,
   MAX_AGE_DAYS,
+  NOTE_KIND,
+  noteKind,
   notePoint,
   OTHER_SECTOR_KEY,
   planSectors,
@@ -28,9 +32,9 @@ import {
   SECTOR_PALETTE_SIZE,
   sectorColour,
   sectorFloorDeg,
-  sectorKeyFor,
   sectorLabelRadius,
   sectorTiers,
+  SESSIONS_KIND,
   visibleRingLabels,
 } from './hubGeometry'
 
@@ -334,84 +338,98 @@ describe('visibleRingLabels', () => {
   })
 })
 
-describe('sectorKeyFor', () => {
-  it('uses the top-level folder', () => {
-    expect(sectorKeyFor('Privat/Reise.md', [])).toEqual({ key: 'Privat', label: 'Privat' })
-  })
-  it('gives a nested folder named like an agent project its own sector', () => {
-    expect(sectorKeyFor('claude-memory/private/agent-dashboard/sessions/x.md', ['agent-dashboard']))
-      .toEqual({ key: 'claude-memory/private/agent-dashboard', label: 'agent-dashboard' })
-  })
-  it('matches the project name case-insensitively', () => {
-    expect(sectorKeyFor('work/Agent-Context/a.md', ['agent-context']).key).toBe('work/Agent-Context')
-  })
-  it('puts notes at the root into one root sector', () => {
-    expect(sectorKeyFor('Inbox.md', [])).toEqual({ key: '', label: 'Notes' })
-  })
-})
-
 function byName(names: readonly string[]) {
   return names.map(n => ({ key: n, label: n }))
 }
 
 describe('planSectors', () => {
-  it('keys sectors by project key and matches the vault by label', () => {
-    const projects = [{ key: 'p-1', label: 'Website' }, { key: 'p-2', label: 'Website' }]
-    expect(planSectors([], projects).sectors.map(s => [s.key, s.label])).toEqual([['p-1', 'Website'], ['p-2', 'Website']])
-    const p = planSectors(['Website/a.md', 'Misc/b.md'], projects)
-    expect(p.sectorOfProject.get('p-1')).toBe('Website')
-    expect(p.sectorOfProject.get('p-2')).toBe('Website')
+  it('groups notes by category (first folder) and project (second folder, three segments deep)', () => {
+    const p = planSectors(['work/babyone/sessions/2026-01.md', 'private/kontor/topic.md', 'misc/Agents.md', 'README.md'], [])
+    expect(p.sectorOfNote.get('work/babyone/sessions/2026-01.md')).toBe('work/babyone')
+    expect(p.sectorOfNote.get('private/kontor/topic.md')).toBe('private/kontor')
+    expect(p.sectorOfNote.get('misc/Agents.md')).toBe('misc/')
+    expect(p.sectorOfNote.get('README.md')).toBe('/')
+    expect(p.sectors.map(s => s.key).sort()).toEqual(['', 'misc', 'private', 'work'])
   })
-  it('without notes, gives every agent project its own sector', () => {
+
+  it('nests leaf spans inside their parent category, loose leaf first, contiguous and summing to the parent span', () => {
+    const p = planSectors(['work/babyone/a.md', 'work/babyone/b.md', 'work/atlas/a.md', 'work/loose.md'], [])
+    const category = p.sectors.find(s => s.key === 'work')!
+    const leaves = p.leaves.filter(l => l.parent === 'work').sort((a, b) => a.start - b.start)
+    expect(leaves.map(l => l.key)).toEqual(['work/', 'work/atlas', 'work/babyone'])
+    expect(leaves[0].start).toBeCloseTo(category.start)
+    expect(leaves.at(-1)!.end).toBeCloseTo(category.end)
+    for (let i = 1; i < leaves.length; i++) expect(leaves[i].start).toBeCloseTo(leaves[i - 1].end)
+    expect(leaves.reduce((sum, l) => sum + span(l), 0)).toBeCloseTo(span(category))
+  })
+
+  it('matches an agent to its project leaf case-insensitively, the leaf with the most notes winning a name tie', () => {
+    const p = planSectors(['work/Babyone/a.md', 'work/Babyone/b.md', 'private/babyone/a.md'], byName(['BABYONE']))
+    expect(p.sectorOfProject.get('BABYONE')).toBe('work/Babyone')
+  })
+
+  it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {
+    const p = planSectors(['work/babyone/a.md'], byName(['shop']))
+    expect(p.sectorOfProject.get('shop')).toBe(OTHER_SECTOR_KEY)
+    expect(p.sectors.map(s => s.key)).toContain(OTHER_SECTOR_KEY)
+    expect(p.leaves.find(l => l.key === OTHER_SECTOR_KEY)!.parent).toBe(OTHER_SECTOR_KEY)
+  })
+
+  it('adds no Other sector when every agent has a matching project leaf', () => {
+    expect(planSectors(['work/kontor/a.md'], byName(['kontor'])).sectors.map(s => s.key)).toEqual(['work'])
+  })
+
+  it('without notes, gives every agent project its own sector and a matching leaf of the same span', () => {
     const p = planSectors([], byName(['kontor', 'shop', 'kontor']))
     expect(p.sectors.map(s => s.key)).toEqual(['kontor', 'shop'])
     expect(p.sectorOfProject.get('shop')).toBe('shop')
+    expect(p.leaves.map(l => [l.key, l.parent, l.start, l.end])).toEqual(p.sectors.map(s => [s.key, s.key, s.start, s.end]))
   })
-  it('with notes, maps agents to a matching sector or to Other', () => {
-    const p = planSectors(['Privat/a.md', 'Privat/b.md', 'claude-memory/x/kontor/c.md'], byName(['kontor', 'shop']))
-    expect(p.sectorOfNote.get('Privat/a.md')).toBe('Privat')
-    expect(p.sectorOfProject.get('kontor')).toBe('claude-memory/x/kontor')
-    expect(p.sectorOfProject.get('shop')).toBe(OTHER_SECTOR_KEY)
-    expect(p.sectors.map(s => s.key)).toContain(OTHER_SECTOR_KEY)
-  })
-  it('adds no Other sector when every agent has one', () => {
-    expect(planSectors(['kontor/a.md'], byName(['kontor'])).sectors.map(s => s.key)).toEqual(['kontor'])
-  })
+
   it('gives a sector crowded with agents more arc than a quiet one', () => {
     const p = planSectors(['Privat/a.md'], byName(Array.from({ length: 7 }).fill('shop') as string[]))
     expect(span(p.sectors.find(s => s.key === OTHER_SECTOR_KEY)!)).toBeGreaterThan(span(p.sectors.find(s => s.key === 'Privat')!))
   })
+
+  it('never lets an agent roster change move which leaf a note belongs to', () => {
+    const notes = ['work/babyone/a.md', 'work/babyone/b.md', 'private/x.md']
+    const before = planSectors(notes, byName(['babyone']))
+    const after = planSectors(notes, byName(['babyone', 'babyone', 'shop']))
+    expect([...after.sectorOfNote]).toEqual([...before.sectorOfNote])
+  })
 })
 
-describe('planSectors on a roster change', () => {
-  const geometry = (p: ReturnType<typeof planSectors>) => p.sectors.map(s => [s.key, s.start, s.end])
-  const vault = Array.from({ length: 6 }, (_, f) => Array.from({ length: 20 }, (_, i) => `folder${f}/n${i}.md`)).flat()
-  const oneEach = ['folder0', 'folder1', 'folder3', 'folder4', 'folder5']
-
-  it('leaves every sector exactly where it was when a second agent joins a project already on the map', () => {
-    const notes = [...Array.from({ length: 100 }, (_, i) => `Privat/n${i}.md`), 'Misc/x.md']
-    const one = planSectors(notes, byName(['privat']))
-    expect(geometry(planSectors(notes, byName(['privat', 'privat'])))).toEqual(geometry(one))
-    expect(notePoint('Privat/n7.md', planSectors(notes, byName(['privat', 'privat'])).sectors[0], 30))
-      .toEqual(notePoint('Privat/n7.md', one.sectors[0], 30))
+describe('noteKind', () => {
+  it('prefers the frontmatter type, trimmed and lower-cased, over the folder', () => {
+    expect(noteKind('work/babyone/sessions/x.md', ' Lesson ')).toBe('lesson')
   })
-
-  it('re-lays out the map for a genuinely new project', () => {
-    const notes = [...Array.from({ length: 100 }, (_, i) => `Privat/n${i}.md`), 'Misc/x.md']
-    expect(geometry(planSectors(notes, byName(['privat', 'shop'])))).not.toEqual(geometry(planSectors(notes, byName(['privat']))))
+  it('falls back to the folder right under the project when there is no frontmatter type', () => {
+    expect(noteKind('work/babyone/sessions/x.md')).toBe(SESSIONS_KIND)
   })
+  it('falls back to a plain note for a project file and for a root file', () => {
+    expect(noteKind('work/babyone/x.md')).toBe(NOTE_KIND)
+    expect(noteKind('README.md')).toBe(NOTE_KIND)
+  })
+})
 
-  // The cost of floating the floor on instances: a sector already at that floor still widens. The
-  // audit measured 279–414 world units when the instance count fed the weight; this is what is left.
-  it('widens a sector already at its agent floor by a fraction of what the weighting moved', () => {
-    const seven = Array.from({ length: 7 }).fill('folder2') as string[]
-    const before = planSectors(vault, byName([...seven, ...oneEach]))
-    const after = planSectors(vault, byName([...seven, 'folder2', ...oneEach]))
-    const crowded = (p: ReturnType<typeof planSectors>) => p.sectors.find(s => s.key === 'folder2')!
-    expect(span(crowded(after))).toBeGreaterThan(span(crowded(before)))
+describe('leafShade', () => {
+  it('is stable and stays inside [-22, 22]', () => {
+    for (const key of ['work/babyone', 'private/kontor', 'misc/x']) {
+      expect(leafShade(key)).toBe(leafShade(key))
+      expect(leafShade(key)).toBeGreaterThanOrEqual(-22)
+      expect(leafShade(key)).toBeLessThanOrEqual(22)
+    }
+  })
+  it('is neutral for loose leaves and for Other', () => {
+    expect(leafShade('misc/')).toBe(0)
+    expect(leafShade('/')).toBe(0)
+    expect(leafShade(OTHER_SECTOR_KEY)).toBe(0)
+  })
+})
 
-    const at = (p: ReturnType<typeof planSectors>, path: string) => notePoint(path, p.sectors.find(s => s.key === p.sectorOfNote.get(path))!, 300)
-    const worst = Math.max(...vault.map(path => Math.hypot(...at(after, path).map((v, i) => v - at(before, path)[i]) as [number, number])))
-    expect(worst).toBeLessThan(12)
+describe('leafColour', () => {
+  it('takes its palette slot from its parent category, not from its own key', () => {
+    const leaf = { key: 'work/babyone', label: 'babyone', weight: 1, start: 0, end: 10, parent: 'work' }
+    expect(leafColour(leaf)).toBe(sectorColour('work'))
   })
 })

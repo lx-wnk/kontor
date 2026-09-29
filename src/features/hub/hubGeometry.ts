@@ -31,6 +31,8 @@ export const RING_LABEL_AGENT_CLEARANCE_PX = 12
 const AGENT_WORLD_MIN = 82
 const AGENT_WAITING_WORLD_MIN = 60
 export const OTHER_SECTOR_KEY = '__other__'
+export const NOTE_KIND = 'note'
+export const SESSIONS_KIND = 'sessions'
 export const RINGS: ReadonlyArray<{ label: string, days: number }> = [
   { label: 'today', days: 1 },
   { label: 'week', days: 7 },
@@ -58,6 +60,18 @@ export function sectorColour(key: string): number {
   return Math.floor(hash01(key) * SECTOR_PALETTE_SIZE)
 }
 
+// A leaf rides its category's palette slot; leafShade is what tells leaves of one category apart.
+export function leafColour(leaf: Leaf): number {
+  return sectorColour(leaf.parent)
+}
+
+// Deterministic lightness offset in percent; loose leaves and Other have no siblings to tell apart.
+export function leafShade(leafKey: string): number {
+  if (leafKey === OTHER_SECTOR_KEY || leafKey.endsWith('/'))
+    return 0
+  return (hash01(leafKey) * 2 - 1) * 22
+}
+
 // Agents of one sector sit on sectorTiers(count) rings, so only every tiers-th of them shares a radius.
 export function sectorTiers(agentsInSector: number): number {
   return Math.min(Math.max(agentsInSector, 1), AGENT_SECTOR_TIERS_MAX)
@@ -77,28 +91,34 @@ export function sectorFloorDeg(agentsInSector: number, agentsTotal: number): num
 // instances and feeds only the floor, which is the one thing their labels really need room for.
 export interface SectorInput { key: string, label: string, weight: number, projects?: number, agents?: number }
 export interface Sector extends SectorInput { start: number, end: number }
+// A leaf subdivides its parent category's arc; `parent` is the category key.
+export interface Leaf extends Sector { parent: string }
 
-export function buildSectors(inputs: SectorInput[]): Sector[] {
+// `start`/`spanTotal` let a leaf ring reuse this for one category's arc instead of the whole circle;
+// the floor and its budget scale down with the span, so a narrow category can't over-floor a leaf.
+export function buildSectors(inputs: SectorInput[], start = -90, spanTotal = 360): Sector[] {
   const sorted = [...inputs].sort((a, b) => a.key.localeCompare(b.key))
   const n = sorted.length
   if (n === 0)
     return []
-  const spans = Array.from({ length: n }).fill(360 / n) as number[]
+  const scale = spanTotal / 360
+  const spans = Array.from({ length: n }).fill(spanTotal / n) as number[]
   const projectsOf = sorted.map(s => Math.max(s.projects ?? 0, 0))
   const agentsOf = sorted.map(s => Math.max(s.agents ?? 0, 0))
   const agentsTotal = agentsOf.reduce((sum, a) => sum + a, 0)
   const roots = sorted.map((s, i) => Math.sqrt(Math.max(s.weight + projectsOf[i], 0)))
-  const wanted = agentsOf.map(a => sectorFloorDeg(a, agentsTotal))
+  const wanted = agentsOf.map(a => sectorFloorDeg(a, agentsTotal) * scale)
   const wantedSum = wanted.reduce((sum, f) => sum + f, 0)
-  // A floor is a best-effort minimum, never a claim on the circle: unscaled, fifteen of them fill it
+  const floorBudget = SECTOR_FLOOR_BUDGET_DEG * scale
+  // A floor is a best-effort minimum, never a claim on the arc: unscaled, fifteen of them fill it
   // and the weighting silently stops. Shrinking them together keeps it alive, and keeps their order.
-  const floors = wantedSum > SECTOR_FLOOR_BUDGET_DEG ? wanted.map(f => f * SECTOR_FLOOR_BUDGET_DEG / wantedSum) : wanted
+  const floors = wantedSum > floorBudget ? wanted.map(f => f * floorBudget / wantedSum) : wanted
   if (roots.some(r => r > 0)) {
     const floored = new Set<number>()
     // One sector per pass, the hungriest first: floors differ, so flooring several at once could
-    // hand out more than the 360° left.
+    // hand out more than what is left of the arc.
     for (;;) {
-      const free = 360 - [...floored].reduce((sum, i) => sum + floors[i], 0)
+      const free = spanTotal - [...floored].reduce((sum, i) => sum + floors[i], 0)
       const total = roots.reduce((sum, r, i) => floored.has(i) ? sum : sum + r, 0)
       let hungriest = -1
       for (let i = 0; i < n; i++) {
@@ -114,7 +134,7 @@ export function buildSectors(inputs: SectorInput[]): Sector[] {
     }
     for (const i of floored) spans[i] = floors[i]
   }
-  let at = -90
+  let at = start
   return sorted.map((s, i) => {
     const sector = { ...s, start: at, end: at + spans[i] }
     at += spans[i]
@@ -195,55 +215,88 @@ export function visibleRingLabels(scale: number, agentRingPx: number): typeof RI
   })
 }
 
-function sectorKeyForSet(path: string, wanted: ReadonlySet<string>): { key: string, label: string } {
-  const folders = path.split('/').slice(0, -1)
-  const hit = folders.findIndex(f => wanted.has(f.toLowerCase()))
-  if (hit >= 0)
-    return { key: folders.slice(0, hit + 1).join('/'), label: folders[hit] }
-  return folders.length ? { key: folders[0], label: folders[0] } : { key: '', label: 'Notes' }
+interface NotePlacement { categoryKey: string, categoryLabel: string, leafKey: string, leafLabel: string }
+
+// Category = first folder (root file → '' / 'Notes'); project leaf = second folder, three segments
+// deep. A file straight inside a category, or at the root, sits in that category's loose leaf
+// (key `category/`) instead — agent-independent, path depth only.
+function notePlacement(path: string): NotePlacement {
+  const segments = path.split('/')
+  const categoryKey = segments.length > 1 ? segments[0] : ''
+  const categoryLabel = segments.length > 1 ? segments[0] : 'Notes'
+  if (segments.length >= 3)
+    return { categoryKey, categoryLabel, leafKey: `${segments[0]}/${segments[1]}`, leafLabel: segments[1] }
+  return { categoryKey, categoryLabel, leafKey: `${categoryKey}/`, leafLabel: '' }
 }
 
-export function sectorKeyFor(path: string, projects: readonly string[]): { key: string, label: string } {
-  return sectorKeyForSet(path, new Set(projects.map(p => p.toLowerCase())))
+// Frontmatter wins when set; otherwise the folder right under the project (four segments deep)
+// names the kind, e.g. `sessions`. Anything shallower falls back to a plain note.
+export function noteKind(path: string, frontmatterType?: string): string {
+  const type = frontmatterType?.trim().toLowerCase()
+  if (type)
+    return type
+  const segments = path.split('/')
+  return segments.length >= 4 ? segments[2] : NOTE_KIND
 }
 
-export interface SectorPlan { sectors: Sector[], sectorOfNote: Map<string, string>, sectorOfProject: Map<string, string> }
+export interface SectorPlan { sectors: Sector[], leaves: Leaf[], sectorOfNote: Map<string, string>, sectorOfProject: Map<string, string> }
 
 // `key` identifies the project, `label` is its name, which is what a vault folder can match.
 export interface AgentProject { key: string, label: string }
 
 // `agentProjects` holds one entry per running agent, repeats included: a sector's weight counts the
-// distinct projects among them, its floor the instances. `sectorOfProject` is keyed by project key.
+// distinct projects among them, its floor the instances. `sectorOfProject` resolves to a leaf,
+// matched by label against that leaf's project folder — never by which agents happen to be running.
 export function planSectors(notePaths: readonly string[], agentProjects: readonly AgentProject[]): SectorPlan {
   const distinct = [...new Map(agentProjects.map(p => [p.key, p])).values()]
   const sectorOfNote = new Map<string, string>()
   const sectorOfProject = new Map<string, string>()
   const agentsOfProject = new Map<string, number>()
   for (const { key } of agentProjects) agentsOfProject.set(key, (agentsOfProject.get(key) ?? 0) + 1)
+
   if (notePaths.length === 0) {
     for (const p of distinct) sectorOfProject.set(p.key, p.key)
-    return { sectors: buildSectors(distinct.map(p => ({ key: p.key, label: p.label, weight: 1, projects: 1, agents: agentsOfProject.get(p.key) }))), sectorOfNote, sectorOfProject }
+    const sectors = buildSectors(distinct.map(p => ({ key: p.key, label: p.label, weight: 1, projects: 1, agents: agentsOfProject.get(p.key) })))
+    return { sectors, leaves: sectors.map(s => ({ ...s, parent: s.key })), sectorOfNote, sectorOfProject }
   }
-  const wanted = new Set(distinct.map(p => p.label.toLowerCase()))
-  const inputs = new Map<string, SectorInput>()
+
+  const categoryInputs = new Map<string, SectorInput>()
+  const leaves = new Map<string, SectorInput & { parent: string }>()
   for (const path of notePaths) {
-    const { key, label } = sectorKeyForSet(path, wanted)
-    sectorOfNote.set(path, key)
-    const input = inputs.get(key)
-    if (input)
-      input.weight++
-    else inputs.set(key, { key, label, weight: 1 })
+    const { categoryKey, categoryLabel, leafKey, leafLabel } = notePlacement(path)
+    sectorOfNote.set(path, leafKey)
+    const category = categoryInputs.get(categoryKey)
+    if (category)
+      category.weight++
+    else categoryInputs.set(categoryKey, { key: categoryKey, label: categoryLabel, weight: 1 })
+    const leaf = leaves.get(leafKey)
+    if (leaf)
+      leaf.weight++
+    else leaves.set(leafKey, { key: leafKey, label: leafLabel, weight: 1, parent: categoryKey })
   }
+
   for (const p of distinct) {
-    const match = [...inputs.values()].find(s => s.label.toLowerCase() === p.label.toLowerCase())
-    sectorOfProject.set(p.key, match?.key ?? OTHER_SECTOR_KEY)
+    const candidates = [...leaves.values()].filter(l => l.label && l.label.toLowerCase() === p.label.toLowerCase())
+    candidates.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key))
+    sectorOfProject.set(p.key, candidates[0]?.key ?? OTHER_SECTOR_KEY)
   }
-  if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY))
-    inputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })
+  if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY)) {
+    categoryInputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })
+    leaves.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1, parent: OTHER_SECTOR_KEY })
+  }
   for (const [project, count] of agentsOfProject) {
-    const sector = inputs.get(sectorOfProject.get(project)!)!
-    sector.projects = (sector.projects ?? 0) + 1
-    sector.agents = (sector.agents ?? 0) + count
+    const leaf = leaves.get(sectorOfProject.get(project)!)!
+    leaf.projects = (leaf.projects ?? 0) + 1
+    leaf.agents = (leaf.agents ?? 0) + count
+    const category = categoryInputs.get(leaf.parent)!
+    category.projects = (category.projects ?? 0) + 1
+    category.agents = (category.agents ?? 0) + count
   }
-  return { sectors: buildSectors([...inputs.values()]), sectorOfNote, sectorOfProject }
+
+  const sectors = buildSectors([...categoryInputs.values()])
+  const builtLeaves = sectors.flatMap((sector) => {
+    const inCategory = [...leaves.values()].filter(l => l.parent === sector.key)
+    return buildSectors(inCategory, sector.start, sector.end - sector.start).map(l => ({ ...l, parent: sector.key }))
+  })
+  return { sectors, leaves: builtLeaves, sectorOfNote, sectorOfProject }
 }
