@@ -3,9 +3,10 @@ import type { GraphResponse } from '../graphApi'
 import { ref, shallowRef } from 'vue'
 import { errorMessage, readErrorMessage } from '@/utils/errorMessage'
 import { fetchGraph, openNoteRequest } from '../graphApi'
+import { noteKind } from '../hubGeometry'
 
 export type GraphStatus = 'idle' | 'loading' | 'ready' | 'unconfigured' | 'denied' | 'failed'
-export interface HubNote { index: number, path: string, title: string, mtimeMs: number, links: number[], backlinks: number[] }
+export interface HubNote { index: number, path: string, title: string, mtimeMs: number, kind: string, links: number[], backlinks: number[] }
 
 const REFRESH_INTERVAL_MS = 60_000
 
@@ -21,7 +22,7 @@ function titleOf(path: string): string {
 }
 
 function buildNotes(body: GraphResponse): HubNote[] {
-  const built = (body.notes ?? []).map(([path, mtimeMs], index): HubNote => ({ index, path, title: titleOf(path), mtimeMs, links: [], backlinks: [] }))
+  const built = (body.notes ?? []).map(([path, mtimeMs, type], index): HubNote => ({ index, path, title: titleOf(path), mtimeMs, kind: noteKind(path, type), links: [], backlinks: [] }))
   for (const [from, to] of body.links ?? []) {
     if (!built[from] || !built[to])
       continue

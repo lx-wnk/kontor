@@ -42,9 +42,31 @@ describe('useObsidianGraph', () => {
     await g.refresh()
     expect(g.status.value).toBe('ready')
     expect(g.notes.value).toEqual([
-      { index: 0, path: 'a/One.md', title: 'One', mtimeMs: 1000, links: [1], backlinks: [] },
-      { index: 1, path: 'Two.md', title: 'Two', mtimeMs: 2000, links: [], backlinks: [0] },
+      { index: 0, path: 'a/One.md', title: 'One', mtimeMs: 1000, kind: 'note', links: [1], backlinks: [] },
+      { index: 1, path: 'Two.md', title: 'Two', mtimeMs: 2000, kind: 'note', links: [], backlinks: [0] },
     ])
+  })
+
+  it('derives kind from the path when no frontmatter type is given', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      configured: true,
+      notes: [['work/p/sessions/x.md', 1000], ['work/p/x.md', 2000]],
+      links: [],
+    }))
+    const g = useObsidianGraph()
+    await g.refresh()
+    expect(g.notes.value.map(n => n.kind)).toEqual(['sessions', 'note'])
+  })
+
+  it('prefers the frontmatter type over the path for kind', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      configured: true,
+      notes: [['work/p/x.md', 1000, 'Spec']],
+      links: [],
+    }))
+    const g = useObsidianGraph()
+    await g.refresh()
+    expect(g.notes.value[0].kind).toBe('spec')
   })
 
   it('skips a second refresh within 60s and fetches again on force', async () => {
