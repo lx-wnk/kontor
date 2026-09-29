@@ -24,7 +24,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, radiusForAge, RINGS, sectorAt, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
 import { aggregateLinks, bundlePoints, nearestArc, sampleBundle } from '../hubLinks'
@@ -32,6 +32,7 @@ import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
 import HubLaunchers from './HubLaunchers.vue'
+import HubLegend from './HubLegend.vue'
 import HubList from './HubList.vue'
 import HubMinimap from './HubMinimap.vue'
 import HubNoteCard from './HubNoteCard.vue'
@@ -55,6 +56,7 @@ const { activeView } = useViewState()
 const { layout, wide } = useWorkspace()
 const { requestNewPage } = useSidebar()
 const listOpen = ref(false)
+const legendOpen = ref(false)
 type HubCard = { kind: 'agent', pid: number } | { kind: 'note', path: string }
 const openCard = ref<HubCard | null>(null)
 let cameraBeforeCard: [number, number, number] | null = null
@@ -106,6 +108,25 @@ const liveProjects = computed<AgentProject[]>((previous) => {
 const vaultNotes = computed(() => graphStatus.value === 'ready' || graphStatus.value === 'loading' || graphStatus.value === 'failed' ? notes.value : [])
 const plan = computed(() => planSectors(vaultNotes.value.map(n => n.path), liveProjects.value))
 const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
+
+// What lies under the stage centre, read off the camera rather than tracked separately: a fly or a
+// drag moves the breadcrumb for free. Hidden inside the core (nothing to name yet) and at level 0
+// (the map itself is the category view already).
+const breadcrumb = computed(() => {
+  if (level.value === 0)
+    return null
+  const [wx, wy] = centreWorld()
+  if (Math.hypot(wx, wy) < R0)
+    return null
+  const deg = Math.atan2(wy, wx) * 180 / Math.PI
+  const category = sectorAt(plan.value.sectors, deg)
+  if (!category)
+    return null
+  if (category.key === OTHER_SECTOR_KEY)
+    return category.label
+  const leaf = sectorAt(plan.value.leaves.filter(l => l.parent === category.key), deg)
+  return leaf?.label ? `${category.label} › ${leaf.label}` : category.label
+})
 
 // A note the sector plan does not place is drawn nowhere: off stage, so the canvas skips it and it
 // cannot be hit. A gap in the brain, rather than a TypeError inside a render function.
@@ -448,6 +469,10 @@ function toggleList() {
   listOpen.value = !listOpen.value
 }
 
+function toggleLegend() {
+  legendOpen.value = !legendOpen.value
+}
+
 // Pre-flush: the closing layer is still in the DOM here, so this is the last chance to see whether it held focus.
 let closingLayerHadFocus = false
 watch([listOpen, openCard], () => {
@@ -463,7 +488,9 @@ watch([listOpen, openCard], () => {
 }, { flush: 'post' })
 
 function escape() {
-  if (openCard.value)
+  if (legendOpen.value)
+    legendOpen.value = false
+  else if (openCard.value)
     closeCard()
   else if (listOpen.value)
     toggleList()
@@ -492,6 +519,7 @@ const KEY_ACTIONS: Record<string, () => void> = {
   'F': toggleWide,
   'l': toggleList,
   'L': toggleList,
+  '?': toggleLegend,
 }
 
 // Shift stays allowed: '+' needs it on most layouts.
@@ -595,7 +623,7 @@ watch(hubFocusRequest, (target) => {
               v-for="leaf in plan.leaves"
               :key="leaf.key"
               :d="wedgePath(leaf.start, leaf.end)"
-              fill-opacity="0.035"
+              fill-opacity="0.09"
               :style="{ fill: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
             />
           </template>
@@ -655,6 +683,9 @@ watch(hubFocusRequest, (target) => {
         @measure="sizes => labelSizes = sizes"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
+      <div class="absolute left-2.5 top-2.5 z-[2]">
+        <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
+      </div>
       <HubControls
         :level="level"
         :wide="wide === HUB_WIDGET"
@@ -683,6 +714,14 @@ watch(hubFocusRequest, (target) => {
       </div>
     </div>
     <div class="pointer-events-none absolute left-1/2 top-2.5 z-10 flex max-h-[45%] w-[min(560px,calc(100%-120px))] -translate-x-1/2 flex-col items-start gap-1.5">
+      <span
+        v-if="breadcrumb"
+        data-testid="hub-breadcrumb"
+        aria-live="polite"
+        class="rounded-full border border-line bg-card/95 px-2.5 py-1 text-[11px] text-fg-mute shadow"
+      >
+        {{ breadcrumb }}
+      </span>
       <NeedsYouQueue
         variant="docked"
         data-hub-layer

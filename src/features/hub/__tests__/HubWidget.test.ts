@@ -568,6 +568,29 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
+  it('toggles the legend with ? and closes it on Escape before fitting', async () => {
+    const w = await mountHub()
+    expect(w.find('[data-testid="hub-legend"]').exists()).toBe(false)
+    await press(w, '?')
+    expect(w.find('[data-testid="hub-legend"]').exists()).toBe(true)
+    await press(w, '+')
+    await press(w, 'Escape')
+    expect(w.find('[data-testid="hub-legend"]').exists()).toBe(false)
+    expect(scale(w)).toBeCloseTo(1.4)
+    w.unmount()
+  })
+
+  it('shows no breadcrumb at level 0 and the category/project under the stage centre from level 1', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'alpha/kontor-hub/note.md')]
+    const w = await mountHub()
+    expect(w.find('[data-testid="hub-breadcrumb"]').exists()).toBe(false)
+    await w.get('[data-testid="hub-agent-101"]').trigger('click')
+    expect(w.get('[data-testid="hub-stage"]').attributes('data-level')).toBe('1')
+    expect(w.get('[data-testid="hub-breadcrumb"]').text()).toBe('alpha › kontor-hub')
+    w.unmount()
+  })
+
   it('offers every other view and a new page as launchers, and fires the slot a digit names', async () => {
     const w = await mountHub()
     const ids = w.findAll('[data-testid^="hub-launcher-"]').map(b => b.attributes('data-testid'))
