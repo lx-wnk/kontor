@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubNote } from '../composables/useObsidianGraph'
 import type { Camera, HubLevel } from '../hubCamera'
-import type { LabelCandidate } from '../hubCanvas'
+import type { LabelCandidate, LabelObstacle } from '../hubCanvas'
 import type { HubEdge } from '../hubEdges'
 import type { Leaf, Sector } from '../hubGeometry'
 import type { BundleRoute, Point } from '../hubLinks'
@@ -28,6 +28,9 @@ const props = defineProps<{
   leaves: ReadonlyArray<Leaf>
   noteLeaf: ReadonlyArray<string>
   hoveredNote: number | null
+  // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
+  // note title must yield to, since the project names are the map's legend.
+  legendBoxes?: ReadonlyArray<LabelObstacle>
 }>()
 
 const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
@@ -297,14 +300,15 @@ function labelWidth(ctx: CanvasRenderingContext2D, index: number, text: string):
   return width
 }
 
-// Topics level labels the hub notes only; the notes level labels whatever cullLabels keeps.
+// Topics level labels the hub notes only, yielding to the project-name legend; the notes level
+// labels whatever cullLabels keeps (legendBoxes is empty there — leaf names are hidden at level 2).
 function drawLabels({ ctx, screen, visible, now, token }: Scene) {
   if (props.level === 0)
     return
   const candidates = visible
     .filter(i => props.level === 2 || props.hubNotes.has(i))
     .map(i => labelCandidate(i, screen[i], now))
-  const kept = props.level === 2 ? cullLabels(candidates, c => noteLabelBox(c, labelWidth(ctx, c.index, c.text))) : null
+  const kept = cullLabels(candidates, c => noteLabelBox(c, labelWidth(ctx, c.index, c.text)), props.legendBoxes ?? [])
   ctx.globalAlpha = 1
   ctx.textBaseline = 'middle'
   ctx.lineJoin = 'round'
@@ -312,7 +316,7 @@ function drawLabels({ ctx, screen, visible, now, token }: Scene) {
   ctx.strokeStyle = token('--app')
   ctx.fillStyle = token('--fg-soft')
   for (const c of candidates) {
-    if (kept && !kept.has(c.index))
+    if (!kept.has(c.index))
       continue
     ctx.font = fontFor(c.index)
     ctx.strokeText(c.text, c.sx + NOTE_LABEL_OFFSET_PX, c.sy)

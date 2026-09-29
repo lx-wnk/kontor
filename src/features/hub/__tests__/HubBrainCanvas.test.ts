@@ -114,6 +114,17 @@ describe('hubBrainCanvas', () => {
     expect(texts()).toEqual(['Alpha', 'Gamma'])
   })
 
+  it('at the topics level, a note title overlapping the project-name legend yields to it', async () => {
+    mountBrain({
+      level: 1,
+      points: [[100, 100], [102, 100], [300, 100]],
+      hubNotes: new Set([0, 2]),
+      legendBoxes: [{ box: { x: 100, y: 90, w: 60, h: 20 } }],
+    })
+    await nextFrame()
+    expect(texts()).toEqual(['Gamma'])
+  })
+
   // The width used to be counted off the characters, the estimate that twice misplaced the agent
   // labels next door. Here it is the canvas' own measurement, and one per distinct text.
   it('culls on measured widths and measures each text once, however many frames it draws', async () => {

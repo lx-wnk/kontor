@@ -294,6 +294,8 @@ const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
     }))
 
 const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
+// The project-name legend a hub note title must yield to (HubBrainCanvas' drawLabels).
+const legendBoxes = computed(() => leafNames.value.filter(l => namedLeaves.value.has(l.key)).map(l => ({ box: l.box })))
 
 const labels = computed(() => {
   const sizes = labelSizes.value
@@ -541,6 +543,7 @@ watch(hubFocusRequest, (target) => {
         :edges="edges"
         :hub-notes="brain.hubNotes"
         :selected="cardNote?.index ?? null"
+        :legend-boxes="legendBoxes"
         :sectors="plan.sectors"
         :leaves="plan.leaves"
         :note-leaf="brain.noteLeaf"
