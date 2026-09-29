@@ -22,7 +22,7 @@ import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
@@ -263,17 +263,26 @@ const labelSizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 // (own dot excluded, or a label could never sit next to its own agent) and, when they are actually
 // drawn (HubOrbit.vue only shows them below level 2 and with showSectorNames), every sector name —
 // the map's legend, which never yields to an agent label.
-// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies.
+// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies. A wide
+// sector's midpoint can sit behind the docked rail while most of its arc is free, so the angle
+// slides along the arc (sectorNameAngle) instead of hiding the name outright.
 const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
   ? []
   : plan.value.sectors.map((sector) => {
-      const [wx, wy] = polar(sectorNameRadius.value, sectorMid(sector))
-      const [sx, sy] = toScreen(cam.value, wx, wy)
-      return { key: sector.key, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight))) }
+      const boxAt = (deg: number) => {
+        const [wx, wy] = polar(sectorNameRadius.value, deg)
+        const [sx, sy] = toScreen(cam.value, wx, wy)
+        return sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight)))
+      }
+      const found = sectorNameAngle(sector, deg => !coveredByRail(boxAt(deg)))
+      const deg = found ?? sectorMid(sector)
+      return { key: sector.key, deg, found: found !== null, box: boxAt(deg) }
     }))
 
-// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well.
-const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !coveredByRail(s.box)).map(s => s.key)))
+// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well — only
+// once no angle along its arc clears the rail at all.
+const namedSectors = computed(() => new Set(sectorNames.value.filter(s => s.found).map(s => s.key)))
+const sectorNameAngles = computed(() => new Map(sectorNames.value.map(s => [s.key, s.deg])))
 
 // Project leaf labels join the legend from level 1 (HubOrbit gates the same way).
 const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
@@ -555,6 +564,7 @@ watch(hubFocusRequest, (target) => {
         :labelled-agents="labels.kept"
         :label-directions="labels.directions"
         :named-sectors="namedSectors"
+        :sector-name-angles="sectorNameAngles"
         :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
         @core="openKontor"

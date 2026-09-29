@@ -35,6 +35,9 @@ const props = defineProps<{
   labelledAgents?: ReadonlySet<number>
   // Sector keys whose name is drawable; omitted draws them all.
   namedSectors?: ReadonlySet<string>
+  // The angle HubWidget slid a sector's name to, clear of the docked rail; a sector missing here
+  // (or the whole map omitted, e.g. tests) draws its name on the arc's plain midpoint.
+  sectorNameAngles?: ReadonlyMap<string, number>
   // Leaf keys whose name is drawable; omitted draws them all.
   namedLeaves?: ReadonlySet<string>
   // Pids whose dot is reachable; omitted draws them all. One the docked rail covers is left
@@ -162,7 +165,7 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :data-label-key="sectorLabelKey(sector.label, sector.weight)"
         class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-widest hover:bg-fg/5"
         :class="[level === 1 && 'opacity-55', !showsSectorName(sector.key) && 'invisible']"
-        :style="{ ...atPolar(sectorNameRadius, sectorMid(sector)), color: `var(--sector-${sectorColour(sector.key)})` }"
+        :style="{ ...atPolar(sectorNameRadius, sectorNameAngles?.get(sector.key) ?? sectorMid(sector)), color: `var(--sector-${sectorColour(sector.key)})` }"
         @click="$emit('sector', sector)"
       >
         {{ sector.label }}<small class="ml-1 font-normal normal-case tracking-normal text-fg-mute">{{ sector.weight }}</small>
