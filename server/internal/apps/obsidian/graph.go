@@ -70,6 +70,22 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 	for i, n := range g.Notes {
 		index[n.Path] = i
 	}
+	// macOS/Obsidian resolve vault links case-insensitively, so a link written
+	// with different casing than the file on disk (e.g. a directory renamed
+	// after the link was created) still resolves for Obsidian but misses an
+	// exact-string index lookup. Fall back to a case-folded index, but only
+	// when the folded key is unambiguous — two notes differing only by case
+	// make the target impossible to pick, so those links are skipped.
+	foldIndex := make(map[string]int, len(g.Notes))
+	ambiguousFold := make(map[string]bool)
+	for i, n := range g.Notes {
+		fold := strings.ToLower(n.Path)
+		if _, exists := foldIndex[fold]; exists {
+			ambiguousFold[fold] = true
+			continue
+		}
+		foldIndex[fold] = i
+	}
 	seen := make(map[[2]int]bool)
 	for _, hit := range links {
 		fromRel, ok := pathUnderRoot(c.vaultRoot, hit.Filename)
@@ -84,8 +100,18 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 		}
 		for _, t := range targets {
 			toRel, ok := pathUnderRoot(c.vaultRoot, t)
+			if !ok {
+				continue
+			}
 			to, known := index[toRel]
-			if !ok || !known || to == from {
+			if !known {
+				fold := strings.ToLower(toRel)
+				if ambiguousFold[fold] {
+					continue
+				}
+				to, known = foldIndex[fold]
+			}
+			if !known || to == from {
 				continue
 			}
 			pair := [2]int{from, to}

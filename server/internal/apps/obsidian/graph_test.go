@@ -192,6 +192,70 @@ func TestGraphIgnoresMalformedOrEmptyFrontmatterTypeInsteadOfFailingTheWholeGrap
 	}
 }
 
+// TestGraphResolvesLinkTargetsThatDifferOnlyByCase pins that a link written
+// with different casing than the file on disk (as macOS/Obsidian resolve
+// case-insensitively) still resolves, but two notes differing only by case
+// make the fold ambiguous and the link is skipped.
+func TestGraphResolvesLinkTargetsThatDifferOnlyByCase(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/search/" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		switch string(body) {
+		case `{"var":"stat.mtime"}`:
+			_, _ = w.Write([]byte(`[` +
+				`{"filename":"root/agent-context/Agent-Context.md","result":1700000001000},` +
+				`{"filename":"root/a.md","result":1700000002000},` +
+				`{"filename":"root/b/X.md","result":1700000003000},` +
+				`{"filename":"root/b/x.md","result":1700000004000}` +
+				`]`))
+		case `{"var":"links"}`:
+			_, _ = w.Write([]byte(`[` +
+				`{"filename":"root/a.md","result":["root/agent-context/agent-context.md","root/b/X.MD"]}` +
+				`]`))
+		case `{"var":"frontmatter.type"}`:
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(ts.Close)
+
+	client, err := obsidian.NewClient(obsidian.Config{
+		BaseURL:   "https://" + ts.Listener.Addr().String(),
+		APIKey:    graphAPIKey,
+		VaultRoot: "root",
+		TLSMode:   obsidian.TLSPinned,
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+
+	g, err := client.Graph(context.Background())
+	if err != nil {
+		t.Fatalf("Graph: %v", err)
+	}
+
+	a, mixedCase := -1, -1
+	for i, n := range g.Notes {
+		switch n.Path {
+		case "a.md":
+			a = i
+		case "agent-context/Agent-Context.md":
+			mixedCase = i
+		}
+	}
+	if a == -1 || mixedCase == -1 {
+		t.Fatalf("Notes = %v, want a.md and agent-context/Agent-Context.md present", g.Notes)
+	}
+	want := [][2]int{{a, mixedCase}}
+	if !reflect.DeepEqual(g.Links, want) {
+		t.Errorf("Links = %v, want %v (lower-cased target resolves; ambiguous b/X.md vs b/x.md target skipped)", g.Links, want)
+	}
+}
+
 func TestGraphFailsWithoutLeakingTheAPIKeyWhenSearchIsRefused(t *testing.T) {
 	client, _ := newGraphVault(t, http.StatusInternalServerError)
 
