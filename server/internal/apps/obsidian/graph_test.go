@@ -18,6 +18,7 @@ const graphAPIKey = "graph-secret-key"
 const (
 	mtimeSearchAnswer = `[{"filename":"root/b.md","result":1700000000000},{"filename":"root/a.md","result":1700000001000},{"filename":"other/x.md","result":1},{"filename":"root/pic.png","result":5}]`
 	linksSearchAnswer = `[{"filename":"root/a.md","result":["root/b.md","other/x.md","root/missing.md","root/a.md"]},{"filename":"other/x.md","result":["root/a.md"]},{"filename":"root/b.md","result":"not-a-list"}]`
+	typeSearchAnswer  = `[{"filename":"root/a.md","result":"person"}]`
 )
 
 func newGraphVault(t *testing.T, searchStatus int) (*obsidian.Client, func() []string) {
@@ -46,6 +47,8 @@ func newGraphVault(t *testing.T, searchStatus int) (*obsidian.Client, func() []s
 				_, _ = w.Write([]byte(mtimeSearchAnswer))
 			case `{"var":"links"}`:
 				_, _ = w.Write([]byte(linksSearchAnswer))
+			case `{"var":"frontmatter.type"}`:
+				_, _ = w.Write([]byte(typeSearchAnswer))
 			default:
 				t.Errorf("unexpected JsonLogic query %q", body)
 				w.WriteHeader(http.StatusBadRequest)
@@ -83,14 +86,17 @@ func TestGraphKeepsOnlyMarkdownNotesUnderTheRootAndLinksBetweenThem(t *testing.T
 		t.Fatalf("Graph: %v", err)
 	}
 
-	wantNotes := []obsidian.GraphNote{{Path: "a.md", MtimeMs: 1700000001000}, {Path: "b.md", MtimeMs: 1700000000000}}
+	wantNotes := []obsidian.GraphNote{
+		{Path: "a.md", MtimeMs: 1700000001000, Type: "person"},
+		{Path: "b.md", MtimeMs: 1700000000000},
+	}
 	if !reflect.DeepEqual(g.Notes, wantNotes) {
 		t.Errorf("Notes = %v, want %v", g.Notes, wantNotes)
 	}
 	if want := [][2]int{{0, 1}}; !reflect.DeepEqual(g.Links, want) {
 		t.Errorf("Links = %v, want %v", g.Links, want)
 	}
-	if want := []string{"POST /search/", "POST /search/"}; !reflect.DeepEqual(calls(), want) {
+	if want := []string{"POST /search/", "POST /search/", "POST /search/"}; !reflect.DeepEqual(calls(), want) {
 		t.Errorf("requests = %v, want %v", calls(), want)
 	}
 }
@@ -109,6 +115,8 @@ func TestGraphSkipsNoteWithMalformedMtimeInsteadOfFailingTheWholeGraph(t *testin
 		case `{"var":"stat.mtime"}`:
 			_, _ = w.Write([]byte(`[{"filename":"root/a.md","result":1700000001000},{"filename":"root/bad.md","result":"not-a-number"}]`))
 		case `{"var":"links"}`:
+			_, _ = w.Write([]byte(`[]`))
+		case `{"var":"frontmatter.type"}`:
 			_, _ = w.Write([]byte(`[]`))
 		default:
 			w.WriteHeader(http.StatusBadRequest)
@@ -133,6 +141,54 @@ func TestGraphSkipsNoteWithMalformedMtimeInsteadOfFailingTheWholeGraph(t *testin
 	want := []obsidian.GraphNote{{Path: "a.md", MtimeMs: 1700000001000}}
 	if !reflect.DeepEqual(g.Notes, want) {
 		t.Errorf("Notes = %v, want %v (root/bad.md must be skipped, not block the rest)", g.Notes, want)
+	}
+}
+
+// TestGraphIgnoresMalformedOrEmptyFrontmatterTypeInsteadOfFailingTheWholeGraph
+// pins that a non-string, empty, or missing frontmatter type leaves Type
+// blank instead of blanking the whole graph, exactly like a malformed mtime
+// or links value.
+func TestGraphIgnoresMalformedOrEmptyFrontmatterTypeInsteadOfFailingTheWholeGraph(t *testing.T) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/search/" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		switch string(body) {
+		case `{"var":"stat.mtime"}`:
+			_, _ = w.Write([]byte(`[{"filename":"root/a.md","result":1700000001000},{"filename":"root/b.md","result":1700000002000},{"filename":"root/c.md","result":1700000003000}]`))
+		case `{"var":"links"}`:
+			_, _ = w.Write([]byte(`[]`))
+		case `{"var":"frontmatter.type"}`:
+			_, _ = w.Write([]byte(`[{"filename":"root/a.md","result":42},{"filename":"root/b.md","result":"  "},{"filename":"root/c.md","result":" person "}]`))
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(ts.Close)
+
+	client, err := obsidian.NewClient(obsidian.Config{
+		BaseURL:   "https://" + ts.Listener.Addr().String(),
+		APIKey:    graphAPIKey,
+		VaultRoot: "root",
+		TLSMode:   obsidian.TLSPinned,
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+
+	g, err := client.Graph(context.Background())
+	if err != nil {
+		t.Fatalf("Graph: want malformed/empty type tolerated, not a failure: %v", err)
+	}
+	want := []obsidian.GraphNote{
+		{Path: "a.md", MtimeMs: 1700000001000},                 // non-string type
+		{Path: "b.md", MtimeMs: 1700000002000},                 // blank after trim
+		{Path: "c.md", MtimeMs: 1700000003000, Type: "person"}, // trimmed, not lower-cased
+	}
+	if !reflect.DeepEqual(g.Notes, want) {
+		t.Errorf("Notes = %v, want %v", g.Notes, want)
 	}
 }
 
