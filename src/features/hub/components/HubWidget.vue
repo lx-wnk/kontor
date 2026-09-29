@@ -121,9 +121,20 @@ const brain = computed(() => {
       return slot ? notePoint(n.path, slot.leaf, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
     }),
     colours: slots.map(s => s?.colour ?? 0),
+    noteLeaf: slots.map(s => s?.leaf.key ?? ''),
     links: vaultNotes.value.flatMap(n => n.links.map((to): [number, number] => [n.index, to])),
     hubNotes: hubNoteSet(vaultNotes.value, n => sectorOfNote.get(n.path) ?? ''),
   }
+})
+
+const hoveredNote = ref<number | null>(null)
+useEventListener(stage, 'pointermove', (e: PointerEvent) => {
+  const rect = stage.value?.getBoundingClientRect()
+  const hit = rect ? hitNote(brain.value.points, cam.value, e.clientX - rect.left, e.clientY - rect.top) : -1
+  hoveredNote.value = hit >= 0 ? hit : null
+})
+useEventListener(stage, 'pointerleave', () => {
+  hoveredNote.value = null
 })
 
 const cardNote = computed(() => {
@@ -520,6 +531,10 @@ watch(hubFocusRequest, (target) => {
         :edges="edges"
         :hub-notes="brain.hubNotes"
         :selected="cardNote?.index ?? null"
+        :sectors="plan.sectors"
+        :leaves="plan.leaves"
+        :note-leaf="brain.noteLeaf"
+        :hovered-note="hoveredNote"
       />
       <HubOrbit
         :cam="cam"

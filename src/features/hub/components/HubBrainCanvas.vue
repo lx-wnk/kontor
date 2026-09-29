@@ -3,12 +3,15 @@ import type { HubNote } from '../composables/useObsidianGraph'
 import type { Camera, HubLevel } from '../hubCamera'
 import type { LabelCandidate } from '../hubCanvas'
 import type { HubEdge } from '../hubEdges'
+import type { Leaf, Sector } from '../hubGeometry'
+import type { BundleRoute, Point } from '../hubLinks'
 import type { NoteTouchKind } from '@/types'
 import { useMutationObserver } from '@vueuse/core'
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toScreen } from '../hubCamera'
 import { cullLabels, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority } from '../hubCanvas'
-import { DAY_MS } from '../hubGeometry'
+import { DAY_MS, leafShade, NOTE_KIND, polar, R0, R_MAX, sectorMid, SESSIONS_KIND, shadeMix } from '../hubGeometry'
+import { aggregateLinks, bundlePoints, linksOf, traceBundle } from '../hubLinks'
 
 const props = defineProps<{
   cam: Camera
@@ -21,11 +24,27 @@ const props = defineProps<{
   hubNotes: ReadonlySet<number>
   selected: number | null
   edges: ReadonlyArray<HubEdge>
+  sectors: ReadonlyArray<Sector>
+  leaves: ReadonlyArray<Leaf>
+  noteLeaf: ReadonlyArray<string>
+  hoveredNote: number | null
 }>()
 
 const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
-const LINK_ALPHA: Record<HubLevel, number> = { 0: 0.28, 1: 0.55, 2: 0.8 }
 const LINK_WIDTH_PX = 0.7
+const LINK_THIN_WIDTH_PX = 0.4
+// Anchor radius for bundled category/leaf arcs (level 0/1): further out than the leaf/category
+// anchors in hubLinks so the arcs read as a separate, coarser layer above the note-level bundles.
+const LINK_AGG_ANCHOR_R = R0 + 0.55 * (R_MAX - R0)
+const LINK_AGG_BASE_PX = 0.8
+const LINK_AGG_STEP_PX = 0.25
+const LINK_AGG_MAX_PX = 5
+const LINK_AGG_ALPHA = 0.6
+const LINK_CROSS_ALPHA = 0.6
+const LINK_INTRA_ALPHA = 0.18
+const LINK_HOVER_ALPHA = 0.95
+const LINK_HOVER_WIDTH_SCALE = 2
+const LINK_DIM_ALPHA = 0.06
 const EDGE_WIDTH_PX = 1.2
 const EDGE_DASH: Record<NoteTouchKind, number[]> = { read: [4, 3], write: [1, 3] }
 const NOTE_ALPHA = 0.75
@@ -40,6 +59,9 @@ const LABEL_FONT = '11px system-ui, sans-serif'
 const HUB_LABEL_FONT = `600 ${LABEL_FONT}`
 const LABEL_STROKE_PX = 3
 const FULL_CIRCLE = Math.PI * 2
+const HOLE_SCALE = 0.4
+const RING_WIDTH_SCALE = 0.45
+const RING_WIDTH_MIN_PX = 1
 
 interface Scene {
   ctx: CanvasRenderingContext2D
@@ -54,24 +76,87 @@ interface Scene {
 const canvas = ref<HTMLCanvasElement | null>(null)
 let frame: number | null = null
 
+const sectorByKey = computed(() => new Map(props.sectors.map(s => [s.key, s])))
+const leafByKey = computed(() => new Map(props.leaves.map(l => [l.key, l])))
+
 // moveTo opens a new sub-path, so circles batched into one path are not joined by lines.
 function addCircle(ctx: CanvasRenderingContext2D, [x, y]: [number, number], r: number) {
   ctx.moveTo(x + r, y)
   ctx.arc(x, y, r, 0, FULL_CIRCLE)
 }
 
-function drawLinks({ ctx, screen, onStage, token }: Scene) {
-  ctx.globalAlpha = LINK_ALPHA[props.level]
-  ctx.strokeStyle = token('--line-strong')
-  ctx.lineWidth = LINK_WIDTH_PX
+function categoryKeyOf(i: number): string {
+  return leafByKey.value.get(props.noteLeaf[i])?.parent ?? ''
+}
+
+function categoryOf(leaf: Leaf): Sector {
+  return sectorByKey.value.get(leaf.parent) ?? leaf
+}
+
+function strokeBundle(ctx: CanvasRenderingContext2D, from: Point, to: Point, route: BundleRoute, width: number, alpha: number, colour: string) {
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = colour
+  ctx.lineWidth = width
   ctx.beginPath()
-  for (const [from, to] of props.links) {
-    if (!onStage[from] && !onStage[to])
-      continue
-    ctx.moveTo(...screen[from])
-    ctx.lineTo(...screen[to])
-  }
+  traceBundle(ctx, bundlePoints(from, to, route).map(([x, y]) => toScreen(props.cam, x, y)))
   ctx.stroke()
+}
+
+// Level 0/1: one arc per (category, category) or (leaf, leaf) pair, width growing with the count of
+// links it represents; a pair sharing one group is not a link and draws nothing.
+function drawAggregatedLinks<T extends Sector>(
+  ctx: CanvasRenderingContext2D,
+  accent: string,
+  groupOf: (i: number) => string,
+  anchorOf: (key: string) => T | undefined,
+  routeOf: (a: T, b: T) => BundleRoute,
+) {
+  for (const { a, b, count } of aggregateLinks(props.links, groupOf)) {
+    const sa = anchorOf(a)
+    const sb = anchorOf(b)
+    if (!sa || !sb)
+      continue
+    const from = polar(LINK_AGG_ANCHOR_R, sectorMid(sa))
+    const to = polar(LINK_AGG_ANCHOR_R, sectorMid(sb))
+    const width = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX)
+    strokeBundle(ctx, from, to, routeOf(sa, sb), width, LINK_AGG_ALPHA, accent)
+  }
+}
+
+// Level 2: every link on its own, faint within a leaf and accented where it crosses one; a hovered
+// note's own links stand out brighter and wider, every other link fades.
+function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, lineStrong: string, onStage: boolean[]) {
+  const hovered = props.hoveredNote
+  const hoveredLinks = hovered === null ? null : new Set(linksOf(props.links, hovered))
+  props.links.forEach(([from, to], idx) => {
+    if (!onStage[from] && !onStage[to])
+      return
+    const fromLeaf = leafByKey.value.get(props.noteLeaf[from])
+    const toLeaf = leafByKey.value.get(props.noteLeaf[to])
+    if (!fromLeaf || !toLeaf)
+      return
+    const crosses = fromLeaf.key !== toLeaf.key
+    const isHovered = hoveredLinks?.has(idx) ?? false
+    const dimmed = hoveredLinks !== null && !isHovered
+    const alpha = isHovered ? LINK_HOVER_ALPHA : dimmed ? LINK_DIM_ALPHA : crosses ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
+    const width = (crosses ? LINK_WIDTH_PX : LINK_THIN_WIDTH_PX) * (isHovered ? LINK_HOVER_WIDTH_SCALE : 1)
+    const colour = isHovered || crosses ? accent : lineStrong
+    const route: BundleRoute = { fromLeaf, toLeaf, fromCategory: categoryOf(fromLeaf), toCategory: categoryOf(toLeaf) }
+    strokeBundle(ctx, props.points[from], props.points[to], route, width, alpha, colour)
+  })
+}
+
+function drawLinks({ ctx, onStage, token }: Scene) {
+  const accent = token('--accent')
+  if (props.level === 0) {
+    drawAggregatedLinks(ctx, accent, i => categoryKeyOf(i), key => sectorByKey.value.get(key), (a, b) => ({ fromLeaf: a, toLeaf: b, fromCategory: a, toCategory: b }))
+    return
+  }
+  if (props.level === 1) {
+    drawAggregatedLinks(ctx, accent, i => props.noteLeaf[i] ?? '', key => leafByKey.value.get(key), (a, b) => ({ fromLeaf: a, toLeaf: b, fromCategory: categoryOf(a), toCategory: categoryOf(b) }))
+    return
+  }
+  drawIndividualLinks(ctx, accent, token('--line-strong'), onStage)
 }
 
 function drawEdges({ ctx, screen, token }: Scene) {
@@ -92,40 +177,86 @@ function drawEdges({ ctx, screen, token }: Scene) {
   ctx.lineCap = 'butt'
 }
 
+// A hovered note's linked neighbours join today's touched notes in the halo pass, reusing its style.
 function strokeHalos({ ctx, screen, visible, radius, now, token }: Scene) {
   if (props.level === 0)
     return
+  const neighbours = props.level === 2 && props.hoveredNote !== null
+    ? new Set(linksOf(props.links, props.hoveredNote).flatMap(idx => props.links[idx]))
+    : null
   ctx.globalAlpha = HALO_ALPHA
   ctx.strokeStyle = token('--halo')
   ctx.lineWidth = HALO_WIDTH_PX
   ctx.beginPath()
   for (const i of visible) {
-    if (isToday(props.notes[i].mtimeMs, now))
+    if (isToday(props.notes[i].mtimeMs, now) || neighbours?.has(i))
       addCircle(ctx, screen[i], radius * HALO_SCALE)
   }
   ctx.stroke()
 }
 
-// One path per (kind, colour); plain notes first so hub notes sit on top.
+// Plain category colour at the overview; shaded by leaf from the topics level up, same as the wedges.
+function noteColour(i: number, token: (name: string) => string): string {
+  const base = token(`--sector-${props.colours[i]}`)
+  return props.level === 0 ? base : shadeMix(base, leafShade(props.noteLeaf[i]))
+}
+
+function groupByColour(items: number[]): Map<string, number[]> {
+  const groups = new Map<string, number[]>()
+  for (const i of items) {
+    const key = props.level === 0 ? String(props.colours[i]) : `${props.colours[i]}\u0000${props.noteLeaf[i]}`
+    const members = groups.get(key)
+    if (members)
+      members.push(i)
+    else groups.set(key, [i])
+  }
+  return groups
+}
+
+// One path per (kind, colour): a note-kind dot is filled, a sessions-kind dot is a ring, any other
+// kind is filled with a hole punched in the app background — plain notes first so hub notes sit on top.
 function fillNotes({ ctx, screen, visible, radius, token }: Scene) {
   for (const hub of [false, true]) {
-    const byColour = new Map<number, number[]>()
+    const filled: number[] = []
+    const holed: number[] = []
+    const ringed: number[] = []
     for (const i of visible) {
       if (props.hubNotes.has(i) !== hub)
         continue
-      const members = byColour.get(props.colours[i])
-      if (members)
-        members.push(i)
+      const kind = props.notes[i].kind
+      if (kind === SESSIONS_KIND)
+        ringed.push(i)
+      else if (kind === NOTE_KIND)
+        filled.push(i)
       else
-        byColour.set(props.colours[i], [i])
+        holed.push(i)
     }
+    const r = hub ? radius * HUB_NOTE_SCALE : radius
     ctx.globalAlpha = hub ? 1 : NOTE_ALPHA
-    for (const [colour, members] of byColour) {
-      ctx.fillStyle = token(`--sector-${colour}`)
+    for (const members of groupByColour(filled).values()) {
+      ctx.fillStyle = noteColour(members[0], token)
       ctx.beginPath()
-      for (const i of members)
-        addCircle(ctx, screen[i], hub ? radius * HUB_NOTE_SCALE : radius)
+      for (const i of members) addCircle(ctx, screen[i], r)
       ctx.fill()
+    }
+    for (const members of groupByColour(holed).values()) {
+      ctx.fillStyle = noteColour(members[0], token)
+      ctx.beginPath()
+      for (const i of members) addCircle(ctx, screen[i], r)
+      ctx.fill()
+    }
+    if (holed.length > 0) {
+      ctx.fillStyle = token('--app')
+      ctx.beginPath()
+      for (const i of holed) addCircle(ctx, screen[i], r * HOLE_SCALE)
+      ctx.fill()
+    }
+    for (const members of groupByColour(ringed).values()) {
+      ctx.strokeStyle = noteColour(members[0], token)
+      ctx.lineWidth = Math.max(RING_WIDTH_MIN_PX, r * RING_WIDTH_SCALE)
+      ctx.beginPath()
+      for (const i of members) addCircle(ctx, screen[i], r)
+      ctx.stroke()
     }
   }
 }

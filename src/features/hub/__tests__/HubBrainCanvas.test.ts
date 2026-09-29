@@ -1,4 +1,5 @@
 import type { HubNote } from '../composables/useObsidianGraph'
+import type { Leaf, Sector } from '../hubGeometry'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -58,10 +59,24 @@ function mountBrain(props: Partial<InstanceType<typeof HubBrainCanvas>['$props']
       hubNotes: new Set<number>(),
       selected: null,
       edges: [],
+      sectors: [],
+      leaves: [],
+      noteLeaf: ['', '', ''],
+      hoveredNote: null,
       ...props,
     },
   })
 }
+
+const CATEGORY_SECTORS: Sector[] = [
+  { key: 'a', label: 'a', weight: 1, start: -90, end: 0 },
+  { key: 'b', label: 'b', weight: 1, start: 0, end: 90 },
+]
+const LEAF_SECTORS: Leaf[] = [
+  { key: 'a/x', label: 'x', weight: 1, parent: 'a', start: -90, end: -45 },
+  { key: 'a/y', label: 'y', weight: 1, parent: 'a', start: -45, end: 0 },
+  { key: 'b/z', label: 'z', weight: 1, parent: 'b', start: 0, end: 90 },
+]
 
 async function nextFrame() {
   await vi.advanceTimersByTimeAsync(FRAME_MS)
@@ -201,5 +216,48 @@ describe('hubBrainCanvas', () => {
     mountBrain()
     await nextFrame()
     expect(named('setLineDash')).toHaveLength(0)
+  })
+
+  it('fills note-kind dots, rings sessions-kind dots, and punches a hole in other kinds', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [
+      { ...note(0, 'Alpha'), kind: 'note' },
+      { ...note(1, 'Beta'), kind: 'sessions' },
+      { ...note(2, 'Gamma'), kind: 'task' },
+    ]
+    mountBrain({ notes, colours: [0, 1, 2] })
+    await nextFrame()
+    expect(named('fill').map(c => c.state.fillStyle)).toEqual(['tok(--sector-0)', 'tok(--sector-2)', 'tok(--app)'])
+    expect(named('stroke').some(c => c.state.strokeStyle === 'tok(--sector-1)')).toBe(true)
+  })
+
+  it('level 0 bundles links per category pair and hides same-category links', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/y', 'b/z'],
+      links: [[0, 1], [0, 2], [1, 2]],
+    })
+    await nextFrame()
+    const accentStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
+    expect(accentStrokes).toHaveLength(1)
+    expect(accentStrokes[0].state.lineWidth).toBeCloseTo(1.3)
+  })
+
+  it('at level 2, a hovered note draws its links brighter than the rest', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/y', 'b/z'],
+      links: [[0, 1], [0, 2], [1, 2]],
+      hoveredNote: 0,
+    })
+    await nextFrame()
+    const linkStrokes = named('stroke').slice(0, 3)
+    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.95, 0.06])
+    expect(Number(linkStrokes[0].state.lineWidth)).toBeGreaterThan(Number(linkStrokes[2].state.lineWidth))
   })
 })
