@@ -9,6 +9,7 @@ export type GraphStatus = 'idle' | 'loading' | 'ready' | 'unconfigured' | 'denie
 export interface HubNote { index: number, path: string, title: string, mtimeMs: number, kind: string, links: number[], backlinks: number[] }
 
 const REFRESH_INTERVAL_MS = 60_000
+const INDEX_NAME_RE = /^_?index$/i
 
 const status = ref<GraphStatus>('idle')
 const message = ref('')
@@ -17,8 +18,13 @@ let lastFetchMs = 0
 let inFlight: Promise<void> | null = null
 
 function titleOf(path: string): string {
-  const name = path.slice(path.lastIndexOf('/') + 1)
-  return name.endsWith('.md') ? name.slice(0, -3) : name
+  const slash = path.lastIndexOf('/')
+  const name = path.slice(slash + 1)
+  const base = name.endsWith('.md') ? name.slice(0, -3) : name
+  if (!INDEX_NAME_RE.test(base))
+    return base
+  const folders = slash === -1 ? [] : path.slice(0, slash).split('/')
+  return folders.length ? folders.slice(-2).join(' · ') : base
 }
 
 function buildNotes(body: GraphResponse): HubNote[] {

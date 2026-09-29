@@ -47,6 +47,39 @@ describe('useObsidianGraph', () => {
     ])
   })
 
+  it('titles an _index note by its last two parent folders', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      configured: true,
+      notes: [['work/babyone/sessions/_index.md', 1000]],
+      links: [],
+    }))
+    const g = useObsidianGraph()
+    await g.refresh()
+    expect(g.notes.value[0].title).toBe('babyone · sessions')
+  })
+
+  it('titles an index note under a single folder by that folder', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      configured: true,
+      notes: [['misc/_index.md', 1000]],
+      links: [],
+    }))
+    const g = useObsidianGraph()
+    await g.refresh()
+    expect(g.notes.value[0].title).toBe('misc')
+  })
+
+  it('keeps _index as the title for a root-level index note', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      configured: true,
+      notes: [['_index.md', 1000]],
+      links: [],
+    }))
+    const g = useObsidianGraph()
+    await g.refresh()
+    expect(g.notes.value[0].title).toBe('_index')
+  })
+
   it('derives kind from the path when no frontmatter type is given', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       configured: true,
