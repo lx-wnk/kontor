@@ -10,8 +10,8 @@ import { useMutationObserver } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toScreen } from '../hubCamera'
 import { cullLabels, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority } from '../hubCanvas'
-import { DAY_MS, leafShade, NOTE_KIND, polar, R0, R_MAX, sectorMid, SESSIONS_KIND, shadeMix } from '../hubGeometry'
-import { aggregateLinks, bundlePoints, linksOf, traceBundle } from '../hubLinks'
+import { DAY_MS, leafShade, NOTE_KIND, SESSIONS_KIND, shadeMix } from '../hubGeometry'
+import { bundlePoints, isKnowHowLink, linksOf, traceBundle } from '../hubLinks'
 
 const props = defineProps<{
   cam: Camera
@@ -28,6 +28,9 @@ const props = defineProps<{
   leaves: ReadonlyArray<Leaf>
   noteLeaf: ReadonlyArray<string>
   hoveredNote: number | null
+  // Aggregated category (level 0) or leaf (level 1) links, routed and sampled once in HubWidget so
+  // the canvas only maps world→screen and strokes; empty at level 2.
+  linkArcs: ReadonlyArray<{ a: string, b: string, count: number, points: readonly Point[], line: readonly Point[] }>
   // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
   // note title must yield to, since the project names are the map's legend.
   legendBoxes?: ReadonlyArray<LabelObstacle>
@@ -36,15 +39,14 @@ const props = defineProps<{
 const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
 const LINK_WIDTH_PX = 0.7
 const LINK_THIN_WIDTH_PX = 0.4
-// Anchor radius for bundled category/leaf arcs (level 0/1): further out than the leaf/category
-// anchors in hubLinks so the arcs read as a separate, coarser layer above the note-level bundles.
-const LINK_AGG_ANCHOR_R = R0 + 0.55 * (R_MAX - R0)
 const LINK_AGG_BASE_PX = 0.8
 const LINK_AGG_STEP_PX = 0.25
 const LINK_AGG_MAX_PX = 5
 const LINK_AGG_ALPHA = 0.6
 const LINK_CROSS_ALPHA = 0.6
 const LINK_INTRA_ALPHA = 0.18
+// Level 1 only: individual know-how links within one leaf, visibly lighter than the leaf's own arc.
+const LINK_KNOWHOW_ALPHA = 0.35
 const LINK_HOVER_ALPHA = 0.95
 const LINK_HOVER_WIDTH_SCALE = 2
 const LINK_DIM_ALPHA = 0.06
@@ -88,10 +90,6 @@ function addCircle(ctx: CanvasRenderingContext2D, [x, y]: [number, number], r: n
   ctx.arc(x, y, r, 0, FULL_CIRCLE)
 }
 
-function categoryKeyOf(i: number): string {
-  return leafByKey.value.get(props.noteLeaf[i])?.parent ?? ''
-}
-
 function categoryOf(leaf: Leaf): Sector {
   return sectorByKey.value.get(leaf.parent) ?? leaf
 }
@@ -105,25 +103,34 @@ function strokeBundle(ctx: CanvasRenderingContext2D, from: Point, to: Point, rou
   ctx.stroke()
 }
 
-// Level 0/1: one arc per (category, category) or (leaf, leaf) pair, width growing with the count of
-// links it represents; a pair sharing one group is not a link and draws nothing.
-function drawAggregatedLinks<T extends Sector>(
-  ctx: CanvasRenderingContext2D,
-  accent: string,
-  groupOf: (i: number) => string,
-  anchorOf: (key: string) => T | undefined,
-  routeOf: (a: T, b: T) => BundleRoute,
-) {
-  for (const { a, b, count } of aggregateLinks(props.links, groupOf)) {
-    const sa = anchorOf(a)
-    const sb = anchorOf(b)
-    if (!sa || !sb)
-      continue
-    const from = polar(LINK_AGG_ANCHOR_R, sectorMid(sa))
-    const to = polar(LINK_AGG_ANCHOR_R, sectorMid(sb))
-    const width = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX)
-    strokeBundle(ctx, from, to, routeOf(sa, sb), width, LINK_AGG_ALPHA, accent)
+// Level 0/1: one arc per (category, category) or (leaf, leaf) pair, already routed and sampled by
+// HubWidget; width grows with the count of links it represents.
+function drawArcs(ctx: CanvasRenderingContext2D, accent: string) {
+  for (const { count, points } of props.linkArcs) {
+    ctx.globalAlpha = LINK_AGG_ALPHA
+    ctx.strokeStyle = accent
+    ctx.lineWidth = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX)
+    ctx.beginPath()
+    traceBundle(ctx, points.map(([x, y]) => toScreen(props.cam, x, y)))
+    ctx.stroke()
   }
+}
+
+// Level 1 only: individual bundled links within one leaf where at least one end is not a session
+// (isKnowHowLink) — session-to-session links inside a leaf stay hidden.
+function drawKnowHowLinks(ctx: CanvasRenderingContext2D, token: (name: string) => string) {
+  props.links.forEach(([from, to]) => {
+    const leafKey = props.noteLeaf[from]
+    if (!leafKey || leafKey !== props.noteLeaf[to])
+      return
+    if (!isKnowHowLink(props.notes[from]?.kind ?? '', props.notes[to]?.kind ?? ''))
+      return
+    const leaf = leafByKey.value.get(leafKey)
+    if (!leaf)
+      return
+    const route: BundleRoute = { fromLeaf: leaf, toLeaf: leaf, fromCategory: categoryOf(leaf), toCategory: categoryOf(leaf) }
+    strokeBundle(ctx, props.points[from], props.points[to], route, LINK_THIN_WIDTH_PX, LINK_KNOWHOW_ALPHA, noteColour(from, token))
+  })
 }
 
 // Level 2: every link on its own, faint within a leaf and accented where it crosses one; a hovered
@@ -151,15 +158,13 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
 
 function drawLinks({ ctx, onStage, token }: Scene) {
   const accent = token('--accent')
-  if (props.level === 0) {
-    drawAggregatedLinks(ctx, accent, i => categoryKeyOf(i), key => sectorByKey.value.get(key), (a, b) => ({ fromLeaf: a, toLeaf: b, fromCategory: a, toCategory: b }))
+  if (props.level === 2) {
+    drawIndividualLinks(ctx, accent, token('--line-strong'), onStage)
     return
   }
-  if (props.level === 1) {
-    drawAggregatedLinks(ctx, accent, i => props.noteLeaf[i] ?? '', key => leafByKey.value.get(key), (a, b) => ({ fromLeaf: a, toLeaf: b, fromCategory: categoryOf(a), toCategory: categoryOf(b) }))
-    return
-  }
-  drawIndividualLinks(ctx, accent, token('--line-strong'), onStage)
+  drawArcs(ctx, accent)
+  if (props.level === 1)
+    drawKnowHowLinks(ctx, token)
 }
 
 function drawEdges({ ctx, screen, token }: Scene) {

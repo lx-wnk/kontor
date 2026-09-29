@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { AgentProject, Leaf } from '../hubGeometry'
+import type { AgentProject, Leaf, Sector } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
@@ -27,6 +27,7 @@ import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
+import { aggregateLinks, bundlePoints, sampleBundle } from '../hubLinks'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
@@ -297,6 +298,43 @@ const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
 // The project-name legend a hub note title must yield to (HubBrainCanvas' drawLabels).
 const legendBoxes = computed(() => leafNames.value.filter(l => namedLeaves.value.has(l.key)).map(l => ({ box: l.box })))
 
+function categoryOf(leaf: Leaf, byKey: ReadonlyMap<string, Sector>): Sector {
+  return byKey.get(leaf.parent) ?? leaf
+}
+
+// Single source for the level 0/1 link arcs: aggregated and routed here, ending at the same names
+// HubOrbit draws (sectorNameAngles / leafNameRadius); HubBrainCanvas only maps and strokes them.
+const linkArcs = computed(() => {
+  if (level.value === 2)
+    return []
+  const sectors = new Map(plan.value.sectors.map(s => [s.key, s]))
+  const leaves = new Map(plan.value.leaves.map(l => [l.key, l]))
+  if (level.value === 0) {
+    const groupOf = (i: number) => leaves.get(brain.value.noteLeaf[i])?.parent ?? ''
+    return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
+      const sa = sectors.get(a)
+      const sb = sectors.get(b)
+      if (!sa || !sb)
+        return []
+      const from = polar(sectorNameRadius.value, sectorNameAngles.value.get(a) ?? sectorMid(sa))
+      const to = polar(sectorNameRadius.value, sectorNameAngles.value.get(b) ?? sectorMid(sb))
+      const points = bundlePoints(from, to, { fromLeaf: sa, toLeaf: sb, fromCategory: sa, toCategory: sb })
+      return [{ a, b, count, points, line: sampleBundle(points) }]
+    })
+  }
+  const groupOf = (i: number) => brain.value.noteLeaf[i] ?? ''
+  return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
+    const la = leaves.get(a)
+    const lb = leaves.get(b)
+    if (!la || !lb)
+      return []
+    const from = polar(leafNameRadius.value, sectorMid(la))
+    const to = polar(leafNameRadius.value, sectorMid(lb))
+    const points = bundlePoints(from, to, { fromLeaf: la, toLeaf: lb, fromCategory: categoryOf(la, sectors), toCategory: categoryOf(lb, sectors) })
+    return [{ a, b, count, points, line: sampleBundle(points) }]
+  })
+})
+
 const labels = computed(() => {
   const sizes = labelSizes.value
   const drawn = placedScreen.value.filter(({ p }) => drawnAgents.value.has(p.agent.pid))
@@ -548,6 +586,7 @@ watch(hubFocusRequest, (target) => {
         :leaves="plan.leaves"
         :note-leaf="brain.noteLeaf"
         :hovered-note="hoveredNote"
+        :link-arcs="linkArcs"
       />
       <HubOrbit
         :cam="cam"

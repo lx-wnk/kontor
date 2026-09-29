@@ -63,6 +63,7 @@ function mountBrain(props: Partial<InstanceType<typeof HubBrainCanvas>['$props']
       leaves: [],
       noteLeaf: ['', '', ''],
       hoveredNote: null,
+      linkArcs: [],
       ...props,
     },
   })
@@ -242,18 +243,50 @@ describe('hubBrainCanvas', () => {
     expect(named('stroke').some(c => c.state.strokeStyle === 'tok(--sector-1)')).toBe(true)
   })
 
-  it('level 0 bundles links per category pair and hides same-category links', async () => {
+  it('strokes one path per arc at level 0/1, width growing with count', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
     mountBrain({
-      sectors: CATEGORY_SECTORS,
-      leaves: LEAF_SECTORS,
-      noteLeaf: ['a/x', 'a/y', 'b/z'],
-      links: [[0, 1], [0, 2], [1, 2]],
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+      ],
     })
     await nextFrame()
     const accentStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
     expect(accentStrokes).toHaveLength(1)
     expect(accentStrokes[0].state.lineWidth).toBeCloseTo(1.3)
+  })
+
+  it('at level 1, an intra-leaf know-how link draws but a session-to-session link stays hidden', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [
+      { ...note(0, 'Alpha'), kind: 'sessions' },
+      { ...note(1, 'Beta'), kind: 'note' },
+      { ...note(2, 'Gamma'), kind: 'sessions' },
+    ]
+    mountBrain({
+      level: 1,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/x', 'a/x'],
+      notes,
+      links: [[0, 1], [0, 2]],
+    })
+    await nextFrame()
+    const knowHowStrokes = named('stroke').filter(c => c.state.globalAlpha === 0.35)
+    expect(knowHowStrokes).toHaveLength(1)
+  })
+
+  it('ignores linkArcs at the notes level', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+      ],
+    })
+    await nextFrame()
+    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)' && Number(c.state.lineWidth) === 1.3)
+    expect(arcStrokes).toHaveLength(0)
   })
 
   it('at level 2, a hovered note draws its links brighter than the rest', async () => {
