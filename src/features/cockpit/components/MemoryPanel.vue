@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { PanelState } from '../panelState'
 import { computed, onMounted } from 'vue'
+import { useNow } from '@/composables/useNow'
 import { toast } from '@/composables/useToast'
-import { focusInHub, NO_HUB_PAGE_MESSAGE, useObsidianGraph } from '@/features/hub'
+import { focusInHub, HEALTH_LENSES, NO_HUB_PAGE_MESSAGE, notesInLens, STALE_AFTER_DAYS, useHealthLens, useObsidianGraph } from '@/features/hub'
 import { useResources } from '@/features/settings'
 import { formatRelativeThenDate } from '@/utils/format'
 import CockpitPanel from './CockpitPanel.vue'
@@ -10,9 +11,20 @@ import CockpitPanel from './CockpitPanel.vue'
 // A fresh useResources per panel: it is not a singleton, and each panel names
 // its kind here so the composable's mount fetch asks for it directly.
 const { resources, loading, error, denied } = useResources('memory_space')
-const { status: graphStatus, recentNotes, refresh: refreshGraph } = useObsidianGraph()
+const { status: graphStatus, notes, recentNotes, refresh: refreshGraph } = useObsidianGraph()
+const { lens, toggle } = useHealthLens()
+const { nowMs } = useNow()
 
 const RECENT_NOTE_COUNT = 5
+
+const LENS_TITLE: Record<typeof HEALTH_LENSES[number], string> = {
+  unlinked: 'Know-how notes no link points to or from',
+  stale: `Know-how notes untouched for ${STALE_AFTER_DAYS}+ days`,
+}
+
+const lensCounts = computed(() => graphStatus.value === 'ready'
+  ? Object.fromEntries(HEALTH_LENSES.map(l => [l, notesInLens(notes.value, l, nowMs.value).size])) as Record<typeof HEALTH_LENSES[number], number>
+  : null)
 
 // kind=memory_space gates on memory.read (api/resources/handler.go), so on a
 // fresh install this panel is denied and must say so rather than reporting an
@@ -56,6 +68,20 @@ onMounted(() => refreshGraph())
         <span class="shrink-0 text-fg-mute">{{ r.state }}</span>
       </li>
     </ul>
+    <div v-if="lensCounts" class="mt-2 flex items-center gap-1.5" data-testid="cockpit-memory-health-lenses">
+      <button
+        v-for="l in HEALTH_LENSES"
+        :key="l"
+        type="button"
+        :data-testid="`cockpit-memory-lens-${l}`"
+        :aria-pressed="lens === l"
+        :title="LENS_TITLE[l]"
+        class="cursor-pointer rounded-full border border-line px-2 py-0.5 text-[11px] text-fg-mute hover:bg-raised aria-pressed:border-accent aria-pressed:text-accent"
+        @click="toggle(l)"
+      >
+        {{ lensCounts[l] }} {{ l }}
+      </button>
+    </div>
     <template v-if="recentTouched.length > 0">
       <h3 class="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wider text-fg-mute">
         Recently touched

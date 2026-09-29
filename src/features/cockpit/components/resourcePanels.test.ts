@@ -2,6 +2,9 @@ import type { GraphStatus, HubNote } from '@/features/hub/composables/useObsidia
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ref, shallowRef } from 'vue'
+import { useHealthLens } from '@/features/hub/composables/useHealthLens'
+import { DAY_MS } from '@/features/hub/hubGeometry'
+import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '@/features/hub/hubHealth'
 
 const graph = {
   status: ref<GraphStatus>('idle'),
@@ -12,6 +15,10 @@ const graph = {
 const focusInHub = vi.fn(() => true)
 vi.mock('@/features/hub', () => ({
   useObsidianGraph: () => graph,
+  useHealthLens,
+  HEALTH_LENSES,
+  notesInLens,
+  STALE_AFTER_DAYS,
   focusInHub,
   NO_HUB_PAGE_MESSAGE: 'No page shows the Zentrale hub; add the hub tile to a page.',
 }))
@@ -40,6 +47,7 @@ afterEach(() => {
   graph.notes.value = []
   graph.refresh.mockClear()
   focusInHub.mockClear()
+  useHealthLens().lens.value = null
 })
 
 /**
@@ -113,6 +121,41 @@ describe('cockpit registry panels', () => {
     const wrapper = mount(MemoryPanel)
     await flushPromises()
     expect(wrapper.find('[data-testid="cockpit-memory-recent-note"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('the memory panel counts unlinked and stale know-how notes once the vault is ready', async () => {
+    stubResource()
+    graph.status.value = 'ready'
+    const staleMs = Date.now() - (STALE_AFTER_DAYS + 1) * DAY_MS
+    graph.notes.value = [
+      { index: 0, path: 'a/Unlinked.md', title: 'Unlinked', mtimeMs: Date.now(), kind: 'note', links: [], backlinks: [] },
+      { index: 1, path: 'a/Stale.md', title: 'Stale', mtimeMs: staleMs, kind: 'note', links: [0], backlinks: [0] },
+      { index: 2, path: 'a/Session.md', title: 'Session', mtimeMs: staleMs, kind: 'sessions', links: [], backlinks: [] },
+    ]
+    const wrapper = mount(MemoryPanel)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cockpit-memory-lens-unlinked"]').text()).toContain('1')
+    expect(wrapper.get('[data-testid="cockpit-memory-lens-stale"]').text()).toContain('1')
+    wrapper.unmount()
+  })
+
+  it('clicking a lens button toggles it, and clicking again clears it', async () => {
+    stubResource()
+    graph.status.value = 'ready'
+    graph.notes.value = [{ index: 0, path: 'a/Unlinked.md', title: 'Unlinked', mtimeMs: Date.now(), kind: 'note', links: [], backlinks: [] }]
+    const wrapper = mount(MemoryPanel)
+    await flushPromises()
+    const button = wrapper.get('[data-testid="cockpit-memory-lens-unlinked"]')
+    expect(button.attributes('aria-pressed')).toBe('false')
+
+    await button.trigger('click')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(useHealthLens().lens.value).toBe('unlinked')
+
+    await button.trigger('click')
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(useHealthLens().lens.value).toBeNull()
     wrapper.unmount()
   })
 })
