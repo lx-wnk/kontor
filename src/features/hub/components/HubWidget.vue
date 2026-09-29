@@ -27,7 +27,7 @@ import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
-import { aggregateLinks, bundlePoints, sampleBundle } from '../hubLinks'
+import { aggregateLinks, bundlePoints, nearestArc, sampleBundle } from '../hubLinks'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
@@ -129,14 +129,6 @@ const brain = computed(() => {
 })
 
 const hoveredNote = ref<number | null>(null)
-useEventListener(stage, 'pointermove', (e: PointerEvent) => {
-  const rect = stage.value?.getBoundingClientRect()
-  const hit = rect ? hitNote(brain.value.points, cam.value, e.clientX - rect.left, e.clientY - rect.top) : -1
-  hoveredNote.value = hit >= 0 ? hit : null
-})
-useEventListener(stage, 'pointerleave', () => {
-  hoveredNote.value = null
-})
 
 const cardNote = computed(() => {
   const card = openCard.value
@@ -333,6 +325,54 @@ const linkArcs = computed(() => {
     const points = bundlePoints(from, to, { fromLeaf: la, toLeaf: lb, fromCategory: categoryOf(la, sectors), toCategory: categoryOf(lb, sectors) })
     return [{ a, b, count, points, line: sampleBundle(points) }]
   })
+})
+
+// Level 0 keys are category keys; level 1 keys are leaf keys, where an empty label marks the
+// category's loose leaf (key `category/`) and OTHER_SECTOR_KEY already carries the label 'Other'.
+function arcNodeLabel(key: string): string {
+  if (level.value === 0)
+    return plan.value.sectors.find(s => s.key === key)?.label ?? key
+  const leaf = plan.value.leaves.find(l => l.key === key)
+  if (!leaf)
+    return key
+  if (leaf.label)
+    return leaf.label
+  const category = plan.value.sectors.find(s => s.key === leaf.parent)?.label ?? ''
+  return `${category} (loose)`
+}
+
+const ARC_HOVER_TOLERANCE_PX = 6
+const hoveredArc = ref<{ a: string, b: string, count: number, sx: number, sy: number } | null>(null)
+useEventListener(stage, 'pointermove', (e: PointerEvent) => {
+  const rect = stage.value?.getBoundingClientRect()
+  if (!rect) {
+    hoveredNote.value = null
+    hoveredArc.value = null
+    return
+  }
+  const sx = e.clientX - rect.left
+  const sy = e.clientY - rect.top
+  const hit = hitNote(brain.value.points, cam.value, sx, sy)
+  hoveredNote.value = hit >= 0 ? hit : null
+  if (hit >= 0) {
+    hoveredArc.value = null
+    return
+  }
+  const screenArcs = linkArcs.value.map(arc => ({ ...arc, line: arc.line.map(([x, y]) => toScreen(cam.value, x, y)) }))
+  const arc = nearestArc(screenArcs, [sx, sy], ARC_HOVER_TOLERANCE_PX)
+  hoveredArc.value = arc ? { a: arc.a, b: arc.b, count: arc.count, sx, sy } : null
+})
+useEventListener(stage, 'pointerleave', () => {
+  hoveredNote.value = null
+  hoveredArc.value = null
+})
+
+const arcTooltip = computed(() => {
+  const arc = hoveredArc.value
+  if (!arc)
+    return null
+  const text = `${arcNodeLabel(arc.a)} ↔ ${arcNodeLabel(arc.b)} · ${arc.count} ${arc.count === 1 ? 'link' : 'links'}`
+  return { text, x: arc.sx, y: arc.sy }
 })
 
 const labels = computed(() => {
@@ -632,6 +672,15 @@ watch(hubFocusRequest, (target) => {
         :agents="placed"
         @fly="(x, y) => flyTo(x, y, Math.max(rel, MINIMAP_FLY_MIN_REL))"
       />
+      <div
+        v-if="arcTooltip"
+        role="tooltip"
+        data-testid="hub-arc-tooltip"
+        class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-card px-2 py-1 text-[11px] text-fg shadow-card-hover"
+        :style="{ left: `${arcTooltip.x}px`, top: `${arcTooltip.y - 8}px` }"
+      >
+        {{ arcTooltip.text }}
+      </div>
     </div>
     <div class="pointer-events-none absolute left-1/2 top-2.5 z-10 flex max-h-[45%] w-[min(560px,calc(100%-120px))] -translate-x-1/2 flex-col items-start gap-1.5">
       <NeedsYouQueue
