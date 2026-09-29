@@ -162,6 +162,13 @@ export function sectorMid(s: Sector): number {
   return (s.start + s.end) / 2
 }
 
+// Normalises deg into the plan's range ([-90, 270)) before searching, so an angle past 270 wraps
+// back around to where buildSectors started numbering.
+export function sectorAt<T extends Sector>(sectors: readonly T[], deg: number): T | null {
+  const norm = (((deg + 90) % 360) + 360) % 360 - 90
+  return sectors.find(s => norm >= s.start && norm < s.end) ?? null
+}
+
 export function polar(radius: number, deg: number): [number, number] {
   const r = deg * Math.PI / 180
   return [radius * Math.cos(r), radius * Math.sin(r)]
