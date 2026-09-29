@@ -25,6 +25,19 @@ export function noteLabelBox(c: LabelCandidate, width: number): LabelBox {
   return { x: c.sx + NOTE_LABEL_OFFSET_PX, y: c.sy - NOTE_LABEL_H / 2, w: width, h: NOTE_LABEL_H }
 }
 
+// Heaviest first, so where names collide the bigger one keeps its place.
+export function namesThatFit(names: ReadonlyArray<{ key: string, weight: number, box: LabelBox }>, blocked: (box: LabelBox) => boolean): Set<string> {
+  const kept: LabelBox[] = []
+  const fit = new Set<string>()
+  for (const name of [...names].sort((a, b) => b.weight - a.weight)) {
+    if (blocked(name.box) || kept.some(box => boxesOverlap(box, name.box)))
+      continue
+    kept.push(name.box)
+    fit.add(name.key)
+  }
+  return fit
+}
+
 export function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
   // An empty box is an unmeasured label: it covers nothing, so it collides with nothing.
   if (a.w <= 0 || a.h <= 0 || b.w <= 0 || b.h <= 0)

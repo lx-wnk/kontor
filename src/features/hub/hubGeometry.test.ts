@@ -11,6 +11,7 @@ import {
   agentSectorRingPx,
   buildSectors,
   hash01,
+  labelledLeaves,
   LAUNCHER_SECTOR_CLEARANCE_PX,
   launcherRingRadius,
   leafColour,
@@ -410,6 +411,13 @@ describe('noteKind', () => {
   it('falls back to a plain note for a project file and for a root file', () => {
     expect(noteKind('work/babyone/x.md')).toBe(NOTE_KIND)
     expect(noteKind('README.md')).toBe(NOTE_KIND)
+  })
+})
+
+describe('labelledLeaves', () => {
+  it('keeps project leaves and drops loose leaves and Other', () => {
+    const { leaves } = planSectors(['work/p/a.md', 'work/b.md'], [{ key: 'x', label: 'nowhere' }])
+    expect(labelledLeaves(leaves).map(l => l.key)).toEqual(['work/p'])
   })
 })
 

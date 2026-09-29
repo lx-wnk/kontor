@@ -9,7 +9,7 @@ import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { toScreen } from '../hubCamera'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { leafColour, leafShade, polar, radiusForAge, sectorColour, sectorMid, shadeMix, visibleRingLabels } from '../hubGeometry'
+import { labelledLeaves, leafColour, leafShade, polar, radiusForAge, sectorColour, sectorMid, shadeMix, visibleRingLabels } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
@@ -28,6 +28,8 @@ const props = defineProps<{
   // World radius the caller placed the legend on; it clears the outermost agent tier, which the
   // base ring above does not, and the culler judges the sector-name boxes at this same radius.
   sectorNameRadius: number
+  // World radius for project names; omitted puts them on the sector-name rim.
+  leafNameRadius?: number
   showSectorNames: boolean
   // Omitted shows every label (used by callers that don't cull, e.g. tests); the dot is never gated.
   labelledAgents?: ReadonlySet<number>
@@ -50,7 +52,7 @@ const root = ref<HTMLElement | null>(null)
 const ringLabels = computed(() => visibleRingLabels(props.cam.k, props.agentRingPx))
 const sectorNamesShown = computed(() => props.level < 2 && props.showSectorNames)
 const leafNamesShown = computed(() => props.level === 1 && props.showSectorNames)
-const projectLeaves = computed(() => (props.leaves ?? []).filter(leaf => leaf.label))
+const projectLeaves = computed(() => labelledLeaves(props.leaves ?? []))
 
 // Label sizes come from the DOM, never from a character count: an estimate has twice placed labels
 // over what they must clear. A size depends on the text and the font only — the camera scales
@@ -174,7 +176,7 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :data-label-key="sectorLabelKey(leaf.label, leaf.weight)"
         class="-translate-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[9.5px] font-medium"
         :class="!showsLeafName(leaf.key) && 'invisible'"
-        :style="{ ...atPolar(sectorNameRadius, sectorMid(leaf)), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+        :style="{ ...atPolar(leafNameRadius ?? sectorNameRadius, sectorMid(leaf)), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
       >{{ leaf.label }}</span>
     </template>
     <template v-if="level < 2">

@@ -2,7 +2,7 @@ import type { HubNote } from './composables/useObsidianGraph'
 import type { LabelCandidate } from './hubCanvas'
 import { describe, expect, it } from 'vitest'
 import { labelSize } from './__tests__/labelMeasurement'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, sectorLabelBox, sectorLabelKey } from './hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, sectorLabelBox, sectorLabelKey } from './hubCanvas'
 import { polar } from './hubGeometry'
 
 const measured = (c: LabelCandidate) => agentLabelBox(c, labelSize(c.text))
@@ -303,5 +303,13 @@ describe('hubNoteSet', () => {
     ]
     const sectorOf = (n: HubNote) => (n.index < 2 ? 'a' : 'b')
     expect(hubNoteSet(notes, sectorOf)).toEqual(new Set([0, 1, 2, 3]))
+  })
+})
+
+describe('namesThatFit', () => {
+  const box = (x: number) => ({ x, y: 0, w: 10, h: 10 })
+  it('drops the lighter of two overlapping names and any blocked name', () => {
+    const names = [{ key: 'small', weight: 1, box: box(5) }, { key: 'big', weight: 9, box: box(0) }, { key: 'apart', weight: 2, box: box(40) }, { key: 'railed', weight: 5, box: box(80) }]
+    expect([...namesThatFit(names, b => b.x === 80)]).toEqual(['big', 'apart'])
   })
 })

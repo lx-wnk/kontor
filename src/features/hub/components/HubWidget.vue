@@ -22,9 +22,9 @@ import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { launcherBox, launchersFor } from '../hubLaunchers'
 import HubAgentCard from './HubAgentCard.vue'
@@ -220,6 +220,8 @@ const placed = computed(() => {
 // legend and the launchers must clear the outermost tier in use, not the base ring.
 const outerRingBasePx = computed(() => Math.max(baseRingPx.value, ...placed.value.map(p => Math.hypot(p.x, p.y) * k0.value)))
 const sectorNameRadius = computed(() => sectorLabelRadius(k0.value, outerRingBasePx.value))
+// Zoomed in, the rim the category names sit on is off stage; project names ride just inside the stage edge.
+const leafNameRadius = computed(() => Math.min(sectorNameRadius.value, stagePx.value * LEAF_NAME_STAGE_SHARE / cam.value.k))
 const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
@@ -273,17 +275,16 @@ const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
 // Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well.
 const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !coveredByRail(s.box)).map(s => s.key)))
 
-// Project leaf labels join the legend from level 1 (HubOrbit gates the same way), skipping loose
-// leaves, which have nothing beyond their category name to show.
+// Project leaf labels join the legend from level 1 (HubOrbit gates the same way).
 const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
   ? []
-  : plan.value.leaves.filter(leaf => leaf.label).map((leaf) => {
-      const [wx, wy] = polar(sectorNameRadius.value, sectorMid(leaf))
+  : labelledLeaves(plan.value.leaves).map((leaf) => {
+      const [wx, wy] = polar(leafNameRadius.value, sectorMid(leaf))
       const [sx, sy] = toScreen(cam.value, wx, wy)
-      return { key: leaf.key, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }
+      return { key: leaf.key, weight: leaf.weight, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }
     }))
 
-const namedLeaves = computed(() => new Set(leafNames.value.filter(l => !coveredByRail(l.box)).map(l => l.key)))
+const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
 
 const labels = computed(() => {
   const sizes = labelSizes.value
@@ -296,7 +297,7 @@ const labels = computed(() => {
     priority: agentPriority(p.needsOperator, p.state === 'working'),
   }))
   const dotObstacles = drawn.map(({ p, screen: [sx, sy] }) => ({ box: agentDotBox(sx, sy), ownerIndex: p.agent.pid }))
-  const obstacles = [...dotObstacles, ...sectorNames.value, ...leafNames.value]
+  const obstacles = [...dotObstacles, ...sectorNames.value, ...leafNames.value.filter(l => namedLeaves.value.has(l.key))]
   const directions = new Map(candidates.map((c, i) => [
     c.index,
     agentLabelDirection(c, sizes.get(c.text), inwardUnit(drawn[i].p.x, drawn[i].p.y), obstacles),
@@ -549,6 +550,7 @@ watch(hubFocusRequest, (target) => {
         :core-disabled="!!kontorBlock"
         :agent-ring-px="ringOnScreenPx"
         :sector-name-radius="sectorNameRadius"
+        :leaf-name-radius="leafNameRadius"
         :show-sector-names="showSectorNames"
         :labelled-agents="labels.kept"
         :label-directions="labels.directions"

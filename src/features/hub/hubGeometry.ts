@@ -13,6 +13,8 @@ export const MINIMAP_HALF = WORLD_RADIUS + MINIMAP_RIM
 export const WEDGE_INNER = 100
 export const WEDGE_OUTER = 440
 export const SECTOR_LABEL_RADIUS = 392
+// Project names sit this share of the stage out from the core, so a zoomed-in camera still shows them.
+export const LEAF_NAME_STAGE_SHARE = 0.42
 export const LAUNCHER_PX = 40 // HubLaunchers.vue's `size-10` button, centred on its slot.
 export const LAUNCHER_SECTOR_CLEARANCE_PX = 56
 export const SECTOR_FLOOR_DEG = 24
@@ -100,6 +102,11 @@ export interface SectorInput { key: string, label: string, weight: number, proje
 export interface Sector extends SectorInput { start: number, end: number }
 // A leaf subdivides its parent category's arc; `parent` is the category key.
 export interface Leaf extends Sector { parent: string }
+
+// Loose leaves have nothing beyond their category name to show, and Other already names itself.
+export function labelledLeaves(leaves: readonly Leaf[]): Leaf[] {
+  return leaves.filter(leaf => leaf.label && leaf.key !== OTHER_SECTOR_KEY)
+}
 
 // `start`/`spanTotal` let a leaf ring reuse this for one category's arc instead of the whole circle;
 // the floor and its budget scale down with the span, so a narrow category can't over-floor a leaf.
