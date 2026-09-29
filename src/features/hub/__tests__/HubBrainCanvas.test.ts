@@ -289,6 +289,31 @@ describe('hubBrainCanvas', () => {
     expect(arcStrokes).toHaveLength(0)
   })
 
+  it('dims non-highlighted notes and haloes a highlighted one, even at the overview level', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({ highlighted: new Set([1]) })
+    await nextFrame()
+    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([
+      ['tok(--sector-0)', 0.18],
+      ['tok(--sector-1)', 1],
+      ['tok(--sector-2)', 0.18],
+    ])
+    const haloArc = calls.find(c => c.name === 'arc' && c.state.strokeStyle === 'tok(--halo)')
+    expect(haloArc).toBeDefined()
+  })
+
+  it('leaves rendering unchanged when highlighted is null', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({ highlighted: null })
+    await nextFrame()
+    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([
+      ['tok(--sector-0)', 0.75],
+      ['tok(--sector-1)', 0.75],
+      ['tok(--sector-2)', 0.75],
+    ])
+    expect(calls.some(c => c.name === 'arc' && c.state.strokeStyle === 'tok(--halo)')).toBe(false)
+  })
+
   it('at level 2, a hovered note draws its links brighter than the rest', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
     mountBrain({

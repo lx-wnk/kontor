@@ -34,6 +34,8 @@ const props = defineProps<{
   // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
   // note title must yield to, since the project names are the map's legend.
   legendBoxes?: ReadonlyArray<LabelObstacle>
+  // A health lens' note set: members draw at full alpha with a halo, everyone else dims. Null/absent leaves rendering unchanged.
+  highlighted?: ReadonlySet<number> | null
 }>()
 
 const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
@@ -57,6 +59,7 @@ const HUB_NOTE_SCALE = 1.9
 const HALO_SCALE = 2.6
 const HALO_ALPHA = 0.8
 const HALO_WIDTH_PX = 1.2
+const LENS_DIM_ALPHA = 0.18
 const SELECTION_SCALE = 3.2
 const SELECTION_WIDTH_PX = 1.5
 const VIEWPORT_MARGIN_PX = 20
@@ -185,9 +188,11 @@ function drawEdges({ ctx, screen, token }: Scene) {
   ctx.lineCap = 'butt'
 }
 
-// A hovered note's linked neighbours join today's touched notes in the halo pass, reusing its style.
+// A hovered note's linked neighbours and a health lens' members join today's touched notes in the
+// halo pass, reusing its style. A lens keeps the halo drawing at level 0 too, where it is otherwise skipped.
 function strokeHalos({ ctx, screen, visible, radius, now, token }: Scene) {
-  if (props.level === 0)
+  const highlight = props.highlighted
+  if (props.level === 0 && !highlight)
     return
   const neighbours = props.level === 2 && props.hoveredNote !== null
     ? new Set(linksOf(props.links, props.hoveredNote).flatMap(idx => props.links[idx]))
@@ -197,7 +202,7 @@ function strokeHalos({ ctx, screen, visible, radius, now, token }: Scene) {
   ctx.lineWidth = HALO_WIDTH_PX
   ctx.beginPath()
   for (const i of visible) {
-    if (isToday(props.notes[i].mtimeMs, now) || neighbours?.has(i))
+    if (isToday(props.notes[i].mtimeMs, now) || neighbours?.has(i) || highlight?.has(i))
       addCircle(ctx, screen[i], radius * HALO_SCALE)
   }
   ctx.stroke()
@@ -212,7 +217,9 @@ function noteColour(i: number, token: (name: string) => string): string {
 function groupByColour(items: number[]): Map<string, number[]> {
   const groups = new Map<string, number[]>()
   for (const i of items) {
-    const key = props.level === 0 ? String(props.colours[i]) : `${props.colours[i]}\u0000${props.noteLeaf[i]}`
+    const shade = props.level === 0 ? '' : props.noteLeaf[i]
+    const hl = props.highlighted ? String(props.highlighted.has(i)) : ''
+    const key = `${props.colours[i]}\u0000${shade}\u0000${hl}`
     const members = groups.get(key)
     if (members)
       members.push(i)
@@ -240,26 +247,31 @@ function fillNotes({ ctx, screen, visible, radius, token }: Scene) {
         holed.push(i)
     }
     const r = hub ? radius * HUB_NOTE_SCALE : radius
-    ctx.globalAlpha = hub ? 1 : NOTE_ALPHA
+    const baseAlpha = hub ? 1 : NOTE_ALPHA
+    const alphaOf = (i: number) => props.highlighted ? (props.highlighted.has(i) ? 1 : LENS_DIM_ALPHA) : baseAlpha
     for (const members of groupByColour(filled).values()) {
+      ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = noteColour(members[0], token)
       ctx.beginPath()
       for (const i of members) addCircle(ctx, screen[i], r)
       ctx.fill()
     }
     for (const members of groupByColour(holed).values()) {
+      ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = noteColour(members[0], token)
       ctx.beginPath()
       for (const i of members) addCircle(ctx, screen[i], r)
       ctx.fill()
     }
-    if (holed.length > 0) {
+    for (const members of groupByColour(holed).values()) {
+      ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = token('--app')
       ctx.beginPath()
-      for (const i of holed) addCircle(ctx, screen[i], r * HOLE_SCALE)
+      for (const i of members) addCircle(ctx, screen[i], r * HOLE_SCALE)
       ctx.fill()
     }
     for (const members of groupByColour(ringed).values()) {
+      ctx.globalAlpha = alphaOf(members[0])
       ctx.strokeStyle = noteColour(members[0], token)
       ctx.lineWidth = Math.max(RING_WIDTH_MIN_PX, r * RING_WIDTH_SCALE)
       ctx.beginPath()

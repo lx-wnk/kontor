@@ -8,6 +8,7 @@ import { useSidebar } from '@/composables/useSidebar'
 import { useViewState } from '@/composables/useViewState'
 import { DEFAULT_LAYOUT, failedWidgets, useWorkspace } from '@/features/workspace'
 import HubBrainCanvas from '../components/HubBrainCanvas.vue'
+import { useHealthLens } from '../composables/useHealthLens'
 import { lastHubView } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
@@ -92,6 +93,7 @@ beforeEach(() => {
     set: () => true,
   }) as never)
   stubLabelMeasurement()
+  useHealthLens().lens.value = null
 })
 
 afterEach(() => {
@@ -577,6 +579,19 @@ describe('hubWidget', () => {
     await press(w, 'Escape')
     expect(w.find('[data-testid="hub-legend"]').exists()).toBe(false)
     expect(scale(w)).toBeCloseTo(1.4)
+    w.unmount()
+  })
+
+  it('highlights the unlinked note via the health lens toggle and clears it on Escape', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'a.md'), { ...vaultNote(1, 'b.md'), links: [0], backlinks: [] }]
+    const w = await mountHub()
+    await w.get('[data-testid="hub-lens-unlinked"]').trigger('click')
+    expect(useHealthLens().lens.value).toBe('unlinked')
+    expect(w.getComponent(HubBrainCanvas).props('highlighted')).toEqual(new Set([0]))
+    await press(w, 'Escape')
+    expect(useHealthLens().lens.value).toBeNull()
+    expect(w.getComponent(HubBrainCanvas).props('highlighted')).toBeNull()
     w.unmount()
   })
 

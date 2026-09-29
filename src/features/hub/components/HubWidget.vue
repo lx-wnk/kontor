@@ -18,6 +18,7 @@ import { attentionFor } from '@/utils/attention'
 import { isTypingTarget } from '@/utils/isTypingTarget'
 import { NAV_ITEMS } from '@/utils/navConfig'
 import { agentDisplayStatus } from '@/utils/statusColors'
+import { useHealthLens } from '../composables/useHealthLens'
 import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
@@ -26,6 +27,7 @@ import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPr
 import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, radiusForAge, RINGS, sectorAt, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
+import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
 import { aggregateLinks, bundlePoints, nearestArc, sampleBundle } from '../hubLinks'
 import HubAgentCard from './HubAgentCard.vue'
@@ -55,6 +57,7 @@ const kontorAgent = useKontorAgent()
 const { activeView } = useViewState()
 const { layout, wide } = useWorkspace()
 const { requestNewPage } = useSidebar()
+const { lens, toggle } = useHealthLens()
 const listOpen = ref(false)
 const legendOpen = ref(false)
 type HubCard = { kind: 'agent', pid: number } | { kind: 'note', path: string }
@@ -89,6 +92,12 @@ const KONTOR_BLOCKED: Record<'failed' | 'absent', { open: string, ask: string }>
     open: 'Add the Kontor tile to a page to open it here',
     ask: 'Add the Kontor tile to a page to ask Kontor here',
   },
+}
+
+const LENS_LABEL: Record<typeof HEALTH_LENSES[number], string> = { unlinked: 'Unlinked', stale: 'Stale' }
+const LENS_TITLE: Record<typeof HEALTH_LENSES[number], string> = {
+  unlinked: 'Know-how notes no link points to or from',
+  stale: `Know-how notes untouched for ${STALE_AFTER_DAYS}+ days`,
 }
 
 // Only the blocking kinds: needsAttention() is also true for every non-working agent ('yourTurn').
@@ -259,6 +268,11 @@ const drawnAgents = computed(() => new Set(placedScreen.value
 const EDGE_CLOCK_MS = 30_000
 // Edges fade and expire on this clock too: an idle agent sends no SSE tick to redraw them.
 const edgeNow = useNow({ interval: EDGE_CLOCK_MS })
+// Minute-scale clock is plenty for a health lens; edgeNow's 30s tick already covers it.
+const lensNotes = computed(() => lens.value ? notesInLens(vaultNotes.value, lens.value, edgeNow.value.getTime()) : null)
+const lensCounts = computed(() => vaultNotes.value.length
+  ? Object.fromEntries(HEALTH_LENSES.map(l => [l, notesInLens(vaultNotes.value, l, edgeNow.value.getTime()).size])) as Record<typeof HEALTH_LENSES[number], number>
+  : null)
 const notesByPath = computed(() => new Map(vaultNotes.value.map(n => [n.path, n])))
 const edges = computed(() => liveEdges(placed.value, drawnAgents.value, notesByPath.value, edgeNow.value.getTime()))
 const listAgents = computed(() => placed.value.map(p => ({ ...p, notes: agentNoteRows(p.agent, notesByPath.value, edgeNow.value.getTime()) })))
@@ -491,6 +505,8 @@ watch([listOpen, openCard], () => {
 function escape() {
   if (legendOpen.value)
     legendOpen.value = false
+  else if (lens.value)
+    lens.value = null
   else if (openCard.value)
     closeCard()
   else if (listOpen.value)
@@ -656,6 +672,7 @@ watch(hubFocusRequest, (target) => {
         :note-leaf="brain.noteLeaf"
         :hovered-note="hoveredNote"
         :link-arcs="linkArcs"
+        :highlighted="lensNotes"
       />
       <HubOrbit
         :cam="cam"
@@ -684,8 +701,22 @@ watch(hubFocusRequest, (target) => {
         @measure="sizes => labelSizes = sizes"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
-      <div class="absolute left-2.5 top-2.5 z-[2]">
+      <div class="absolute left-2.5 top-2.5 z-[2] flex items-start gap-1.5">
         <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
+        <div v-if="lensCounts" class="flex items-center gap-1.5" data-testid="hub-lenses">
+          <button
+            v-for="l in HEALTH_LENSES"
+            :key="l"
+            type="button"
+            :data-testid="`hub-lens-${l}`"
+            :aria-pressed="lens === l"
+            :title="LENS_TITLE[l]"
+            class="h-[30px] cursor-pointer rounded-full border border-line-strong bg-card px-2 text-[11px] text-fg-mute hover:border-accent aria-pressed:border-accent aria-pressed:text-accent"
+            @click="toggle(l)"
+          >
+            {{ LENS_LABEL[l] }} {{ lensCounts[l] }}
+          </button>
+        </div>
       </div>
       <HubControls
         :level="level"
