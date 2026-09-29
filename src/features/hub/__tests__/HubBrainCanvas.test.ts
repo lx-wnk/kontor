@@ -40,7 +40,7 @@ const named = (name: string) => calls.filter(c => c.name === name)
 const texts = () => named('fillText').map(c => c.args[0])
 
 function note(index: number, title: string, ageDays = 30): HubNote {
-  return { index, path: `n/${title}.md`, title, mtimeMs: Date.now() - ageDays * DAY_MS, links: [], backlinks: [] }
+  return { index, path: `n/${title}.md`, title, mtimeMs: Date.now() - ageDays * DAY_MS, kind: 'note', links: [], backlinks: [] }
 }
 
 const NOTES = [note(0, 'Alpha'), note(1, 'Beta'), note(2, 'Gamma')]

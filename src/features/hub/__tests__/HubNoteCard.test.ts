@@ -9,9 +9,9 @@ const { default: HubNoteCard } = await import('../components/HubNoteCard.vue')
 
 const HOUR_MS = 3600_000
 const notes: HubNote[] = [
-  { index: 0, path: 'Privat/Reise.md', title: 'Reise', mtimeMs: Date.now() - 2 * HOUR_MS, links: [1, 2], backlinks: [2] },
-  { index: 1, path: 'Privat/Packliste.md', title: 'Packliste', mtimeMs: 0, links: [], backlinks: [0] },
-  { index: 2, path: 'Journal/Heute.md', title: 'Heute', mtimeMs: 0, links: [0], backlinks: [0] },
+  { index: 0, path: 'Privat/Reise.md', title: 'Reise', mtimeMs: Date.now() - 2 * HOUR_MS, kind: 'note', links: [1, 2], backlinks: [2] },
+  { index: 1, path: 'Privat/Packliste.md', title: 'Packliste', mtimeMs: 0, kind: 'note', links: [], backlinks: [0] },
+  { index: 2, path: 'Journal/Heute.md', title: 'Heute', mtimeMs: 0, kind: 'note', links: [0], backlinks: [0] },
 ]
 
 function mountCard(kontorBlocked?: string) {

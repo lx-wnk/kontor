@@ -97,7 +97,7 @@ describe('cockpit registry panels', () => {
   it('the memory panel lists recently touched notes once the vault is ready, and focuses the hub on click', async () => {
     stubResource()
     graph.status.value = 'ready'
-    graph.notes.value = [{ index: 0, path: 'a/One.md', title: 'One', mtimeMs: Date.now() - 3600_000, links: [], backlinks: [] }]
+    graph.notes.value = [{ index: 0, path: 'a/One.md', title: 'One', mtimeMs: Date.now() - 3600_000, kind: 'note', links: [], backlinks: [] }]
     const wrapper = mount(MemoryPanel)
     await flushPromises()
     const row = wrapper.get('[data-testid="cockpit-memory-recent-note"]')

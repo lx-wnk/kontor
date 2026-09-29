@@ -5,7 +5,7 @@ import { agentNoteRows, EDGE_WINDOW_MS, edgeAlpha, liveEdges } from './hubEdges'
 
 const NOW = Date.parse('2026-09-23T12:00:00Z')
 const iso = (agoMs: number) => new Date(NOW - agoMs).toISOString()
-const note = (index: number, path: string): HubNote => ({ index, path, title: path.replace(/\.md$/, ''), mtimeMs: 0, links: [], backlinks: [] })
+const note = (index: number, path: string): HubNote => ({ index, path, title: path.replace(/\.md$/, ''), mtimeMs: 0, kind: 'note', links: [], backlinks: [] })
 const BY_PATH = new Map([note(0, 'a.md'), note(1, 'b.md')].map(n => [n.path, n]))
 const agent = (pid: number, recentNotes: Agent['recentNotes']) => ({ pid, recentNotes }) as Agent
 

@@ -34,7 +34,7 @@ vi.mock('../composables/useObsidianGraph', () => ({ useObsidianGraph: () => grap
 const NOTE_MTIME_MS = Date.now() - NOTE_AGE_DAYS * DAY_MS
 
 function vaultNote(index: number, path: string): HubNote {
-  return { index, path, title: path, mtimeMs: NOTE_MTIME_MS, links: [], backlinks: [] }
+  return { index, path, title: path, mtimeMs: NOTE_MTIME_MS, kind: 'note', links: [], backlinks: [] }
 }
 
 const agents = ref([

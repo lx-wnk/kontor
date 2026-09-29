@@ -280,7 +280,7 @@ describe('isToday', () => {
 
 describe('hubNoteSet', () => {
   function note(index: number, backlinks: number[]): HubNote {
-    return { index, path: `n${index}.md`, title: `n${index}`, mtimeMs: 0, links: [], backlinks }
+    return { index, path: `n${index}.md`, title: `n${index}`, mtimeMs: 0, kind: 'note', links: [], backlinks }
   }
 
   it('caps at 3 per sector and ignores notes with fewer than 2 backlinks', () => {
