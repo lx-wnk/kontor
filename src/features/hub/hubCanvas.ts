@@ -55,6 +55,18 @@ export function notePriority(n: { hub: boolean, touched: boolean, fresh: boolean
 // ownerIndex exempts one candidate's own obstacle (its own dot) from blocking its own label.
 export interface LabelObstacle { box: LabelBox, ownerIndex?: number }
 
+const OFF_STAGE = 1e5
+
+// Four boxes framing the stage from outside, so a label that would run past an edge counts as blocked.
+export function offStageObstacles(width: number, height: number): LabelObstacle[] {
+  return [
+    { box: { x: -OFF_STAGE, y: -OFF_STAGE, w: OFF_STAGE, h: 3 * OFF_STAGE } },
+    { box: { x: width, y: -OFF_STAGE, w: OFF_STAGE, h: 3 * OFF_STAGE } },
+    { box: { x: -OFF_STAGE, y: -OFF_STAGE, w: 3 * OFF_STAGE, h: OFF_STAGE } },
+    { box: { x: -OFF_STAGE, y: height, w: 3 * OFF_STAGE, h: OFF_STAGE } },
+  ]
+}
+
 // Greedy placement: highest priority first, skip a candidate whose box overlaps one already placed
 // or a pre-seeded obstacle (own obstacle, if any, excluded).
 export function cullLabels(candidates: LabelCandidate[], boxOf: (c: LabelCandidate) => LabelBox, obstacles: readonly LabelObstacle[] = []): Set<number> {

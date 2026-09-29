@@ -22,7 +22,7 @@ import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
 import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, radiusForAge, RINGS, sectorAt, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
@@ -407,7 +407,8 @@ const labels = computed(() => {
     priority: agentPriority(p.needsOperator, p.state === 'working'),
   }))
   const dotObstacles = drawn.map(({ p, screen: [sx, sy] }) => ({ box: agentDotBox(sx, sy), ownerIndex: p.agent.pid }))
-  const obstacles = [...dotObstacles, ...sectorNames.value, ...leafNames.value.filter(l => namedLeaves.value.has(l.key))]
+  const edges = [...offStageObstacles(size.value.width, size.value.height), ...launcherBoxes.value.map(box => ({ box }))]
+  const obstacles = [...dotObstacles, ...edges, ...sectorNames.value, ...leafNames.value.filter(l => namedLeaves.value.has(l.key))]
   const directions = new Map(candidates.map((c, i) => [
     c.index,
     agentLabelDirection(c, sizes.get(c.text), inwardUnit(drawn[i].p.x, drawn[i].p.y), obstacles),

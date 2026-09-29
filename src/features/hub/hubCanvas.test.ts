@@ -3,7 +3,7 @@ import type { LabelCandidate } from './hubCanvas'
 import type { Sector } from './hubGeometry'
 import { describe, expect, it } from 'vitest'
 import { labelSize } from './__tests__/labelMeasurement'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, sectorLabelBox, sectorLabelKey, sectorNameAngle } from './hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from './hubCanvas'
 import { polar } from './hubGeometry'
 
 const sector = (start: number, end: number): Sector => ({ key: 'work', label: 'Work', weight: 1, start, end })
@@ -337,5 +337,17 @@ describe('sectorNameAngle', () => {
   it('never returns an angle inside its own margin, even one that would fit', () => {
     // width 10 gives margin = min(4, 10/4) = 2.5, so only [2.5, 7.5] is in play; 1 fits but is outside it.
     expect(sectorNameAngle(sector(0, 10), deg => deg < 2)).toBeNull()
+  })
+})
+
+describe('offStageObstacles', () => {
+  const [left, right, top, bottom] = offStageObstacles(200, 100)
+  it('blocks a label running past any edge and leaves one inside the stage free', () => {
+    const inside = { x: 10, y: 10, w: 50, h: 12 }
+    expect([left, right, top, bottom].some(o => boxesOverlap(o.box, inside))).toBe(false)
+    expect(boxesOverlap(left.box, { x: -5, y: 40, w: 20, h: 12 })).toBe(true)
+    expect(boxesOverlap(right.box, { x: 190, y: 40, w: 20, h: 12 })).toBe(true)
+    expect(boxesOverlap(top.box, { x: 40, y: -3, w: 20, h: 12 })).toBe(true)
+    expect(boxesOverlap(bottom.box, { x: 40, y: 95, w: 20, h: 12 })).toBe(true)
   })
 })
