@@ -1,5 +1,5 @@
 import type { HubNote } from './composables/useObsidianGraph'
-import type { Camera } from './hubCamera'
+import type { Camera, HubLevel } from './hubCamera'
 import type { Sector } from './hubGeometry'
 import type { AgentDisplayStatus } from '@/utils/statusColors'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
@@ -176,18 +176,42 @@ export function agentPriority(needsOperator: boolean, working: boolean): number 
   return (needsOperator ? 2 : 0) + (working ? 1 : 0)
 }
 
-export function hitNote(points: ReadonlyArray<[number, number]>, cam: Camera, sx: number, sy: number, maxPx = 8): number {
-  let best = -1
-  let bestDist = maxPx
+export const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
+export const HUB_NOTE_SCALE = 1.9
+
+export function noteRadiusPx(level: HubLevel, hub: boolean): number {
+  const r = NOTE_RADIUS_PX[level]
+  return hub ? r * HUB_NOTE_SCALE : r
+}
+
+// Paint order fillNotes uses: non-hub notes first, hub notes on top of them.
+export function drawOrder(): readonly boolean[] {
+  return [false, true]
+}
+
+const HIT_TOUCH_SLACK_PX = 3
+
+export function hitNote(points: ReadonlyArray<[number, number]>, cam: Camera, sx: number, sy: number, level: HubLevel, hubNotes: ReadonlySet<number>, maxPx = 8): number {
+  const order = drawOrder()
+  let topmost = -1
+  let topmostRank = -1
+  let nearest = -1
+  let nearestDist = maxPx
   points.forEach(([x, y], i) => {
     const [px, py] = toScreen(cam, x, y)
     const d = Math.hypot(px - sx, py - sy)
-    if (d <= bestDist) {
-      bestDist = d
-      best = i
+    if (d <= nearestDist) {
+      nearestDist = d
+      nearest = i
+    }
+    const hub = hubNotes.has(i)
+    const rank = order.indexOf(hub)
+    if (d <= noteRadiusPx(level, hub) + HIT_TOUCH_SLACK_PX && rank >= topmostRank) {
+      topmostRank = rank
+      topmost = i
     }
   })
-  return best
+  return topmost >= 0 ? topmost : nearest
 }
 
 export function isToday(mtimeMs: number, nowMs: number): boolean {
