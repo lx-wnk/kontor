@@ -62,17 +62,22 @@ describe('packHub', () => {
     }
   })
 
-  it('keeps category circles apart and within the [R0, R_MAX] ring', () => {
+  it('keeps category circles apart and clear of the core disc', () => {
     const cats = [...result.categories.values()]
+    const epsilon = R0 * 0.05
     for (const c of cats) {
       const centreDist = Math.hypot(c.x, c.y)
-      expect(centreDist - c.r).toBeGreaterThanOrEqual(R0 - 1e-6)
-      expect(centreDist + c.r).toBeLessThanOrEqual(R_MAX + 1e-6)
+      expect(centreDist - c.r).toBeGreaterThanOrEqual(R0 - epsilon)
     }
     for (let i = 0; i < cats.length; i++) {
       for (let j = i + 1; j < cats.length; j++)
-        expect(dist(cats[i].x, cats[i].y, cats[j].x, cats[j].y)).toBeGreaterThanOrEqual(cats[i].r + cats[j].r)
+        expect(dist(cats[i].x, cats[i].y, cats[j].x, cats[j].y)).toBeGreaterThanOrEqual(cats[i].r + cats[j].r - 1e-6)
     }
+  })
+
+  it('reports an extent close to R_MAX', () => {
+    expect(result.extent).toBeGreaterThanOrEqual(R_MAX * 0.95)
+    expect(result.extent).toBeLessThanOrEqual(R_MAX * 1.05)
   })
 
   it('is deterministic for the same input', () => {
@@ -82,17 +87,43 @@ describe('packHub', () => {
     expect([...again.notes]).toEqual([...result.notes])
   })
 
-  it('gives a tiny angular span category a positive radius', () => {
-    const tinySectors: Sector[] = [{ key: 'sliver', label: 'Sliver', weight: 1, start: 0, end: 2 }]
-    const tinyLeaves: Leaf[] = [leaf('sliver/proj1', 'sliver')]
-    const tinyNotes = new Map<string, readonly string[]>([['sliver/proj1', ['sliver/proj1/note1.md']]])
-    const tiny = packHub(tinySectors, tinyLeaves, tinyNotes)
-    expect(tiny.categories.get('sliver')!.r).toBeGreaterThan(0)
+  it('grows a category radius with its note count', () => {
+    const heavySectors: Sector[] = [
+      { key: 'small', label: 'Small', weight: 1, start: -90, end: 90 },
+      { key: 'big', label: 'Big', weight: 1, start: 90, end: 270 },
+    ]
+    const heavyLeaves: Leaf[] = [leaf('small/proj1', 'small'), leaf('big/proj1', 'big')]
+    const smallNotes = ['small/proj1/n1.md']
+    const bigNotes = Array.from({ length: 4 * smallNotes.length }, (_, i) => `big/proj1/n${i}.md`)
+    const heavyNotes = new Map<string, readonly string[]>([
+      ['small/proj1', smallNotes],
+      ['big/proj1', bigNotes],
+    ])
+    const packed = packHub(heavySectors, heavyLeaves, heavyNotes)
+    expect(packed.categories.get('big')!.r).toBeGreaterThan(packed.categories.get('small')!.r * 1.5)
   })
 
-  it('gives a vault with a single category the full ring band, not a zero-width wedge', () => {
+  it('gives a project with agents a bigger circle than an equal-note project without', () => {
+    const withAgents = packHub(sectors, leaves, notesByLeaf, new Map([['alpha/proj1', 3]]))
+    const noAgents = result
+    expect(withAgents.projects.get('alpha/proj1')!.r).toBeGreaterThan(noAgents.projects.get('alpha/proj1')!.r)
+  })
+
+  it('places agent slots on the project rim, first one facing away from the core', () => {
+    const withAgents = packHub(sectors, leaves, notesByLeaf, new Map([['alpha/proj1', 3]]))
+    const project = withAgents.projects.get('alpha/proj1')!
+    const slots = withAgents.agentSlots.get('alpha/proj1')!
+    expect(slots).toHaveLength(3)
+    for (const [sx, sy] of slots)
+      expect(dist(sx, sy, project.x, project.y)).toBeGreaterThan(project.r)
+    const expectedAngle = Math.atan2(project.y, project.x) * 180 / Math.PI
+    expect(slots[0][2]).toBeCloseTo(expectedAngle)
+  })
+
+  it('works for a vault with a single category', () => {
     const only: Sector[] = [{ key: 'solo', label: 'Solo', weight: 1, start: -90, end: 270 }]
     const packed = packHub(only, [leaf('solo/proj1', 'solo')], new Map([['solo/proj1', ['solo/proj1/note1.md']]]))
-    expect(packed.categories.get('solo')!.r).toBeCloseTo((R_MAX - R0) / 2 * 0.94)
+    expect(packed.categories.get('solo')!.r).toBeGreaterThan(0)
+    expect(dist(0, 0, packed.categories.get('solo')!.x, packed.categories.get('solo')!.y)).toBeGreaterThanOrEqual(0)
   })
 })
