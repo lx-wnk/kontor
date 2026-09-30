@@ -3,7 +3,7 @@ import { fetchWithRateLimitRetry } from '@/utils/fetchWithRateLimitRetry'
 // Mirrors server/internal/api/obsidian/handler.go (graph); Go cannot share this type, keep the two in step by hand.
 export interface GraphResponse {
   configured: boolean
-  notes?: Array<[path: string, mtimeMs: number]>
+  notes?: Array<[path: string, mtimeMs: number] | [path: string, mtimeMs: number, type: string]>
   links?: Array<[from: number, to: number]>
 }
 

@@ -12,6 +12,7 @@ import (
 type GraphNote struct {
 	Path    string // relative to VaultRoot
 	MtimeMs int64
+	Type    string // frontmatter "type"; empty when absent, non-string, or malformed
 }
 
 // Graph is the vault's notes under VaultRoot and the links between them.
@@ -20,7 +21,8 @@ type Graph struct {
 	Links [][2]int    // indices into Notes, from → to, unique, no self-links
 }
 
-// Graph reads every note's mtime and resolved outgoing links in two searches; no note body is read.
+// Graph reads every note's mtime, resolved outgoing links, and frontmatter
+// type in three searches; no note body is read.
 func (c *Client) Graph(ctx context.Context) (Graph, error) {
 	mtimes, err := c.SearchJSONLogic(ctx, `{"var":"stat.mtime"}`)
 	if err != nil {
@@ -29,6 +31,25 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 	links, err := c.SearchJSONLogic(ctx, `{"var":"links"}`)
 	if err != nil {
 		return Graph{}, err
+	}
+	types, err := c.SearchJSONLogic(ctx, `{"var":"frontmatter.type"}`)
+	if err != nil {
+		return Graph{}, err
+	}
+	typeByPath := make(map[string]string, len(types))
+	for _, hit := range types {
+		rel, ok := pathUnderRoot(c.vaultRoot, hit.Filename)
+		if !ok {
+			continue
+		}
+		var t string
+		// One note's malformed frontmatter type must not blank the whole graph, same as mtime and links.
+		if err := json.Unmarshal(hit.Result, &t); err != nil {
+			continue
+		}
+		if t = strings.TrimSpace(t); t != "" {
+			typeByPath[rel] = t
+		}
 	}
 	var g Graph
 	for _, hit := range mtimes {
@@ -42,12 +63,23 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 			slog.Warn("obsidian: graph: skipping note with malformed mtime", "path", rel)
 			continue
 		}
-		g.Notes = append(g.Notes, GraphNote{Path: rel, MtimeMs: int64(mtime)})
+		g.Notes = append(g.Notes, GraphNote{Path: rel, MtimeMs: int64(mtime), Type: typeByPath[rel]})
 	}
 	sort.Slice(g.Notes, func(i, j int) bool { return g.Notes[i].Path < g.Notes[j].Path })
 	index := make(map[string]int, len(g.Notes))
 	for i, n := range g.Notes {
 		index[n.Path] = i
+	}
+	// Obsidian resolves links case-insensitively; a folded key shared by two notes is ambiguous and skipped.
+	foldIndex := make(map[string]int, len(g.Notes))
+	ambiguousFold := make(map[string]bool)
+	for i, n := range g.Notes {
+		fold := strings.ToLower(n.Path)
+		if _, exists := foldIndex[fold]; exists {
+			ambiguousFold[fold] = true
+			continue
+		}
+		foldIndex[fold] = i
 	}
 	seen := make(map[[2]int]bool)
 	for _, hit := range links {
@@ -63,8 +95,18 @@ func (c *Client) Graph(ctx context.Context) (Graph, error) {
 		}
 		for _, t := range targets {
 			toRel, ok := pathUnderRoot(c.vaultRoot, t)
+			if !ok {
+				continue
+			}
 			to, known := index[toRel]
-			if !ok || !known || to == from {
+			if !known {
+				fold := strings.ToLower(toRel)
+				if ambiguousFold[fold] {
+					continue
+				}
+				to, known = foldIndex[fold]
+			}
+			if !known || to == from {
 				continue
 			}
 			pair := [2]int{from, to}

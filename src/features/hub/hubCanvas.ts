@@ -1,9 +1,11 @@
 import type { HubNote } from './composables/useObsidianGraph'
 import type { Camera } from './hubCamera'
+import type { Sector } from './hubGeometry'
 import type { AgentDisplayStatus } from '@/utils/statusColors'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { statusLabel } from '@/utils/statusColors'
 import { toScreen } from './hubCamera'
+import { sectorMid } from './hubGeometry'
 
 export interface LabelCandidate { index: number, sx: number, sy: number, text: string, priority: number }
 
@@ -25,6 +27,19 @@ export function noteLabelBox(c: LabelCandidate, width: number): LabelBox {
   return { x: c.sx + NOTE_LABEL_OFFSET_PX, y: c.sy - NOTE_LABEL_H / 2, w: width, h: NOTE_LABEL_H }
 }
 
+// Heaviest first, so where names collide the bigger one keeps its place.
+export function namesThatFit(names: ReadonlyArray<{ key: string, weight: number, box: LabelBox }>, blocked: (box: LabelBox) => boolean): Set<string> {
+  const kept: LabelBox[] = []
+  const fit = new Set<string>()
+  for (const name of [...names].sort((a, b) => b.weight - a.weight)) {
+    if (blocked(name.box) || kept.some(box => boxesOverlap(box, name.box)))
+      continue
+    kept.push(name.box)
+    fit.add(name.key)
+  }
+  return fit
+}
+
 export function boxesOverlap(a: LabelBox, b: LabelBox): boolean {
   // An empty box is an unmeasured label: it covers nothing, so it collides with nothing.
   if (a.w <= 0 || a.h <= 0 || b.w <= 0 || b.h <= 0)
@@ -39,6 +54,18 @@ export function notePriority(n: { hub: boolean, touched: boolean, fresh: boolean
 // A permanently-occupied area a label must not land on, e.g. another agent's dot or a sector name.
 // ownerIndex exempts one candidate's own obstacle (its own dot) from blocking its own label.
 export interface LabelObstacle { box: LabelBox, ownerIndex?: number }
+
+const OFF_STAGE = 1e5
+
+// Four boxes framing the stage from outside, so a label that would run past an edge counts as blocked.
+export function offStageObstacles(width: number, height: number): LabelObstacle[] {
+  return [
+    { box: { x: -OFF_STAGE, y: -OFF_STAGE, w: OFF_STAGE, h: 3 * OFF_STAGE } },
+    { box: { x: width, y: -OFF_STAGE, w: OFF_STAGE, h: 3 * OFF_STAGE } },
+    { box: { x: -OFF_STAGE, y: -OFF_STAGE, w: 3 * OFF_STAGE, h: OFF_STAGE } },
+    { box: { x: -OFF_STAGE, y: height, w: 3 * OFF_STAGE, h: OFF_STAGE } },
+  ]
+}
 
 // Greedy placement: highest priority first, skip a candidate whose box overlaps one already placed
 // or a pre-seeded obstacle (own obstacle, if any, excluded).
@@ -123,6 +150,25 @@ export function agentDotBox(sx: number, sy: number): LabelBox {
 // the screen while the map pans under it (HubWidget.vue's `namedSectors`).
 export function sectorLabelBox(sx: number, sy: number, size: LabelSize = UNMEASURED): LabelBox {
   return { x: sx - size.w / 2, y: sy - size.h / 2, w: size.w, h: size.h }
+}
+
+// Nearest to the midpoint first, alternating sides, never past the sector's own margins.
+export function sectorNameAngle(sector: Sector, fits: (deg: number) => boolean, stepDeg = 4): number | null {
+  const width = sector.end - sector.start
+  const margin = Math.min(stepDeg, width / 4)
+  const min = sector.start + margin
+  const max = sector.end - margin
+  const mid = sectorMid(sector)
+  for (let offset = 0; ; offset += stepDeg) {
+    const candidates = offset === 0 ? [mid] : [mid - offset, mid + offset]
+    const inRange = candidates.filter(deg => deg >= min && deg <= max)
+    if (inRange.length === 0)
+      return null
+    for (const deg of inRange) {
+      if (fits(deg))
+        return deg
+    }
+  }
 }
 
 // needs-the-operator outranks working, which outranks everything else (Ruling R23).

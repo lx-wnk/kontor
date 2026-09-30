@@ -253,8 +253,8 @@ describe('spotlightSearch notes', () => {
   beforeEach(() => {
     graphStatus.value = 'ready'
     graphNotes.value = [
-      { index: 0, path: 'alpha/One.md', title: 'One', mtimeMs: 1000, links: [], backlinks: [] },
-      { index: 1, path: 'Two.md', title: 'Two', mtimeMs: 2000, links: [], backlinks: [] },
+      { index: 0, path: 'alpha/One.md', title: 'One', mtimeMs: 1000, kind: 'note', links: [], backlinks: [] },
+      { index: 1, path: 'Two.md', title: 'Two', mtimeMs: 2000, kind: 'note', links: [], backlinks: [] },
     ]
   })
 

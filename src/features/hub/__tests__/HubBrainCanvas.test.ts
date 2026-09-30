@@ -1,4 +1,5 @@
 import type { HubNote } from '../composables/useObsidianGraph'
+import type { Leaf, Sector } from '../hubGeometry'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -40,7 +41,7 @@ const named = (name: string) => calls.filter(c => c.name === name)
 const texts = () => named('fillText').map(c => c.args[0])
 
 function note(index: number, title: string, ageDays = 30): HubNote {
-  return { index, path: `n/${title}.md`, title, mtimeMs: Date.now() - ageDays * DAY_MS, links: [], backlinks: [] }
+  return { index, path: `n/${title}.md`, title, mtimeMs: Date.now() - ageDays * DAY_MS, kind: 'note', links: [], backlinks: [] }
 }
 
 const NOTES = [note(0, 'Alpha'), note(1, 'Beta'), note(2, 'Gamma')]
@@ -58,10 +59,25 @@ function mountBrain(props: Partial<InstanceType<typeof HubBrainCanvas>['$props']
       hubNotes: new Set<number>(),
       selected: null,
       edges: [],
+      sectors: [],
+      leaves: [],
+      noteLeaf: ['', '', ''],
+      hoveredNote: null,
+      linkArcs: [],
       ...props,
     },
   })
 }
+
+const CATEGORY_SECTORS: Sector[] = [
+  { key: 'a', label: 'a', weight: 1, start: -90, end: 0 },
+  { key: 'b', label: 'b', weight: 1, start: 0, end: 90 },
+]
+const LEAF_SECTORS: Leaf[] = [
+  { key: 'a/x', label: 'x', weight: 1, parent: 'a', start: -90, end: -45 },
+  { key: 'a/y', label: 'y', weight: 1, parent: 'a', start: -45, end: 0 },
+  { key: 'b/z', label: 'z', weight: 1, parent: 'b', start: 0, end: 90 },
+]
 
 async function nextFrame() {
   await vi.advanceTimersByTimeAsync(FRAME_MS)
@@ -97,6 +113,17 @@ describe('hubBrainCanvas', () => {
     await w.setProps({ level: 2 })
     await nextFrame()
     expect(texts()).toEqual(['Alpha', 'Gamma'])
+  })
+
+  it('at the topics level, a note title overlapping the project-name legend yields to it', async () => {
+    mountBrain({
+      level: 1,
+      points: [[100, 100], [102, 100], [300, 100]],
+      hubNotes: new Set([0, 2]),
+      legendBoxes: [{ box: { x: 100, y: 90, w: 60, h: 20 } }],
+    })
+    await nextFrame()
+    expect(texts()).toEqual(['Gamma'])
   })
 
   // The width used to be counted off the characters, the estimate that twice misplaced the agent
@@ -201,5 +228,135 @@ describe('hubBrainCanvas', () => {
     mountBrain()
     await nextFrame()
     expect(named('setLineDash')).toHaveLength(0)
+  })
+
+  it('fills note-kind dots, rings sessions-kind dots, and punches a hole in other kinds', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [
+      { ...note(0, 'Alpha'), kind: 'note' },
+      { ...note(1, 'Beta'), kind: 'sessions' },
+      { ...note(2, 'Gamma'), kind: 'task' },
+    ]
+    mountBrain({ notes, colours: [0, 1, 2] })
+    await nextFrame()
+    expect(named('fill').map(c => c.state.fillStyle)).toEqual(['tok(--sector-0)', 'tok(--sector-2)', 'tok(--app)'])
+    expect(named('stroke').some(c => c.state.strokeStyle === 'tok(--sector-1)')).toBe(true)
+  })
+
+  it('strokes one path per arc at level 0/1, width growing with count', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+      ],
+    })
+    await nextFrame()
+    const accentStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
+    expect(accentStrokes).toHaveLength(1)
+    expect(accentStrokes[0].state.lineWidth).toBeCloseTo(1.3)
+  })
+
+  it('at level 1, an intra-leaf know-how link draws but a session-to-session link stays hidden', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [
+      { ...note(0, 'Alpha'), kind: 'sessions' },
+      { ...note(1, 'Beta'), kind: 'note' },
+      { ...note(2, 'Gamma'), kind: 'sessions' },
+    ]
+    mountBrain({
+      level: 1,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/x', 'a/x'],
+      notes,
+      links: [[0, 1], [0, 2]],
+    })
+    await nextFrame()
+    const knowHowStrokes = named('stroke').filter(c => c.state.globalAlpha === 0.35)
+    expect(knowHowStrokes).toHaveLength(1)
+  })
+
+  it('ignores linkArcs at the notes level', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+      ],
+    })
+    await nextFrame()
+    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)' && Number(c.state.lineWidth) === 1.3)
+    expect(arcStrokes).toHaveLength(0)
+  })
+
+  it('dims non-highlighted notes and haloes a highlighted one, even at the overview level', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({ highlighted: new Set([1]) })
+    await nextFrame()
+    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([
+      ['tok(--sector-0)', 0.18],
+      ['tok(--sector-1)', 1],
+      ['tok(--sector-2)', 0.18],
+    ])
+    const haloArc = calls.find(c => c.name === 'arc' && c.state.strokeStyle === 'tok(--halo)')
+    expect(haloArc).toBeDefined()
+  })
+
+  it('leaves rendering unchanged when highlighted is null', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({ highlighted: null })
+    await nextFrame()
+    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([
+      ['tok(--sector-0)', 0.75],
+      ['tok(--sector-1)', 0.75],
+      ['tok(--sector-2)', 0.75],
+    ])
+    expect(calls.some(c => c.name === 'arc' && c.state.strokeStyle === 'tok(--halo)')).toBe(false)
+  })
+
+  it('at level 2, a hovered note draws its links brighter than the rest', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/y', 'b/z'],
+      links: [[0, 1], [0, 2], [1, 2]],
+      hoveredNote: 0,
+    })
+    await nextFrame()
+    const linkStrokes = named('stroke').slice(0, 3)
+    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.95, 0.06])
+    expect(Number(linkStrokes[0].state.lineWidth)).toBeGreaterThan(Number(linkStrokes[2].state.lineWidth))
+  })
+
+  it('emphasises the hovered arc over another arc', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+        { a: 'c', b: 'd', count: 2, points: [[-50, 100], [50, 100]], line: [[-50, 100], [50, 100]] },
+      ],
+      hoveredArcKey: 'a\u0000b',
+    })
+    await nextFrame()
+    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
+    expect(arcStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.6])
+    expect(Number(arcStrokes[0].state.lineWidth)).toBeGreaterThan(Number(arcStrokes[1].state.lineWidth))
+  })
+
+  it('at level 2, a lens dims a link between non-highlighted notes but not one touching a highlighted note', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/x', 'b/z'],
+      links: [[0, 1], [1, 2]],
+      highlighted: new Set([2]),
+    })
+    await nextFrame()
+    const linkStrokes = named('stroke').slice(0, 2)
+    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.18, 0.6])
   })
 })

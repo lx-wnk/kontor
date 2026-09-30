@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Camera, HubLevel } from '../hubCamera'
 import type { LabelSize } from '../hubCanvas'
-import type { Sector } from '../hubGeometry'
+import type { Leaf, Sector } from '../hubGeometry'
 import type { Agent } from '@/types'
 import type { AgentDisplayStatus, ChipTone } from '@/utils/statusColors'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -9,11 +9,14 @@ import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { toScreen } from '../hubCamera'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { polar, radiusForAge, sectorColour, sectorMid, visibleRingLabels } from '../hubGeometry'
+import { labelledLeaves, leafColour, leafShade, polar, radiusForAge, sectorColour, sectorMid, shadeMix, visibleRingLabels } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
   sectors: Sector[]
+  // Project leaves nested inside each sector's arc; their own labels join the legend from level 1.
+  // Omitted draws none (used by callers that don't exercise the leaf legend, e.g. tests).
+  leaves?: Leaf[]
   agents: ReadonlyArray<{ agent: Agent, x: number, y: number, state: AgentDisplayStatus, needsOperator: boolean }>
   level: HubLevel
   running: number
@@ -25,11 +28,18 @@ const props = defineProps<{
   // World radius the caller placed the legend on; it clears the outermost agent tier, which the
   // base ring above does not, and the culler judges the sector-name boxes at this same radius.
   sectorNameRadius: number
+  // World radius for project names; omitted puts them on the sector-name rim.
+  leafNameRadius?: number
   showSectorNames: boolean
   // Omitted shows every label (used by callers that don't cull, e.g. tests); the dot is never gated.
   labelledAgents?: ReadonlySet<number>
   // Sector keys whose name is drawable; omitted draws them all.
   namedSectors?: ReadonlySet<string>
+  // The angle HubWidget slid a sector's name to, clear of the docked rail; a sector missing here
+  // (or the whole map omitted, e.g. tests) draws its name on the arc's plain midpoint.
+  sectorNameAngles?: ReadonlyMap<string, number>
+  // Leaf keys whose name is drawable; omitted draws them all.
+  namedLeaves?: ReadonlySet<string>
   // Pids whose dot is reachable; omitted draws them all. One the docked rail covers is left
   // undrawn instead of drawn under opaque chrome that swallows its clicks.
   drawnAgents?: ReadonlySet<number>
@@ -44,6 +54,8 @@ const RING_LABEL_DEG = -128
 const root = ref<HTMLElement | null>(null)
 const ringLabels = computed(() => visibleRingLabels(props.cam.k, props.agentRingPx))
 const sectorNamesShown = computed(() => props.level < 2 && props.showSectorNames)
+const leafNamesShown = computed(() => props.level === 1 && props.showSectorNames)
+const projectLeaves = computed(() => labelledLeaves(props.leaves ?? []))
 
 // Label sizes come from the DOM, never from a character count: an estimate has twice placed labels
 // over what they must clear. A size depends on the text and the font only — the camera scales
@@ -54,6 +66,7 @@ const sizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 const labelKeys = computed(() => [
   ...props.agents.map(a => agentLabelKey(a.agent.projectName, a.state)),
   ...(sectorNamesShown.value ? props.sectors.map(s => sectorLabelKey(s.label, s.weight)) : []),
+  ...(leafNamesShown.value ? projectLeaves.value.map(l => sectorLabelKey(l.label, l.weight)) : []),
 ].join('\n'))
 
 function measure() {
@@ -108,6 +121,10 @@ function showsSectorName(key: string): boolean {
   return !props.namedSectors || props.namedSectors.has(key)
 }
 
+function showsLeafName(key: string): boolean {
+  return !props.namedLeaves || props.namedLeaves.has(key)
+}
+
 function showsAgent(pid: number): boolean {
   return !props.drawnAgents || props.drawnAgents.has(pid)
 }
@@ -148,11 +165,22 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :data-label-key="sectorLabelKey(sector.label, sector.weight)"
         class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-widest hover:bg-fg/5"
         :class="[level === 1 && 'opacity-55', !showsSectorName(sector.key) && 'invisible']"
-        :style="{ ...atPolar(sectorNameRadius, sectorMid(sector)), color: `var(--sector-${sectorColour(sector.key)})` }"
+        :style="{ ...atPolar(sectorNameRadius, sectorNameAngles?.get(sector.key) ?? sectorMid(sector)), color: `var(--sector-${sectorColour(sector.key)})` }"
         @click="$emit('sector', sector)"
       >
         {{ sector.label }}<small class="ml-1 font-normal normal-case tracking-normal text-fg-mute">{{ sector.weight }}</small>
       </button>
+    </template>
+    <template v-if="leafNamesShown">
+      <span
+        v-for="(leaf, i) in projectLeaves"
+        :key="leaf.key"
+        :data-testid="`hub-leaf-${i}`"
+        :data-label-key="sectorLabelKey(leaf.label, leaf.weight)"
+        class="-translate-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[9.5px] font-medium"
+        :class="!showsLeafName(leaf.key) && 'invisible'"
+        :style="{ ...atPolar(leafNameRadius ?? sectorNameRadius, sectorMid(leaf)), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+      >{{ leaf.label }}</span>
     </template>
     <template v-if="level < 2">
       <span
