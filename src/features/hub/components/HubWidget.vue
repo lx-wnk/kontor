@@ -3,6 +3,7 @@ import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
 import type { AgentProject, Leaf } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
+import type { Circle } from '../hubPack'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
 import { useEventListener, useNow } from '@vueuse/core'
@@ -25,7 +26,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, sectorAt, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
@@ -117,25 +118,6 @@ const liveProjects = computed<AgentProject[]>((previous) => {
 const vaultNotes = computed(() => graphStatus.value === 'ready' || graphStatus.value === 'loading' || graphStatus.value === 'failed' ? notes.value : [])
 const plan = computed(() => planSectors(vaultNotes.value.map(n => n.path), liveProjects.value))
 const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
-
-// What lies under the stage centre, read off the camera rather than tracked separately: a fly or a
-// drag moves the breadcrumb for free. Hidden inside the core (nothing to name yet) and at level 0
-// (the map itself is the category view already).
-const breadcrumb = computed(() => {
-  if (level.value === 0)
-    return null
-  const [wx, wy] = centreWorld()
-  if (Math.hypot(wx, wy) < R0)
-    return null
-  const deg = Math.atan2(wy, wx) * 180 / Math.PI
-  const category = sectorAt(plan.value.sectors, deg)
-  if (!category)
-    return null
-  if (category.key === OTHER_SECTOR_KEY)
-    return category.label
-  const leaf = sectorAt(plan.value.leaves.filter(l => l.parent === category.key), deg)
-  return leaf?.label ? `${category.label} › ${leaf.label}` : category.label
-})
 
 // A note the sector plan does not place is drawn nowhere: off stage, so the canvas skips it and it
 // cannot be hit. A gap in the brain, rather than a TypeError inside a render function.
@@ -274,6 +256,21 @@ const projectCircles = computed(() => plan.value.leaves.flatMap((leaf) => {
   const c = packed.value.projects.get(leaf.key)
   return c ? [{ leaf, c }] : []
 }))
+
+// What lies under the stage centre, read off the camera rather than tracked separately: a fly or a
+// drag moves the breadcrumb for free. Hidden outside every category circle (nothing to name) and at
+// level 0 (the map itself is the category view already).
+const breadcrumb = computed(() => {
+  if (level.value === 0)
+    return null
+  const [wx, wy] = centreWorld()
+  const contains = ({ c }: { c: Circle }) => Math.hypot(wx - c.x, wy - c.y) <= c.r
+  const category = categoryCircles.value.find(contains)?.sector
+  if (!category)
+    return null
+  const leaf = projectCircles.value.find(p => p.leaf.parent === category.key && contains(p))?.leaf
+  return leaf?.label ? `${category.label} › ${leaf.label}` : category.label
+})
 
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const launchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value))

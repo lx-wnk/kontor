@@ -657,15 +657,41 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  it('shows no breadcrumb at level 0 and the category/project under the stage centre from level 1', async () => {
+  it('shows no breadcrumb at level 0 and the category/project under the stage centre above it', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/kontor-hub/note.md')]
     const w = await mountHub()
     expect(w.find('[data-testid="hub-breadcrumb"]').exists()).toBe(false)
-    await w.get('[data-testid="hub-agent-101"]').trigger('click')
-    expect(w.get('[data-testid="hub-stage"]').attributes('data-level')).toBe('1')
+    hubFocusRequest.value = { kind: 'note', path: 'alpha/kontor-hub/note.md' }
+    await flushPromises()
+    expect(w.get('[data-testid="hub-stage"]').attributes('data-level')).not.toBe('0')
     expect(w.get('[data-testid="hub-breadcrumb"]').text()).toBe('alpha › kontor-hub')
     w.unmount()
+  })
+
+  it('names the project circle under the stage centre, and nothing between the category circles', async () => {
+    const paths = ['work/alpha/one.md', 'work/alpha/two.md', 'work/beta/three.md', 'work/gamma/four.md', 'private/delta/five.md']
+    graph.status.value = 'ready'
+    graph.notes.value = paths.map((path, i) => vaultNote(i, path))
+    agents.value = []
+    const packed = packedFor(paths, [])
+    const { leaves } = planSectors(paths, [])
+    const breadcrumbAt = async (wx: number, wy: number) => {
+      lastHubView.value = { wx, wy, rel: 2.4 }
+      const w = await mountHub()
+      const crumb = w.find('[data-testid="hub-breadcrumb"]')
+      const text = crumb.exists() ? crumb.text() : null
+      w.unmount()
+      return text
+    }
+    for (const leaf of leaves) {
+      const { x, y } = packed.projects.get(leaf.key)!
+      expect(await breadcrumbAt(x, y)).toBe(`${leaf.parent} › ${leaf.label}`)
+    }
+    const work = packed.categories.get('work')!
+    const outward = Math.hypot(work.x, work.y)
+    const gap = (work.r + 5) / outward + 1
+    expect(await breadcrumbAt(work.x * gap, work.y * gap)).toBeNull()
   })
 
   it('offers every other view and a new page as launchers, and fires the slot a digit names', async () => {
