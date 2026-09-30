@@ -2,7 +2,7 @@ import type { Leaf, Sector } from './hubGeometry'
 import type { Circle } from './hubPack'
 import { describe, expect, it } from 'vitest'
 import { OTHER_SECTOR_KEY, R0, R_MAX } from './hubGeometry'
-import { CATEGORY_GAP, packHub } from './hubPack'
+import { CATEGORY_GAP, MAP_RADIUS, packHub } from './hubPack'
 
 function leaf(key: string, parent: string): Leaf {
   return { key, label: key, weight: 1, start: 0, end: 1, parent }
@@ -63,12 +63,12 @@ describe('packHub', () => {
     }
   })
 
-  it('sits each category tangent-ish to the core, apart from its neighbours, within R_MAX', () => {
+  it('sits each category tangent-ish to the core, apart from its neighbours, within MAP_RADIUS', () => {
     const cats = [...result.categories.values()]
     for (const c of cats) {
       const centreDist = Math.hypot(c.x, c.y)
       expect(centreDist - c.r).toBeCloseTo(R0 + CATEGORY_GAP, 0)
-      expect(centreDist + c.r).toBeLessThanOrEqual(R_MAX + 1e-6)
+      expect(centreDist + c.r).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
     }
     for (let i = 0; i < cats.length; i++) {
       for (let j = i + 1; j < cats.length; j++)
@@ -94,9 +94,27 @@ describe('packHub', () => {
     expect(Math.max(...emptyGaps)).toBeLessThanOrEqual(evenGap + 1e-6)
   })
 
-  it('reports an extent close to R_MAX', () => {
-    expect(result.extent).toBeGreaterThanOrEqual(R_MAX * 0.95)
-    expect(result.extent).toBeLessThanOrEqual(R_MAX * 1.05)
+  it('reports an extent that grows past the old R_MAX cap, bounded by MAP_RADIUS', () => {
+    expect(result.extent).toBeGreaterThan(R_MAX)
+    expect(result.extent).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
+  })
+
+  it('gives a category a bigger radius than the old R_MAX cap allowed, with three categories sharing the map', () => {
+    const oldCapR = (R_MAX - R0 - CATEGORY_GAP) / 2
+    const threeSectors: Sector[] = [
+      { key: 'a', label: 'A', weight: 1, start: -90, end: 30 },
+      { key: 'b', label: 'B', weight: 1, start: 30, end: 150 },
+      { key: 'c', label: 'C', weight: 1, start: 150, end: 270 },
+    ]
+    const threeLeaves: Leaf[] = [leaf('a/proj1', 'a'), leaf('b/proj1', 'b'), leaf('c/proj1', 'c')]
+    const threeNotes = new Map<string, readonly string[]>([
+      ['a/proj1', ['a/proj1/n1.md']],
+      ['b/proj1', ['b/proj1/n1.md']],
+      ['c/proj1', ['c/proj1/n1.md']],
+    ])
+    const packed = packHub(threeSectors, threeLeaves, threeNotes)
+    const largest = Math.max(...[...packed.categories.values()].map(c => c.r))
+    expect(largest).toBeGreaterThan(oldCapR)
   })
 
   it('is deterministic for the same input', () => {

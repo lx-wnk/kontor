@@ -1,6 +1,7 @@
 import type { Leaf, Sector } from './hubGeometry'
 import { hierarchy, pack } from 'd3-hierarchy'
-import { OTHER_SECTOR_KEY, R0, R_MAX } from './hubGeometry'
+import { FIT_RADIUS } from './hubCamera'
+import { OTHER_SECTOR_KEY, R0 } from './hubGeometry'
 
 export interface Circle { x: number, y: number, r: number }
 
@@ -9,6 +10,9 @@ const PACK_PADDING = 2
 const AGENT_RIM_GAP = 6
 // Clearance between the core disc and a category circle, and half of it between neighbouring categories.
 export const CATEGORY_GAP = 16
+// Room a category's label, drawn above its circle, needs to stay inside the fitted disc.
+export const CATEGORY_LABEL_ROOM = 22
+export const MAP_RADIUS = FIT_RADIUS - CATEGORY_LABEL_ROOM
 const RADIUS_SEARCH_ITERATIONS = 40
 // NUL-prefixed keys never collide with real vault paths, which can't contain a NUL byte.
 const FILLER_SUFFIX = '\u0000filler'
@@ -38,7 +42,7 @@ function footprintDeg(r: number, d: number): number {
 function layoutCategories(categoryData: readonly PackDatum[]): CategoryLayout[] {
   const sorted = [...categoryData].sort((a, b) => a.key.localeCompare(b.key))
   const weights = sorted.map(c => sumValue(c.children ?? []))
-  const capR = (R_MAX - R0 - CATEGORY_GAP) / 2
+  const capR = (MAP_RADIUS - R0 - CATEGORY_GAP) / 2
   const maxScale = capR / Math.sqrt(Math.max(...weights))
 
   const footprintSumDeg = (s: number) => weights.reduce((sum, w) => {

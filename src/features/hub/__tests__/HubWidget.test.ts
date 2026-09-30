@@ -114,6 +114,8 @@ afterEach(() => {
 // The hub tile as the default layout draws it on a 1512-wide screen; the roomier default stage
 // hides every collision the real tile has.
 const TILE = { width: 584, height: 734 }
+// Only a stage this large leaves the launcher ring room outside a map that fills the fitted disc.
+const ROOMY = { width: 8000, height: 8040 }
 
 async function mountHub(size = { width: 1090, height: 1130 }) {
   const w = mount(HubWidget, {
@@ -300,7 +302,7 @@ describe('hubWidget', () => {
 
   it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside the map\'s extent on a roomy one', async () => {
     const launcherX = (w: Hub) => Number(/translate\(([-\d.]+)px/.exec(w.get('[data-testid^="hub-launcher-"]').attributes('style')!)![1])
-    const roomy = await mountHub()
+    const roomy = await mountHub(ROOMY)
     expect(launcherX(roomy)).not.toBe(30)
     const core = translateOf(roomy.get('[data-testid="hub-core"]'))
     const launcher = translateOf(roomy.get('[data-testid^="hub-launcher-"]'))
@@ -314,7 +316,7 @@ describe('hubWidget', () => {
   })
 
   it('moves the agents and the launcher ring with the map when it zooms', async () => {
-    const w = await mountHub()
+    const w = await mountHub(ROOMY)
     const launcherFromCore = () => {
       const core = translateOf(w.get('[data-testid="hub-core"]'))
       const { sx, sy } = translateOf(w.get('[data-testid^="hub-launcher-"]'))
@@ -576,7 +578,7 @@ describe('hubWidget', () => {
   // beneath it can be neither hovered nor clicked.
   it('leaves an agent the docked launcher rail covers undrawn', async () => {
     graph.status.value = 'ready'
-    // A single category claims the full R_MAX ring (no angular sharing), so the launcher ring
+    // A single category claims the full radial cap (no angular sharing), so the launcher ring
     // is as large as the balanced layout ever draws it — the case this test needs to dock.
     graph.notes.value = vaultFolders().filter(n => n.path.startsWith('folder0/'))
     agents.value = tieredAgents()
