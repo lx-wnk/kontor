@@ -1,14 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_FLOOR_PX,
-  AGENT_SECTOR_STAGGER_PX,
   AGENT_SPACING_PX,
   AGENT_STAGE_MARGIN_PX,
-  AGENT_WAITING_FLOOR_PX,
-  agentAngles,
-  agentRadius,
   agentRingPx,
-  agentSectorRingPx,
   buildSectors,
   hash01,
   labelledLeaves,
@@ -238,20 +233,6 @@ describe('notePoint', () => {
 })
 
 describe('agents', () => {
-  it('spreads agents evenly inside their sector', () => {
-    const [s] = buildSectors([{ key: 'a', label: 'a', weight: 1 }, { key: 'b', label: 'b', weight: 1 }])
-    expect(agentAngles(1, s)).toEqual([(s.start + s.end) / 2])
-    const two = agentAngles(2, s)
-    expect(two[0]).toBeGreaterThan(s.start)
-    expect(two[1]).toBeLessThan(s.end)
-  })
-  it('never comes closer to the core than the on-screen floor, at any zoom', () => {
-    for (const k of [0.05, 0.3, 1, 2.5, 14]) {
-      expect(agentRadius(k, false) * k).toBeGreaterThanOrEqual(AGENT_FLOOR_PX - 1e-9)
-      expect(agentRadius(k, true) * k).toBeGreaterThanOrEqual(AGENT_WAITING_FLOOR_PX - 1e-9)
-      expect(agentRadius(k, true)).toBeLessThanOrEqual(agentRadius(k, false))
-    }
-  })
   it('widens the on-screen ring with the number of agents so neighbours get room, never below the floor', () => {
     for (const count of [0, 1, 6, 11, 40])
       expect(agentRingPx(count)).toBeCloseTo(Math.max(AGENT_FLOOR_PX, count * AGENT_SPACING_PX / (2 * Math.PI)))
@@ -266,55 +247,6 @@ describe('agents', () => {
   })
   it('pulls eleven agents in on the 544 px stacked stage so side labels clear the dock and controls columns', () => {
     expect(agentRingPx(11, 544)).toBe(182)
-  })
-  it('places agents on the given ring, a waiting agent the floor gap further in', () => {
-    const k = 0.6
-    for (const ring of [AGENT_FLOOR_PX, 196, 300]) {
-      expect(agentRadius(k, false, ring) * k).toBeCloseTo(ring)
-      expect(agentRadius(k, true, ring) * k).toBeCloseTo(ring - (AGENT_FLOOR_PX - AGENT_WAITING_FLOOR_PX))
-    }
-    expect(agentRadius(k, true, AGENT_FLOOR_PX) * k).toBeCloseTo(AGENT_WAITING_FLOOR_PX)
-    expect(agentRadius(k, false, AGENT_FLOOR_PX)).toBe(agentRadius(k, false))
-  })
-})
-
-describe('agentSectorRingPx', () => {
-  it('leaves the first agent in a sector on the base ring', () => {
-    expect(agentSectorRingPx(196, 0, 2)).toBe(196)
-    expect(agentSectorRingPx(196, 2, 2)).toBe(196)
-  })
-  it('staggers the second agent sharing a sector out onto a different radius', () => {
-    expect(agentSectorRingPx(196, 1, 2)).toBe(196 + AGENT_SECTOR_STAGGER_PX)
-    expect(agentSectorRingPx(196, 1, 2)).not.toBe(agentSectorRingPx(196, 0, 2))
-    expect(agentSectorRingPx(196, 3, 2)).toBe(agentSectorRingPx(196, 1, 2))
-  })
-  it('spreads seven agents sharing a sector over more than two radii', () => {
-    const rings = Array.from({ length: 7 }, (_, i) => agentSectorRingPx(196, i, 7))
-    expect(new Set(rings).size).toBeGreaterThan(2)
-    expect(sectorTiers(7)).toBeGreaterThan(sectorTiers(2))
-  })
-  it('keeps every one of those seven on the stage and clear of the core', () => {
-    const stagePx = 900
-    const cap = stagePx / 2 - AGENT_STAGE_MARGIN_PX
-    const base = agentRingPx(12, stagePx)
-    for (let i = 0; i < 7; i++) {
-      const ring = agentSectorRingPx(base, i, 7, stagePx)
-      expect(ring).toBeGreaterThanOrEqual(AGENT_FLOOR_PX)
-      expect(ring).toBeLessThanOrEqual(cap)
-      expect(agentRadius(1, true, ring)).toBeGreaterThanOrEqual(AGENT_WAITING_FLOOR_PX)
-    }
-  })
-  it('never staggers below the on-screen floor, at any base ring or index', () => {
-    for (const ring of [0, AGENT_FLOOR_PX, 60]) {
-      for (const i of [0, 1, 2, 3])
-        expect(agentSectorRingPx(ring, i, 7)).toBeGreaterThanOrEqual(AGENT_FLOOR_PX)
-    }
-  })
-  it('never staggers past the stage cap', () => {
-    const stagePx = 600
-    const cap = stagePx / 2 - AGENT_STAGE_MARGIN_PX
-    expect(agentSectorRingPx(cap, 1, 2, stagePx)).toBe(cap)
-    expect(agentSectorRingPx(cap - 1, 1, 7, stagePx)).toBeLessThanOrEqual(cap)
   })
 })
 

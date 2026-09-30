@@ -1,11 +1,20 @@
 import { expect, test } from '@playwright/test'
-import { waitForLayoutPatch as patched, selectListboxOption, storeLayout } from './helpers'
+import { waitForLayoutPatch as patched, selectListboxOption, storeLayout, stubAgents } from './helpers'
 
 // The stored layout is shared server-side state, not per-test-context state —
 // reset it after every test so a mutation here can never leak into the next
 // spec file or the next run of this one.
 test.afterEach(async ({ request, baseURL }) => {
   await storeLayout(request, baseURL, '')
+})
+
+// Every test in this file lands on the Zentrale, which shows the hub of live
+// agents and (via App.vue's globally-mounted NeedsYouQueue) the needs-you
+// strip — an empty default keeps both off whatever Claude sessions are
+// actually running on the machine executing the suite. Tests that need
+// specific agents call stubAgents(page, agents) again, which overrides this.
+test.beforeEach(async ({ page }) => {
+  await stubAgents(page)
 })
 
 test('the Zentrale is the default page with the nine widgets', async ({ page }) => {
@@ -307,12 +316,7 @@ test('a page whose code fails to load says so and keeps what needs you on screen
     subagents: [],
     pendingQuestion: { header: 'Colour', question: 'Which colour do you prefer?', multiSelect: false, options: [{ index: 1, label: 'Red' }], typeSomethingIndex: 2, chatAboutIndex: 3 },
   }
-  await page.route('/api/agents', route => route.fulfill({ json: [agent] }))
-  await page.route('/api/agents/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ agents: [agent] })}\n\n`,
-  }))
+  await stubAgents(page, [agent])
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('page-load-error')).toBeVisible()
   const strip = page.getByTestId('needs-you')
@@ -346,6 +350,49 @@ test('the hub widens on F, opens the sidebar New page input from its launcher an
 
   await stage.press('1')
   await expect.poll(() => page.evaluate(() => localStorage.getItem('agent-active-view'))).toBe('dashboard')
+})
+
+// Many live agents shrink the map, and a pending question fills the queue docked at the top of the hub.
+test('a pending question never covers a launcher, however many agents are live', async ({ page }) => {
+  const agent = (i: number) => ({
+    pid: 5000 + i,
+    sessionId: `sess-${i}`,
+    provider: 'claude',
+    projectName: `proj-${i}`,
+    projectPath: `/repo/proj-${i}`,
+    cwd: `/repo/proj-${i}`,
+    status: 'idle',
+    working: false,
+    lastActivity: new Date().toISOString(),
+    uptime: 120,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+    costEstimate: 0,
+    lastTools: [],
+    tasks: [],
+    subagents: [],
+  })
+  const option = (index: number, label: string) => ({ index, label, description: 'A description long enough to wrap over two lines in the docked queue card' })
+  const asking = {
+    ...agent(10),
+    status: 'waiting',
+    liveInjectable: true,
+    channelAvailable: true,
+    pendingQuestion: {
+      header: 'Launch',
+      question: 'Launch failed after start, which option?',
+      multiSelect: false,
+      options: [option(1, 'Reads first'), option(2, 'Keep the plan'), option(3, 'Retry sweep')],
+      typeSomethingIndex: 4,
+      chatAboutIndex: 5,
+    },
+  }
+  const agents = [...Array.from({ length: 10 }, (_, i) => agent(i)), asking]
+  await stubAgents(page, agents)
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByTestId('needs-you')).toContainText('Launch failed')
+
+  await page.getByTestId('hub-launcher-new-page').click()
+  await expect(page.getByTestId('nav-new-page-input')).toBeFocused()
 })
 
 test('Escape on the hub with the Kontor overlay open collapses only the overlay', async ({ page }) => {

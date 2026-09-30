@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { stubAuthDisabled, stubJson } from './helpers'
+import { stubAgents, stubAuthDisabled, stubJson } from './helpers'
 
 // VA-2 Workflows view: this happy-path test verifies the new view toggle
 // is wired in and that all four chart tabs render without throwing.
@@ -24,6 +24,7 @@ async function stubEmptyWorkflowsData(page: import('@playwright/test').Page) {
 test('workflows view toggle opens the four chart tabs', async ({ page }) => {
   await stubAuthDisabled(page)
   await stubEmptyWorkflowsData(page)
+  await stubAgents(page)
 
   await page.goto('/')
   // The landing view is the Zentrale now; this test only needs a mounted

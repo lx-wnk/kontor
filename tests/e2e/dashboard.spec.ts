@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { openListboxOptions, selectListboxOption } from './helpers'
+import { openListboxOptions, selectListboxOption, stubAgents } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Helpers — mirrored from shell.spec.ts
@@ -40,6 +40,7 @@ test.describe('dashboard view', () => {
   test.beforeEach(async ({ page }) => {
     await clearShellStorage(page)
     await stubAuthDisabled(page)
+    await stubAgents(page)
     await page.goto('/')
     await page.waitForSelector('[aria-label="Primary"]', { timeout: 10000 })
   })
@@ -144,6 +145,7 @@ test.describe('dashboard view', () => {
 test.describe('landing view', () => {
   test('the Zentrale is the default view on a first visit', async ({ page }) => {
     await stubAuthDisabled(page)
+    await stubAgents(page)
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Zentrale')
     await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()

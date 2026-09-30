@@ -11,9 +11,12 @@ export const DOCK_REL = 1.5
 export const FLY_MS = 480
 export const LEVEL_TARGETS: Record<HubLevel, number> = { 0: 1, 1: 2.4, 2: 5.5 }
 
-// Reserves 110px for the controls and 150px for the queue when fitting the disc (radius 490).
+// World radius of the disc the "fit all" view frames.
+export const FIT_RADIUS = 490
+
+// Reserves 110px for the controls and 150px for the queue when fitting the disc.
 export function fitScale(width: number, height: number): number {
-  return Math.max(0.05, Math.min(width - 110, height - 150) / (2 * 490))
+  return Math.max(0.05, Math.min(width - 110, height - 150) / (2 * FIT_RADIUS))
 }
 
 export function levelOf(rel: number): HubLevel {

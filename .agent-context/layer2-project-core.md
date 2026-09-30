@@ -39,7 +39,8 @@
 | Widget components | `src/features/workspace/widgetRegistry.ts` | `WIDGETS`, `widgetIds()` |
 | Needs-you placement rule | `src/composables/needsYouPlacement.ts` | `needsYouPlacement` |
 | Hub geometry constants | `src/features/hub/hubGeometry.ts` | `R0`, `R_MAX`, `RINGS`, `agentRingPx`, `planSectors`, `DAY_MS`, `SECTOR_PALETTE_SIZE`, `sectorColour` |
-| Hub note layout by containment (category › project circles) | `src/features/hub/hubPack.ts` | `packHub`, `CATEGORY_RING_R`, `Circle` |
+| Hub note layout by containment (category › project circles) | `src/features/hub/hubPack.ts` | `packHub`, `Circle`, `AGENT_WEIGHT`, `CATEGORY_GAP`, `MAP_RADIUS` — category circles never exceed `MAP_RADIUS`, derived from the camera's `FIT_RADIUS` |
+| Hub camera fit radius | `src/features/hub/hubCamera.ts` | `FIT_RADIUS` |
 | Hub note fade by age | `src/features/hub/hubCanvas.ts` | `ageAlpha`, `AGE_ALPHA_FLOOR` |
 | Hub world extent, incl. the minimap's own frame | `src/features/hub/hubGeometry.ts` | `WORLD_RADIUS`, `MINIMAP_RIM`, `MINIMAP_HALF` — the minimap derives its viewBox, never a second radius |
 | Hub camera thresholds | `src/features/hub/hubCamera.ts` | `LEVEL_TOPICS`, `LEVEL_NOTES`, `MIN_REL`, `MAX_REL`, `levelOf`, `launchersDocked` |

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
-import { parkPointerOffNav, stubAuthDisabled } from './helpers'
+import { parkPointerOffNav, stubAgents, stubAuthDisabled } from './helpers'
 
 interface Metrics {
   tops: number[]
@@ -75,6 +75,7 @@ test.describe('sidebar hover expansion', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('agent-sidebar-pinned', 'false'))
     await stubAuthDisabled(page)
+    await stubAgents(page)
     await page.goto('/')
     await page.waitForSelector('[aria-label="Primary"]', { timeout: 10_000 })
     await parkPointerOffNav(page)

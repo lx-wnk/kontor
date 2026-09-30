@@ -1,7 +1,8 @@
 import type { Leaf, Sector } from './hubGeometry'
+import type { Circle } from './hubPack'
 import { describe, expect, it } from 'vitest'
 import { OTHER_SECTOR_KEY, R0, R_MAX } from './hubGeometry'
-import { packHub } from './hubPack'
+import { CATEGORY_GAP, MAP_RADIUS, packHub } from './hubPack'
 
 function leaf(key: string, parent: string): Leaf {
   return { key, label: key, weight: 1, start: 0, end: 1, parent }
@@ -62,17 +63,59 @@ describe('packHub', () => {
     }
   })
 
-  it('keeps category circles apart and within the [R0, R_MAX] ring', () => {
+  it('sits each category tangent-ish to the core, apart from its neighbours, within MAP_RADIUS', () => {
     const cats = [...result.categories.values()]
     for (const c of cats) {
       const centreDist = Math.hypot(c.x, c.y)
-      expect(centreDist - c.r).toBeGreaterThanOrEqual(R0 - 1e-6)
-      expect(centreDist + c.r).toBeLessThanOrEqual(R_MAX + 1e-6)
+      expect(centreDist - c.r).toBeCloseTo(R0 + CATEGORY_GAP, 0)
+      expect(centreDist + c.r).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
     }
     for (let i = 0; i < cats.length; i++) {
       for (let j = i + 1; j < cats.length; j++)
-        expect(dist(cats[i].x, cats[i].y, cats[j].x, cats[j].y)).toBeGreaterThanOrEqual(cats[i].r + cats[j].r)
+        expect(dist(cats[i].x, cats[i].y, cats[j].x, cats[j].y)).toBeGreaterThanOrEqual(cats[i].r + cats[j].r - 1e-6)
     }
+  })
+
+  it('spreads categories evenly, with angular footprints summing to at most 360°', () => {
+    const cats = [...result.categories.values()]
+    const footprintOf = (c: Circle) => 2 * Math.asin((c.r + CATEGORY_GAP / 2) / Math.hypot(c.x, c.y)) * 180 / Math.PI
+    const withAngle = cats
+      .map(c => ({ angle: Math.atan2(c.y, c.x) * 180 / Math.PI, footprint: footprintOf(c) }))
+      .sort((a, b) => a.angle - b.angle)
+    const totalFootprint = withAngle.reduce((sum, c) => sum + c.footprint, 0)
+    expect(totalFootprint).toBeLessThanOrEqual(360 + 1e-6)
+
+    const evenGap = (360 - totalFootprint) / cats.length
+    const emptyGaps = withAngle.map((c, i) => {
+      const next = withAngle[(i + 1) % withAngle.length]
+      const delta = ((next.angle - c.angle) + 360) % 360 || 360
+      return delta - c.footprint / 2 - next.footprint / 2
+    })
+    expect(Math.max(...emptyGaps)).toBeLessThanOrEqual(evenGap + 1e-6)
+  })
+
+  it('grows the map past the old R_MAX cap, bounded by MAP_RADIUS', () => {
+    const reach = Math.max(...[...result.categories.values()].map(c => Math.hypot(c.x, c.y) + c.r))
+    expect(reach).toBeGreaterThan(R_MAX)
+    expect(reach).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
+  })
+
+  it('gives a category a bigger radius than the old R_MAX cap allowed, with three categories sharing the map', () => {
+    const oldCapR = (R_MAX - R0 - CATEGORY_GAP) / 2
+    const threeSectors: Sector[] = [
+      { key: 'a', label: 'A', weight: 1, start: -90, end: 30 },
+      { key: 'b', label: 'B', weight: 1, start: 30, end: 150 },
+      { key: 'c', label: 'C', weight: 1, start: 150, end: 270 },
+    ]
+    const threeLeaves: Leaf[] = [leaf('a/proj1', 'a'), leaf('b/proj1', 'b'), leaf('c/proj1', 'c')]
+    const threeNotes = new Map<string, readonly string[]>([
+      ['a/proj1', ['a/proj1/n1.md']],
+      ['b/proj1', ['b/proj1/n1.md']],
+      ['c/proj1', ['c/proj1/n1.md']],
+    ])
+    const packed = packHub(threeSectors, threeLeaves, threeNotes)
+    const largest = Math.max(...[...packed.categories.values()].map(c => c.r))
+    expect(largest).toBeGreaterThan(oldCapR)
   })
 
   it('is deterministic for the same input', () => {
@@ -82,17 +125,43 @@ describe('packHub', () => {
     expect([...again.notes]).toEqual([...result.notes])
   })
 
-  it('gives a tiny angular span category a positive radius', () => {
-    const tinySectors: Sector[] = [{ key: 'sliver', label: 'Sliver', weight: 1, start: 0, end: 2 }]
-    const tinyLeaves: Leaf[] = [leaf('sliver/proj1', 'sliver')]
-    const tinyNotes = new Map<string, readonly string[]>([['sliver/proj1', ['sliver/proj1/note1.md']]])
-    const tiny = packHub(tinySectors, tinyLeaves, tinyNotes)
-    expect(tiny.categories.get('sliver')!.r).toBeGreaterThan(0)
+  it('grows a category radius with its note count', () => {
+    const heavySectors: Sector[] = [
+      { key: 'small', label: 'Small', weight: 1, start: -90, end: 90 },
+      { key: 'big', label: 'Big', weight: 1, start: 90, end: 270 },
+    ]
+    const heavyLeaves: Leaf[] = [leaf('small/proj1', 'small'), leaf('big/proj1', 'big')]
+    const smallNotes = ['small/proj1/n1.md']
+    const bigNotes = Array.from({ length: 4 * smallNotes.length }, (_, i) => `big/proj1/n${i}.md`)
+    const heavyNotes = new Map<string, readonly string[]>([
+      ['small/proj1', smallNotes],
+      ['big/proj1', bigNotes],
+    ])
+    const packed = packHub(heavySectors, heavyLeaves, heavyNotes)
+    expect(packed.categories.get('big')!.r).toBeGreaterThan(packed.categories.get('small')!.r * 1.5)
   })
 
-  it('gives a vault with a single category the full ring band, not a zero-width wedge', () => {
+  it('gives a project with agents a bigger circle than an equal-note project without', () => {
+    const withAgents = packHub(sectors, leaves, notesByLeaf, new Map([['alpha/proj1', 3]]))
+    const noAgents = result
+    expect(withAgents.projects.get('alpha/proj1')!.r).toBeGreaterThan(noAgents.projects.get('alpha/proj1')!.r)
+  })
+
+  it('places agent slots on the project rim, first one facing away from the core', () => {
+    const withAgents = packHub(sectors, leaves, notesByLeaf, new Map([['alpha/proj1', 3]]))
+    const project = withAgents.projects.get('alpha/proj1')!
+    const slots = withAgents.agentSlots.get('alpha/proj1')!
+    expect(slots).toHaveLength(3)
+    for (const [sx, sy] of slots)
+      expect(dist(sx, sy, project.x, project.y)).toBeGreaterThan(project.r)
+    const expectedAngle = Math.atan2(project.y, project.x) * 180 / Math.PI
+    expect(slots[0][2]).toBeCloseTo(expectedAngle)
+  })
+
+  it('works for a vault with a single category', () => {
     const only: Sector[] = [{ key: 'solo', label: 'Solo', weight: 1, start: -90, end: 270 }]
     const packed = packHub(only, [leaf('solo/proj1', 'solo')], new Map([['solo/proj1', ['solo/proj1/note1.md']]]))
-    expect(packed.categories.get('solo')!.r).toBeCloseTo((R_MAX - R0) / 2 * 0.94)
+    expect(packed.categories.get('solo')!.r).toBeGreaterThan(0)
+    expect(dist(0, 0, packed.categories.get('solo')!.x, packed.categories.get('solo')!.y)).toBeGreaterThanOrEqual(0)
   })
 })

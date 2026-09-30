@@ -1,6 +1,6 @@
 import process from 'node:process'
 import { expect, test } from '@playwright/test'
-import { openListboxOptions, selectListboxOption } from './helpers'
+import { openListboxOptions, selectListboxOption, stubAgents } from './helpers'
 import { APP_BASE_URL } from './servers'
 
 // Allow the dev environment to override the dashboard URL — e.g. point at the
@@ -50,6 +50,7 @@ test('spawn dialog shows project picker and hydrates cwd from default folder', a
 
   try {
     // 3. Navigate.
+    await stubAgents(page)
     await page.goto('/')
 
     // 4. Open the spawn modal. The header button text is "+ New Agent".
@@ -140,6 +141,7 @@ test('spawn dialog submits payload with project cwd, permission mode, and prompt
   await expect(folderRes).toBeOK()
 
   try {
+    await stubAgents(page)
     await page.goto('/')
 
     await page.getByRole('button', { name: '+ New Agent' }).click()

@@ -1,6 +1,6 @@
 import type { GraphResponse } from '../../src/features/hub/graphApi'
 import { expect, test } from '@playwright/test'
-import { storeLayout } from './helpers'
+import { storeLayout, stubAgents } from './helpers'
 
 const FOLDERS = ['Work', 'Private', 'Misc']
 const NOTE_COUNT = 300
@@ -19,10 +19,9 @@ function fakeGraph(): GraphResponse {
   return { configured: true, notes, links }
 }
 
-const AGENT_COUNT = 9
+const AGENT_COUNT = 24
 
-// A crowd in one project: enough labels to force a cull, and enough dots to land some of them under
-// the sector names the legend draws just outside the agent ring.
+// A crowd on one project's rim: its slots sit closer together than a label is wide, so the cull must hide some.
 function fakeAgents() {
   return Array.from({ length: AGENT_COUNT }, (_, i) => ({
     pid: 6000 + i,
@@ -52,12 +51,7 @@ test.afterEach(async ({ request, baseURL }) => {
 test('every agent dot takes the pointer, and hovering a culled agent reveals its label', async ({ page }) => {
   const agents = fakeAgents()
   await page.route('**/api/obsidian/graph', route => route.fulfill({ json: fakeGraph() }))
-  await page.route('/api/agents', route => route.fulfill({ json: agents }))
-  await page.route('/api/agents/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ agents })}\n\n`,
-  }))
+  await stubAgents(page, agents)
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId(`hub-agent-${agents[0].pid}`)).toBeVisible()
   await expect(page.locator('[data-testid^="hub-sector-"]').first()).toBeVisible()
@@ -182,12 +176,7 @@ test('L lists the notes an agent touched under that agent, and only notes on the
     ],
   }]
   await page.route('**/api/obsidian/graph', route => route.fulfill({ json: fakeGraph() }))
-  await page.route('/api/agents', route => route.fulfill({ json: agents }))
-  await page.route('/api/agents/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ agents })}\n\n`,
-  }))
+  await stubAgents(page, agents)
   await page.goto('/', { waitUntil: 'domcontentloaded' })
 
   await page.getByTestId('hub-stage').press('l')

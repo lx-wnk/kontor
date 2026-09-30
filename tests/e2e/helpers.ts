@@ -65,6 +65,22 @@ export async function stubEmptyStream(page: Page, path: string): Promise<void> {
 }
 
 /**
+ * Stubs /api/agents and /api/agents/stream to a fixed list. App.vue mounts
+ * NeedsYouQueue globally and the hub renders live agents on the Zentrale —
+ * without this, every one of those views depends on whatever Claude sessions
+ * happen to be running on the machine executing the suite. Mirrors the SSE
+ * shape hub.spec.ts pioneered: one `data:` frame carrying `{ agents }`.
+ */
+export async function stubAgents(page: Page, agents: unknown[] = []): Promise<void> {
+  await page.route('/api/agents', route => route.fulfill({ json: agents }))
+  await page.route('/api/agents/stream', route => route.fulfill({
+    status: 200,
+    contentType: 'text/event-stream',
+    body: `data: ${JSON.stringify({ agents })}\n\n`,
+  }))
+}
+
+/**
  * Closes a listbox panel that belongs to a different trigger than the one
  * about to be interacted with. AppSelect's outside-click suppressor arms
  * itself on the mousedown that dismisses a panel and eats the very next

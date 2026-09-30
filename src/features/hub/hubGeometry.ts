@@ -17,17 +17,13 @@ export const SECTOR_FLOOR_DEG = 24
 // All floors together never claim more than this, so the weighting always keeps a quarter of the circle.
 export const SECTOR_FLOOR_BUDGET_DEG = 270
 export const AGENT_FLOOR_PX = 116
-export const AGENT_WAITING_FLOOR_PX = 88
 export const AGENT_SPACING_PX = 112
 export const AGENT_STAGE_MARGIN_PX = 90
-export const AGENT_SECTOR_STAGGER_PX = 40
 // Beyond three, the stagger walks agents off the stage faster than it buys them arc.
 export const AGENT_SECTOR_TIERS_MAX = 3
 export const SECTOR_LABEL_AGENT_CLEARANCE_PX = 40
 export const RING_LABEL_GAP_PX = 16
 export const RING_LABEL_AGENT_CLEARANCE_PX = 12
-const AGENT_WORLD_MIN = 82
-const AGENT_WAITING_WORLD_MIN = 60
 export const OTHER_SECTOR_KEY = '__other__'
 export const NOTE_KIND = 'note'
 export const SESSIONS_KIND = 'sessions'
@@ -169,28 +165,12 @@ export function notePoint(path: string, sector: Sector, ageDays: number): [numbe
   return polar(radiusForAge(ageDays), sector.start + margin + hash01(path) * (width - 2 * margin))
 }
 
-export function agentAngles(count: number, sector: Sector): number[] {
-  return Array.from({ length: count }, (_, i) => sector.start + (sector.end - sector.start) * (i + 1) / (count + 1))
-}
-
 // On-screen agent ring: widens with the agent count, capped by the stage; the floor wins over the cap.
+// No longer used to place a dot — packHub seats agents on their project's rim — but still the budget
+// a crowded sector's labels need room for, via sectorFloorDeg below.
 export function agentRingPx(count: number, stagePx = Infinity): number {
   const grownPx = count * AGENT_SPACING_PX / (2 * Math.PI)
   return Math.max(AGENT_FLOOR_PX, Math.min(grownPx, stagePx / 2 - AGENT_STAGE_MARGIN_PX))
-}
-
-// Same-sector agents share one base ring; sector-local indices walk round the sector's tiers so
-// neighbouring labels land on different radii instead of stacking.
-export function agentSectorRingPx(baseRingPx: number, indexInSector: number, countInSector: number, stagePx = Infinity): number {
-  const staggered = baseRingPx + (indexInSector % sectorTiers(countInSector)) * AGENT_SECTOR_STAGGER_PX
-  return Math.max(AGENT_FLOOR_PX, Math.min(staggered, stagePx / 2 - AGENT_STAGE_MARGIN_PX))
-}
-
-// World radius that puts the agent on its on-screen ring; a waiting agent sits the floor gap further in.
-export function agentRadius(scale: number, waiting: boolean, ringPx = AGENT_FLOOR_PX): number {
-  return waiting
-    ? Math.max(AGENT_WAITING_WORLD_MIN, (ringPx - (AGENT_FLOOR_PX - AGENT_WAITING_FLOOR_PX)) / scale)
-    : Math.max(AGENT_WORLD_MIN, ringPx / scale)
 }
 
 export function sectorLabelRadius(scale: number, agentRingPx: number): number {
