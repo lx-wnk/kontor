@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { stubAuthDisabled } from './helpers'
+import { stubAgents, stubAuthDisabled } from './helpers'
 
 /**
  * The CSP is sent by the Go middleware, so this only means anything against the
@@ -21,6 +21,7 @@ test.describe('the app does not violate its own CSP', () => {
     })
 
     await stubAuthDisabled(page)
+    await stubAgents(page)
     await page.goto('/')
     await expect(page.getByTestId('workspace-page-zentrale')).toBeVisible()
 

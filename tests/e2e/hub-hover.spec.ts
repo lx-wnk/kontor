@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { GraphResponse } from '../../src/features/hub/graphApi'
 import { expect, test } from '@playwright/test'
+import { stubAgents } from './helpers'
 
 // The unit tests hand HubBrainCanvas a `hoveredNote` prop directly; only a real pointer over a real
 // dot proves the HubWidget wiring (pointermove → hitNote → prop) reaches the canvas.
@@ -26,8 +27,7 @@ async function mockSources(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem('agent-theme', 'light'))
   await page.route('**/api/obsidian/graph', route => route.fulfill({ json: fakeGraph() }))
   await page.route(/\/api\/resources(\?.*)?$/, route => route.fulfill({ json: [] }))
-  await page.route('/api/agents', route => route.fulfill({ json: [] }))
-  await page.route('/api/agents/stream', route => route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }))
+  await stubAgents(page)
 }
 
 interface Ring { x: number, y: number, inner: number, outer: number }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { stubAgents } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,6 +42,7 @@ test.describe('app shell', () => {
   test.beforeEach(async ({ page }) => {
     await clearShellStorage(page)
     await stubAuthDisabled(page)
+    await stubAgents(page)
     await page.goto('/')
     // Wait for the shell to mount (the Primary nav must be in the DOM).
     await page.waitForSelector('[aria-label="Primary"]', { timeout: 10000 })

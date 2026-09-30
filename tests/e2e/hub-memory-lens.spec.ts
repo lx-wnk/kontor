@@ -1,5 +1,6 @@
 import type { GraphResponse } from '../../src/features/hub/graphApi'
 import { expect, test } from '@playwright/test'
+import { stubAgents } from './helpers'
 
 // Regression: the memory-health toggles once rendered under the top-centre
 // NeedsYouQueue notice ("Nothing needs you…"), which sits at the same
@@ -61,12 +62,7 @@ async function mockMemoryLensSources(page: import('@playwright/test').Page): Pro
   // agents — an empty fixture keeps the hub's agent ring (and its label
   // layout, which the toggles' pointer-target check below is sensitive to)
   // out of this spec's control entirely.
-  await page.route('/api/agents', route => route.fulfill({ json: [] }))
-  await page.route('/api/agents/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: '',
-  }))
+  await stubAgents(page)
 }
 
 test('the memory lenses show fixture counts, and a real click toggles them without the top-centre notice intercepting', async ({ page }) => {

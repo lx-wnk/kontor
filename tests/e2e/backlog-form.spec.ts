@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { slugify } from '../../src/utils/validation'
-import { openListboxOptions, selectListboxOption, stubAuthDisabled, stubEmptyStream, stubJson } from './helpers'
+import { openListboxOptions, selectListboxOption, stubAgents, stubAuthDisabled, stubEmptyStream, stubJson } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Backlog / "New Task" create form — single-screen flow.
@@ -75,6 +75,7 @@ interface CapturedPayload { value: Record<string, unknown> | null }
 
 async function stubCreateAndRefineFlow(page: Page, title: string, slug: string, capturedTaskPayload: CapturedPayload) {
   await stubAuthDisabled(page)
+  await stubAgents(page)
   await stubJson(page, '/api/projects', [project()])
   await stubEmptyStream(page, '/api/projects/stream')
   await stubJson(page, '/api/spawners', [])
@@ -137,6 +138,7 @@ test('create & refine with a project auto-fills cwd and opens the refinement cha
 
 test('no "No project" option — project select starts empty and must be chosen', async ({ page }) => {
   await selectPipelineView(page)
+  await stubAgents(page)
   await page.goto('/')
 
   await page.getByRole('button', { name: '+ New Task' }).click()
