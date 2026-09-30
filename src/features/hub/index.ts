@@ -1,3 +1,5 @@
 export { default as HubWidget } from './components/HubWidget.vue'
+export { useHealthLens } from './composables/useHealthLens'
 export { focusInHub, NO_HUB_PAGE_MESSAGE } from './composables/useHubFocus'
 export { useObsidianGraph } from './composables/useObsidianGraph'
+export { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from './hubHealth'

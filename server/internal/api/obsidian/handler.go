@@ -201,9 +201,13 @@ func (h *Handler) graph(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	notes := make([][2]any, len(g.Notes))
+	notes := make([]any, len(g.Notes))
 	for i, n := range g.Notes {
-		notes[i] = [2]any{n.Path, n.MtimeMs}
+		if n.Type == "" {
+			notes[i] = [2]any{n.Path, n.MtimeMs}
+		} else {
+			notes[i] = [3]any{n.Path, n.MtimeMs, n.Type}
+		}
 	}
 	links := g.Links
 	if links == nil {

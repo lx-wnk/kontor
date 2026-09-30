@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { AgentProject, Sector } from '../hubGeometry'
+import type { AgentProject, Leaf, Sector } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
@@ -18,19 +18,23 @@ import { attentionFor } from '@/utils/attention'
 import { isTypingTarget } from '@/utils/isTypingTarget'
 import { NAV_ITEMS } from '@/utils/navConfig'
 import { agentDisplayStatus } from '@/utils/statusColors'
+import { useHealthLens } from '../composables/useHealthLens'
 import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, notePoint, planSectors, polar, radiusForAge, RINGS, sectorColour, sectorLabelRadius, sectorMid, wedgePath } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, radiusForAge, RINGS, sectorAt, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
+import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
+import { aggregateLinks, bundlePoints, nearestArc, sampleBundle } from '../hubLinks'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
 import HubLaunchers from './HubLaunchers.vue'
+import HubLegend from './HubLegend.vue'
 import HubList from './HubList.vue'
 import HubMinimap from './HubMinimap.vue'
 import HubNoteCard from './HubNoteCard.vue'
@@ -53,7 +57,9 @@ const kontorAgent = useKontorAgent()
 const { activeView } = useViewState()
 const { layout, wide } = useWorkspace()
 const { requestNewPage } = useSidebar()
+const { lens, toggle } = useHealthLens()
 const listOpen = ref(false)
+const legendOpen = ref(false)
 type HubCard = { kind: 'agent', pid: number } | { kind: 'note', path: string }
 const openCard = ref<HubCard | null>(null)
 let cameraBeforeCard: [number, number, number] | null = null
@@ -88,6 +94,12 @@ const KONTOR_BLOCKED: Record<'failed' | 'absent', { open: string, ask: string }>
   },
 }
 
+const LENS_LABEL: Record<typeof HEALTH_LENSES[number], string> = { unlinked: 'Unlinked', stale: 'Stale' }
+const LENS_TITLE: Record<typeof HEALTH_LENSES[number], string> = {
+  unlinked: 'Know-how notes no link points to or from',
+  stale: `Know-how notes untouched for ${STALE_AFTER_DAYS}+ days`,
+}
+
 // Only the blocking kinds: needsAttention() is also true for every non-working agent ('yourTurn').
 function blocksOnOperator(agent: Agent): boolean {
   const kind = attentionFor(agent, null)?.kind
@@ -106,35 +118,62 @@ const vaultNotes = computed(() => graphStatus.value === 'ready' || graphStatus.v
 const plan = computed(() => planSectors(vaultNotes.value.map(n => n.path), liveProjects.value))
 const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
 
+// What lies under the stage centre, read off the camera rather than tracked separately: a fly or a
+// drag moves the breadcrumb for free. Hidden inside the core (nothing to name yet) and at level 0
+// (the map itself is the category view already).
+const breadcrumb = computed(() => {
+  if (level.value === 0)
+    return null
+  const [wx, wy] = centreWorld()
+  if (Math.hypot(wx, wy) < R0)
+    return null
+  const deg = Math.atan2(wy, wx) * 180 / Math.PI
+  const category = sectorAt(plan.value.sectors, deg)
+  if (!category)
+    return null
+  if (category.key === OTHER_SECTOR_KEY)
+    return category.label
+  const leaf = sectorAt(plan.value.leaves.filter(l => l.parent === category.key), deg)
+  return leaf?.label ? `${category.label} › ${leaf.label}` : category.label
+})
+
 // A note the sector plan does not place is drawn nowhere: off stage, so the canvas skips it and it
 // cannot be hit. A gap in the brain, rather than a TypeError inside a render function.
 const OFF_MAP: [number, number] = [Number.NaN, Number.NaN]
 
 const brain = computed(() => {
-  const { sectors, sectorOfNote } = plan.value
-  const slotOf = new Map<string | undefined, { sector: Sector, colour: number }>(sectors.map(sector => [sector.key, { sector, colour: sectorColour(sector.key) }]))
+  const { leaves, sectorOfNote } = plan.value
+  const slotOf = new Map<string | undefined, { leaf: Leaf, colour: number }>(leaves.map(leaf => [leaf.key, { leaf, colour: leafColour(leaf) }]))
   const now = Date.now()
   const slots = vaultNotes.value.map(n => slotOf.get(sectorOfNote.get(n.path)))
   return {
     points: vaultNotes.value.map((n, i) => {
       const slot = slots[i]
-      return slot ? notePoint(n.path, slot.sector, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
+      return slot ? notePoint(n.path, slot.leaf, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
     }),
     colours: slots.map(s => s?.colour ?? 0),
+    noteLeaf: slots.map(s => s?.leaf.key ?? ''),
     links: vaultNotes.value.flatMap(n => n.links.map((to): [number, number] => [n.index, to])),
     hubNotes: hubNoteSet(vaultNotes.value, n => sectorOfNote.get(n.path) ?? ''),
   }
 })
+
+const hoveredNote = ref<number | null>(null)
 
 const cardNote = computed(() => {
   const card = openCard.value
   return card?.kind === 'note' ? vaultNotes.value.find(n => n.path === card.path) ?? null : null
 })
 
-// Empty when the plan has no sector for the note: a blank label beside it, not a throw.
+// Empty when the plan has no leaf for the note: a blank label beside it, not a throw. A project
+// leaf appends its own name to the category's, a loose leaf has none to add.
 function sectorLabel(path: string): string {
-  const { sectors, sectorOfNote } = plan.value
-  return sectors.find(s => s.key === sectorOfNote.get(path))?.label ?? ''
+  const { sectors, leaves, sectorOfNote } = plan.value
+  const leaf = leaves.find(l => l.key === sectorOfNote.get(path))
+  if (!leaf)
+    return ''
+  const category = sectors.find(s => s.key === leaf.parent)?.label ?? ''
+  return leaf.label ? `${category}/${leaf.label}` : category
 }
 
 const listNotes = computed(() => vaultNotes.value.length ? recentNotes(LIST_NOTE_COUNT).map(n => ({ ...n, sector: sectorLabel(n.path) })) : [])
@@ -169,7 +208,7 @@ function flyToNote(index: number, relTarget: number) {
 }
 
 function tapNote(sx: number, sy: number) {
-  const hit = hitNote(brain.value.points, cam.value, sx, sy)
+  const hit = hitNote(brain.value.points, cam.value, sx, sy, level.value, brain.value.hubNotes)
   if (hit < 0)
     return
   if (level.value === 0)
@@ -187,10 +226,10 @@ const ringOnScreenPx = computed(() => baseRingPx.value * rel.value)
 
 const placed = computed(() => {
   const k = k0.value
-  const { sectors, sectorOfProject } = plan.value
-  return sectors.flatMap((sector) => {
-    const members = live.value.filter(a => sectorOfProject.get(agentProjectKey(a)) === sector.key)
-    const angles = agentAngles(members.length, sector)
+  const { leaves, sectorOfProject } = plan.value
+  return leaves.flatMap((leaf) => {
+    const members = live.value.filter(a => sectorOfProject.get(agentProjectKey(a)) === leaf.key)
+    const angles = agentAngles(members.length, leaf)
     return members.map((agent, i) => {
       const needsOperator = blocksOnOperator(agent)
       const ring = agentSectorRingPx(ringPx.value, i, members.length, stagePx.value)
@@ -204,6 +243,8 @@ const placed = computed(() => {
 // legend and the launchers must clear the outermost tier in use, not the base ring.
 const outerRingBasePx = computed(() => Math.max(baseRingPx.value, ...placed.value.map(p => Math.hypot(p.x, p.y) * k0.value)))
 const sectorNameRadius = computed(() => sectorLabelRadius(k0.value, outerRingBasePx.value))
+// Zoomed in, the rim the category names sit on is off stage; project names ride just inside the stage edge.
+const leafNameRadius = computed(() => Math.min(sectorNameRadius.value, stagePx.value * LEAF_NAME_STAGE_SHARE / cam.value.k))
 const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
@@ -227,6 +268,11 @@ const drawnAgents = computed(() => new Set(placedScreen.value
 const EDGE_CLOCK_MS = 30_000
 // Edges fade and expire on this clock too: an idle agent sends no SSE tick to redraw them.
 const edgeNow = useNow({ interval: EDGE_CLOCK_MS })
+// Minute-scale clock is plenty for a health lens; edgeNow's 30s tick already covers it.
+const lensNotes = computed(() => lens.value ? notesInLens(vaultNotes.value, lens.value, edgeNow.value.getTime()) : null)
+const lensCounts = computed(() => vaultNotes.value.length
+  ? Object.fromEntries(HEALTH_LENSES.map(l => [l, notesInLens(vaultNotes.value, l, edgeNow.value.getTime()).size])) as Record<typeof HEALTH_LENSES[number], number>
+  : null)
 const notesByPath = computed(() => new Map(vaultNotes.value.map(n => [n.path, n])))
 const edges = computed(() => liveEdges(placed.value, drawnAgents.value, notesByPath.value, edgeNow.value.getTime()))
 const listAgents = computed(() => placed.value.map(p => ({ ...p, notes: agentNoteRows(p.agent, notesByPath.value, edgeNow.value.getTime()) })))
@@ -245,17 +291,129 @@ const labelSizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 // (own dot excluded, or a label could never sit next to its own agent) and, when they are actually
 // drawn (HubOrbit.vue only shows them below level 2 and with showSectorNames), every sector name —
 // the map's legend, which never yields to an agent label.
-// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies.
+// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies. A wide
+// sector's midpoint can sit behind the docked rail while most of its arc is free, so the angle
+// slides along the arc (sectorNameAngle) instead of hiding the name outright.
 const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
   ? []
   : plan.value.sectors.map((sector) => {
-      const [wx, wy] = polar(sectorNameRadius.value, sectorMid(sector))
-      const [sx, sy] = toScreen(cam.value, wx, wy)
-      return { key: sector.key, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight))) }
+      const boxAt = (deg: number) => {
+        const [wx, wy] = polar(sectorNameRadius.value, deg)
+        const [sx, sy] = toScreen(cam.value, wx, wy)
+        return sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight)))
+      }
+      const found = sectorNameAngle(sector, deg => !coveredByRail(boxAt(deg)))
+      const deg = found ?? sectorMid(sector)
+      return { key: sector.key, deg, found: found !== null, box: boxAt(deg) }
     }))
 
-// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well.
-const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !coveredByRail(s.box)).map(s => s.key)))
+// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well — only
+// once no angle along its arc clears the rail at all.
+const namedSectors = computed(() => new Set(sectorNames.value.filter(s => s.found).map(s => s.key)))
+const sectorNameAngles = computed(() => new Map(sectorNames.value.map(s => [s.key, s.deg])))
+
+// Project leaf labels join the legend from level 1 (HubOrbit gates the same way).
+const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
+  ? []
+  : labelledLeaves(plan.value.leaves).map((leaf) => {
+      const [wx, wy] = polar(leafNameRadius.value, sectorMid(leaf))
+      const [sx, sy] = toScreen(cam.value, wx, wy)
+      return { key: leaf.key, weight: leaf.weight, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }
+    }))
+
+const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
+// The project-name legend a hub note title must yield to (HubBrainCanvas' drawLabels).
+const legendBoxes = computed(() => leafNames.value.filter(l => namedLeaves.value.has(l.key)).map(l => ({ box: l.box })))
+
+function categoryOf(leaf: Leaf, byKey: ReadonlyMap<string, Sector>): Sector {
+  return byKey.get(leaf.parent) ?? leaf
+}
+
+// Single source for the level 0/1 link arcs: aggregated and routed here, ending at the same names
+// HubOrbit draws (sectorNameAngles / leafNameRadius); HubBrainCanvas only maps and strokes them.
+const linkArcs = computed(() => {
+  if (level.value === 2)
+    return []
+  const sectors = new Map(plan.value.sectors.map(s => [s.key, s]))
+  const leaves = new Map(plan.value.leaves.map(l => [l.key, l]))
+  if (level.value === 0) {
+    const groupOf = (i: number) => leaves.get(brain.value.noteLeaf[i])?.parent ?? ''
+    return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
+      const sa = sectors.get(a)
+      const sb = sectors.get(b)
+      if (!sa || !sb)
+        return []
+      const from = polar(sectorNameRadius.value, sectorNameAngles.value.get(a) ?? sectorMid(sa))
+      const to = polar(sectorNameRadius.value, sectorNameAngles.value.get(b) ?? sectorMid(sb))
+      const points = bundlePoints(from, to, { fromLeaf: sa, toLeaf: sb, fromCategory: sa, toCategory: sb })
+      return [{ a, b, count, points, line: sampleBundle(points) }]
+    })
+  }
+  const groupOf = (i: number) => brain.value.noteLeaf[i] ?? ''
+  return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
+    const la = leaves.get(a)
+    const lb = leaves.get(b)
+    if (!la || !lb)
+      return []
+    const from = polar(leafNameRadius.value, sectorMid(la))
+    const to = polar(leafNameRadius.value, sectorMid(lb))
+    const points = bundlePoints(from, to, { fromLeaf: la, toLeaf: lb, fromCategory: categoryOf(la, sectors), toCategory: categoryOf(lb, sectors) })
+    return [{ a, b, count, points, line: sampleBundle(points) }]
+  })
+})
+
+// Level 0 keys are category keys; level 1 keys are leaf keys, where an empty label marks the
+// category's loose leaf (key `category/`) and OTHER_SECTOR_KEY already carries the label 'Other'.
+function arcNodeLabel(key: string): string {
+  if (level.value === 0)
+    return plan.value.sectors.find(s => s.key === key)?.label ?? key
+  const leaf = plan.value.leaves.find(l => l.key === key)
+  if (!leaf)
+    return key
+  if (leaf.label)
+    return leaf.label
+  const category = plan.value.sectors.find(s => s.key === leaf.parent)?.label ?? ''
+  return `${category} (loose)`
+}
+
+const ARC_HOVER_TOLERANCE_PX = 6
+const hoveredArc = ref<{ a: string, b: string, count: number, sx: number, sy: number } | null>(null)
+useEventListener(stage, 'pointermove', (e: PointerEvent) => {
+  const rect = stage.value?.getBoundingClientRect()
+  if (!rect) {
+    hoveredNote.value = null
+    hoveredArc.value = null
+    return
+  }
+  const sx = e.clientX - rect.left
+  const sy = e.clientY - rect.top
+  const hit = hitNote(brain.value.points, cam.value, sx, sy, level.value, brain.value.hubNotes)
+  hoveredNote.value = hit >= 0 ? hit : null
+  if (hit >= 0) {
+    hoveredArc.value = null
+    return
+  }
+  const screenArcs = linkArcs.value.map(arc => ({ ...arc, line: arc.line.map(([x, y]) => toScreen(cam.value, x, y)) }))
+  const arc = nearestArc(screenArcs, [sx, sy], ARC_HOVER_TOLERANCE_PX)
+  hoveredArc.value = arc ? { a: arc.a, b: arc.b, count: arc.count, sx, sy } : null
+})
+useEventListener(stage, 'pointerleave', () => {
+  hoveredNote.value = null
+  hoveredArc.value = null
+})
+
+const hoveredArcKey = computed(() => {
+  const arc = hoveredArc.value
+  return arc ? `${arc.a}\u0000${arc.b}` : null
+})
+
+const arcTooltip = computed(() => {
+  const arc = hoveredArc.value
+  if (!arc)
+    return null
+  const text = `${arcNodeLabel(arc.a)} ↔ ${arcNodeLabel(arc.b)} · ${arc.count} ${arc.count === 1 ? 'link' : 'links'}`
+  return { text, x: arc.sx, y: arc.sy }
+})
 
 const labels = computed(() => {
   const sizes = labelSizes.value
@@ -268,7 +426,8 @@ const labels = computed(() => {
     priority: agentPriority(p.needsOperator, p.state === 'working'),
   }))
   const dotObstacles = drawn.map(({ p, screen: [sx, sy] }) => ({ box: agentDotBox(sx, sy), ownerIndex: p.agent.pid }))
-  const obstacles = [...dotObstacles, ...sectorNames.value]
+  const edges = [...offStageObstacles(size.value.width, size.value.height), ...launcherBoxes.value.map(box => ({ box }))]
+  const obstacles = [...dotObstacles, ...edges, ...sectorNames.value, ...leafNames.value.filter(l => namedLeaves.value.has(l.key))]
   const directions = new Map(candidates.map((c, i) => [
     c.index,
     agentLabelDirection(c, sizes.get(c.text), inwardUnit(drawn[i].p.x, drawn[i].p.y), obstacles),
@@ -330,6 +489,10 @@ function toggleList() {
   listOpen.value = !listOpen.value
 }
 
+function toggleLegend() {
+  legendOpen.value = !legendOpen.value
+}
+
 // Pre-flush: the closing layer is still in the DOM here, so this is the last chance to see whether it held focus.
 let closingLayerHadFocus = false
 watch([listOpen, openCard], () => {
@@ -345,7 +508,11 @@ watch([listOpen, openCard], () => {
 }, { flush: 'post' })
 
 function escape() {
-  if (openCard.value)
+  if (legendOpen.value)
+    legendOpen.value = false
+  else if (lens.value)
+    lens.value = null
+  else if (openCard.value)
     closeCard()
   else if (listOpen.value)
     toggleList()
@@ -374,6 +541,7 @@ const KEY_ACTIONS: Record<string, () => void> = {
   'F': toggleWide,
   'l': toggleList,
   'L': toggleList,
+  '?': toggleLegend,
 }
 
 // Shift stays allowed: '+' needs it on most layouts.
@@ -472,6 +640,15 @@ watch(hubFocusRequest, (target) => {
             fill-opacity="0.035"
             :style="{ fill: `var(--sector-${sectorColour(sector.key)})` }"
           />
+          <template v-if="level >= 1">
+            <path
+              v-for="leaf in plan.leaves"
+              :key="leaf.key"
+              :d="wedgePath(leaf.start, leaf.end)"
+              fill-opacity="0.09"
+              :style="{ fill: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+            />
+          </template>
           <circle
             v-for="ring in RINGS"
             :key="ring.label"
@@ -494,10 +671,19 @@ watch(hubFocusRequest, (target) => {
         :edges="edges"
         :hub-notes="brain.hubNotes"
         :selected="cardNote?.index ?? null"
+        :legend-boxes="legendBoxes"
+        :sectors="plan.sectors"
+        :leaves="plan.leaves"
+        :note-leaf="brain.noteLeaf"
+        :hovered-note="hoveredNote"
+        :link-arcs="linkArcs"
+        :hovered-arc-key="hoveredArcKey"
+        :highlighted="lensNotes"
       />
       <HubOrbit
         :cam="cam"
         :sectors="plan.sectors"
+        :leaves="plan.leaves"
         :agents="placed"
         :level="level"
         :running="running"
@@ -507,10 +693,13 @@ watch(hubFocusRequest, (target) => {
         :core-disabled="!!kontorBlock"
         :agent-ring-px="ringOnScreenPx"
         :sector-name-radius="sectorNameRadius"
+        :leaf-name-radius="leafNameRadius"
         :show-sector-names="showSectorNames"
         :labelled-agents="labels.kept"
         :label-directions="labels.directions"
         :named-sectors="namedSectors"
+        :sector-name-angles="sectorNameAngles"
+        :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
         @core="openKontor"
         @agent="flyToAgent"
@@ -518,6 +707,23 @@ watch(hubFocusRequest, (target) => {
         @measure="sizes => labelSizes = sizes"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
+      <div class="absolute bottom-12 left-2.5 z-[2] flex items-end gap-1.5">
+        <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
+        <div v-if="lensCounts" class="flex items-center gap-1.5" data-testid="hub-lenses">
+          <button
+            v-for="l in HEALTH_LENSES"
+            :key="l"
+            type="button"
+            :data-testid="`hub-lens-${l}`"
+            :aria-pressed="lens === l"
+            :title="LENS_TITLE[l]"
+            class="h-[30px] cursor-pointer rounded-full border border-line-strong bg-card px-2 text-[11px] text-fg-mute hover:border-accent aria-pressed:border-accent aria-pressed:text-accent"
+            @click="toggle(l)"
+          >
+            {{ LENS_LABEL[l] }} {{ lensCounts[l] }}
+          </button>
+        </div>
+      </div>
       <HubControls
         :level="level"
         :wide="wide === HUB_WIDGET"
@@ -535,8 +741,25 @@ watch(hubFocusRequest, (target) => {
         :agents="placed"
         @fly="(x, y) => flyTo(x, y, Math.max(rel, MINIMAP_FLY_MIN_REL))"
       />
+      <div
+        v-if="arcTooltip"
+        role="tooltip"
+        data-testid="hub-arc-tooltip"
+        class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-card px-2 py-1 text-[11px] text-fg shadow-card-hover"
+        :style="{ left: `${arcTooltip.x}px`, top: `${arcTooltip.y - 8}px` }"
+      >
+        {{ arcTooltip.text }}
+      </div>
     </div>
     <div class="pointer-events-none absolute left-1/2 top-2.5 z-10 flex max-h-[45%] w-[min(560px,calc(100%-120px))] -translate-x-1/2 flex-col items-start gap-1.5">
+      <span
+        v-if="breadcrumb"
+        data-testid="hub-breadcrumb"
+        aria-live="polite"
+        class="rounded-full border border-line bg-card/95 px-2.5 py-1 text-[11px] text-fg-mute shadow"
+      >
+        {{ breadcrumb }}
+      </span>
       <NeedsYouQueue
         variant="docked"
         data-hub-layer

@@ -235,15 +235,19 @@ type graphVault struct {
 	mu     sync.Mutex
 	calls  []string
 	mtimes string
+	types  string
 }
 
 func newGraphVault(t *testing.T, searchStatus int) *graphVault {
 	t.Helper()
-	v := &graphVault{mtimes: `[{"filename":"root/b.md","result":1700000000000},{"filename":"root/a.md","result":1700000001000},{"filename":"other/x.md","result":1},{"filename":"root/pic.png","result":5}]`}
+	v := &graphVault{
+		mtimes: `[{"filename":"root/b.md","result":1700000000000},{"filename":"root/a.md","result":1700000001000},{"filename":"other/x.md","result":1},{"filename":"root/pic.png","result":5}]`,
+		types:  `[]`,
+	}
 	v.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		v.mu.Lock()
 		v.calls = append(v.calls, r.Method+" "+r.URL.Path)
-		mtimes := v.mtimes
+		mtimes, types := v.mtimes, v.types
 		v.mu.Unlock()
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/search/":
@@ -257,6 +261,8 @@ func newGraphVault(t *testing.T, searchStatus int) *graphVault {
 				_, _ = w.Write([]byte(mtimes))
 			case `{"var":"links"}`:
 				_, _ = w.Write([]byte(`[{"filename":"root/a.md","result":["root/b.md","other/x.md","root/missing.md","root/a.md"]},{"filename":"other/x.md","result":["root/a.md"]}]`))
+			case `{"var":"frontmatter.type"}`:
+				_, _ = w.Write([]byte(types))
 			default:
 				w.WriteHeader(http.StatusBadRequest)
 			}
@@ -280,6 +286,12 @@ func (v *graphVault) setMtimes(answer string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.mtimes = answer
+}
+
+func (v *graphVault) setTypes(answer string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.types = answer
 }
 
 func opened(requests []string) []string {
@@ -346,7 +358,24 @@ func TestGraph_ServesTheConfinedGraphAndCachesIt(t *testing.T) {
 
 	second := serve(h, http.MethodGet, "/api/obsidian/graph", "")
 	require.Equal(t, http.StatusOK, second.Code)
-	assert.Len(t, vault.requests(), 2, "a second request within 60 s is served from the cache")
+	assert.Len(t, vault.requests(), 3, "a second request within 60 s is served from the cache")
+}
+
+// TestGraph_NoteWithFrontmatterTypeGetsAThreeTupleOthersStayTwo pins the
+// backwards-compatible payload shape: a note with a non-empty frontmatter
+// type is a 3-tuple, every other note stays the plain [path, mtimeMs] pair.
+func TestGraph_NoteWithFrontmatterTypeGetsAThreeTupleOthersStayTwo(t *testing.T) {
+	mem, gate, spaceID := testDeps(t)
+	grantCapability(t, gate.Grants, repo.CapabilityMemoryRead)
+	vault := newGraphVault(t, http.StatusOK)
+	vault.setTypes(`[{"filename":"root/a.md","result":"person"},{"filename":"root/b.md","result":42}]`)
+	h := apiobsidian.NewHandler(obsidianapp.NewClientHolder(newTestClient(t, vault.Server)), mem, gate, spaceID)
+
+	rec := serve(h, http.MethodGet, "/api/obsidian/graph", "")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t,
+		`{"configured":true,"notes":[["a.md",1700000001000,"person"],["b.md",1700000000000]],"links":[[0,1]]}`,
+		rec.Body.String(), "b.md's non-string type must not drop it from the graph, just leave it a 2-tuple")
 }
 
 func TestOpen_OpensOnlyNotesTheGraphLists(t *testing.T) {
@@ -406,7 +435,7 @@ func TestOpen_RefusesANoteDeletedSinceTheCachedGraph(t *testing.T) {
 	graph := serve(h, http.MethodGet, "/api/obsidian/graph", "")
 	assert.JSONEq(t, `{"configured":true,"notes":[["b.md",1700000000000]],"links":[]}`, graph.Body.String(),
 		"the graph open built is the one the next graph request serves")
-	assert.Len(t, vault.requests(), 4)
+	assert.Len(t, vault.requests(), 6)
 }
 
 func TestOpen_RefusesABodyOver4KiB(t *testing.T) {
