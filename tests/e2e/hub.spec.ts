@@ -19,10 +19,9 @@ function fakeGraph(): GraphResponse {
   return { configured: true, notes, links }
 }
 
-const AGENT_COUNT = 9
+const AGENT_COUNT = 24
 
-// A crowd in one project: enough labels to force a cull, and enough dots to land some of them under
-// the sector names the legend draws just outside the agent ring.
+// A crowd on one project's rim: its slots sit closer together than a label is wide, so the cull must hide some.
 function fakeAgents() {
   return Array.from({ length: AGENT_COUNT }, (_, i) => ({
     pid: 6000 + i,
