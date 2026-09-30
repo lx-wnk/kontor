@@ -28,11 +28,6 @@ const props = defineProps<{
   leaves: ReadonlyArray<Leaf>
   noteLeaf: ReadonlyArray<string>
   hoveredNote: number | null
-  // Aggregated category (level 0) or leaf (level 1) links, routed and sampled once in HubWidget so
-  // the canvas only maps world→screen and strokes; empty at level 2.
-  linkArcs: ReadonlyArray<{ a: string, b: string, count: number, points: readonly Point[], line: readonly Point[] }>
-  // Identity of the arc under the pointer (HubWidget's hoveredArc, as `${a}\u0000${b}`), or null when none.
-  hoveredArcKey?: string | null
   // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
   // note title must yield to, since the project names are the map's legend.
   legendBoxes?: ReadonlyArray<LabelObstacle>
@@ -42,17 +37,12 @@ const props = defineProps<{
 
 const LINK_WIDTH_PX = 0.7
 const LINK_THIN_WIDTH_PX = 0.4
-const LINK_AGG_BASE_PX = 0.8
-const LINK_AGG_STEP_PX = 0.25
-const LINK_AGG_MAX_PX = 5
-const LINK_AGG_ALPHA = 0.6
 const LINK_CROSS_ALPHA = 0.6
 const LINK_INTRA_ALPHA = 0.18
-// Level 1 only: individual know-how links within one leaf, visibly lighter than the leaf's own arc.
+// Level 1 only: individual know-how links within one leaf.
 const LINK_KNOWHOW_ALPHA = 0.35
 const LINK_HOVER_ALPHA = 0.95
 const LINK_HOVER_WIDTH_SCALE = 2
-const ARC_HOVER_WIDTH_SCALE = 1.6
 const LINK_DIM_ALPHA = 0.06
 const EDGE_WIDTH_PX = 1.2
 const EDGE_DASH: Record<NoteTouchKind, number[]> = { read: [4, 3], write: [1, 3] }
@@ -107,22 +97,6 @@ function strokeBundle(ctx: CanvasRenderingContext2D, from: Point, to: Point, rou
   ctx.stroke()
 }
 
-// Level 0/1: one arc per (category, category) or (leaf, leaf) pair, already routed and sampled by
-// HubWidget; width grows with the count of links it represents. An arc carries no note info, so a
-// lens dims every arc alike rather than checking individual ends.
-function drawArcs(ctx: CanvasRenderingContext2D, accent: string) {
-  const lensDim = !!props.highlighted
-  for (const { a, b, count, points } of props.linkArcs) {
-    const isHovered = props.hoveredArcKey != null && props.hoveredArcKey === `${a}\u0000${b}`
-    ctx.globalAlpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : LINK_AGG_ALPHA
-    ctx.strokeStyle = accent
-    ctx.lineWidth = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX) * (isHovered ? ARC_HOVER_WIDTH_SCALE : 1)
-    ctx.beginPath()
-    traceBundle(ctx, points.map(([x, y]) => toScreen(props.cam, x, y)))
-    ctx.stroke()
-  }
-}
-
 // Level 1 only: individual bundled links within one leaf where at least one end is not a session
 // (isKnowHowLink) — session-to-session links inside a leaf stay hidden.
 function drawKnowHowLinks(ctx: CanvasRenderingContext2D, token: (name: string) => string) {
@@ -166,12 +140,10 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
 }
 
 function drawLinks({ ctx, onStage, token }: Scene) {
-  const accent = token('--accent')
   if (props.level === 2) {
-    drawIndividualLinks(ctx, accent, token('--line-strong'), onStage)
+    drawIndividualLinks(ctx, token('--accent'), token('--line-strong'), onStage)
     return
   }
-  drawArcs(ctx, accent)
   if (props.level === 1)
     drawKnowHowLinks(ctx, token)
 }

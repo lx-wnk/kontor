@@ -1125,22 +1125,4 @@ describe('hubWidget', () => {
     expect(hubFocusRequest.value).toBeNull()
     w.unmount()
   })
-
-  it('names the two categories and the link count in a tooltip on hovering their link arc, and hides it on pointerleave', async () => {
-    graph.status.value = 'ready'
-    graph.notes.value = [{ ...vaultNote(0, 'alpha/one.md'), links: [1] }, { ...vaultNote(1, 'beta/two.md'), backlinks: [0] }]
-    const w = await mountHub()
-    const [arc] = w.getComponent(HubBrainCanvas).props('linkArcs')
-    const [wx, wy] = arc.line[Math.floor(arc.line.length / 2)]
-    const [tx, ty, k] = camera(w)
-    const stage = w.get('[data-testid="hub-stage"]').element
-    stage.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, clientX: wx * k + tx, clientY: wy * k + ty }))
-    await flushPromises()
-    expect(w.get('[data-testid="hub-arc-tooltip"]').text()).toBe('alpha ↔ beta · 1 link')
-
-    stage.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true, pointerId: 1 }))
-    await flushPromises()
-    expect(w.find('[data-testid="hub-arc-tooltip"]').exists()).toBe(false)
-    w.unmount()
-  })
 })

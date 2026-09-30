@@ -63,7 +63,6 @@ function mountBrain(props: Partial<InstanceType<typeof HubBrainCanvas>['$props']
       leaves: [],
       noteLeaf: ['', '', ''],
       hoveredNote: null,
-      linkArcs: [],
       ...props,
     },
   })
@@ -243,19 +242,6 @@ describe('hubBrainCanvas', () => {
     expect(named('stroke').some(c => c.state.strokeStyle === 'tok(--sector-1)')).toBe(true)
   })
 
-  it('strokes one path per arc at level 0/1, width growing with count', async () => {
-    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
-    mountBrain({
-      linkArcs: [
-        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
-      ],
-    })
-    await nextFrame()
-    const accentStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
-    expect(accentStrokes).toHaveLength(1)
-    expect(accentStrokes[0].state.lineWidth).toBeCloseTo(1.3)
-  })
-
   it('at level 1, an intra-leaf know-how link draws but a session-to-session link stays hidden', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
     const notes = [
@@ -274,19 +260,6 @@ describe('hubBrainCanvas', () => {
     await nextFrame()
     const knowHowStrokes = named('stroke').filter(c => c.state.globalAlpha === 0.35)
     expect(knowHowStrokes).toHaveLength(1)
-  })
-
-  it('ignores linkArcs at the notes level', async () => {
-    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
-    mountBrain({
-      level: 2,
-      linkArcs: [
-        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
-      ],
-    })
-    await nextFrame()
-    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)' && Number(c.state.lineWidth) === 1.3)
-    expect(arcStrokes).toHaveLength(0)
   })
 
   it('dims non-highlighted notes and haloes a highlighted one, even at the overview level', async () => {
@@ -328,21 +301,6 @@ describe('hubBrainCanvas', () => {
     const linkStrokes = named('stroke').slice(0, 3)
     expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.95, 0.06])
     expect(Number(linkStrokes[0].state.lineWidth)).toBeGreaterThan(Number(linkStrokes[2].state.lineWidth))
-  })
-
-  it('emphasises the hovered arc over another arc', async () => {
-    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
-    mountBrain({
-      linkArcs: [
-        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
-        { a: 'c', b: 'd', count: 2, points: [[-50, 100], [50, 100]], line: [[-50, 100], [50, 100]] },
-      ],
-      hoveredArcKey: 'a\u0000b',
-    })
-    await nextFrame()
-    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
-    expect(arcStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.6])
-    expect(Number(arcStrokes[0].state.lineWidth)).toBeGreaterThan(Number(arcStrokes[1].state.lineWidth))
   })
 
   it('at level 2, a lens dims a link between non-highlighted notes but not one touching a highlighted note', async () => {

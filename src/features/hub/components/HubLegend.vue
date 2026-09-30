@@ -13,7 +13,6 @@ const ROWS: readonly LegendRow[] = [
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`, text: 'Session log' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="currentColor"/><circle cx="7" cy="7" r="1.8" fill="var(--app)"/></svg>`, text: 'Other kind (folder or frontmatter type)' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1"/></svg>`, text: 'Distance from centre = age: today, week, month, year' },
-  { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><path d="M1,10 Q7,2 13,10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`, text: 'Links between categories/projects (thickness = count, hover for names)' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><path d="M1,10 Q7,2 13,10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`, text: 'Know-how links inside a project', minLevel: 1 },
 ]
 

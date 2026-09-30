@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { AgentProject, Leaf, Sector } from '../hubGeometry'
+import type { AgentProject, Leaf } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
@@ -29,7 +29,6 @@ import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, label
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
-import { aggregateLinks, bundlePoints, nearestArc, sampleBundle } from '../hubLinks'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
@@ -325,94 +324,19 @@ const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
 // The project-name legend a hub note title must yield to (HubBrainCanvas' drawLabels).
 const legendBoxes = computed(() => leafNames.value.filter(l => namedLeaves.value.has(l.key)).map(l => ({ box: l.box })))
 
-function categoryOf(leaf: Leaf, byKey: ReadonlyMap<string, Sector>): Sector {
-  return byKey.get(leaf.parent) ?? leaf
-}
-
-// Single source for the level 0/1 link arcs: aggregated and routed here, ending at the same names
-// HubOrbit draws (sectorNameAngles / leafNameRadius); HubBrainCanvas only maps and strokes them.
-const linkArcs = computed(() => {
-  if (level.value === 2)
-    return []
-  const sectors = new Map(plan.value.sectors.map(s => [s.key, s]))
-  const leaves = new Map(plan.value.leaves.map(l => [l.key, l]))
-  if (level.value === 0) {
-    const groupOf = (i: number) => leaves.get(brain.value.noteLeaf[i])?.parent ?? ''
-    return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
-      const sa = sectors.get(a)
-      const sb = sectors.get(b)
-      if (!sa || !sb)
-        return []
-      const from = polar(sectorNameRadius.value, sectorNameAngles.value.get(a) ?? sectorMid(sa))
-      const to = polar(sectorNameRadius.value, sectorNameAngles.value.get(b) ?? sectorMid(sb))
-      const points = bundlePoints(from, to, { fromLeaf: sa, toLeaf: sb, fromCategory: sa, toCategory: sb })
-      return [{ a, b, count, points, line: sampleBundle(points) }]
-    })
-  }
-  const groupOf = (i: number) => brain.value.noteLeaf[i] ?? ''
-  return aggregateLinks(brain.value.links, groupOf).flatMap(({ a, b, count }) => {
-    const la = leaves.get(a)
-    const lb = leaves.get(b)
-    if (!la || !lb)
-      return []
-    const from = polar(leafNameRadius.value, sectorMid(la))
-    const to = polar(leafNameRadius.value, sectorMid(lb))
-    const points = bundlePoints(from, to, { fromLeaf: la, toLeaf: lb, fromCategory: categoryOf(la, sectors), toCategory: categoryOf(lb, sectors) })
-    return [{ a, b, count, points, line: sampleBundle(points) }]
-  })
-})
-
-// Level 0 keys are category keys; level 1 keys are leaf keys, where an empty label marks the
-// category's loose leaf (key `category/`) and OTHER_SECTOR_KEY already carries the label 'Other'.
-function arcNodeLabel(key: string): string {
-  if (level.value === 0)
-    return plan.value.sectors.find(s => s.key === key)?.label ?? key
-  const leaf = plan.value.leaves.find(l => l.key === key)
-  if (!leaf)
-    return key
-  if (leaf.label)
-    return leaf.label
-  const category = plan.value.sectors.find(s => s.key === leaf.parent)?.label ?? ''
-  return `${category} (loose)`
-}
-
-const ARC_HOVER_TOLERANCE_PX = 6
-const hoveredArc = ref<{ a: string, b: string, count: number, sx: number, sy: number } | null>(null)
 useEventListener(stage, 'pointermove', (e: PointerEvent) => {
   const rect = stage.value?.getBoundingClientRect()
   if (!rect) {
     hoveredNote.value = null
-    hoveredArc.value = null
     return
   }
   const sx = e.clientX - rect.left
   const sy = e.clientY - rect.top
   const hit = hitNote(brain.value.points, cam.value, sx, sy, level.value, brain.value.hubNotes)
   hoveredNote.value = hit >= 0 ? hit : null
-  if (hit >= 0) {
-    hoveredArc.value = null
-    return
-  }
-  const screenArcs = linkArcs.value.map(arc => ({ ...arc, line: arc.line.map(([x, y]) => toScreen(cam.value, x, y)) }))
-  const arc = nearestArc(screenArcs, [sx, sy], ARC_HOVER_TOLERANCE_PX)
-  hoveredArc.value = arc ? { a: arc.a, b: arc.b, count: arc.count, sx, sy } : null
 })
 useEventListener(stage, 'pointerleave', () => {
   hoveredNote.value = null
-  hoveredArc.value = null
-})
-
-const hoveredArcKey = computed(() => {
-  const arc = hoveredArc.value
-  return arc ? `${arc.a}\u0000${arc.b}` : null
-})
-
-const arcTooltip = computed(() => {
-  const arc = hoveredArc.value
-  if (!arc)
-    return null
-  const text = `${arcNodeLabel(arc.a)} ↔ ${arcNodeLabel(arc.b)} · ${arc.count} ${arc.count === 1 ? 'link' : 'links'}`
-  return { text, x: arc.sx, y: arc.sy }
 })
 
 const labels = computed(() => {
@@ -676,8 +600,6 @@ watch(hubFocusRequest, (target) => {
         :leaves="plan.leaves"
         :note-leaf="brain.noteLeaf"
         :hovered-note="hoveredNote"
-        :link-arcs="linkArcs"
-        :hovered-arc-key="hoveredArcKey"
         :highlighted="lensNotes"
       />
       <HubOrbit
@@ -741,15 +663,6 @@ watch(hubFocusRequest, (target) => {
         :agents="placed"
         @fly="(x, y) => flyTo(x, y, Math.max(rel, MINIMAP_FLY_MIN_REL))"
       />
-      <div
-        v-if="arcTooltip"
-        role="tooltip"
-        data-testid="hub-arc-tooltip"
-        class="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-card px-2 py-1 text-[11px] text-fg shadow-card-hover"
-        :style="{ left: `${arcTooltip.x}px`, top: `${arcTooltip.y - 8}px` }"
-      >
-        {{ arcTooltip.text }}
-      </div>
     </div>
     <div class="pointer-events-none absolute left-1/2 top-2.5 z-10 flex max-h-[45%] w-[min(560px,calc(100%-120px))] -translate-x-1/2 flex-col items-start gap-1.5">
       <span
