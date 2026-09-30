@@ -438,15 +438,19 @@ const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
 const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !s.covered).map(s => s.key)))
 const sectorPoints = computed(() => new Map(sectorNames.value.map(s => [s.key, s.point])))
 
-// Project leaf labels join the legend from level 1 (HubOrbit gates the same way), each at its own
-// project circle's centre.
+// A project circle's centre is where its own note dots and rings sit, so its name moves up into the
+// circle's top band to clear them — unless the circle draws too small on screen for that band to hold
+// the name at all, where it falls back to dead centre like a barely-there dot would.
+const LEAF_LABEL_MIN_SCREEN_R_PX = 20
+
+// Project leaf labels join the legend from level 1 (HubOrbit gates the same way).
 const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
   ? []
   : labelledLeaves(plan.value.leaves).flatMap((leaf) => {
       const c = packed.value.projects.get(leaf.key)
       if (!c)
         return []
-      const point: [number, number] = [c.x, c.y]
+      const point: [number, number] = c.r * cam.value.k >= LEAF_LABEL_MIN_SCREEN_R_PX ? [c.x, c.y - c.r * 0.72] : [c.x, c.y]
       const [sx, sy] = toScreen(cam.value, ...point)
       return [{ key: leaf.key, weight: leaf.weight, point, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }]
     }))
