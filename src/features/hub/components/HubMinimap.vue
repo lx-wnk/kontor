@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { Camera } from '../hubCamera'
-import type { Sector } from '../hubGeometry'
+import type { Circle } from '../hubPack'
 import type { Agent } from '@/types'
 import type { AgentDisplayStatus, ChipTone } from '@/utils/statusColors'
 import { computed } from 'vue'
 import { agentStatusTone } from '@/utils/statusColors'
-import { MINIMAP_HALF, sectorColour, wedgePath } from '../hubGeometry'
+import { MINIMAP_HALF, sectorColour } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
   size: { width: number, height: number }
-  sectors: Sector[]
+  categories: ReadonlyMap<string, Circle>
   agents: ReadonlyArray<{ agent: Agent, x: number, y: number, state: AgentDisplayStatus }>
 }>()
 
@@ -50,12 +50,15 @@ function onClick(e: MouseEvent) {
     class="absolute bottom-2.5 right-2.5 z-[2] size-[108px] cursor-crosshair rounded-lg border border-line-strong bg-card/90"
     @click="onClick"
   >
-    <path
-      v-for="sector in sectors"
-      :key="sector.key"
-      :d="wedgePath(sector.start, sector.end)"
-      fill-opacity="0.12"
-      :style="{ fill: `var(--sector-${sectorColour(sector.key)})` }"
+    <circle
+      v-for="[key, c] in categories"
+      :key="key"
+      :data-testid="`hub-category-${key}`"
+      :cx="c.x"
+      :cy="c.y"
+      :r="c.r"
+      fill-opacity="0.18"
+      :style="{ fill: `var(--sector-${sectorColour(key)})` }"
     />
     <circle v-for="{ agent, x, y, state } in agents" :key="agent.pid" :cx="x" :cy="y" :r="AGENT_DOT_R" :class="fillClass(state)" />
     <rect v-bind="viewport" stroke-width="6" class="fill-accent/10 stroke-accent" />

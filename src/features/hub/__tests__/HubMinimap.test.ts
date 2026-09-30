@@ -1,10 +1,10 @@
+import type { Circle } from '../hubPack'
 import type { Agent } from '@/types'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import HubMinimap from '../components/HubMinimap.vue'
-import { buildSectors } from '../hubGeometry'
 
-const sectors = buildSectors([{ key: 'a', label: 'a', weight: 1 }, { key: 'b', label: 'b', weight: 1 }])
+const categories = new Map<string, Circle>([['a', { x: -100, y: 0, r: 80 }], ['b', { x: 100, y: 0, r: 80 }]])
 
 function placed(pid: number, x: number) {
   return { agent: { pid } as Agent, x, y: 0, state: 'waiting' as const }
@@ -12,7 +12,7 @@ function placed(pid: number, x: number) {
 
 function mountMap(cam = { k: 2, tx: 100, ty: 50 }) {
   return mount(HubMinimap, {
-    props: { cam, size: { width: 400, height: 300 }, sectors, agents: [placed(1, 90)] },
+    props: { cam, size: { width: 400, height: 300 }, categories, agents: [placed(1, 90)] },
   })
 }
 
@@ -22,14 +22,15 @@ function viewport(w: ReturnType<typeof mountMap>) {
 }
 
 describe('hubMinimap', () => {
-  it('draws one wedge per sector and one dot per agent in the overview map', () => {
+  it('draws one circle per category and one dot per agent in the overview map', () => {
     const w = mountMap()
     expect(w.get('svg').attributes('aria-label')).toBe('Overview map')
     expect(w.get('svg').attributes('aria-hidden')).toBe('true')
     expect(w.get('svg').attributes('viewBox')).toBe('-540 -540 1080 1080')
     expect(w.get('svg').attributes('data-hub-layer')).toBeDefined()
-    expect(w.findAll('path')).toHaveLength(2)
-    expect(w.findAll('circle')).toHaveLength(1)
+    expect(w.findAll('path')).toHaveLength(0)
+    expect(w.findAll('[data-testid^="hub-category-"]')).toHaveLength(2)
+    expect(w.findAll('circle')).toHaveLength(3)
   })
 
   // Keyed by pid, an exiting agent takes its own circle with it; keyed by index, Vue would patch the
@@ -37,11 +38,12 @@ describe('hubMinimap', () => {
   // the moment a circle carries a transition.
   it('keeps a surviving agent on its own circle when another exits', async () => {
     const w = mount(HubMinimap, {
-      props: { cam: { k: 2, tx: 100, ty: 50 }, size: { width: 400, height: 300 }, sectors, agents: [placed(1, 10), placed(2, 90)] },
+      props: { cam: { k: 2, tx: 100, ty: 50 }, size: { width: 400, height: 300 }, categories, agents: [placed(1, 10), placed(2, 90)] },
     })
-    const survivor = w.findAll('circle')[1].element
+    const agentDots = () => w.findAll('circle').filter(c => !c.attributes('data-testid'))
+    const survivor = agentDots()[1].element
     await w.setProps({ agents: [placed(2, 90)] })
-    expect(w.get('circle').element).toBe(survivor)
+    expect(agentDots()[0].element).toBe(survivor)
   })
 
   it('frames the part of the world the camera shows and follows the camera', async () => {

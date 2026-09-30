@@ -1,11 +1,9 @@
 import type { HubNote } from './composables/useObsidianGraph'
 import type { Camera, HubLevel } from './hubCamera'
-import type { Sector } from './hubGeometry'
 import type { AgentDisplayStatus } from '@/utils/statusColors'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { statusLabel } from '@/utils/statusColors'
 import { toScreen } from './hubCamera'
-import { sectorMid } from './hubGeometry'
 
 export interface LabelCandidate { index: number, sx: number, sy: number, text: string, priority: number }
 
@@ -152,25 +150,6 @@ export function sectorLabelBox(sx: number, sy: number, size: LabelSize = UNMEASU
   return { x: sx - size.w / 2, y: sy - size.h / 2, w: size.w, h: size.h }
 }
 
-// Nearest to the midpoint first, alternating sides, never past the sector's own margins.
-export function sectorNameAngle(sector: Sector, fits: (deg: number) => boolean, stepDeg = 4): number | null {
-  const width = sector.end - sector.start
-  const margin = Math.min(stepDeg, width / 4)
-  const min = sector.start + margin
-  const max = sector.end - margin
-  const mid = sectorMid(sector)
-  for (let offset = 0; ; offset += stepDeg) {
-    const candidates = offset === 0 ? [mid] : [mid - offset, mid + offset]
-    const inRange = candidates.filter(deg => deg >= min && deg <= max)
-    if (inRange.length === 0)
-      return null
-    for (const deg of inRange) {
-      if (fits(deg))
-        return deg
-    }
-  }
-}
-
 // needs-the-operator outranks working, which outranks everything else (Ruling R23).
 export function agentPriority(needsOperator: boolean, working: boolean): number {
   return (needsOperator ? 2 : 0) + (working ? 1 : 0)
@@ -212,6 +191,15 @@ export function hitNote(points: ReadonlyArray<[number, number]>, cam: Camera, sx
     }
   })
   return topmost >= 0 ? topmost : nearest
+}
+
+// Notes are placed by containment now, not by distance from the centre, so age fades a note's
+// alpha instead. Linear on sqrt(age/365): most of the fade happens in the first weeks, then it eases.
+export const AGE_ALPHA_FLOOR = 0.35
+
+export function ageAlpha(ageDays: number): number {
+  const t = Math.sqrt(Math.min(Math.max(ageDays, 0), 365) / 365)
+  return 1 - t * (1 - AGE_ALPHA_FLOOR)
 }
 
 export function isToday(mtimeMs: number, nowMs: number): boolean {

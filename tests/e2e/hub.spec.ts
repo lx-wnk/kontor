@@ -7,11 +7,12 @@ const NOTE_COUNT = 300
 const LINK_COUNT = 30
 const TWO_YEARS_MS = 2 * 365 * 24 * 60 * 60 * 1000
 
-// 300 notes across 3 folders with mtimes spread over two years, so freshness rings and the notes level have data to draw.
+// 300 notes across 3 categories, each holding a `crowd` project folder the agents match, with mtimes
+// spread over two years so the fade by age and the notes level have data to draw.
 function fakeGraph(): GraphResponse {
   const now = Date.now()
   const notes: GraphResponse['notes'] = Array.from({ length: NOTE_COUNT }, (_, i) => [
-    `${FOLDERS[i % FOLDERS.length]}/note-${i}.md`,
+    `${FOLDERS[i % FOLDERS.length]}/crowd/note-${i}.md`,
     now - Math.round((i / NOTE_COUNT) * TWO_YEARS_MS),
   ])
   const links: GraphResponse['links'] = Array.from({ length: LINK_COUNT }, (_, i) => [i, (i + 7) % NOTE_COUNT])
@@ -27,7 +28,7 @@ function fakeAgents() {
     pid: 6000 + i,
     sessionId: `sess-${i}`,
     provider: 'claude',
-    projectName: 'Work',
+    projectName: 'crowd',
     projectPath: '/repo/work',
     cwd: '/repo/work',
     status: i % 3 === 0 ? 'active' : 'idle',
@@ -175,8 +176,8 @@ test('L lists the notes an agent touched under that agent, and only notes on the
   const agents = [{
     ...fakeAgents()[0],
     recentNotes: [
-      { path: 'Work/note-0.md', kind: 'read', at },
-      { path: 'Private/note-1.md', kind: 'write', at },
+      { path: 'Work/crowd/note-0.md', kind: 'read', at },
+      { path: 'Private/crowd/note-1.md', kind: 'write', at },
       { path: 'Elsewhere/unknown.md', kind: 'read', at },
     ],
   }]

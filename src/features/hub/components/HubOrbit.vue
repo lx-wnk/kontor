@@ -9,7 +9,7 @@ import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { toScreen } from '../hubCamera'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { labelledLeaves, leafColour, leafShade, polar, radiusForAge, sectorColour, sectorMid, shadeMix, visibleRingLabels } from '../hubGeometry'
+import { labelledLeaves, leafColour, leafShade, sectorColour, shadeMix } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
@@ -24,20 +24,16 @@ const props = defineProps<{
   needsYou: number
   coreTitle: string
   coreDisabled: boolean
-  agentRingPx: number
-  // World radius the caller placed the legend on; it clears the outermost agent tier, which the
-  // base ring above does not, and the culler judges the sector-name boxes at this same radius.
-  sectorNameRadius: number
-  // World radius for project names; omitted puts them on the sector-name rim.
-  leafNameRadius?: number
+  // World point (top of its category circle) each sector's name sits at; a sector packHub gave no
+  // circle (Other) is left out of the map and draws no button.
+  sectorPoints: ReadonlyMap<string, [number, number]>
+  // World point (its project circle's centre) each leaf's name sits at; omitted or missing draws none.
+  leafPoints?: ReadonlyMap<string, [number, number]>
   showSectorNames: boolean
   // Omitted shows every label (used by callers that don't cull, e.g. tests); the dot is never gated.
   labelledAgents?: ReadonlySet<number>
   // Sector keys whose name is drawable; omitted draws them all.
   namedSectors?: ReadonlySet<string>
-  // The angle HubWidget slid a sector's name to, clear of the docked rail; a sector missing here
-  // (or the whole map omitted, e.g. tests) draws its name on the arc's plain midpoint.
-  sectorNameAngles?: ReadonlyMap<string, number>
   // Leaf keys whose name is drawable; omitted draws them all.
   namedLeaves?: ReadonlySet<string>
   // Pids whose dot is reachable; omitted draws them all. One the docked rail covers is left
@@ -45,17 +41,25 @@ const props = defineProps<{
   drawnAgents?: ReadonlySet<number>
   // The direction the culler placed each label in; omitted hangs every label toward the core.
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
+  // The world point and count of the Other agents folded into one badge instead of drawn
+  // individually; null or omitted draws no badge.
+  otherBadge?: { x: number, y: number, count: number } | null
 }>()
 
-const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>] }>()
-
-const RING_LABEL_DEG = -128
+const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>], other: [] }>()
 
 const root = ref<HTMLElement | null>(null)
-const ringLabels = computed(() => visibleRingLabels(props.cam.k, props.agentRingPx))
 const sectorNamesShown = computed(() => props.level < 2 && props.showSectorNames)
 const leafNamesShown = computed(() => props.level === 1 && props.showSectorNames)
-const projectLeaves = computed(() => labelledLeaves(props.leaves ?? []))
+// A sector or leaf missing its point (packHub gave it no circle) draws no name.
+const namedSectorList = computed(() => props.sectors.flatMap((sector) => {
+  const point = props.sectorPoints.get(sector.key)
+  return point ? [{ sector, point }] : []
+}))
+const projectLeafList = computed(() => labelledLeaves(props.leaves ?? []).flatMap((leaf) => {
+  const point = props.leafPoints?.get(leaf.key)
+  return point ? [{ leaf, point }] : []
+}))
 
 // Label sizes come from the DOM, never from a character count: an estimate has twice placed labels
 // over what they must clear. A size depends on the text and the font only — the camera scales
@@ -65,8 +69,8 @@ const sizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 // Joined, so a camera tick — which hands us new objects for the same labels — is not a change.
 const labelKeys = computed(() => [
   ...props.agents.map(a => agentLabelKey(a.agent.projectName, a.state)),
-  ...(sectorNamesShown.value ? props.sectors.map(s => sectorLabelKey(s.label, s.weight)) : []),
-  ...(leafNamesShown.value ? projectLeaves.value.map(l => sectorLabelKey(l.label, l.weight)) : []),
+  ...(sectorNamesShown.value ? namedSectorList.value.map(({ sector }) => sectorLabelKey(sector.label, sector.weight)) : []),
+  ...(leafNamesShown.value ? projectLeafList.value.map(({ leaf }) => sectorLabelKey(leaf.label, leaf.weight)) : []),
 ].join('\n'))
 
 function measure() {
@@ -107,10 +111,6 @@ function dotClass(state: AgentDisplayStatus): string {
 function at(x: number, y: number) {
   const [sx, sy] = toScreen(props.cam, x, y)
   return { transform: `translate(${sx}px, ${sy}px)` }
-}
-
-function atPolar(radius: number, deg: number) {
-  return at(...polar(radius, deg))
 }
 
 function showsLabel(pid: number): boolean {
@@ -158,14 +158,14 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
 
     <template v-if="sectorNamesShown">
       <button
-        v-for="(sector, i) in sectors"
+        v-for="({ sector, point }, i) in namedSectorList"
         :key="sector.key"
         type="button"
         :data-testid="`hub-sector-${i}`"
         :data-label-key="sectorLabelKey(sector.label, sector.weight)"
         class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-widest hover:bg-fg/5"
         :class="[level === 1 && 'opacity-55', !showsSectorName(sector.key) && 'invisible']"
-        :style="{ ...atPolar(sectorNameRadius, sectorNameAngles?.get(sector.key) ?? sectorMid(sector)), color: `var(--sector-${sectorColour(sector.key)})` }"
+        :style="{ ...at(...point), color: `var(--sector-${sectorColour(sector.key)})` }"
         @click="$emit('sector', sector)"
       >
         {{ sector.label }}<small class="ml-1 font-normal normal-case tracking-normal text-fg-mute">{{ sector.weight }}</small>
@@ -173,24 +173,27 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
     </template>
     <template v-if="leafNamesShown">
       <span
-        v-for="(leaf, i) in projectLeaves"
+        v-for="({ leaf, point }, i) in projectLeafList"
         :key="leaf.key"
         :data-testid="`hub-leaf-${i}`"
         :data-label-key="sectorLabelKey(leaf.label, leaf.weight)"
         class="-translate-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[9.5px] font-medium"
         :class="!showsLeafName(leaf.key) && 'invisible'"
-        :style="{ ...atPolar(leafNameRadius ?? sectorNameRadius, sectorMid(leaf)), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+        :style="{ ...at(...point), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
       >{{ leaf.label }}</span>
     </template>
-    <template v-if="level < 2">
-      <span
-        v-for="ring in ringLabels"
-        :key="ring.label"
-        data-testid="hub-ring-label"
-        class="-translate-1/2 text-[9px] text-fg-faint"
-        :style="atPolar(radiusForAge(ring.days), RING_LABEL_DEG)"
-      >{{ ring.label }}</span>
-    </template>
+
+    <button
+      v-if="otherBadge"
+      type="button"
+      data-testid="hub-other-badge"
+      :aria-label="`${otherBadge.count} agents without a vault folder — open the list`"
+      class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded-full border border-line-strong bg-card px-2 py-0.5 text-[10.5px] font-semibold text-fg-mute hover:border-accent"
+      :style="at(otherBadge.x, otherBadge.y)"
+      @click="$emit('other')"
+    >
+      +{{ otherBadge.count }} other
+    </button>
 
     <!-- After the sector names, so the agent layer paints and takes pointer events above the legend. -->
     <button

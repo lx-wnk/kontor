@@ -31,7 +31,6 @@ import {
   SECTOR_LABEL_AGENT_CLEARANCE_PX,
   SECTOR_LABEL_RADIUS,
   SECTOR_PALETTE_SIZE,
-  sectorAt,
   sectorColour,
   sectorFloorDeg,
   sectorLabelRadius,
@@ -361,32 +360,6 @@ describe('visibleRingLabels', () => {
     for (let i = 1; i < drawn.length; i++) expect(drawn[i] - drawn[i - 1]).toBeGreaterThanOrEqual(16)
     expect(drawn.length).toBeLessThan(RINGS.length)
     expect(drawn[0]).toBe(px('today', k))
-  })
-})
-
-describe('sectorAt', () => {
-  const sectors = buildSectors([
-    { key: 'a', label: 'A', weight: 1 },
-    { key: 'b', label: 'B', weight: 1 },
-  ])
-
-  it('finds the sector containing an angle', () => {
-    expect(sectorAt(sectors, sectors[0].start + 1)?.key).toBe('a')
-    expect(sectorAt(sectors, sectors[1].start + 1)?.key).toBe('b')
-  })
-
-  it('includes the start boundary and excludes the end boundary', () => {
-    expect(sectorAt(sectors, sectors[0].start)?.key).toBe('a')
-    expect(sectorAt(sectors, sectors[0].end)?.key).toBe('b')
-  })
-
-  it('wraps an angle past the plan range back to its start', () => {
-    expect(sectorAt(sectors, 280)?.key).toBe(sectorAt(sectors, -80)?.key)
-    expect(sectorAt(sectors, 270)?.key).toBe(sectorAt(sectors, -90)?.key)
-  })
-
-  it('returns null for an empty list', () => {
-    expect(sectorAt([], 0)).toBeNull()
   })
 })
 

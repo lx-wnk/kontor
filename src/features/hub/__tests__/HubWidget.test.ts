@@ -14,7 +14,8 @@ import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
-import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, notePoint, planSectors, sectorMid } from '../hubGeometry'
+import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, planSectors, sectorMid } from '../hubGeometry'
+import { packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
 const NOTE_AGE_DAYS = 30
@@ -190,21 +191,42 @@ function vaultFolders(): HubNote[] {
   return Array.from({ length: 6 }, (_, folder) => Array.from({ length: 20 }, (_, i) => vaultNote(folder * 20 + i, `folder${folder}/n${i}.md`))).flat()
 }
 
+// working: true throughout, so none of them lands in the Other badge (none matches a vault folder) —
+// the fixture tests the label culler on a crowded sector, not the badge fold.
 function vaultAgents(): Agent[] {
   return VAULT_PIDS.map((pid, i) => ({
     pid,
     status: i % 3 === 0 ? 'active' : 'idle',
     projectName: i < 7 ? 'folder2' : `folder${i - 7 + (i - 7 >= 2 ? 1 : 0)}`,
-    working: i % 3 === 0,
+    working: true,
   })) as unknown as Agent[]
+}
+
+// Mirrors HubWidget's own notesByLeaf + packHub wiring, so a test can assert against the same
+// packed positions the component computes.
+function packedFor(paths: string[], projects: Array<{ key: string, label: string }>) {
+  const { sectors, leaves, sectorOfNote } = planSectors(paths, projects)
+  const byLeaf = new Map<string, string[]>()
+  for (const path of paths) {
+    const leafKey = sectorOfNote.get(path)
+    if (!leafKey)
+      continue
+    const list = byLeaf.get(leafKey)
+    if (list)
+      list.push(path)
+    else byLeaf.set(leafKey, [path])
+  }
+  return packHub(sectors, leaves, byLeaf)
 }
 
 // Five agents in one note folder: three radial tiers in use, the middle one exactly on the sector's
 // mid angle — where its name is drawn.
 const TIERED_PIDS = Array.from({ length: 5 }, (_, i) => 700 + i)
 
+// working: true, so none of them lands in the Other badge (none matches a vault folder) — the
+// fixture tests tiering and rail docking, not the badge fold.
 function tieredAgents(): Agent[] {
-  return TIERED_PIDS.map(pid => ({ pid, status: 'idle', projectName: 'folder2', working: false })) as unknown as Agent[]
+  return TIERED_PIDS.map(pid => ({ pid, status: 'idle', projectName: 'folder2', working: true })) as unknown as Agent[]
 }
 
 // The core sits at the world origin, so its rendered point is the centre every radius is read from.
@@ -304,11 +326,12 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  // An agent on a project that is no vault folder inserts `__other__`, which sorts first.
-  it('keeps every sector its colour when a catch-all sector appears before it', async () => {
+  // An agent on a project that is no vault folder inserts `__other__`, which packHub never gives a
+  // circle (it has no notes) — so it draws no disc and leaves the coloured ones as they were.
+  it('keeps every category its colour when a catch-all sector appears before it', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'misc/proj/one.md'), vaultNote(1, 'private/two.md'), vaultNote(2, 'work/three.md')]
-    const colours = (w: Hub) => w.findAll('svg')[0].findAll('path').map(p => p.attributes('style'))
+    const colours = (w: Hub) => w.findAll('svg')[0].findAll('[data-testid^="hub-category-"]').map(p => p.attributes('style'))
 
     agents.value = [{ pid: 200, status: 'idle', projectName: 'proj', working: false }] as unknown as Agent[]
     const vaultOnly = await mountHub(TILE)
@@ -319,9 +342,48 @@ describe('hubWidget', () => {
 
     agents.value = [...agents.value, { pid: 201, status: 'idle', projectName: 'kontor', working: false }] as unknown as Agent[]
     const withOther = await mountHub(TILE)
-    expect(colours(withOther)).toHaveLength(4)
-    expect(colours(withOther).slice(1)).toEqual(before)
+    expect(colours(withOther)).toEqual(before)
     withOther.unmount()
+  })
+
+  it('draws no other-badge when no agent lands in Other', async () => {
+    const w = await mountHub()
+    expect(w.find('[data-testid="hub-other-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('folds idle agents without a vault folder into one badge instead of a chain of dots', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: 'idle', projectName: `no-folder-${i}`, working: false })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.get('[data-testid="hub-other-badge"]').text()).toBe('+5 other')
+    for (const pid of [500, 501, 502, 503, 504])
+      expect(agentButton(w, pid).classes(), `agent ${pid}`).toContain('invisible')
+    w.unmount()
+  })
+
+  it('keeps a working Other agent as its own dot while the rest fold into the badge', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: i === 0 ? 'active' : 'idle', projectName: `no-folder-${i}`, working: i === 0 })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.get('[data-testid="hub-other-badge"]').text()).toBe('+4 other')
+    expect(agentButton(w, 500).classes()).not.toContain('invisible')
+    for (const pid of [501, 502, 503, 504])
+      expect(agentButton(w, pid).classes(), `agent ${pid}`).toContain('invisible')
+    w.unmount()
+  })
+
+  it('opens the list view when the other-badge is clicked', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: 'idle', projectName: `no-folder-${i}`, working: false })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.find(LIST).exists()).toBe(false)
+    await w.get('[data-testid="hub-other-badge"]').trigger('click')
+    expect(w.find(LIST).exists()).toBe(true)
+    w.unmount()
   })
 
   it('keeps a minimum height while tiles stack in one column, and fills its tile from md up', async () => {
@@ -595,15 +657,41 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  it('shows no breadcrumb at level 0 and the category/project under the stage centre from level 1', async () => {
+  it('shows no breadcrumb at level 0 and the category/project under the stage centre above it', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/kontor-hub/note.md')]
     const w = await mountHub()
     expect(w.find('[data-testid="hub-breadcrumb"]').exists()).toBe(false)
-    await w.get('[data-testid="hub-agent-101"]').trigger('click')
-    expect(w.get('[data-testid="hub-stage"]').attributes('data-level')).toBe('1')
+    hubFocusRequest.value = { kind: 'note', path: 'alpha/kontor-hub/note.md' }
+    await flushPromises()
+    expect(w.get('[data-testid="hub-stage"]').attributes('data-level')).not.toBe('0')
     expect(w.get('[data-testid="hub-breadcrumb"]').text()).toBe('alpha › kontor-hub')
     w.unmount()
+  })
+
+  it('names the project circle under the stage centre, and nothing between the category circles', async () => {
+    const paths = ['work/alpha/one.md', 'work/alpha/two.md', 'work/beta/three.md', 'work/gamma/four.md', 'private/delta/five.md']
+    graph.status.value = 'ready'
+    graph.notes.value = paths.map((path, i) => vaultNote(i, path))
+    agents.value = []
+    const packed = packedFor(paths, [])
+    const { leaves } = planSectors(paths, [])
+    const breadcrumbAt = async (wx: number, wy: number) => {
+      lastHubView.value = { wx, wy, rel: 2.4 }
+      const w = await mountHub()
+      const crumb = w.find('[data-testid="hub-breadcrumb"]')
+      const text = crumb.exists() ? crumb.text() : null
+      w.unmount()
+      return text
+    }
+    for (const leaf of leaves) {
+      const { x, y } = packed.projects.get(leaf.key)!
+      expect(await breadcrumbAt(x, y)).toBe(`${leaf.parent} › ${leaf.label}`)
+    }
+    const work = packed.categories.get('work')!
+    const outward = Math.hypot(work.x, work.y)
+    const gap = (work.r + 5) / outward + 1
+    expect(await breadcrumbAt(work.x * gap, work.y * gap)).toBeNull()
   })
 
   it('offers every other view and a new page as launchers, and fires the slot a digit names', async () => {
@@ -934,13 +1022,47 @@ describe('hubWidget', () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
     const w = await mountHub()
-    const { leaves, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n })))
-    const [x, y] = notePoint('alpha/one.md', leaves.find(l => l.key === sectorOfNote.get('alpha/one.md'))!, NOTE_AGE_DAYS)
+    const projects = ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n }))
+    const [x, y] = packedFor(['alpha/one.md', 'beta/two.md'], projects).notes.get('alpha/one.md')!
     const stage = w.get('[data-testid="hub-stage"]').element
     for (const type of ['pointerdown', 'pointerup'])
       stage.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: 545 + x, clientY: 565 + y }))
     await flushPromises()
     expect(scale(w)).toBeCloseTo(2.6)
+    w.unmount()
+  })
+
+  it('draws a vault note at its packed position, not the age-based point', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
+    agents.value = []
+    const w = await mountHub()
+    const packed = packedFor(['alpha/one.md', 'beta/two.md'], [])
+    const points = w.getComponent(HubBrainCanvas).props('points') as Array<[number, number]>
+    expect(points[0]).toEqual(packed.notes.get('alpha/one.md'))
+    expect(points[1]).toEqual(packed.notes.get('beta/two.md'))
+    w.unmount()
+  })
+
+  it('packs notes of the same project inside that project\'s circle', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/babyone/two.md'), vaultNote(2, 'private/x.md')]
+    agents.value = []
+    const w = await mountHub()
+    const paths = graph.notes.value.map(n => n.path)
+    const packed = packedFor(paths, [])
+    const { leaves, sectorOfNote } = planSectors(paths, [])
+    const leafKey = sectorOfNote.get('work/babyone/one.md')!
+    const project = packed.projects.get(leafKey)!
+    expect(leaves.find(l => l.key === leafKey)?.label).toBe('babyone')
+
+    const points = w.getComponent(HubBrainCanvas).props('points') as Array<[number, number]>
+    for (const path of ['work/babyone/one.md', 'work/babyone/two.md']) {
+      const [x, y] = packed.notes.get(path)!
+      expect(Math.hypot(x - project.x, y - project.y)).toBeLessThanOrEqual(project.r)
+      const index = graph.notes.value.findIndex(n => n.path === path)
+      expect(points[index]).toEqual([x, y])
+    }
     w.unmount()
   })
 
@@ -1123,24 +1245,6 @@ describe('hubWidget', () => {
     expect(w.get('[role="dialog"][aria-label="alpha/one.md"]')).toBeTruthy()
     expect(scale(w) / fitScale(1090, 1130)).toBeCloseTo(5)
     expect(hubFocusRequest.value).toBeNull()
-    w.unmount()
-  })
-
-  it('names the two categories and the link count in a tooltip on hovering their link arc, and hides it on pointerleave', async () => {
-    graph.status.value = 'ready'
-    graph.notes.value = [{ ...vaultNote(0, 'alpha/one.md'), links: [1] }, { ...vaultNote(1, 'beta/two.md'), backlinks: [0] }]
-    const w = await mountHub()
-    const [arc] = w.getComponent(HubBrainCanvas).props('linkArcs')
-    const [wx, wy] = arc.line[Math.floor(arc.line.length / 2)]
-    const [tx, ty, k] = camera(w)
-    const stage = w.get('[data-testid="hub-stage"]').element
-    stage.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, clientX: wx * k + tx, clientY: wy * k + ty }))
-    await flushPromises()
-    expect(w.get('[data-testid="hub-arc-tooltip"]').text()).toBe('alpha ↔ beta · 1 link')
-
-    stage.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true, pointerId: 1 }))
-    await flushPromises()
-    expect(w.find('[data-testid="hub-arc-tooltip"]').exists()).toBe(false)
     w.unmount()
   })
 })

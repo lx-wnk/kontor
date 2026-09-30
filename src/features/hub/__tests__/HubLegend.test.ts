@@ -24,6 +24,15 @@ describe('hubLegend', () => {
     expect(region.text()).toContain('Session log')
   })
 
+  it('shows age as fading and containment as circles, not the old distance-from-centre row', () => {
+    const w = mount(HubLegend, { props: { open: true, level: 0 } })
+    const text = w.get('[data-testid="hub-legend"]').text()
+    expect(text).toContain('Fainter = older (untouched for longer)')
+    expect(text).toContain('Circles = category › project; colour = category, shade = project')
+    expect(text).not.toContain('Distance from centre = age')
+    expect(text).not.toContain('Colour = category, shade = project')
+  })
+
   it('hides the know-how link row at level 0 and shows it at level 1', () => {
     const collapsed = mount(HubLegend, { props: { open: true, level: 0 } })
     expect(collapsed.get('[data-testid="hub-legend"]').text()).not.toContain('Know-how links inside a project')

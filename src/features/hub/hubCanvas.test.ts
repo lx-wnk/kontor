@@ -1,15 +1,27 @@
 import type { HubNote } from './composables/useObsidianGraph'
 import type { LabelCandidate } from './hubCanvas'
-import type { Sector } from './hubGeometry'
 import { describe, expect, it } from 'vitest'
 import { labelSize } from './__tests__/labelMeasurement'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from './hubCanvas'
+import { AGE_ALPHA_FLOOR, ageAlpha, agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, offStageObstacles, sectorLabelBox, sectorLabelKey } from './hubCanvas'
 import { polar } from './hubGeometry'
-
-const sector = (start: number, end: number): Sector => ({ key: 'work', label: 'Work', weight: 1, start, end })
 
 const measured = (c: LabelCandidate) => agentLabelBox(c, labelSize(c.text))
 const measuredNote = (c: LabelCandidate) => noteLabelBox(c, labelSize(c.text).w)
+
+describe('ageAlpha', () => {
+  it('is 1 at 0 days and the floor from 365 days on', () => {
+    expect(ageAlpha(0)).toBe(1)
+    expect(ageAlpha(365)).toBeCloseTo(AGE_ALPHA_FLOOR)
+    expect(ageAlpha(1000)).toBeCloseTo(AGE_ALPHA_FLOOR)
+  })
+
+  it('is monotone: never fades back in as age grows', () => {
+    const ages = [0, 1, 7, 30, 90, 180, 365, 500]
+    const alphas = ages.map(ageAlpha)
+    for (let i = 1; i < alphas.length; i++)
+      expect(alphas[i]).toBeLessThanOrEqual(alphas[i - 1])
+  })
+})
 
 describe('notePriority', () => {
   it('orders hub > touched > fresh > links', () => {
@@ -336,29 +348,6 @@ describe('namesThatFit', () => {
   it('drops the lighter of two overlapping names and any blocked name', () => {
     const names = [{ key: 'small', weight: 1, box: box(5) }, { key: 'big', weight: 9, box: box(0) }, { key: 'apart', weight: 2, box: box(40) }, { key: 'railed', weight: 5, box: box(80) }]
     expect([...namesThatFit(names, b => b.x === 80)]).toEqual(['big', 'apart'])
-  })
-})
-
-describe('sectorNameAngle', () => {
-  it('keeps the plain midpoint when it fits', () => {
-    expect(sectorNameAngle(sector(0, 100), () => true)).toBe(50)
-  })
-
-  it('slides to the nearest angle along the arc that fits', () => {
-    expect(sectorNameAngle(sector(0, 100), deg => deg >= 58)).toBe(58)
-  })
-
-  it('tries the two equidistant candidates nearest-to-mid first, minus side first', () => {
-    expect(sectorNameAngle(sector(0, 100), deg => deg !== 50)).toBe(46)
-  })
-
-  it('returns null when nothing along the arc fits', () => {
-    expect(sectorNameAngle(sector(0, 100), () => false)).toBeNull()
-  })
-
-  it('never returns an angle inside its own margin, even one that would fit', () => {
-    // width 10 gives margin = min(4, 10/4) = 2.5, so only [2.5, 7.5] is in play; 1 fits but is outside it.
-    expect(sectorNameAngle(sector(0, 10), deg => deg < 2)).toBeNull()
   })
 })
 

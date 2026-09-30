@@ -34,8 +34,8 @@ interface Ring { x: number, y: number, inner: number, outer: number }
 
 // Highest alpha (0–255) among canvas pixels painted in the --accent colour, optionally only within a
 // ring around a stage point (CSS px). Links are the only accent strokes at the notes level: a plain
-// cross link is 0.7px at 0.6 alpha, a hovered one 1.4px at 0.95, so only the hovered state can fill
-// a pixel past ~230.
+// cross link is 0.7px at 0.6 alpha, a hovered one 1.4px at 0.95. A 1.4px stroke covers at least 70%
+// of some pixel even when it runs level with the pixel grid, so only the hovered state passes 0.6.
 function maxAccentAlpha(page: Page, ring?: Ring): Promise<number> {
   return page.evaluate((ring) => {
     const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="hub-stage"] canvas')!
@@ -84,14 +84,16 @@ test('hovering a note dot at the notes level highlights its cross-project link',
   const box = (await stage.boundingBox())!
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2
-  // Just outside the source note's own dot, halo and selection ring: only its link passes here.
-  const nearSource: Ring = { x: box.width / 2, y: box.height / 2, inner: 16, outer: 48 }
+  // Just outside the source note's own dot, halo and selection ring: only its link passes here. The
+  // link leaves along the note's title label, which is drawn over its first stretch, so the ring
+  // reaches well past the label.
+  const nearSource: Ring = { x: box.width / 2, y: box.height / 2, inner: 16, outer: 160 }
   await page.mouse.move(box.x + 4, box.y + box.height - 4)
   await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the source note\'s link leaves its dot' }).toBeGreaterThan(0)
-  expect(await maxAccentAlpha(page), 'unhovered links stay below the hover alpha').toBeLessThan(0.85 * 255)
+  expect(await maxAccentAlpha(page), 'unhovered links stay below the hover alpha').toBeLessThan(0.6 * 255)
 
   const onStage = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="hub-stage"]'), [cx, cy])
   expect(onStage, 'the centred note is not covered by an overlay').toBe(true)
   await page.mouse.move(cx, cy)
-  await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the hovered note\'s own link draws near alpha 0.95' }).toBeGreaterThan(0.9 * 255)
+  await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the hovered note\'s own link outshines any unhovered one' }).toBeGreaterThan(0.6 * 255)
 })
