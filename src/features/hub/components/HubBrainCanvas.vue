@@ -5,6 +5,7 @@ import type { LabelCandidate, LabelObstacle } from '../hubCanvas'
 import type { HubEdge } from '../hubEdges'
 import type { Leaf, Sector } from '../hubGeometry'
 import type { BundleRoute, Point } from '../hubLinks'
+import type { Circle } from '../hubPack'
 import type { NoteTouchKind } from '@/types'
 import { useMutationObserver } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -27,6 +28,10 @@ const props = defineProps<{
   sectors: ReadonlyArray<Sector>
   leaves: ReadonlyArray<Leaf>
   noteLeaf: ReadonlyArray<string>
+  // Project and category circle centres a linked note's leaf/category key resolves to, computed once
+  // in HubWidget from packHub. Missing entries (a leaf packHub skipped) fall back to the note's own point.
+  projectCircles?: ReadonlyMap<string, Circle>
+  categoryCircles?: ReadonlyMap<string, Circle>
   hoveredNote: number | null
   // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
   // note title must yield to, since the project names are the map's legend.
@@ -75,8 +80,8 @@ interface Scene {
 const canvas = ref<HTMLCanvasElement | null>(null)
 let frame: number | null = null
 
-const sectorByKey = computed(() => new Map(props.sectors.map(s => [s.key, s])))
 const leafByKey = computed(() => new Map(props.leaves.map(l => [l.key, l])))
+const EMPTY_CIRCLES: ReadonlyMap<string, Circle> = new Map()
 
 // moveTo opens a new sub-path, so circles batched into one path are not joined by lines.
 function addCircle(ctx: CanvasRenderingContext2D, [x, y]: [number, number], r: number) {
@@ -84,8 +89,14 @@ function addCircle(ctx: CanvasRenderingContext2D, [x, y]: [number, number], r: n
   ctx.arc(x, y, r, 0, FULL_CIRCLE)
 }
 
-function categoryOf(leaf: Leaf): Sector {
-  return sectorByKey.value.get(leaf.parent) ?? leaf
+function projectCentre(leafKey: string, fallback: Point): Point {
+  const c = (props.projectCircles ?? EMPTY_CIRCLES).get(leafKey)
+  return c ? [c.x, c.y] : fallback
+}
+
+function categoryCentre(leaf: Leaf, fallback: Point): Point {
+  const c = (props.categoryCircles ?? EMPTY_CIRCLES).get(leaf.parent)
+  return c ? [c.x, c.y] : fallback
 }
 
 function strokeBundle(ctx: CanvasRenderingContext2D, from: Point, to: Point, route: BundleRoute, width: number, alpha: number, colour: string) {
@@ -110,8 +121,12 @@ function drawKnowHowLinks(ctx: CanvasRenderingContext2D, token: (name: string) =
     if (!leaf)
       return
     const lensDim = !!props.highlighted && !props.highlighted.has(from) && !props.highlighted.has(to)
-    const route: BundleRoute = { fromLeaf: leaf, toLeaf: leaf, fromCategory: categoryOf(leaf), toCategory: categoryOf(leaf) }
-    strokeBundle(ctx, props.points[from], props.points[to], route, LINK_THIN_WIDTH_PX, lensDim ? LENS_DIM_ALPHA : LINK_KNOWHOW_ALPHA, noteColour(from, token))
+    const fromPoint = props.points[from]
+    const toPoint = props.points[to]
+    const project = projectCentre(leaf.key, fromPoint)
+    const category = categoryCentre(leaf, fromPoint)
+    const route: BundleRoute = { fromProject: project, toProject: project, fromCategory: category, toCategory: category, sameProject: true, sameCategory: true }
+    strokeBundle(ctx, fromPoint, toPoint, route, LINK_THIN_WIDTH_PX, lensDim ? LENS_DIM_ALPHA : LINK_KNOWHOW_ALPHA, noteColour(from, token))
   })
 }
 
@@ -127,15 +142,24 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
     const toLeaf = leafByKey.value.get(props.noteLeaf[to])
     if (!fromLeaf || !toLeaf)
       return
-    const crosses = fromLeaf.key !== toLeaf.key
+    const sameProject = fromLeaf.key === toLeaf.key
     const isHovered = hoveredLinks?.has(idx) ?? false
     const dimmed = hoveredLinks !== null && !isHovered
     const lensDim = !!props.highlighted && !props.highlighted.has(from) && !props.highlighted.has(to)
-    const alpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : dimmed ? LINK_DIM_ALPHA : crosses ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
-    const width = (crosses ? LINK_WIDTH_PX : LINK_THIN_WIDTH_PX) * (isHovered ? LINK_HOVER_WIDTH_SCALE : 1)
-    const colour = isHovered || crosses ? accent : lineStrong
-    const route: BundleRoute = { fromLeaf, toLeaf, fromCategory: categoryOf(fromLeaf), toCategory: categoryOf(toLeaf) }
-    strokeBundle(ctx, props.points[from], props.points[to], route, width, alpha, colour)
+    const alpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : dimmed ? LINK_DIM_ALPHA : !sameProject ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
+    const width = (!sameProject ? LINK_WIDTH_PX : LINK_THIN_WIDTH_PX) * (isHovered ? LINK_HOVER_WIDTH_SCALE : 1)
+    const colour = isHovered || !sameProject ? accent : lineStrong
+    const fromPoint = props.points[from]
+    const toPoint = props.points[to]
+    const route: BundleRoute = {
+      fromProject: projectCentre(fromLeaf.key, fromPoint),
+      toProject: projectCentre(toLeaf.key, toPoint),
+      fromCategory: categoryCentre(fromLeaf, fromPoint),
+      toCategory: categoryCentre(toLeaf, toPoint),
+      sameProject,
+      sameCategory: fromLeaf.parent === toLeaf.parent,
+    }
+    strokeBundle(ctx, fromPoint, toPoint, route, width, alpha, colour)
   })
 }
 

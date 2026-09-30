@@ -1,22 +1,18 @@
-import type { Sector } from './hubGeometry'
-import { polar, R0, R_MAX, sectorMid, SESSIONS_KIND } from './hubGeometry'
+import { SESSIONS_KIND } from './hubGeometry'
 
 export type Point = [number, number]
 
-// Anchor radii for hierarchical edge bundling (Holten 2006): links pull toward their shared
-// ancestor's radius before fanning back out to the note, so siblings' links visually merge.
-export const LINK_LEAF_ANCHOR_R = R0 + 0.3 * (R_MAX - R0)
-export const LINK_CATEGORY_ANCHOR_R = R0 + 0.12 * (R_MAX - R0)
 export const LINK_BUNDLE_BETA = 0.82
 
-export interface BundleRoute { fromLeaf: Sector, toLeaf: Sector, fromCategory: Sector, toCategory: Sector }
-
-function leafAnchor(sector: Sector): Point {
-  return polar(LINK_LEAF_ANCHOR_R, sectorMid(sector))
-}
-
-function categoryAnchor(sector: Sector): Point {
-  return polar(LINK_CATEGORY_ANCHOR_R, sectorMid(sector))
+// Anchor points for hierarchical edge bundling (Holten 2006): links pull toward the shared project
+// and category circle centres before fanning back out to the note, so siblings' links visually merge.
+export interface BundleRoute {
+  fromProject: Point
+  toProject: Point
+  fromCategory: Point
+  toCategory: Point
+  sameProject: boolean
+  sameCategory: boolean
 }
 
 function midpoint(p: Point, q: Point): Point {
@@ -24,16 +20,14 @@ function midpoint(p: Point, q: Point): Point {
 }
 
 export function bundlePoints(from: Point, to: Point, route: BundleRoute, beta = LINK_BUNDLE_BETA): Point[] {
-  const { fromLeaf, toLeaf, fromCategory, toCategory } = route
-  const leavesDiffer = fromLeaf.key !== toLeaf.key
-  const categoriesDiffer = fromCategory.key !== toCategory.key
-  const pts: Point[] = [from, leafAnchor(fromLeaf)]
-  if (categoriesDiffer)
-    pts.push(categoryAnchor(fromCategory), categoryAnchor(toCategory))
-  else if (leavesDiffer)
-    pts.push(categoryAnchor(fromCategory))
-  if (leavesDiffer)
-    pts.push(leafAnchor(toLeaf))
+  const { fromProject, toProject, fromCategory, toCategory, sameProject, sameCategory } = route
+  const pts: Point[] = [from, fromProject]
+  if (!sameCategory)
+    pts.push(fromCategory, toCategory)
+  else if (!sameProject)
+    pts.push(fromCategory)
+  if (!sameProject)
+    pts.push(toProject)
   pts.push(to)
 
   const last = pts.length - 1

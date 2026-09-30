@@ -29,6 +29,7 @@ import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, label
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
+import { packHub } from '../hubPack'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
@@ -140,6 +141,25 @@ const breadcrumb = computed(() => {
 // cannot be hit. A gap in the brain, rather than a TypeError inside a render function.
 const OFF_MAP: [number, number] = [Number.NaN, Number.NaN]
 
+// Leaf key → the paths placed in it, for packHub to lay out. A note packHub places (containment)
+// overrides today's age-based point; a note with no leaf (or one packHub skipped, e.g. Other) keeps it.
+const notesByLeaf = computed(() => {
+  const { sectorOfNote } = plan.value
+  const byLeaf = new Map<string, string[]>()
+  for (const n of vaultNotes.value) {
+    const leafKey = sectorOfNote.get(n.path)
+    if (!leafKey)
+      continue
+    const list = byLeaf.get(leafKey)
+    if (list)
+      list.push(n.path)
+    else byLeaf.set(leafKey, [n.path])
+  }
+  return byLeaf
+})
+
+const packed = computed(() => packHub(plan.value.sectors, plan.value.leaves, notesByLeaf.value))
+
 const brain = computed(() => {
   const { leaves, sectorOfNote } = plan.value
   const slotOf = new Map<string | undefined, { leaf: Leaf, colour: number }>(leaves.map(leaf => [leaf.key, { leaf, colour: leafColour(leaf) }]))
@@ -148,7 +168,9 @@ const brain = computed(() => {
   return {
     points: vaultNotes.value.map((n, i) => {
       const slot = slots[i]
-      return slot ? notePoint(n.path, slot.leaf, (now - n.mtimeMs) / DAY_MS) : OFF_MAP
+      if (!slot)
+        return OFF_MAP
+      return packed.value.notes.get(n.path) ?? notePoint(n.path, slot.leaf, (now - n.mtimeMs) / DAY_MS)
     }),
     colours: slots.map(s => s?.colour ?? 0),
     noteLeaf: slots.map(s => s?.leaf.key ?? ''),
@@ -599,6 +621,8 @@ watch(hubFocusRequest, (target) => {
         :sectors="plan.sectors"
         :leaves="plan.leaves"
         :note-leaf="brain.noteLeaf"
+        :project-circles="packed.projects"
+        :category-circles="packed.categories"
         :hovered-note="hoveredNote"
         :highlighted="lensNotes"
       />

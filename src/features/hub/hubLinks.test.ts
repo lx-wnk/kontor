@@ -1,45 +1,44 @@
-import type { Sector } from './hubGeometry'
-import type { Point } from './hubLinks'
+import type { BundleRoute, Point } from './hubLinks'
 import { describe, expect, it } from 'vitest'
-import { polar, sectorMid, SESSIONS_KIND } from './hubGeometry'
-import { bundlePoints, isKnowHowLink, LINK_CATEGORY_ANCHOR_R, LINK_LEAF_ANCHOR_R, linksOf, traceBundle } from './hubLinks'
-
-const catA: Sector = { key: 'catA', label: 'A', weight: 1, start: 0, end: 90 }
-const catB: Sector = { key: 'catB', label: 'B', weight: 1, start: 90, end: 180 }
-const leafA1: Sector = { key: 'catA/leaf1', label: 'leaf1', weight: 1, start: 0, end: 45 }
-const leafA2: Sector = { key: 'catA/leaf2', label: 'leaf2', weight: 1, start: 45, end: 90 }
-const leafB1: Sector = { key: 'catB/leaf1', label: 'leaf1', weight: 1, start: 90, end: 180 }
+import { SESSIONS_KIND } from './hubGeometry'
+import { bundlePoints, isKnowHowLink, linksOf, traceBundle } from './hubLinks'
 
 const from: Point = [10, 20]
 const to: Point = [30, 40]
+const fromProject: Point = [12, 22]
+const toProject: Point = [28, 38]
+const fromCategory: Point = [50, 60]
+const toCategory: Point = [70, 80]
 
 describe('bundlePoints', () => {
-  it('returns 3 points for a same-leaf link', () => {
-    const route = { fromLeaf: leafA1, toLeaf: leafA1, fromCategory: catA, toCategory: catA }
-    expect(bundlePoints(from, to, route)).toHaveLength(3)
-  })
-
-  it('returns 5 points for a same-category, different-leaf link', () => {
-    const route = { fromLeaf: leafA1, toLeaf: leafA2, fromCategory: catA, toCategory: catA }
-    expect(bundlePoints(from, to, route)).toHaveLength(5)
-  })
-
-  it('returns 6 points for a different-category link', () => {
-    const route = { fromLeaf: leafA1, toLeaf: leafB1, fromCategory: catA, toCategory: catB }
-    expect(bundlePoints(from, to, route)).toHaveLength(6)
-  })
-
-  it('keeps anchors exactly at their polar position when beta is 1', () => {
-    const route = { fromLeaf: leafA1, toLeaf: leafB1, fromCategory: catA, toCategory: catB }
+  it('returns 3 points through the project centre for a same-project link', () => {
+    const route: BundleRoute = { fromProject, toProject: fromProject, fromCategory, toCategory: fromCategory, sameProject: true, sameCategory: true }
     const pts = bundlePoints(from, to, route, 1)
-    expect(pts[1]).toEqual(polar(LINK_LEAF_ANCHOR_R, sectorMid(leafA1)))
-    expect(pts[2]).toEqual(polar(LINK_CATEGORY_ANCHOR_R, sectorMid(catA)))
-    expect(pts[3]).toEqual(polar(LINK_CATEGORY_ANCHOR_R, sectorMid(catB)))
-    expect(pts[4]).toEqual(polar(LINK_LEAF_ANCHOR_R, sectorMid(leafB1)))
+    expect(pts).toHaveLength(3)
+    expect(pts[1]).toEqual(fromProject)
+  })
+
+  it('returns 5 points through the category centre for a same-category, different-project link', () => {
+    const route: BundleRoute = { fromProject, toProject, fromCategory, toCategory: fromCategory, sameProject: false, sameCategory: true }
+    const pts = bundlePoints(from, to, route, 1)
+    expect(pts).toHaveLength(5)
+    expect(pts[1]).toEqual(fromProject)
+    expect(pts[2]).toEqual(fromCategory)
+    expect(pts[3]).toEqual(toProject)
+  })
+
+  it('returns 6 points through both category centres for a different-category link', () => {
+    const route: BundleRoute = { fromProject, toProject, fromCategory, toCategory, sameProject: false, sameCategory: false }
+    const pts = bundlePoints(from, to, route, 1)
+    expect(pts).toHaveLength(6)
+    expect(pts[1]).toEqual(fromProject)
+    expect(pts[2]).toEqual(fromCategory)
+    expect(pts[3]).toEqual(toCategory)
+    expect(pts[4]).toEqual(toProject)
   })
 
   it('puts inner points on the straight line when beta is 0', () => {
-    const route = { fromLeaf: leafA1, toLeaf: leafA2, fromCategory: catA, toCategory: catA }
+    const route: BundleRoute = { fromProject, toProject, fromCategory, toCategory: fromCategory, sameProject: false, sameCategory: true }
     const pts = bundlePoints(from, to, route, 0)
     const last = pts.length - 1
     pts.forEach((p, i) => {

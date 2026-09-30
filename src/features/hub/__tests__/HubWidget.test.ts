@@ -14,7 +14,8 @@ import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
-import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, notePoint, planSectors, sectorMid } from '../hubGeometry'
+import { AGENT_SECTOR_STAGGER_PX, AGENT_SECTOR_TIERS_MAX, AGENT_SPACING_PX, AGENT_STAGE_MARGIN_PX, agentRingPx, DAY_MS, LAUNCHER_PX, planSectors, sectorMid } from '../hubGeometry'
+import { packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
 const NOTE_AGE_DAYS = 30
@@ -197,6 +198,23 @@ function vaultAgents(): Agent[] {
     projectName: i < 7 ? 'folder2' : `folder${i - 7 + (i - 7 >= 2 ? 1 : 0)}`,
     working: i % 3 === 0,
   })) as unknown as Agent[]
+}
+
+// Mirrors HubWidget's own notesByLeaf + packHub wiring, so a test can assert against the same
+// packed positions the component computes.
+function packedFor(paths: string[], projects: Array<{ key: string, label: string }>) {
+  const { sectors, leaves, sectorOfNote } = planSectors(paths, projects)
+  const byLeaf = new Map<string, string[]>()
+  for (const path of paths) {
+    const leafKey = sectorOfNote.get(path)
+    if (!leafKey)
+      continue
+    const list = byLeaf.get(leafKey)
+    if (list)
+      list.push(path)
+    else byLeaf.set(leafKey, [path])
+  }
+  return packHub(sectors, leaves, byLeaf)
 }
 
 // Five agents in one note folder: three radial tiers in use, the middle one exactly on the sector's
@@ -934,13 +952,47 @@ describe('hubWidget', () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
     const w = await mountHub()
-    const { leaves, sectorOfNote } = planSectors(['alpha/one.md', 'beta/two.md'], ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n })))
-    const [x, y] = notePoint('alpha/one.md', leaves.find(l => l.key === sectorOfNote.get('alpha/one.md'))!, NOTE_AGE_DAYS)
+    const projects = ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n }))
+    const [x, y] = packedFor(['alpha/one.md', 'beta/two.md'], projects).notes.get('alpha/one.md')!
     const stage = w.get('[data-testid="hub-stage"]').element
     for (const type of ['pointerdown', 'pointerup'])
       stage.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: 545 + x, clientY: 565 + y }))
     await flushPromises()
     expect(scale(w)).toBeCloseTo(2.6)
+    w.unmount()
+  })
+
+  it('draws a vault note at its packed position, not the age-based point', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
+    agents.value = []
+    const w = await mountHub()
+    const packed = packedFor(['alpha/one.md', 'beta/two.md'], [])
+    const points = w.getComponent(HubBrainCanvas).props('points') as Array<[number, number]>
+    expect(points[0]).toEqual(packed.notes.get('alpha/one.md'))
+    expect(points[1]).toEqual(packed.notes.get('beta/two.md'))
+    w.unmount()
+  })
+
+  it('packs notes of the same project inside that project\'s circle', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/babyone/two.md'), vaultNote(2, 'private/x.md')]
+    agents.value = []
+    const w = await mountHub()
+    const paths = graph.notes.value.map(n => n.path)
+    const packed = packedFor(paths, [])
+    const { leaves, sectorOfNote } = planSectors(paths, [])
+    const leafKey = sectorOfNote.get('work/babyone/one.md')!
+    const project = packed.projects.get(leafKey)!
+    expect(leaves.find(l => l.key === leafKey)?.label).toBe('babyone')
+
+    const points = w.getComponent(HubBrainCanvas).props('points') as Array<[number, number]>
+    for (const path of ['work/babyone/one.md', 'work/babyone/two.md']) {
+      const [x, y] = packed.notes.get(path)!
+      expect(Math.hypot(x - project.x, y - project.y)).toBeLessThanOrEqual(project.r)
+      const index = graph.notes.value.findIndex(n => n.path === path)
+      expect(points[index]).toEqual([x, y])
+    }
     w.unmount()
   })
 
