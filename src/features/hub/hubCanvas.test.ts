@@ -3,13 +3,28 @@ import type { LabelCandidate } from './hubCanvas'
 import type { Sector } from './hubGeometry'
 import { describe, expect, it } from 'vitest'
 import { labelSize } from './__tests__/labelMeasurement'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from './hubCanvas'
+import { AGE_ALPHA_FLOOR, ageAlpha, agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentLabelOffset, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, isToday, namesThatFit, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from './hubCanvas'
 import { polar } from './hubGeometry'
 
 const sector = (start: number, end: number): Sector => ({ key: 'work', label: 'Work', weight: 1, start, end })
 
 const measured = (c: LabelCandidate) => agentLabelBox(c, labelSize(c.text))
 const measuredNote = (c: LabelCandidate) => noteLabelBox(c, labelSize(c.text).w)
+
+describe('ageAlpha', () => {
+  it('is 1 at 0 days and the floor from 365 days on', () => {
+    expect(ageAlpha(0)).toBe(1)
+    expect(ageAlpha(365)).toBeCloseTo(AGE_ALPHA_FLOOR)
+    expect(ageAlpha(1000)).toBeCloseTo(AGE_ALPHA_FLOOR)
+  })
+
+  it('is monotone: never fades back in as age grows', () => {
+    const ages = [0, 1, 7, 30, 90, 180, 365, 500]
+    const alphas = ages.map(ageAlpha)
+    for (let i = 1; i < alphas.length; i++)
+      expect(alphas[i]).toBeLessThanOrEqual(alphas[i - 1])
+  })
+})
 
 describe('notePriority', () => {
   it('orders hub > touched > fresh > links', () => {

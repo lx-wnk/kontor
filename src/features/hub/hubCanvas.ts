@@ -214,6 +214,15 @@ export function hitNote(points: ReadonlyArray<[number, number]>, cam: Camera, sx
   return topmost >= 0 ? topmost : nearest
 }
 
+// Notes are placed by containment now, not by distance from the centre, so age fades a note's
+// alpha instead. Linear on sqrt(age/365): most of the fade happens in the first weeks, then it eases.
+export const AGE_ALPHA_FLOOR = 0.35
+
+export function ageAlpha(ageDays: number): number {
+  const t = Math.sqrt(Math.min(Math.max(ageDays, 0), 365) / 365)
+  return 1 - t * (1 - AGE_ALPHA_FLOOR)
+}
+
 export function isToday(mtimeMs: number, nowMs: number): boolean {
   const a = new Date(mtimeMs)
   const b = new Date(nowMs)

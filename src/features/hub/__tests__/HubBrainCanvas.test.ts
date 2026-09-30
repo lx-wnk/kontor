@@ -160,10 +160,14 @@ describe('hubBrainCanvas', () => {
 
   it('fills notes of one colour and kind in one path, hub notes above the rest', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
-    mountBrain({ colours: [0, 0, 1], hubNotes: new Set([2]) })
+    const notes = [note(0, 'Alpha', 0), note(1, 'Beta', 0), note(2, 'Gamma', 0)]
+    mountBrain({ notes, colours: [0, 0, 1], hubNotes: new Set([2]) })
     await nextFrame()
     expect(named('arc')).toHaveLength(3)
-    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([['tok(--sector-0)', 0.75], ['tok(--sector-1)', 1]])
+    const fills = named('fill').map(c => [c.state.fillStyle, Number(c.state.globalAlpha)] as const)
+    expect(fills.map(([style]) => style)).toEqual(['tok(--sector-0)', 'tok(--sector-1)'])
+    expect(fills[0][1]).toBeCloseTo(0.75, 2)
+    expect(fills[1][1]).toBeCloseTo(1, 2)
   })
 
   it('strokes the selection ring in the foreground token', async () => {
@@ -277,14 +281,30 @@ describe('hubBrainCanvas', () => {
 
   it('leaves rendering unchanged when highlighted is null', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
-    mountBrain({ highlighted: null })
+    const notes = [note(0, 'Alpha', 0), note(1, 'Beta', 0), note(2, 'Gamma', 0)]
+    mountBrain({ notes, highlighted: null })
     await nextFrame()
-    expect(named('fill').map(c => [c.state.fillStyle, c.state.globalAlpha])).toEqual([
-      ['tok(--sector-0)', 0.75],
-      ['tok(--sector-1)', 0.75],
-      ['tok(--sector-2)', 0.75],
-    ])
+    const alphas = named('fill').map(c => Number(c.state.globalAlpha))
+    expect(named('fill').map(c => c.state.fillStyle)).toEqual(['tok(--sector-0)', 'tok(--sector-1)', 'tok(--sector-2)'])
+    for (const a of alphas) expect(a).toBeCloseTo(0.75, 2)
     expect(calls.some(c => c.name === 'arc' && c.state.strokeStyle === 'tok(--halo)')).toBe(false)
+  })
+
+  it('fades an old note dimmer than a fresh one of the same colour', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [note(0, 'Alpha', 0), note(1, 'Beta', 400), note(2, 'Gamma', 0)]
+    mountBrain({ notes, colours: [0, 0, 1] })
+    await nextFrame()
+    const [fresh, old] = named('fill').map(c => Number(c.state.globalAlpha))
+    expect(old).toBeLessThan(fresh)
+  })
+
+  it('keeps a lens-dimmed note at LENS_DIM_ALPHA regardless of age', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const notes = [note(0, 'Alpha', 0), note(1, 'Beta', 400), note(2, 'Gamma', 0)]
+    mountBrain({ notes, highlighted: new Set([2]) })
+    await nextFrame()
+    expect(named('fill').map(c => c.state.globalAlpha)).toEqual([0.18, 0.18, 1])
   })
 
   it('at level 2, a hovered note draws its links brighter than the rest', async () => {

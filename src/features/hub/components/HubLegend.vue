@@ -12,7 +12,7 @@ const ROWS: readonly LegendRow[] = [
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="currentColor"/></svg>`, text: 'Note (know-how)' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`, text: 'Session log' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="4" fill="currentColor"/><circle cx="7" cy="7" r="1.8" fill="var(--app)"/></svg>`, text: 'Other kind (folder or frontmatter type)' },
-  { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="7" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="7" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1"/></svg>`, text: 'Distance from centre = age: today, week, month, year' },
+  { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><circle cx="4" cy="7" r="3" fill="currentColor"/><circle cx="11" cy="7" r="3" fill="currentColor" fill-opacity="0.35"/></svg>`, text: 'Fainter = older (untouched for longer)' },
   { svg: `<svg viewBox="0 0 14 14" class="${SWATCH}" aria-hidden="true"><path d="M1,10 Q7,2 13,10" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`, text: 'Know-how links inside a project', minLevel: 1 },
 ]
 
@@ -44,7 +44,7 @@ const visibleRows = computed(() => ROWS.filter(row => row.minLevel === undefined
         </li>
       </ul>
       <p class="mt-1.5">
-        Colour = category, shade = project
+        Circles = category › project; colour = category, shade = project
       </p>
       <p class="mt-1.5 text-fg-faint">
         Press ? to toggle

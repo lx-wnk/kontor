@@ -10,7 +10,7 @@ import type { NoteTouchKind } from '@/types'
 import { useMutationObserver } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toScreen } from '../hubCamera'
-import { cullLabels, drawOrder, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, noteRadiusPx } from '../hubCanvas'
+import { ageAlpha, cullLabels, drawOrder, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, noteRadiusPx } from '../hubCanvas'
 import { DAY_MS, leafShade, NOTE_KIND, SESSIONS_KIND, shadeMix } from '../hubGeometry'
 import { bundlePoints, isKnowHowLink, linksOf, traceBundle } from '../hubLinks'
 
@@ -216,12 +216,16 @@ function noteColour(i: number, token: (name: string) => string): string {
   return props.level === 0 ? base : shadeMix(base, leafShade(props.noteLeaf[i]))
 }
 
-function groupByColour(items: number[]): Map<string, number[]> {
+const ALPHA_STEPS = 5
+
+// Grouped by (colour, shade, alpha bucket): the bucket keeps ages a few days apart in one batch
+// while still splitting off a highlighted note (alpha 1) or a lens-dimmed one (LENS_DIM_ALPHA).
+function groupByColour(items: number[], alphaOf: (i: number) => number): Map<string, number[]> {
   const groups = new Map<string, number[]>()
   for (const i of items) {
     const shade = props.level === 0 ? '' : props.noteLeaf[i]
-    const hl = props.highlighted ? String(props.highlighted.has(i)) : ''
-    const key = `${props.colours[i]}\u0000${shade}\u0000${hl}`
+    const bucket = Math.round(alphaOf(i) * ALPHA_STEPS)
+    const key = `${props.colours[i]}\u0000${shade}\u0000${bucket}`
     const members = groups.get(key)
     if (members)
       members.push(i)
@@ -232,7 +236,7 @@ function groupByColour(items: number[]): Map<string, number[]> {
 
 // One path per (kind, colour): a note-kind dot is filled, a sessions-kind dot is a ring, any other
 // kind is filled with a hole punched in the app background — plain notes first so hub notes sit on top.
-function fillNotes({ ctx, screen, visible, token }: Scene) {
+function fillNotes({ ctx, screen, visible, now, token }: Scene) {
   for (const hub of drawOrder()) {
     const filled: number[] = []
     const holed: number[] = []
@@ -250,29 +254,32 @@ function fillNotes({ ctx, screen, visible, token }: Scene) {
     }
     const r = noteRadiusPx(props.level, hub)
     const baseAlpha = hub ? 1 : NOTE_ALPHA
-    const alphaOf = (i: number) => props.highlighted ? (props.highlighted.has(i) ? 1 : LENS_DIM_ALPHA) : baseAlpha
-    for (const members of groupByColour(filled).values()) {
+    // A lens keeps the highlighted/dimmed split authoritative; otherwise age fades the note.
+    const alphaOf = (i: number) => props.highlighted
+      ? (props.highlighted.has(i) ? 1 : LENS_DIM_ALPHA)
+      : baseAlpha * ageAlpha((now - props.notes[i].mtimeMs) / DAY_MS)
+    for (const members of groupByColour(filled, alphaOf).values()) {
       ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = noteColour(members[0], token)
       ctx.beginPath()
       for (const i of members) addCircle(ctx, screen[i], r)
       ctx.fill()
     }
-    for (const members of groupByColour(holed).values()) {
+    for (const members of groupByColour(holed, alphaOf).values()) {
       ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = noteColour(members[0], token)
       ctx.beginPath()
       for (const i of members) addCircle(ctx, screen[i], r)
       ctx.fill()
     }
-    for (const members of groupByColour(holed).values()) {
+    for (const members of groupByColour(holed, alphaOf).values()) {
       ctx.globalAlpha = alphaOf(members[0])
       ctx.fillStyle = token('--app')
       ctx.beginPath()
       for (const i of members) addCircle(ctx, screen[i], r * HOLE_SCALE)
       ctx.fill()
     }
-    for (const members of groupByColour(ringed).values()) {
+    for (const members of groupByColour(ringed, alphaOf).values()) {
       ctx.globalAlpha = alphaOf(members[0])
       ctx.strokeStyle = noteColour(members[0], token)
       ctx.lineWidth = Math.max(RING_WIDTH_MIN_PX, r * RING_WIDTH_SCALE)
