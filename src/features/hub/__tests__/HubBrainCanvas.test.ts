@@ -262,7 +262,7 @@ describe('hubBrainCanvas', () => {
       links: [[0, 1], [0, 2]],
     })
     await nextFrame()
-    const knowHowStrokes = named('stroke').filter(c => c.state.globalAlpha === 0.35)
+    const knowHowStrokes = named('stroke').filter(c => c.state.globalAlpha === 0.45)
     expect(knowHowStrokes).toHaveLength(1)
   })
 
@@ -350,6 +350,6 @@ describe('hubBrainCanvas', () => {
     })
     await nextFrame()
     const linkStrokes = named('stroke').slice(0, 2)
-    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.18, 0.6])
+    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.18, 0.7])
   })
 })

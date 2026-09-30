@@ -40,11 +40,11 @@ const props = defineProps<{
   highlighted?: ReadonlySet<number> | null
 }>()
 
-const LINK_WIDTH_PX = 0.7
-const LINK_THIN_WIDTH_PX = 0.4
-const LINK_CROSS_ALPHA = 0.6
+const LINK_WIDTH_PX = 1.4
+const LINK_THIN_WIDTH_PX = 1
+const LINK_CROSS_ALPHA = 0.7
 // Links within one project, in the note's colour: know-how links at level 1, every such link at level 2.
-const LINK_INTRA_ALPHA = 0.35
+const LINK_INTRA_ALPHA = 0.45
 const LINK_HOVER_ALPHA = 0.95
 const LINK_HOVER_WIDTH_SCALE = 2
 const LINK_DIM_ALPHA = 0.06
