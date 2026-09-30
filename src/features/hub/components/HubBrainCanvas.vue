@@ -9,7 +9,7 @@ import type { NoteTouchKind } from '@/types'
 import { useMutationObserver } from '@vueuse/core'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { toScreen } from '../hubCamera'
-import { cullLabels, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority } from '../hubCanvas'
+import { cullLabels, drawOrder, isToday, NOTE_LABEL_OFFSET_PX, noteLabelBox, notePriority, noteRadiusPx } from '../hubCanvas'
 import { DAY_MS, leafShade, NOTE_KIND, SESSIONS_KIND, shadeMix } from '../hubGeometry'
 import { bundlePoints, isKnowHowLink, linksOf, traceBundle } from '../hubLinks'
 
@@ -40,7 +40,6 @@ const props = defineProps<{
   highlighted?: ReadonlySet<number> | null
 }>()
 
-const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }
 const LINK_WIDTH_PX = 0.7
 const LINK_THIN_WIDTH_PX = 0.4
 const LINK_AGG_BASE_PX = 0.8
@@ -58,7 +57,6 @@ const LINK_DIM_ALPHA = 0.06
 const EDGE_WIDTH_PX = 1.2
 const EDGE_DASH: Record<NoteTouchKind, number[]> = { read: [4, 3], write: [1, 3] }
 const NOTE_ALPHA = 0.75
-const HUB_NOTE_SCALE = 1.9
 const HALO_SCALE = 2.6
 const HALO_ALPHA = 0.8
 const HALO_WIDTH_PX = 1.2
@@ -238,8 +236,8 @@ function groupByColour(items: number[]): Map<string, number[]> {
 
 // One path per (kind, colour): a note-kind dot is filled, a sessions-kind dot is a ring, any other
 // kind is filled with a hole punched in the app background — plain notes first so hub notes sit on top.
-function fillNotes({ ctx, screen, visible, radius, token }: Scene) {
-  for (const hub of [false, true]) {
+function fillNotes({ ctx, screen, visible, token }: Scene) {
+  for (const hub of drawOrder()) {
     const filled: number[] = []
     const holed: number[] = []
     const ringed: number[] = []
@@ -254,7 +252,7 @@ function fillNotes({ ctx, screen, visible, radius, token }: Scene) {
       else
         holed.push(i)
     }
-    const r = hub ? radius * HUB_NOTE_SCALE : radius
+    const r = noteRadiusPx(props.level, hub)
     const baseAlpha = hub ? 1 : NOTE_ALPHA
     const alphaOf = (i: number) => props.highlighted ? (props.highlighted.has(i) ? 1 : LENS_DIM_ALPHA) : baseAlpha
     for (const members of groupByColour(filled).values()) {
@@ -389,7 +387,7 @@ function draw() {
     screen,
     onStage,
     visible: onStage.flatMap((on, i) => on ? [i] : []),
-    radius: NOTE_RADIUS_PX[props.level],
+    radius: noteRadiusPx(props.level, false),
     now: Date.now(),
     token: name => style.getPropertyValue(name).trim(),
   }

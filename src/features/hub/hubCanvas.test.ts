@@ -256,14 +256,36 @@ describe('label keys', () => {
 
 describe('hitNote', () => {
   const cam = { k: 1, tx: 0, ty: 0 }
-  const points: Array<[number, number]> = [[0, 0], [100, 100]]
+  const noHubs = new Set<number>()
 
   it('returns the nearest note within 8px', () => {
-    expect(hitNote(points, cam, 3, 4)).toBe(0)
+    const points: Array<[number, number]> = [[0, 0], [100, 100]]
+    expect(hitNote(points, cam, 3, 4, 0, noHubs)).toBe(0)
   })
 
   it('returns -1 beyond 8px', () => {
-    expect(hitNote(points, cam, 20, 20)).toBe(-1)
+    const points: Array<[number, number]> = [[0, 0], [100, 100]]
+    expect(hitNote(points, cam, 20, 20, 0, noHubs)).toBe(-1)
+  })
+
+  it('hits the edge of a large hub dot beyond the old 8px pick radius', () => {
+    const points: Array<[number, number]> = [[0, 0]]
+    expect(hitNote(points, cam, 8.5, 0, 2, new Set([0]))).toBe(0)
+  })
+
+  it('picks the dot drawn last when two circles overlap, even if the other centre is nearer', () => {
+    const points: Array<[number, number]> = [[0, 0], [4, 0]]
+    expect(hitNote(points, cam, 1, 0, 0, noHubs)).toBe(1)
+  })
+
+  it('returns -1 far from every dot', () => {
+    const points: Array<[number, number]> = [[0, 0], [100, 100]]
+    expect(hitNote(points, cam, 200, 200, 0, noHubs)).toBe(-1)
+  })
+
+  it('falls back to the nearest centre within 8px when no circle contains the pointer', () => {
+    const points: Array<[number, number]> = [[0, 0]]
+    expect(hitNote(points, cam, 6, 0, 0, noHubs)).toBe(0)
   })
 })
 

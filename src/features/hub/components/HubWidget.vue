@@ -208,7 +208,7 @@ function flyToNote(index: number, relTarget: number) {
 }
 
 function tapNote(sx: number, sy: number) {
-  const hit = hitNote(brain.value.points, cam.value, sx, sy)
+  const hit = hitNote(brain.value.points, cam.value, sx, sy, level.value, brain.value.hubNotes)
   if (hit < 0)
     return
   if (level.value === 0)
@@ -387,7 +387,7 @@ useEventListener(stage, 'pointermove', (e: PointerEvent) => {
   }
   const sx = e.clientX - rect.left
   const sy = e.clientY - rect.top
-  const hit = hitNote(brain.value.points, cam.value, sx, sy)
+  const hit = hitNote(brain.value.points, cam.value, sx, sy, level.value, brain.value.hubNotes)
   hoveredNote.value = hit >= 0 ? hit : null
   if (hit >= 0) {
     hoveredArc.value = null
