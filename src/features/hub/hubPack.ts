@@ -6,11 +6,11 @@ export interface Circle { x: number, y: number, r: number }
 
 export const AGENT_WEIGHT = 4
 const PACK_PADDING = 2
-const WORK_SIZE = 2 * R_MAX
-const CORE_VALUE_ITERATIONS = 6
 const AGENT_RIM_GAP = 6
+// Clearance between the core disc and a category circle, and half of it between neighbouring categories.
+export const CATEGORY_GAP = 16
+const RADIUS_SEARCH_ITERATIONS = 40
 // NUL-prefixed keys never collide with real vault paths, which can't contain a NUL byte.
-const CORE_KEY = '\u0000core'
 const FILLER_SUFFIX = '\u0000filler'
 
 interface PackDatum { key: string, value?: number, children?: PackDatum[] }
@@ -27,10 +27,48 @@ function sumValue(nodes: readonly PackDatum[]): number {
   return nodes.reduce((sum, d) => sum + (d.value ?? 0) + sumValue(d.children ?? []), 0)
 }
 
-function packAt(categoryData: readonly PackDatum[], coreValue: number) {
-  const data: PackDatum = { key: 'root', children: [{ key: CORE_KEY, value: coreValue }, ...categoryData] }
-  const root = hierarchy(data).sum(d => d.value ?? 0)
-  return pack<PackDatum>().size([WORK_SIZE, WORK_SIZE]).padding(PACK_PADDING)(root)
+interface CategoryLayout { key: string, cx: number, cy: number, r: number }
+
+// Half-angle a circle of radius (r + gap/2) subtends from the origin at distance d; the gap/2 margin
+// keeps two angularly adjacent categories a full CATEGORY_GAP apart, not just their bare radii.
+function footprintDeg(r: number, d: number): number {
+  return 2 * Math.asin((r + CATEGORY_GAP / 2) / d) * 180 / Math.PI
+}
+
+function layoutCategories(categoryData: readonly PackDatum[]): CategoryLayout[] {
+  const sorted = [...categoryData].sort((a, b) => a.key.localeCompare(b.key))
+  const weights = sorted.map(c => sumValue(c.children ?? []))
+  const capR = (R_MAX - R0 - CATEGORY_GAP) / 2
+  const maxScale = capR / Math.sqrt(Math.max(...weights))
+
+  const footprintSumDeg = (s: number) => weights.reduce((sum, w) => {
+    const r = s * Math.sqrt(w)
+    return sum + footprintDeg(r, R0 + CATEGORY_GAP + r)
+  }, 0)
+
+  let lo = 0
+  let hi = maxScale
+  for (let i = 0; i < RADIUS_SEARCH_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2
+    if (footprintSumDeg(mid) <= 360)
+      lo = mid
+    else hi = mid
+  }
+  const scale = lo
+
+  const radii = weights.map(w => scale * Math.sqrt(w))
+  const footprints = radii.map(r => footprintDeg(r, R0 + CATEGORY_GAP + r))
+  const gap = (360 - footprints.reduce((sum, f) => sum + f, 0)) / sorted.length
+
+  let at = -90
+  return sorted.map((c, i) => {
+    const r = radii[i]
+    const centerDeg = at + footprints[i] / 2
+    at += footprints[i] + gap
+    const rad = centerDeg * Math.PI / 180
+    const d = R0 + CATEGORY_GAP + r
+    return { key: c.key, cx: d * Math.cos(rad), cy: d * Math.sin(rad), r }
+  })
 }
 
 // Slot order alternates sides of the outward-facing point (0, +1, -1, +2, -2, ...) while the angles
@@ -87,36 +125,24 @@ export function packHub(
   if (categoryData.length === 0)
     return { categories, projects, notes, agentSlots, extent: R0 }
 
-  let coreValue = sumValue(categoryData)
-  let packed = packAt(categoryData, coreValue)
-  // The core's packed radius is only a fraction of the whole (CORE + categories) sibling group, set by
-  // coreValue relative to the categories' total value; nudge it towards R0/R_MAX and re-pack until it holds.
-  for (let i = 0; i < CORE_VALUE_ITERATIONS; i++) {
-    const coreNode = packed.children!.find(c => c.data.key === CORE_KEY)!
-    const catNodes = packed.children!.filter(c => c.data.key !== CORE_KEY)
-    const extentRaw = Math.max(...catNodes.map(c => Math.hypot(c.x - coreNode.x, c.y - coreNode.y) + c.r))
-    const ratio = coreNode.r / extentRaw
-    coreValue *= (R0 / R_MAX / ratio) ** 2
-    packed = packAt(categoryData, coreValue)
-  }
+  const categoryLayout = layoutCategories(categoryData)
+  const byKey = new Map(categoryData.map(c => [c.key, c]))
+  let extent = R0
 
-  const coreNode = packed.children!.find(c => c.data.key === CORE_KEY)!
-  const catNodes = packed.children!.filter(c => c.data.key !== CORE_KEY)
-  const extentRaw = Math.max(...catNodes.map(c => Math.hypot(c.x - coreNode.x, c.y - coreNode.y) + c.r))
-  const scale = R_MAX / extentRaw
-
-  for (const node of packed.descendants()) {
-    if (node.depth === 0 || node.data.key === CORE_KEY)
-      continue
-    const x = (node.x - coreNode.x) * scale
-    const y = (node.y - coreNode.y) * scale
-    const r = node.r * scale
-    if (node.depth === 1)
-      categories.set(node.data.key, { x, y, r })
-    else if (node.depth === 2)
-      projects.set(node.data.key, { x, y, r })
-    else if (node.depth === 3 && !node.data.key.endsWith(FILLER_SUFFIX))
-      notes.set(node.data.key, [x, y])
+  for (const { key, cx, cy, r } of categoryLayout) {
+    extent = Math.max(extent, Math.hypot(cx, cy) + r)
+    const root = hierarchy(byKey.get(key)!).sum(d => d.value ?? 0)
+    const packed = pack<PackDatum>().size([2 * r, 2 * r]).padding(PACK_PADDING)(root)
+    for (const node of packed.descendants()) {
+      const x = node.x - r + cx
+      const y = node.y - r + cy
+      if (node.depth === 0)
+        categories.set(node.data.key, { x, y, r: node.r })
+      else if (node.depth === 1)
+        projects.set(node.data.key, { x, y, r: node.r })
+      else if (node.depth === 2 && !node.data.key.endsWith(FILLER_SUFFIX))
+        notes.set(node.data.key, [x, y])
+    }
   }
 
   for (const leaf of leaves) {
@@ -126,5 +152,5 @@ export function packHub(
       agentSlots.set(leaf.key, agentSlotsForProject(project, agents))
   }
 
-  return { categories, projects, notes, agentSlots, extent: R_MAX }
+  return { categories, projects, notes, agentSlots, extent }
 }

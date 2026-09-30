@@ -1,7 +1,8 @@
 import type { Leaf, Sector } from './hubGeometry'
+import type { Circle } from './hubPack'
 import { describe, expect, it } from 'vitest'
 import { OTHER_SECTOR_KEY, R0, R_MAX } from './hubGeometry'
-import { packHub } from './hubPack'
+import { CATEGORY_GAP, packHub } from './hubPack'
 
 function leaf(key: string, parent: string): Leaf {
   return { key, label: key, weight: 1, start: 0, end: 1, parent }
@@ -62,17 +63,35 @@ describe('packHub', () => {
     }
   })
 
-  it('keeps category circles apart and clear of the core disc', () => {
+  it('sits each category tangent-ish to the core, apart from its neighbours, within R_MAX', () => {
     const cats = [...result.categories.values()]
-    const epsilon = R0 * 0.05
     for (const c of cats) {
       const centreDist = Math.hypot(c.x, c.y)
-      expect(centreDist - c.r).toBeGreaterThanOrEqual(R0 - epsilon)
+      expect(centreDist - c.r).toBeCloseTo(R0 + CATEGORY_GAP, 0)
+      expect(centreDist + c.r).toBeLessThanOrEqual(R_MAX + 1e-6)
     }
     for (let i = 0; i < cats.length; i++) {
       for (let j = i + 1; j < cats.length; j++)
         expect(dist(cats[i].x, cats[i].y, cats[j].x, cats[j].y)).toBeGreaterThanOrEqual(cats[i].r + cats[j].r - 1e-6)
     }
+  })
+
+  it('spreads categories evenly, with angular footprints summing to at most 360°', () => {
+    const cats = [...result.categories.values()]
+    const footprintOf = (c: Circle) => 2 * Math.asin((c.r + CATEGORY_GAP / 2) / Math.hypot(c.x, c.y)) * 180 / Math.PI
+    const withAngle = cats
+      .map(c => ({ angle: Math.atan2(c.y, c.x) * 180 / Math.PI, footprint: footprintOf(c) }))
+      .sort((a, b) => a.angle - b.angle)
+    const totalFootprint = withAngle.reduce((sum, c) => sum + c.footprint, 0)
+    expect(totalFootprint).toBeLessThanOrEqual(360 + 1e-6)
+
+    const evenGap = (360 - totalFootprint) / cats.length
+    const emptyGaps = withAngle.map((c, i) => {
+      const next = withAngle[(i + 1) % withAngle.length]
+      const delta = ((next.angle - c.angle) + 360) % 360 || 360
+      return delta - c.footprint / 2 - next.footprint / 2
+    })
+    expect(Math.max(...emptyGaps)).toBeLessThanOrEqual(evenGap + 1e-6)
   })
 
   it('reports an extent close to R_MAX', () => {

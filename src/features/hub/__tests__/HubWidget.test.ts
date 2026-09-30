@@ -576,7 +576,9 @@ describe('hubWidget', () => {
   // beneath it can be neither hovered nor clicked.
   it('leaves an agent the docked launcher rail covers undrawn', async () => {
     graph.status.value = 'ready'
-    graph.notes.value = vaultFolders()
+    // A single category claims the full R_MAX ring (no angular sharing), so the launcher ring
+    // is as large as the balanced layout ever draws it — the case this test needs to dock.
+    graph.notes.value = vaultFolders().filter(n => n.path.startsWith('folder0/'))
     agents.value = tieredAgents()
     const w = await mountHub(TILE)
 
