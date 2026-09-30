@@ -307,6 +307,21 @@ describe('hubBrainCanvas', () => {
     expect(named('fill').map(c => c.state.globalAlpha)).toEqual([0.18, 0.18, 1])
   })
 
+  // Packed project circles give an intra-project link no shared trunk to build up alpha along,
+  // so each one has to be visible on its own at the notes level.
+  it('zooming from the topics to the notes level does not fade an intra-project link', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    const w = mountBrain({ level: 1, sectors: CATEGORY_SECTORS, leaves: LEAF_SECTORS, noteLeaf: ['a/x', 'a/x', 'b/z'], links: [[0, 1]] })
+    await nextFrame()
+    const [topics] = named('stroke')
+    calls = []
+    await w.setProps({ level: 2 })
+    await nextFrame()
+    const [notesLevel] = named('stroke')
+    expect(notesLevel.state.strokeStyle).toBe(topics.state.strokeStyle)
+    expect(Number(notesLevel.state.globalAlpha)).toBeGreaterThanOrEqual(Number(topics.state.globalAlpha))
+  })
+
   it('at level 2, a hovered note draws its links brighter than the rest', async () => {
     vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
     mountBrain({

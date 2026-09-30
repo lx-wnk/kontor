@@ -43,9 +43,8 @@ const props = defineProps<{
 const LINK_WIDTH_PX = 0.7
 const LINK_THIN_WIDTH_PX = 0.4
 const LINK_CROSS_ALPHA = 0.6
-const LINK_INTRA_ALPHA = 0.18
-// Level 1 only: individual know-how links within one leaf.
-const LINK_KNOWHOW_ALPHA = 0.35
+// Links within one project, in the note's colour: know-how links at level 1, every such link at level 2.
+const LINK_INTRA_ALPHA = 0.35
 const LINK_HOVER_ALPHA = 0.95
 const LINK_HOVER_WIDTH_SCALE = 2
 const LINK_DIM_ALPHA = 0.06
@@ -126,13 +125,14 @@ function drawKnowHowLinks(ctx: CanvasRenderingContext2D, token: (name: string) =
     const project = projectCentre(leaf.key, fromPoint)
     const category = categoryCentre(leaf, fromPoint)
     const route: BundleRoute = { fromProject: project, toProject: project, fromCategory: category, toCategory: category, sameProject: true, sameCategory: true }
-    strokeBundle(ctx, fromPoint, toPoint, route, LINK_THIN_WIDTH_PX, lensDim ? LENS_DIM_ALPHA : LINK_KNOWHOW_ALPHA, noteColour(from, token))
+    strokeBundle(ctx, fromPoint, toPoint, route, LINK_THIN_WIDTH_PX, lensDim ? LENS_DIM_ALPHA : LINK_INTRA_ALPHA, noteColour(from, token))
   })
 }
 
-// Level 2: every link on its own, faint within a leaf and accented where it crosses one; a hovered
-// note's own links stand out brighter and wider, every other link fades.
-function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, lineStrong: string, onStage: boolean[]) {
+// Level 2: every link on its own, in the note's colour within a leaf and accented where it crosses
+// one; a hovered note's own links stand out brighter and wider, every other link fades.
+function drawIndividualLinks(ctx: CanvasRenderingContext2D, token: (name: string) => string, onStage: boolean[]) {
+  const accent = token('--accent')
   const hovered = props.hoveredNote
   const hoveredLinks = hovered === null ? null : new Set(linksOf(props.links, hovered))
   props.links.forEach(([from, to], idx) => {
@@ -148,7 +148,7 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
     const lensDim = !!props.highlighted && !props.highlighted.has(from) && !props.highlighted.has(to)
     const alpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : dimmed ? LINK_DIM_ALPHA : !sameProject ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
     const width = (!sameProject ? LINK_WIDTH_PX : LINK_THIN_WIDTH_PX) * (isHovered ? LINK_HOVER_WIDTH_SCALE : 1)
-    const colour = isHovered || !sameProject ? accent : lineStrong
+    const colour = isHovered || !sameProject ? accent : noteColour(from, token)
     const fromPoint = props.points[from]
     const toPoint = props.points[to]
     const route: BundleRoute = {
@@ -165,7 +165,7 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
 
 function drawLinks({ ctx, onStage, token }: Scene) {
   if (props.level === 2) {
-    drawIndividualLinks(ctx, token('--accent'), token('--line-strong'), onStage)
+    drawIndividualLinks(ctx, token, onStage)
     return
   }
   if (props.level === 1)
