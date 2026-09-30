@@ -73,7 +73,11 @@ async function saveConfig(partial: PartialPipelineConfig): Promise<void> {
   }
 }
 
+function retryBudgetFor(status: string | null | undefined): number {
+  return status === 'rate_limited' ? maxRateLimitRetries.value : maxAutoRetries.value
+}
+
 export function usePipelineConfig() {
   fetchConfig()
-  return { config, maxAutoRetries, maxRateLimitRetries, loading, error, fetchConfig, saveConfig }
+  return { config, maxAutoRetries, maxRateLimitRetries, retryBudgetFor, loading, error, fetchConfig, saveConfig }
 }

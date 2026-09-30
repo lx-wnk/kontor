@@ -61,7 +61,7 @@ function stageLabel(stage: PipelineStage): string {
   return STAGE_LABELS[stage] || stage
 }
 
-const { maxAutoRetries, maxRateLimitRetries } = usePipelineConfig()
+const { retryBudgetFor } = usePipelineConfig()
 
 const retrySecondsLeft = ref(0)
 
@@ -70,7 +70,7 @@ function refreshCountdown() {
 }
 
 const isRequeued = computed(() => props.task.autoRetryCount != null)
-const retryBudget = computed(() => props.task.latestStageRunStatus === 'rate_limited' ? maxRateLimitRetries.value : maxAutoRetries.value)
+const retryBudget = computed(() => retryBudgetFor(props.task.latestStageRunStatus))
 const prError = computed(() => {
   const value = props.task.metadata?.pr_error
   return typeof value === 'string' && value !== '' ? value : null

@@ -4,7 +4,12 @@ import { ref } from 'vue'
 import TaskCard from '@/features/pipeline/components/TaskCard.vue'
 
 vi.mock('@/features/pipeline/composables/usePipelineConfig', () => ({
-  usePipelineConfig: () => ({ maxAutoRetries: ref(5), maxRateLimitRetries: ref(36), config: ref(null) }),
+  usePipelineConfig: () => ({
+    maxAutoRetries: ref(5),
+    maxRateLimitRetries: ref(36),
+    config: ref(null),
+    retryBudgetFor: (status: string | null | undefined) => status === 'rate_limited' ? 36 : 5,
+  }),
 }))
 
 vi.mock('@vueuse/core', () => ({

@@ -39,7 +39,8 @@ const { stageRuns, permissions, isFailedRun } = details
 
 const { copy: copyTaskId, copied: modalCopiedId } = useCopyId(() => props.task?.id ?? '')
 
-const { maxAutoRetries: modalMaxAutoRetries } = usePipelineConfig()
+const { retryBudgetFor } = usePipelineConfig()
+const modalRetryBudget = computed(() => retryBudgetFor(task.value?.latestStageRunStatus))
 const modalRetrySecondsLeft = ref(0)
 useIntervalFn(() => {
   modalRetrySecondsLeft.value = secondsUntil(props.task?.nextRetryAt)
@@ -92,9 +93,9 @@ watch(() => props.task?.id, (id, prevId) => {
             mono
             uppercase
             :bordered="false"
-            :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${modalMaxAutoRetries})`"
+            :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${modalRetryBudget})`"
           >
-            Retrying · {{ task.autoRetryCount }}/{{ modalMaxAutoRetries }}{{ modalRetrySecondsLeft > 0 ? ` · ${modalRetrySecondsLeft}s` : '' }}
+            Retrying · {{ task.autoRetryCount }}/{{ modalRetryBudget }}{{ modalRetrySecondsLeft > 0 ? ` · ${modalRetrySecondsLeft}s` : '' }}
           </AppChip>
           <span class="font-mono text-xs text-info-text">{{ task.slug }}</span>
           <button
