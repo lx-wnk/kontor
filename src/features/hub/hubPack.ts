@@ -34,8 +34,10 @@ export function packHub(
       continue
 
     const spanRad = (sector.end - sector.start) * Math.PI / 180
-    // The category circle must fit the ring band and its own wedge, whichever is tighter.
-    const catR = Math.min((R_MAX - R0) / 2, CATEGORY_RING_R * Math.sin(spanRad / 2)) * CATEGORY_GAP_FACTOR
+    // The category circle must fit the ring band and its own wedge, whichever is tighter; a wedge of
+    // 180° or more no longer constrains it (sin would fall back towards 0 at a full turn).
+    const wedgeR = spanRad >= Math.PI ? Infinity : CATEGORY_RING_R * Math.sin(spanRad / 2)
+    const catR = Math.min((R_MAX - R0) / 2, wedgeR) * CATEGORY_GAP_FACTOR
     const [cx, cy] = polar(CATEGORY_RING_R, sectorMid(sector))
     categories.set(sector.key, { x: cx, y: cy, r: catR })
 

@@ -89,4 +89,10 @@ describe('packHub', () => {
     const tiny = packHub(tinySectors, tinyLeaves, tinyNotes)
     expect(tiny.categories.get('sliver')!.r).toBeGreaterThan(0)
   })
+
+  it('gives a vault with a single category the full ring band, not a zero-width wedge', () => {
+    const only: Sector[] = [{ key: 'solo', label: 'Solo', weight: 1, start: -90, end: 270 }]
+    const packed = packHub(only, [leaf('solo/proj1', 'solo')], new Map([['solo/proj1', ['solo/proj1/note1.md']]]))
+    expect(packed.categories.get('solo')!.r).toBeCloseTo((R_MAX - R0) / 2 * 0.94)
+  })
 })
