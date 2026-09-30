@@ -3,12 +3,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import TaskCard from '@/features/pipeline/components/TaskCard.vue'
 
+function retryBudgetFor(status: string | null | undefined): number {
+  return status === 'rate_limited' ? 36 : 5
+}
+
+function isRetryQueued(status: string | null | undefined): boolean {
+  return status === 'requeued' || status === 'rate_limited'
+}
+
+function retryChip(status: string | null | undefined, count: number, secondsLeft: number) {
+  const budget = retryBudgetFor(status)
+  if (isRetryQueued(status)) {
+    return {
+      label: `Retrying · ${count}/${budget}${secondsLeft > 0 ? ` · ${secondsLeft}s` : ''}`,
+      title: `Auto-retry queued (attempt ${count} of ${budget})`,
+    }
+  }
+  return {
+    label: `Retry ${count}/${budget}`,
+    title: `Auto-retry attempt ${count} of ${budget} in progress`,
+  }
+}
+
 vi.mock('@/features/pipeline/composables/usePipelineConfig', () => ({
   usePipelineConfig: () => ({
     maxAutoRetries: ref(5),
     maxRateLimitRetries: ref(36),
     config: ref(null),
-    retryBudgetFor: (status: string | null | undefined) => status === 'rate_limited' ? 36 : 5,
+    retryBudgetFor,
+    isRetryQueued,
+    retryChip,
   }),
 }))
 
@@ -61,8 +85,24 @@ describe('taskCard retry state', () => {
         } as any,
       },
     })
-    expect(wrapper.text()).toContain('2/5')
-    expect(wrapper.text()).toContain('Retrying')
+    expect(wrapper.text()).toContain('Retrying · 2/5')
+  })
+
+  it('renders a running-phase chip without a countdown when the retry is in progress', () => {
+    const wrapper = mount(TaskCard, {
+      props: {
+        task: {
+          ...baseTask,
+          latestStageRunStatus: 'running',
+          autoRetryCount: 1,
+          nextRetryAt: null,
+          needsUser: false,
+        } as any,
+      },
+    })
+    expect(wrapper.text()).toContain('Retry 1/5')
+    expect(wrapper.text()).not.toContain('Retrying')
+    expect(wrapper.find('[title*="in progress"]').exists()).toBe(true)
   })
 
   it('divides a rate-limited run by the rate-limit budget, not the infra budget', () => {

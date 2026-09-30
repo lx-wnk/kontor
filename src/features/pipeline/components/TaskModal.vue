@@ -39,12 +39,14 @@ const { stageRuns, permissions, isFailedRun } = details
 
 const { copy: copyTaskId, copied: modalCopiedId } = useCopyId(() => props.task?.id ?? '')
 
-const { retryBudgetFor } = usePipelineConfig()
-const modalRetryBudget = computed(() => retryBudgetFor(task.value?.latestStageRunStatus))
+const { retryChip } = usePipelineConfig()
 const modalRetrySecondsLeft = ref(0)
 useIntervalFn(() => {
   modalRetrySecondsLeft.value = secondsUntil(props.task?.nextRetryAt)
 }, 1000, { immediate: true })
+const modalRetryChipInfo = computed(() => task.value?.autoRetryCount == null
+  ? null
+  : retryChip(task.value.latestStageRunStatus, task.value.autoRetryCount, modalRetrySecondsLeft.value))
 
 const TABS = ['overview', 'stages', 'cost', 'permissions', 'dependencies', 'audit', 'coordination', 'checkpoints'] as const
 const TAB_LABELS: Record<typeof TABS[number], string> = {
@@ -88,14 +90,14 @@ watch(() => props.task?.id, (id, prevId) => {
             RUN FAILED
           </AppChip>
           <AppChip
-            v-if="task.autoRetryCount != null"
+            v-if="modalRetryChipInfo"
             tone="info"
             mono
             uppercase
             :bordered="false"
-            :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${modalRetryBudget})`"
+            :title="modalRetryChipInfo.title"
           >
-            Retrying · {{ task.autoRetryCount }}/{{ modalRetryBudget }}{{ modalRetrySecondsLeft > 0 ? ` · ${modalRetrySecondsLeft}s` : '' }}
+            {{ modalRetryChipInfo.label }}
           </AppChip>
           <span class="font-mono text-xs text-info-text">{{ task.slug }}</span>
           <button

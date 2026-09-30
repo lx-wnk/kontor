@@ -61,7 +61,7 @@ function stageLabel(stage: PipelineStage): string {
   return STAGE_LABELS[stage] || stage
 }
 
-const { retryBudgetFor } = usePipelineConfig()
+const { retryChip } = usePipelineConfig()
 
 const retrySecondsLeft = ref(0)
 
@@ -69,8 +69,9 @@ function refreshCountdown() {
   retrySecondsLeft.value = secondsUntil(props.task.nextRetryAt)
 }
 
-const isRequeued = computed(() => props.task.autoRetryCount != null)
-const retryBudget = computed(() => retryBudgetFor(props.task.latestStageRunStatus))
+const retryChipInfo = computed(() => props.task.autoRetryCount == null
+  ? null
+  : retryChip(props.task.latestStageRunStatus, props.task.autoRetryCount, retrySecondsLeft.value))
 const prError = computed(() => {
   const value = props.task.metadata?.pr_error
   return typeof value === 'string' && value !== '' ? value : null
@@ -222,13 +223,13 @@ const activeChildOutputExpanded = ref(false)
         {{ runStatusLabel(task.latestStageRunStatus) }}
       </AppChip>
       <AppChip
-        v-if="isRequeued"
+        v-if="retryChipInfo"
         tone="info"
         mono
         uppercase
-        :title="`Auto-retry queued (attempt ${task.autoRetryCount} of ${retryBudget})`"
+        :title="retryChipInfo.title"
       >
-        Retrying · {{ task.autoRetryCount }}/{{ retryBudget }}{{ retrySecondsLeft > 0 ? ` · ${retrySecondsLeft}s` : '' }}
+        {{ retryChipInfo.label }}
       </AppChip>
       <AppChip
         v-if="task.needsUser && task.latestStageRunStatus === 'awaiting_user'"
