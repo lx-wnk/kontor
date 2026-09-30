@@ -329,4 +329,34 @@ describe('hubBrainCanvas', () => {
     expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.95, 0.06])
     expect(Number(linkStrokes[0].state.lineWidth)).toBeGreaterThan(Number(linkStrokes[2].state.lineWidth))
   })
+
+  it('emphasises the hovered arc over another arc', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      linkArcs: [
+        { a: 'a', b: 'b', count: 2, points: [[-50, 0], [50, 0]], line: [[-50, 0], [50, 0]] },
+        { a: 'c', b: 'd', count: 2, points: [[-50, 100], [50, 100]], line: [[-50, 100], [50, 100]] },
+      ],
+      hoveredArcKey: 'a\u0000b',
+    })
+    await nextFrame()
+    const arcStrokes = named('stroke').filter(c => c.state.strokeStyle === 'tok(--accent)')
+    expect(arcStrokes.map(c => c.state.globalAlpha)).toEqual([0.95, 0.6])
+    expect(Number(arcStrokes[0].state.lineWidth)).toBeGreaterThan(Number(arcStrokes[1].state.lineWidth))
+  })
+
+  it('at level 2, a lens dims a link between non-highlighted notes but not one touching a highlighted note', async () => {
+    vi.spyOn(globalThis, 'getComputedStyle').mockReturnValue({ getPropertyValue: (name: string) => `tok(${name})` } as never)
+    mountBrain({
+      level: 2,
+      sectors: CATEGORY_SECTORS,
+      leaves: LEAF_SECTORS,
+      noteLeaf: ['a/x', 'a/x', 'b/z'],
+      links: [[0, 1], [1, 2]],
+      highlighted: new Set([2]),
+    })
+    await nextFrame()
+    const linkStrokes = named('stroke').slice(0, 2)
+    expect(linkStrokes.map(c => c.state.globalAlpha)).toEqual([0.18, 0.6])
+  })
 })

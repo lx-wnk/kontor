@@ -402,6 +402,11 @@ useEventListener(stage, 'pointerleave', () => {
   hoveredArc.value = null
 })
 
+const hoveredArcKey = computed(() => {
+  const arc = hoveredArc.value
+  return arc ? `${arc.a}\u0000${arc.b}` : null
+})
+
 const arcTooltip = computed(() => {
   const arc = hoveredArc.value
   if (!arc)
@@ -672,6 +677,7 @@ watch(hubFocusRequest, (target) => {
         :note-leaf="brain.noteLeaf"
         :hovered-note="hoveredNote"
         :link-arcs="linkArcs"
+        :hovered-arc-key="hoveredArcKey"
         :highlighted="lensNotes"
       />
       <HubOrbit

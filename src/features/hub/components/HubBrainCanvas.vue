@@ -31,6 +31,8 @@ const props = defineProps<{
   // Aggregated category (level 0) or leaf (level 1) links, routed and sampled once in HubWidget so
   // the canvas only maps world→screen and strokes; empty at level 2.
   linkArcs: ReadonlyArray<{ a: string, b: string, count: number, points: readonly Point[], line: readonly Point[] }>
+  // Identity of the arc under the pointer (HubWidget's hoveredArc, as `${a}\u0000${b}`), or null when none.
+  hoveredArcKey?: string | null
   // The drawn project-name boxes (HubWidget's leafNames, filtered to namedLeaves): the legend a
   // note title must yield to, since the project names are the map's legend.
   legendBoxes?: ReadonlyArray<LabelObstacle>
@@ -51,6 +53,7 @@ const LINK_INTRA_ALPHA = 0.18
 const LINK_KNOWHOW_ALPHA = 0.35
 const LINK_HOVER_ALPHA = 0.95
 const LINK_HOVER_WIDTH_SCALE = 2
+const ARC_HOVER_WIDTH_SCALE = 1.6
 const LINK_DIM_ALPHA = 0.06
 const EDGE_WIDTH_PX = 1.2
 const EDGE_DASH: Record<NoteTouchKind, number[]> = { read: [4, 3], write: [1, 3] }
@@ -107,12 +110,15 @@ function strokeBundle(ctx: CanvasRenderingContext2D, from: Point, to: Point, rou
 }
 
 // Level 0/1: one arc per (category, category) or (leaf, leaf) pair, already routed and sampled by
-// HubWidget; width grows with the count of links it represents.
+// HubWidget; width grows with the count of links it represents. An arc carries no note info, so a
+// lens dims every arc alike rather than checking individual ends.
 function drawArcs(ctx: CanvasRenderingContext2D, accent: string) {
-  for (const { count, points } of props.linkArcs) {
-    ctx.globalAlpha = LINK_AGG_ALPHA
+  const lensDim = !!props.highlighted
+  for (const { a, b, count, points } of props.linkArcs) {
+    const isHovered = props.hoveredArcKey != null && props.hoveredArcKey === `${a}\u0000${b}`
+    ctx.globalAlpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : LINK_AGG_ALPHA
     ctx.strokeStyle = accent
-    ctx.lineWidth = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX)
+    ctx.lineWidth = Math.min(LINK_AGG_MAX_PX, LINK_AGG_BASE_PX + count * LINK_AGG_STEP_PX) * (isHovered ? ARC_HOVER_WIDTH_SCALE : 1)
     ctx.beginPath()
     traceBundle(ctx, points.map(([x, y]) => toScreen(props.cam, x, y)))
     ctx.stroke()
@@ -131,8 +137,9 @@ function drawKnowHowLinks(ctx: CanvasRenderingContext2D, token: (name: string) =
     const leaf = leafByKey.value.get(leafKey)
     if (!leaf)
       return
+    const lensDim = !!props.highlighted && !props.highlighted.has(from) && !props.highlighted.has(to)
     const route: BundleRoute = { fromLeaf: leaf, toLeaf: leaf, fromCategory: categoryOf(leaf), toCategory: categoryOf(leaf) }
-    strokeBundle(ctx, props.points[from], props.points[to], route, LINK_THIN_WIDTH_PX, LINK_KNOWHOW_ALPHA, noteColour(from, token))
+    strokeBundle(ctx, props.points[from], props.points[to], route, LINK_THIN_WIDTH_PX, lensDim ? LENS_DIM_ALPHA : LINK_KNOWHOW_ALPHA, noteColour(from, token))
   })
 }
 
@@ -151,7 +158,8 @@ function drawIndividualLinks(ctx: CanvasRenderingContext2D, accent: string, line
     const crosses = fromLeaf.key !== toLeaf.key
     const isHovered = hoveredLinks?.has(idx) ?? false
     const dimmed = hoveredLinks !== null && !isHovered
-    const alpha = isHovered ? LINK_HOVER_ALPHA : dimmed ? LINK_DIM_ALPHA : crosses ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
+    const lensDim = !!props.highlighted && !props.highlighted.has(from) && !props.highlighted.has(to)
+    const alpha = isHovered ? LINK_HOVER_ALPHA : lensDim ? LENS_DIM_ALPHA : dimmed ? LINK_DIM_ALPHA : crosses ? LINK_CROSS_ALPHA : LINK_INTRA_ALPHA
     const width = (crosses ? LINK_WIDTH_PX : LINK_THIN_WIDTH_PX) * (isHovered ? LINK_HOVER_WIDTH_SCALE : 1)
     const colour = isHovered || crosses ? accent : lineStrong
     const route: BundleRoute = { fromLeaf, toLeaf, fromCategory: categoryOf(fromLeaf), toCategory: categoryOf(toLeaf) }
