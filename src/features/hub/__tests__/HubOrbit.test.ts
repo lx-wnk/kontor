@@ -29,9 +29,10 @@ interface OrbitOptions {
   namedSectors?: ReadonlySet<string>
   drawnAgents?: ReadonlySet<number>
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
+  otherBadge?: { x: number, y: number, count: number } | null
 }
 
-function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections }: OrbitOptions = {}) {
+function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections, otherBadge }: OrbitOptions = {}) {
   return mount(HubOrbit, {
     props: {
       cam: { k: 1, tx: 500, ty: 500 },
@@ -50,6 +51,7 @@ function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116
       namedSectors,
       drawnAgents,
       labelDirections,
+      otherBadge,
     },
   })
 }
@@ -264,6 +266,23 @@ describe('hubOrbit', () => {
     await w.setProps({ agents: [...ORBIT_AGENTS, { agent: agent(3, 'api-server'), x: 0, y: -90, state: 'working' as const, needsOperator: false }] })
     await flushPromises()
     expect(sizes().get(key)).toEqual(labelSize(key))
+    w.unmount()
+  })
+
+  it('draws no other-badge when the caller gives none', () => {
+    const w = mountOrbit(0)
+    expect(w.find('[data-testid="hub-other-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('draws the other-badge at its point with its count, and emits other on click', async () => {
+    const w = mountOrbit(0, { otherBadge: { x: 40, y: -20, count: 5 } })
+    const badge = w.get('[data-testid="hub-other-badge"]')
+    expect(badge.text()).toBe('+5 other')
+    expect(badge.attributes('aria-label')).toBe('5 agents without a vault folder — open the list')
+    expect(badge.attributes('style')).toContain('translate(540px, 480px)')
+    await badge.trigger('click')
+    expect(w.emitted('other')).toHaveLength(1)
     w.unmount()
   })
 

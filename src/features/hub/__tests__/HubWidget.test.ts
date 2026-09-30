@@ -191,12 +191,14 @@ function vaultFolders(): HubNote[] {
   return Array.from({ length: 6 }, (_, folder) => Array.from({ length: 20 }, (_, i) => vaultNote(folder * 20 + i, `folder${folder}/n${i}.md`))).flat()
 }
 
+// working: true throughout, so none of them lands in the Other badge (none matches a vault folder) —
+// the fixture tests the label culler on a crowded sector, not the badge fold.
 function vaultAgents(): Agent[] {
   return VAULT_PIDS.map((pid, i) => ({
     pid,
     status: i % 3 === 0 ? 'active' : 'idle',
     projectName: i < 7 ? 'folder2' : `folder${i - 7 + (i - 7 >= 2 ? 1 : 0)}`,
-    working: i % 3 === 0,
+    working: true,
   })) as unknown as Agent[]
 }
 
@@ -221,8 +223,10 @@ function packedFor(paths: string[], projects: Array<{ key: string, label: string
 // mid angle — where its name is drawn.
 const TIERED_PIDS = Array.from({ length: 5 }, (_, i) => 700 + i)
 
+// working: true, so none of them lands in the Other badge (none matches a vault folder) — the
+// fixture tests tiering and rail docking, not the badge fold.
 function tieredAgents(): Agent[] {
-  return TIERED_PIDS.map(pid => ({ pid, status: 'idle', projectName: 'folder2', working: false })) as unknown as Agent[]
+  return TIERED_PIDS.map(pid => ({ pid, status: 'idle', projectName: 'folder2', working: true })) as unknown as Agent[]
 }
 
 // The core sits at the world origin, so its rendered point is the centre every radius is read from.
@@ -340,6 +344,46 @@ describe('hubWidget', () => {
     const withOther = await mountHub(TILE)
     expect(colours(withOther)).toEqual(before)
     withOther.unmount()
+  })
+
+  it('draws no other-badge when no agent lands in Other', async () => {
+    const w = await mountHub()
+    expect(w.find('[data-testid="hub-other-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('folds idle agents without a vault folder into one badge instead of a chain of dots', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: 'idle', projectName: `no-folder-${i}`, working: false })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.get('[data-testid="hub-other-badge"]').text()).toBe('+5 other')
+    for (const pid of [500, 501, 502, 503, 504])
+      expect(agentButton(w, pid).classes(), `agent ${pid}`).toContain('invisible')
+    w.unmount()
+  })
+
+  it('keeps a working Other agent as its own dot while the rest fold into the badge', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: i === 0 ? 'active' : 'idle', projectName: `no-folder-${i}`, working: i === 0 })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.get('[data-testid="hub-other-badge"]').text()).toBe('+4 other')
+    expect(agentButton(w, 500).classes()).not.toContain('invisible')
+    for (const pid of [501, 502, 503, 504])
+      expect(agentButton(w, pid).classes(), `agent ${pid}`).toContain('invisible')
+    w.unmount()
+  })
+
+  it('opens the list view when the other-badge is clicked', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'misc/proj/one.md')]
+    agents.value = Array.from({ length: 5 }, (_, i) => ({ pid: 500 + i, status: 'idle', projectName: `no-folder-${i}`, working: false })) as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.find(LIST).exists()).toBe(false)
+    await w.get('[data-testid="hub-other-badge"]').trigger('click')
+    expect(w.find(LIST).exists()).toBe(true)
+    w.unmount()
   })
 
   it('keeps a minimum height while tiles stack in one column, and fills its tile from md up', async () => {

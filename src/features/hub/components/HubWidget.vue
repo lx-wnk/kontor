@@ -287,12 +287,32 @@ function coveredByRail(box: LabelBox): boolean {
 }
 
 const placedScreen = computed(() => placed.value.map(p => ({ p, screen: toScreen(cam.value, p.x, p.y) })))
+
+// An Other agent with nothing urgent about it folds into the badge instead of its own dot; one that
+// needs the operator or is working stays individually visible (Ruling R23 outranks the fold too).
+const collapsedOtherAgents = computed(() => placed.value.filter(p =>
+  plan.value.sectorOfProject.get(agentProjectKey(p.agent)) === OTHER_SECTOR_KEY
+  && !p.needsOperator
+  && p.state !== 'working',
+))
+// The badge sits where the first collapsed agent's own dot would sit today, so it never needs a
+// layout of its own.
+const otherBadge = computed(() => {
+  const collapsed = collapsedOtherAgents.value
+  return collapsed.length ? { x: collapsed[0].x, y: collapsed[0].y, count: collapsed.length } : null
+})
+
 // An agent under the rail is left undrawn rather than drawn unclickable: the dot would look
 // interactive and swallow every press. It keeps its row in the list view (L) and its dot on the
-// minimap, neither of which the rail covers.
-const drawnAgents = computed(() => new Set(placedScreen.value
-  .filter(({ screen: [sx, sy] }) => !coveredByRail(agentDotBox(sx, sy)))
-  .map(({ p }) => p.agent.pid)))
+// minimap, neither of which the rail covers. A collapsed Other agent is left undrawn the same way,
+// folded into the badge instead.
+const drawnAgents = computed(() => {
+  const collapsedPids = new Set(collapsedOtherAgents.value.map(p => p.agent.pid))
+  return new Set(placedScreen.value
+    .filter(({ screen: [sx, sy] }) => !coveredByRail(agentDotBox(sx, sy)))
+    .filter(({ p }) => !collapsedPids.has(p.agent.pid))
+    .map(({ p }) => p.agent.pid))
+})
 
 const EDGE_CLOCK_MS = 30_000
 // Edges fade and expire on this clock too: an idle agent sends no SSE tick to redraw them.
@@ -655,10 +675,12 @@ watch(hubFocusRequest, (target) => {
         :named-sectors="namedSectors"
         :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
+        :other-badge="otherBadge"
         @core="openKontor"
         @agent="flyToAgent"
         @sector="sector => flyTo(...polar(SECTOR_FLY_RADIUS, sectorMid(sector)), SECTOR_FLY_REL)"
         @measure="sizes => labelSizes = sizes"
+        @other="toggleList"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
       <div class="absolute bottom-12 left-2.5 z-[2] flex items-end gap-1.5">

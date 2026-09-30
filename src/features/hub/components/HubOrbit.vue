@@ -42,9 +42,12 @@ const props = defineProps<{
   drawnAgents?: ReadonlySet<number>
   // The direction the culler placed each label in; omitted hangs every label toward the core.
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
+  // The world point and count of the Other agents folded into one badge instead of drawn
+  // individually; null or omitted draws no badge.
+  otherBadge?: { x: number, y: number, count: number } | null
 }>()
 
-const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>] }>()
+const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>], other: [] }>()
 
 const root = ref<HTMLElement | null>(null)
 const sectorNamesShown = computed(() => props.level < 2 && props.showSectorNames)
@@ -180,6 +183,18 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :style="{ ...at(...point), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
       >{{ leaf.label }}</span>
     </template>
+
+    <button
+      v-if="otherBadge"
+      type="button"
+      data-testid="hub-other-badge"
+      :aria-label="`${otherBadge.count} agents without a vault folder — open the list`"
+      class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded-full border border-line-strong bg-card px-2 py-0.5 text-[10.5px] font-semibold text-fg-mute hover:border-accent"
+      :style="at(otherBadge.x, otherBadge.y)"
+      @click="$emit('other')"
+    >
+      +{{ otherBadge.count }} other
+    </button>
 
     <!-- After the sector names, so the agent layer paints and takes pointer events above the legend. -->
     <button
