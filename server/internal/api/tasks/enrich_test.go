@@ -252,3 +252,60 @@ func TestEnrichOne_RateLimited_ReportsRateLimitRetryCount(t *testing.T) {
 		t.Errorf("expected autoRetryCount=4 (the rate-limit counter) for a rate_limited run, got %v", enriched.AutoRetryCount)
 	}
 }
+
+func TestEnrichOne_AutoRetryCount_HiddenOnceTheRunHasEnded(t *testing.T) {
+	cases := []struct {
+		status string
+		want   *int
+	}{
+		{"failed", nil},
+		{"done", nil},
+		{"requeued", new(3)},
+		{"pending", new(3)},
+		{"running", new(3)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.status, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			if err != nil {
+				t.Fatalf("open db: %v", err)
+			}
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			permRepo := repo.NewPermissionRepo(bundle.Client)
+			ctx := context.Background()
+
+			task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
+				Slug:         "enrich-retry-" + tc.status,
+				Title:        "Enrich Retry " + tc.status,
+				Cwd:          "/tmp/enrich-retry-" + tc.status,
+				CurrentStage: "implementation",
+				Priority:     "medium",
+			})
+			if err != nil {
+				t.Fatalf("create task: %v", err)
+			}
+			sr, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "implementation", Iteration: 1})
+			if err != nil {
+				t.Fatalf("create stage run: %v", err)
+			}
+			status := tc.status
+			if _, err = srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+				Status:     &status,
+				RetryCount: new(3),
+			}); err != nil {
+				t.Fatalf("update stage run: %v", err)
+			}
+
+			got := enrichForTest(ctx, t, task, srRepo, permRepo).AutoRetryCount
+			switch {
+			case tc.want == nil && got != nil:
+				t.Errorf("expected no autoRetryCount for a %s run, got %d", tc.status, *got)
+			case tc.want != nil && (got == nil || *got != *tc.want):
+				t.Errorf("expected autoRetryCount=%d for a %s run, got %v", *tc.want, tc.status, got)
+			}
+		})
+	}
+}

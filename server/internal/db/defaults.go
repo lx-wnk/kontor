@@ -13,10 +13,12 @@ const (
 	DefaultStageTimeoutSeconds = 1800
 	// Global maxRateLimitRetries pipeline-config fallback, not a task column default.
 	DefaultMaxRateLimitRetries = 36
-	DefaultCostBudgetCents     = 500      // $5 per-task cost guardrail
-	DefaultTokenBudget         = 15000000 // 15M tokens per-task guardrail
-	DefaultAutonomy            = "spec_gated"
-	DefaultPlanMode            = false
-	DefaultPlanIterationCap    = 3
-	DefaultKind                = "pipeline"
+	// Global maxAutoRetries pipeline-config fallback, not a task column default.
+	DefaultMaxAutoRetries   = 3
+	DefaultCostBudgetCents  = 500      // $5 per-task cost guardrail
+	DefaultTokenBudget      = 15000000 // 15M tokens per-task guardrail
+	DefaultAutonomy         = "spec_gated"
+	DefaultPlanMode         = false
+	DefaultPlanIterationCap = 3
+	DefaultKind             = "pipeline"
 )

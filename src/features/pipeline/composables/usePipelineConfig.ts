@@ -77,7 +77,30 @@ function retryBudgetFor(status: string | null | undefined): number {
   return status === 'rate_limited' ? maxRateLimitRetries.value : maxAutoRetries.value
 }
 
+function isRetryQueued(status: string | null | undefined): boolean {
+  return status === 'requeued' || status === 'rate_limited'
+}
+
+interface RetryChip {
+  label: string
+  title: string
+}
+
+function retryChip(status: string | null | undefined, count: number, secondsLeft: number): RetryChip {
+  const budget = retryBudgetFor(status)
+  if (isRetryQueued(status)) {
+    return {
+      label: `Retrying · ${count}/${budget}${secondsLeft > 0 ? ` · ${secondsLeft}s` : ''}`,
+      title: `Auto-retry queued (attempt ${count} of ${budget})`,
+    }
+  }
+  return {
+    label: `Retry ${count}/${budget}`,
+    title: `Auto-retry attempt ${count} of ${budget} in progress`,
+  }
+}
+
 export function usePipelineConfig() {
   fetchConfig()
-  return { config, maxAutoRetries, maxRateLimitRetries, retryBudgetFor, loading, error, fetchConfig, saveConfig }
+  return { config, maxAutoRetries, maxRateLimitRetries, retryBudgetFor, isRetryQueued, retryChip, loading, error, fetchConfig, saveConfig }
 }

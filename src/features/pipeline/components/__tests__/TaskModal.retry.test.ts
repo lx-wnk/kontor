@@ -40,12 +40,36 @@ function makeTask(overrides = {}) {
   } as any
 }
 
+function retryBudgetFor(status: string | null | undefined): number {
+  return status === 'rate_limited' ? 36 : 3
+}
+
+function isRetryQueued(status: string | null | undefined): boolean {
+  return status === 'requeued' || status === 'rate_limited'
+}
+
+function retryChip(status: string | null | undefined, count: number, secondsLeft: number) {
+  const budget = retryBudgetFor(status)
+  if (isRetryQueued(status)) {
+    return {
+      label: `Retrying · ${count}/${budget}${secondsLeft > 0 ? ` · ${secondsLeft}s` : ''}`,
+      title: `Auto-retry queued (attempt ${count} of ${budget})`,
+    }
+  }
+  return {
+    label: `Retry ${count}/${budget}`,
+    title: `Auto-retry attempt ${count} of ${budget} in progress`,
+  }
+}
+
 vi.mock('@/features/pipeline/composables/usePipelineConfig', () => ({
   usePipelineConfig: () => ({
     maxAutoRetries: ref(3),
     maxRateLimitRetries: ref(36),
     config: ref(null),
-    retryBudgetFor: (status: string | null | undefined) => status === 'rate_limited' ? 36 : 3,
+    retryBudgetFor,
+    isRetryQueued,
+    retryChip,
   }),
 }))
 
@@ -143,7 +167,26 @@ describe('taskModal retry chip', () => {
       attachTo: document.body,
     })
 
-    expect(wrapper.text()).toContain('/3')
+    expect(wrapper.text()).toContain('Retrying · 2/3')
+
+    wrapper.unmount()
+  })
+
+  it('renders a running-phase chip without a countdown when the retry is in progress', () => {
+    const wrapper = mount(TaskModal, {
+      props: {
+        task: makeTask({
+          latestStageRunStatus: 'running',
+          autoRetryCount: 1,
+          nextRetryAt: null,
+        }),
+      },
+      attachTo: document.body,
+    })
+
+    expect(wrapper.text()).toContain('Retry 1/3')
+    expect(wrapper.text()).not.toContain('Retrying')
+    expect(wrapper.find('[title*="in progress"]').exists()).toBe(true)
 
     wrapper.unmount()
   })

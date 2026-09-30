@@ -37,7 +37,7 @@ const (
 	maxReviewCyclesKey         = "maxReviewCycles"
 	defaultMaxReviewCycles     = 3
 	maxAutoRetriesKey          = "maxAutoRetries"
-	defaultMaxAutoRetries      = 3
+	defaultMaxAutoRetries      = db.DefaultMaxAutoRetries
 	retryBackoffKey            = "retryBackoffSeconds"
 	defaultRetryBackoff        = 60
 	rateLimitBackoffKey        = "rateLimitBackoffSeconds"
