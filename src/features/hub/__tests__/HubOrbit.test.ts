@@ -5,10 +5,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import HubOrbit from '../components/HubOrbit.vue'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { buildSectors, sectorLabelRadius } from '../hubGeometry'
+import { buildSectors } from '../hubGeometry'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
 const sectors = buildSectors([{ key: 'kontor-hub', label: 'kontor-hub', weight: 1 }, { key: 'web-app', label: 'web-app', weight: 1 }])
+const DEFAULT_SECTOR_POINTS = new Map<string, [number, number]>([['kontor-hub', [300, 100]], ['web-app', [-300, -100]]])
 
 function agent(pid: number, projectName: string): Agent {
   return { pid, projectName, status: 'active', working: false } as Agent
@@ -22,7 +23,7 @@ const ORBIT_AGENTS = [
 interface OrbitOptions {
   showSectorNames?: boolean
   agentRingPx?: number
-  sectorNameRadius?: number
+  sectorPoints?: ReadonlyMap<string, [number, number]>
   coreDisabled?: boolean
   labelledAgents?: ReadonlySet<number>
   namedSectors?: ReadonlySet<string>
@@ -30,12 +31,12 @@ interface OrbitOptions {
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
 }
 
-function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116, sectorNameRadius = sectorLabelRadius(1, agentRingPx), coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections }: OrbitOptions = {}) {
+function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections }: OrbitOptions = {}) {
   return mount(HubOrbit, {
     props: {
       cam: { k: 1, tx: 500, ty: 500 },
       agentRingPx,
-      sectorNameRadius,
+      sectorPoints,
       showSectorNames,
       sectors,
       agents: ORBIT_AGENTS,
@@ -116,12 +117,6 @@ describe('hubOrbit', () => {
     w.unmount()
   })
 
-  it('leaves out ring labels inside the agent ring and ones that would crowd the last drawn label', () => {
-    const w = mountOrbit(0)
-    expect(w.findAll('[data-testid="hub-ring-label"]').map(l => l.text())).toEqual(['week', 'month', 'year'])
-    w.unmount()
-  })
-
   it('draws no sector names in agent-only mode, where each agent label already names its sector', () => {
     const w = mountOrbit(0, { showSectorNames: false })
     expect(w.findAll('[data-testid^="hub-sector-"]')).toHaveLength(0)
@@ -129,10 +124,18 @@ describe('hubOrbit', () => {
     w.unmount()
   })
 
-  it('pushes sector names outside the agent ring', () => {
-    const w = mountOrbit(0, { agentRingPx: 400 })
+  it('places a sector name at the point the caller gives it, not on a fixed rim', () => {
+    const w = mountOrbit(0)
     const [, x, y] = /translate\(([-\d.]+)px, ([-\d.]+)px/.exec(w.get('[data-testid="hub-sector-0"]').attributes('style')!)!
-    expect(Math.hypot(Number(x) - 500, Number(y) - 500)).toBeCloseTo(440)
+    const [wx, wy] = DEFAULT_SECTOR_POINTS.get('kontor-hub')!
+    expect(Number(x)).toBeCloseTo(500 + wx)
+    expect(Number(y)).toBeCloseTo(500 + wy)
+    w.unmount()
+  })
+
+  it('draws no button for a sector missing from sectorPoints, e.g. one packHub gave no circle', () => {
+    const w = mountOrbit(0, { sectorPoints: new Map([['kontor-hub', [300, 100]]]) })
+    expect(w.findAll('[data-testid^="hub-sector-"]')).toHaveLength(1)
     w.unmount()
   })
 

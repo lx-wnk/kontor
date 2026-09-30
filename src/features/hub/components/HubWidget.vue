@@ -23,9 +23,9 @@ import { lastHubView, useHubCamera } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
-import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey, sectorNameAngle } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, inwardUnit, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, LEAF_NAME_STAGE_SHARE, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, radiusForAge, RINGS, sectorAt, sectorColour, sectorLabelRadius, sectorMid, shadeMix, wedgePath } from '../hubGeometry'
+import { agentAngles, agentRadius, agentRingPx, agentSectorRingPx, DAY_MS, labelledLeaves, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, R0, sectorAt, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
@@ -263,10 +263,18 @@ const placed = computed(() => {
 // How far the agents actually reach: a sector's agents are staggered outward tier by tier, so the
 // legend and the launchers must clear the outermost tier in use, not the base ring.
 const outerRingBasePx = computed(() => Math.max(baseRingPx.value, ...placed.value.map(p => Math.hypot(p.x, p.y) * k0.value)))
-const sectorNameRadius = computed(() => sectorLabelRadius(k0.value, outerRingBasePx.value))
-// Zoomed in, the rim the category names sit on is off stage; project names ride just inside the stage edge.
-const leafNameRadius = computed(() => Math.min(sectorNameRadius.value, stagePx.value * LEAF_NAME_STAGE_SHARE / cam.value.k))
 const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
+
+// A category/project's circle, paired with the plan node it belongs to — packHub skips a category or
+// leaf with no notes, so a sector or leaf without one is left out (Other never gets one).
+const categoryCircles = computed(() => plan.value.sectors.flatMap((sector) => {
+  const c = packed.value.categories.get(sector.key)
+  return c ? [{ sector, c }] : []
+}))
+const projectCircles = computed(() => plan.value.leaves.flatMap((leaf) => {
+  const c = packed.value.projects.get(leaf.key)
+  return c ? [{ leaf, c }] : []
+}))
 
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const launchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value))
@@ -312,37 +320,37 @@ const labelSizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 // (own dot excluded, or a label could never sit next to its own agent) and, when they are actually
 // drawn (HubOrbit.vue only shows them below level 2 and with showSectorNames), every sector name —
 // the map's legend, which never yields to an agent label.
-// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies. A wide
-// sector's midpoint can sit behind the docked rail while most of its arc is free, so the angle
-// slides along the arc (sectorNameAngle) instead of hiding the name outright.
+// The legend as HubOrbit draws it: one entry per name on screen, with the box it occupies. A name is
+// hidden outright once the docked rail covers its fixed point — the point rides its circle now, so
+// there is no arc left to slide it along.
 const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
   ? []
-  : plan.value.sectors.map((sector) => {
-      const boxAt = (deg: number) => {
-        const [wx, wy] = polar(sectorNameRadius.value, deg)
-        const [sx, sy] = toScreen(cam.value, wx, wy)
-        return sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight)))
-      }
-      const found = sectorNameAngle(sector, deg => !coveredByRail(boxAt(deg)))
-      const deg = found ?? sectorMid(sector)
-      return { key: sector.key, deg, found: found !== null, box: boxAt(deg) }
+  : categoryCircles.value.map(({ sector, c }) => {
+      const point: [number, number] = [c.x, c.y - c.r]
+      const [sx, sy] = toScreen(cam.value, ...point)
+      const box = sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight)))
+      return { key: sector.key, point, box, covered: coveredByRail(box) }
     }))
 
-// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well — only
-// once no angle along its arc clears the rail at all.
-const namedSectors = computed(() => new Set(sectorNames.value.filter(s => s.found).map(s => s.key)))
-const sectorNameAngles = computed(() => new Map(sectorNames.value.map(s => [s.key, s.deg])))
+// Half a sector name reads as a shorter, wrong one, so the legend yields to the rail as well.
+const namedSectors = computed(() => new Set(sectorNames.value.filter(s => !s.covered).map(s => s.key)))
+const sectorPoints = computed(() => new Map(sectorNames.value.map(s => [s.key, s.point])))
 
-// Project leaf labels join the legend from level 1 (HubOrbit gates the same way).
+// Project leaf labels join the legend from level 1 (HubOrbit gates the same way), each at its own
+// project circle's centre.
 const leafNames = computed(() => level.value !== 1 || !showSectorNames.value
   ? []
-  : labelledLeaves(plan.value.leaves).map((leaf) => {
-      const [wx, wy] = polar(leafNameRadius.value, sectorMid(leaf))
-      const [sx, sy] = toScreen(cam.value, wx, wy)
-      return { key: leaf.key, weight: leaf.weight, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }
+  : labelledLeaves(plan.value.leaves).flatMap((leaf) => {
+      const c = packed.value.projects.get(leaf.key)
+      if (!c)
+        return []
+      const point: [number, number] = [c.x, c.y]
+      const [sx, sy] = toScreen(cam.value, ...point)
+      return [{ key: leaf.key, weight: leaf.weight, point, box: sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(leaf.label, leaf.weight))) }]
     }))
 
 const namedLeaves = computed(() => namesThatFit(leafNames.value, coveredByRail))
+const leafPoints = computed(() => new Map(leafNames.value.map(l => [l.key, l.point])))
 // The project-name legend a hub note title must yield to (HubBrainCanvas' drawLabels).
 const legendBoxes = computed(() => leafNames.value.filter(l => namedLeaves.value.has(l.key)).map(l => ({ box: l.box })))
 
@@ -579,30 +587,31 @@ watch(hubFocusRequest, (target) => {
     >
       <svg class="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
         <g :transform="`translate(${cam.tx},${cam.ty}) scale(${cam.k})`">
-          <path
-            v-for="sector in plan.sectors"
-            :key="sector.key"
-            :d="wedgePath(sector.start, sector.end)"
-            fill-opacity="0.035"
-            :style="{ fill: `var(--sector-${sectorColour(sector.key)})` }"
-          />
-          <template v-if="level >= 1">
-            <path
-              v-for="leaf in plan.leaves"
-              :key="leaf.key"
-              :d="wedgePath(leaf.start, leaf.end)"
-              fill-opacity="0.09"
-              :style="{ fill: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
-            />
-          </template>
           <circle
-            v-for="ring in RINGS"
-            :key="ring.label"
-            :r="radiusForAge(ring.days)"
-            fill="none"
-            stroke-dasharray="3 5"
+            v-for="{ sector, c } in categoryCircles"
+            :key="sector.key"
+            :data-testid="`hub-category-${sector.key}`"
+            :cx="c.x"
+            :cy="c.y"
+            :r="c.r"
+            fill-opacity="0.06"
+            stroke-opacity="0.35"
+            stroke-width="1"
             vector-effect="non-scaling-stroke"
-            style="stroke: var(--line)"
+            :style="{ fill: `var(--sector-${sectorColour(sector.key)})`, stroke: `var(--sector-${sectorColour(sector.key)})` }"
+          />
+          <circle
+            v-for="{ leaf, c } in projectCircles"
+            :key="leaf.key"
+            :data-testid="`hub-project-${leaf.key}`"
+            :cx="c.x"
+            :cy="c.y"
+            :r="c.r"
+            :fill-opacity="level >= 1 ? 0.08 : 0"
+            :stroke-opacity="level >= 1 ? 0.4 : 0.15"
+            stroke-width="1"
+            vector-effect="non-scaling-stroke"
+            :style="{ fill: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)), stroke: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
           />
         </g>
       </svg>
@@ -638,13 +647,12 @@ watch(hubFocusRequest, (target) => {
         :core-title="coreTitle"
         :core-disabled="!!kontorBlock"
         :agent-ring-px="ringOnScreenPx"
-        :sector-name-radius="sectorNameRadius"
-        :leaf-name-radius="leafNameRadius"
+        :sector-points="sectorPoints"
+        :leaf-points="leafPoints"
         :show-sector-names="showSectorNames"
         :labelled-agents="labels.kept"
         :label-directions="labels.directions"
         :named-sectors="namedSectors"
-        :sector-name-angles="sectorNameAngles"
         :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
         @core="openKontor"
@@ -683,7 +691,7 @@ watch(hubFocusRequest, (target) => {
       <HubMinimap
         :cam="cam"
         :size="size"
-        :sectors="plan.sectors"
+        :categories="packed.categories"
         :agents="placed"
         @fly="(x, y) => flyTo(x, y, Math.max(rel, MINIMAP_FLY_MIN_REL))"
       />

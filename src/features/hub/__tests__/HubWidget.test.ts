@@ -322,11 +322,12 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  // An agent on a project that is no vault folder inserts `__other__`, which sorts first.
-  it('keeps every sector its colour when a catch-all sector appears before it', async () => {
+  // An agent on a project that is no vault folder inserts `__other__`, which packHub never gives a
+  // circle (it has no notes) — so it draws no disc and leaves the coloured ones as they were.
+  it('keeps every category its colour when a catch-all sector appears before it', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'misc/proj/one.md'), vaultNote(1, 'private/two.md'), vaultNote(2, 'work/three.md')]
-    const colours = (w: Hub) => w.findAll('svg')[0].findAll('path').map(p => p.attributes('style'))
+    const colours = (w: Hub) => w.findAll('svg')[0].findAll('[data-testid^="hub-category-"]').map(p => p.attributes('style'))
 
     agents.value = [{ pid: 200, status: 'idle', projectName: 'proj', working: false }] as unknown as Agent[]
     const vaultOnly = await mountHub(TILE)
@@ -337,8 +338,7 @@ describe('hubWidget', () => {
 
     agents.value = [...agents.value, { pid: 201, status: 'idle', projectName: 'kontor', working: false }] as unknown as Agent[]
     const withOther = await mountHub(TILE)
-    expect(colours(withOther)).toHaveLength(4)
-    expect(colours(withOther).slice(1)).toEqual(before)
+    expect(colours(withOther)).toEqual(before)
     withOther.unmount()
   })
 
