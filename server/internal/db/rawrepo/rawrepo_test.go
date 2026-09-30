@@ -299,8 +299,8 @@ func TestChildSummariesByParent_DeadPidNotActive(t *testing.T) {
 	}
 }
 
-// TestStageRunBulkRepo_LatestPerTask_RetryFields verifies that retry_count and
-// next_retry_at are correctly scanned by LatestPerTask.
+// TestStageRunBulkRepo_LatestPerTask_RetryFields verifies that retry_count,
+// rate_limit_retry_count and next_retry_at are correctly scanned by LatestPerTask.
 func TestStageRunBulkRepo_LatestPerTask_RetryFields(t *testing.T) {
 	bundle := openTestDB(t)
 	ctx := context.Background()
@@ -330,12 +330,14 @@ func TestStageRunBulkRepo_LatestPerTask_RetryFields(t *testing.T) {
 	}
 
 	retryCount := 3
+	rateLimitRetryCount := 7
 	nextRetryAt := time.Now().Add(60 * time.Second).UTC().Truncate(time.Second)
 	status := "requeued"
 	_, err = srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-		Status:      &status,
-		RetryCount:  &retryCount,
-		NextRetryAt: &nextRetryAt,
+		Status:              &status,
+		RetryCount:          &retryCount,
+		RateLimitRetryCount: &rateLimitRetryCount,
+		NextRetryAt:         &nextRetryAt,
 	})
 	if err != nil {
 		t.Fatalf("update stage run: %v", err)
@@ -352,6 +354,9 @@ func TestStageRunBulkRepo_LatestPerTask_RetryFields(t *testing.T) {
 	}
 	if got.RetryCount != 3 {
 		t.Errorf("expected RetryCount=3, got %d", got.RetryCount)
+	}
+	if got.RateLimitRetryCount != 7 {
+		t.Errorf("expected RateLimitRetryCount=7, got %d", got.RateLimitRetryCount)
 	}
 	if got.NextRetryAt == nil {
 		t.Fatal("expected NextRetryAt to be set")
