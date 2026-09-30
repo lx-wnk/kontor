@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { NAV_ITEMS } from '@/utils/navConfig'
-import { launchersFor, MAX_LAUNCHERS } from './hubLaunchers'
+import { boxesOverlap } from './hubCanvas'
+import { LAUNCHER_PX, polar } from './hubGeometry'
+import { launcherAngles, launchersFor, launcherSlotDeg, MAX_LAUNCHERS } from './hubLaunchers'
 
 describe('launchersFor', () => {
   it('lists the other core views and ends with New page', () => {
@@ -26,5 +28,34 @@ describe('launchersFor', () => {
   })
   it('leaves out the view the hub is on', () => {
     expect(launchersFor(NAV_ITEMS, [{ id: 'a', title: 'A' }], 'page:a').map(x => x.id)).not.toContain('page:a')
+  })
+})
+
+describe('launcherAngles', () => {
+  const RING = 100
+
+  function boxAt(deg: number) {
+    const [x, y] = polar(RING, deg)
+    return { x: x - LAUNCHER_PX / 2, y: y - LAUNCHER_PX / 2, w: LAUNCHER_PX, h: LAUNCHER_PX }
+  }
+
+  it('keeps the default slots when nothing is blocked', () => {
+    expect(launcherAngles(4, RING, [])).toEqual([0, 1, 2, 3].map(launcherSlotDeg))
+  })
+
+  it('rotates the whole ring off a box that covers a default slot, keeping order and spacing', () => {
+    const blocked = [boxAt(launcherSlotDeg(0))]
+    const angles = launcherAngles(3, RING, blocked)
+    expect(angles).not.toBeNull()
+    expect(angles).not.toEqual([0, 1, 2].map(launcherSlotDeg))
+    for (let i = 1; i < angles!.length; i++)
+      expect(angles![i] - angles![i - 1]).toBe(45)
+    for (const deg of angles!)
+      expect(blocked.some(b => boxesOverlap(boxAt(deg), b))).toBe(false)
+  })
+
+  it('signals to dock when no rotation clears the blocked arc', () => {
+    const blocked = [{ x: -1000, y: -1000, w: 2000, h: 2000 }]
+    expect(launcherAngles(4, RING, blocked)).toBeNull()
   })
 })

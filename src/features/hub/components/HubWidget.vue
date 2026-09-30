@@ -26,10 +26,10 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { DAY_MS, labelledLeaves, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
+import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
-import { launcherBox, launchersFor } from '../hubLaunchers'
+import { launcherAngles, launcherBox, launchersFor, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
 import { MAP_RADIUS, packHub } from '../hubPack'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
@@ -325,7 +325,7 @@ const placed = computed(() => {
 // The map's furthest reach plus the Other agents just past it, fixed rather than the live map's
 // extent, so the launchers never move or dock as agents come and go.
 const outerRingBasePx = computed(() => OTHER_RIM_RADIUS * k0.value)
-const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
+const ringDocked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const projectCircles = computed(() => plan.value.leaves.flatMap((leaf) => {
   const c = packed.value.projects.get(leaf.key)
@@ -361,7 +361,18 @@ const breadcrumb = computed(() => {
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const launchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value))
 const listLaunchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value, Infinity))
-const launcherBoxes = computed(() => launchers.value.map((_, i) => launcherBox(i, docked.value, cam.value, k0.value, outerRingBasePx.value)))
+// launcherAngles works around the world origin, so the stage-local queue box drops the camera offset.
+const ringBlocked = computed<LabelBox[]>(() => {
+  if (ringDocked.value || needsYou.value.length === 0)
+    return []
+  const box = queueWorstCaseBox(size.value.width, size.value.height)
+  return [{ x: box.x - cam.value.tx, y: box.y - cam.value.ty, w: box.w, h: box.h }]
+})
+const ringAngles = computed(() => launcherAngles(launchers.value.length, launcherRingRadius(k0.value, outerRingBasePx.value) * cam.value.k, ringBlocked.value))
+// Undocked but no rotation clears the queue: dock rather than draw a launcher under it.
+const docked = computed(() => ringDocked.value || ringAngles.value === null)
+const launcherBoxes = computed(() => launchers.value.map((_, i) => launcherBox(i, docked.value, cam.value, k0.value, outerRingBasePx.value, docked.value ? undefined : ringAngles.value?.[i])))
+const queueWrapperStyle = { top: `${QUEUE_TOP_PX}px`, maxHeight: `${QUEUE_MAX_HEIGHT_SHARE * 100}%`, width: `min(${QUEUE_MAX_WIDTH_PX}px, calc(100% - ${QUEUE_SIDE_INSET_PX}px))` }
 // A launcher is opaque chrome. The ring clears the map by construction; the docked rail is fixed to
 // the screen while the map pans under it, so whatever it covers is unreachable and stays undrawn.
 function coveredByRail(box: LabelBox): boolean {
@@ -763,7 +774,7 @@ watch(hubFocusRequest, (target) => {
         @measure="sizes => labelSizes = sizes"
         @other="toggleList"
       />
-      <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" @launch="launch" />
+      <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" :angles="docked ? undefined : ringAngles ?? undefined" @launch="launch" />
       <div class="absolute bottom-12 left-2.5 z-[2] flex items-end gap-1.5">
         <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
         <div v-if="lensCounts" class="flex items-center gap-1.5" data-testid="hub-lenses">
@@ -799,7 +810,7 @@ watch(hubFocusRequest, (target) => {
         @fly="(x, y) => flyTo(x, y, Math.max(rel, MINIMAP_FLY_MIN_REL))"
       />
     </div>
-    <div class="pointer-events-none absolute left-1/2 top-2.5 z-10 flex max-h-[45%] w-[min(560px,calc(100%-120px))] -translate-x-1/2 flex-col items-start gap-1.5">
+    <div class="pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-start gap-1.5" :style="queueWrapperStyle">
       <span
         v-if="breadcrumb"
         data-testid="hub-breadcrumb"

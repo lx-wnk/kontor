@@ -1,4 +1,6 @@
+import type { ComputedRef } from 'vue'
 import type { GraphStatus, HubNote } from '../composables/useObsidianGraph'
+import type { NextThing } from '@/features/mission/composables/useNextThing'
 import type { Agent } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +17,7 @@ import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
 import { DAY_MS, LAUNCHER_PX, planSectors } from '../hubGeometry'
+import { queueWorstCaseBox } from '../hubLaunchers'
 import { MAP_RADIUS, packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
@@ -117,12 +120,12 @@ const TILE = { width: 584, height: 734 }
 // Only a stage this large leaves the launcher ring room outside a map that fills the fitted disc.
 const ROOMY = { width: 8000, height: 8040 }
 
-async function mountHub(size = { width: 1090, height: 1130 }) {
+async function mountHub(size = { width: 1090, height: 1130 }, needsYouCount = 0) {
   const w = mount(HubWidget, {
     attachTo: document.body,
     global: {
       provide: {
-        [NEEDS_YOU]: computed(() => []),
+        [NEEDS_YOU]: computed(() => Array.from({ length: needsYouCount }, () => ({}))) as unknown as ComputedRef<NextThing[]>,
         [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() },
         [OPEN_TASK]: vi.fn(),
         [OPEN_SETTINGS]: openSettings,
@@ -298,6 +301,32 @@ describe('hubWidget', () => {
     }
     expect(slots[0]).not.toEqual(slots[1])
     w.unmount()
+  })
+
+  // On this stage, zoomed out three steps, the ring is undocked and a launcher's default (unrotated)
+  // slot falls inside the needs-you queue's worst-case box — so a pending question must rotate it clear.
+  const WIDE = { width: 3200, height: 2400 }
+
+  async function zoomOutThrice(w: Hub) {
+    for (let i = 0; i < 3; i++)
+      await press(w, '-')
+  }
+
+  it('rotates the launcher ring clear of the needs-you queue\'s worst-case box only while a question is pending', async () => {
+    const box = queueWorstCaseBox(WIDE.width, WIDE.height)
+    const boxOf = ({ sx, sy }: { sx: number, sy: number }) => ({ x: sx - LAUNCHER_PX / 2, y: sy - LAUNCHER_PX / 2, w: LAUNCHER_PX, h: LAUNCHER_PX })
+
+    const empty = await mountHub(WIDE, 0)
+    await zoomOutThrice(empty)
+    const emptyBoxes = empty.findAll('[data-testid^="hub-launcher-"]').map(translateOf).map(boxOf)
+    empty.unmount()
+    expect(emptyBoxes.some(b => boxesOverlap(b, box))).toBe(true)
+
+    const busy = await mountHub(WIDE, 1)
+    await zoomOutThrice(busy)
+    const busyBoxes = busy.findAll('[data-testid^="hub-launcher-"]').map(translateOf).map(boxOf)
+    busy.unmount()
+    expect(busyBoxes.some(b => boxesOverlap(b, box))).toBe(false)
   })
 
   it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside MAP_RADIUS on a roomy one', async () => {
