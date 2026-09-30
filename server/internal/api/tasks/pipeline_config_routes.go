@@ -120,7 +120,7 @@ func (h *Handler) getPipelineConfig(w http.ResponseWriter, r *http.Request) erro
 	ctx := r.Context()
 	maxParallel := int(h.cfgRepo.GetNumber(ctx, "maxParallelOrchestrators", 3))
 	stageTimeout := int(h.cfgRepo.GetNumber(ctx, "stageTimeoutSeconds", db.DefaultStageTimeoutSeconds))
-	maxAutoRetries := int(h.cfgRepo.GetNumber(ctx, "maxAutoRetries", 3))
+	maxAutoRetries := int(h.cfgRepo.GetNumber(ctx, "maxAutoRetries", db.DefaultMaxAutoRetries))
 	maxRateLimitRetries := int(h.cfgRepo.GetNumber(ctx, "maxRateLimitRetries", db.DefaultMaxRateLimitRetries))
 	retryBackoffSeconds := int(h.cfgRepo.GetNumber(ctx, "retryBackoffSeconds", 60))
 	extraSafeBashCommands := h.cfgRepo.GetString(ctx, "extraSafeBashCommands", "")
