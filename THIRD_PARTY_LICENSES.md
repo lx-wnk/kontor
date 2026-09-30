@@ -136,6 +136,7 @@ The following third-party packages are used as transitive dependencies.
 | d3-drag | 3.0.0 | ISC |
 | d3-force | 3.0.0 | ISC |
 | d3-format | 3.1.2 | ISC |
+| d3-hierarchy | 3.1.2 | ISC |
 | d3-interpolate | 3.0.1 | ISC |
 | d3-path | 1.0.9 | BSD-3-Clause |
 | d3-path | 3.1.0 | ISC |
