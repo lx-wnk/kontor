@@ -30,7 +30,7 @@ import { DAY_MS, labelledLeaves, leafColour, leafShade, notePoint, OTHER_SECTOR_
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { launcherBox, launchersFor } from '../hubLaunchers'
-import { packHub } from '../hubPack'
+import { MAP_RADIUS, packHub } from '../hubPack'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
 import HubControls from './HubControls.vue'
@@ -275,15 +275,15 @@ const otherAnchorDeg = computed(() => {
   return bestMid
 })
 
-// A little past the packed map's own edge, so an Other agent never sits inside a category circle —
-// and past packHub's own AGENT_RIM_GAP, so it clears a project's own rim agents too.
-const OTHER_RIM_GAP = 8
+// A little past MAP_RADIUS, which bounds every category circle, so an Other agent never sits inside
+// one — and past packHub's own AGENT_RIM_GAP, so it clears a project's own rim agents too.
+const OTHER_RIM_RADIUS = MAP_RADIUS + 8
 const OTHER_FAN_STEP_DEG = 12
 
 // A folded Other agent shares the badge's own point — it is never drawn on its own, so it needs no
 // slot of its own; a shown one fans out beside the badge. Both sit just outside the map.
 const otherSlots = computed(() => {
-  const radius = packed.value.extent + OTHER_RIM_GAP
+  const radius = OTHER_RIM_RADIUS
   const anchor = otherAnchorDeg.value
   const badge = polar(radius, anchor)
   const slots = new Map<number, [number, number, number]>()
@@ -322,9 +322,9 @@ const placed = computed(() => {
   })
 })
 
-// The map's own reach, plus the Other agents just past it: what the legend and the launchers must
-// clear so nothing they draw lands on the map.
-const outerRingBasePx = computed(() => (packed.value.extent + OTHER_RIM_GAP) * k0.value)
+// The map's furthest reach plus the Other agents just past it, fixed rather than the live map's
+// extent, so the launchers never move or dock as agents come and go.
+const outerRingBasePx = computed(() => OTHER_RIM_RADIUS * k0.value)
 const docked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const projectCircles = computed(() => plan.value.leaves.flatMap((leaf) => {

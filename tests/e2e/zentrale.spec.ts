@@ -348,6 +348,54 @@ test('the hub widens on F, opens the sidebar New page input from its launcher an
   await expect.poll(() => page.evaluate(() => localStorage.getItem('agent-active-view'))).toBe('dashboard')
 })
 
+// Many live agents shrink the map, and a pending question fills the queue docked at the top of the hub.
+test('a pending question never covers a launcher, however many agents are live', async ({ page }) => {
+  const agent = (i: number) => ({
+    pid: 5000 + i,
+    sessionId: `sess-${i}`,
+    provider: 'claude',
+    projectName: `proj-${i}`,
+    projectPath: `/repo/proj-${i}`,
+    cwd: `/repo/proj-${i}`,
+    status: 'idle',
+    working: false,
+    lastActivity: new Date().toISOString(),
+    uptime: 120,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+    costEstimate: 0,
+    lastTools: [],
+    tasks: [],
+    subagents: [],
+  })
+  const option = (index: number, label: string) => ({ index, label, description: 'A description long enough to wrap over two lines in the docked queue card' })
+  const asking = {
+    ...agent(10),
+    status: 'waiting',
+    liveInjectable: true,
+    channelAvailable: true,
+    pendingQuestion: {
+      header: 'Launch',
+      question: 'Launch failed after start, which option?',
+      multiSelect: false,
+      options: [option(1, 'Reads first'), option(2, 'Keep the plan'), option(3, 'Retry sweep')],
+      typeSomethingIndex: 4,
+      chatAboutIndex: 5,
+    },
+  }
+  const agents = [...Array.from({ length: 10 }, (_, i) => agent(i)), asking]
+  await page.route('/api/agents', route => route.fulfill({ json: agents }))
+  await page.route('/api/agents/stream', route => route.fulfill({
+    status: 200,
+    contentType: 'text/event-stream',
+    body: `data: ${JSON.stringify({ agents })}\n\n`,
+  }))
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByTestId('needs-you')).toContainText('Launch failed')
+
+  await page.getByTestId('hub-launcher-new-page').click()
+  await expect(page.getByTestId('nav-new-page-input')).toBeFocused()
+})
+
 test('Escape on the hub with the Kontor overlay open collapses only the overlay', async ({ page }) => {
   // Reduced motion makes the hub's fit synchronous, so a wrong fit shows up without waiting out a flight.
   await page.emulateMedia({ reducedMotion: 'reduce' })

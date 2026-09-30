@@ -24,7 +24,6 @@ export interface PackResult {
   projects: Map<string, Circle>
   notes: Map<string, [number, number]>
   agentSlots: Map<string, Array<[number, number, number]>>
-  extent: number
 }
 
 function sumValue(nodes: readonly PackDatum[]): number {
@@ -127,14 +126,12 @@ export function packHub(
     .filter(categoryDatum => categoryDatum.children.length > 0)
 
   if (categoryData.length === 0)
-    return { categories, projects, notes, agentSlots, extent: R0 }
+    return { categories, projects, notes, agentSlots }
 
   const categoryLayout = layoutCategories(categoryData)
   const byKey = new Map(categoryData.map(c => [c.key, c]))
-  let extent = R0
 
   for (const { key, cx, cy, r } of categoryLayout) {
-    extent = Math.max(extent, Math.hypot(cx, cy) + r)
     const root = hierarchy(byKey.get(key)!).sum(d => d.value ?? 0)
     const packed = pack<PackDatum>().size([2 * r, 2 * r]).padding(PACK_PADDING)(root)
     for (const node of packed.descendants()) {
@@ -156,5 +153,5 @@ export function packHub(
       agentSlots.set(leaf.key, agentSlotsForProject(project, agents))
   }
 
-  return { categories, projects, notes, agentSlots, extent }
+  return { categories, projects, notes, agentSlots }
 }

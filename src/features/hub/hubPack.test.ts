@@ -94,9 +94,10 @@ describe('packHub', () => {
     expect(Math.max(...emptyGaps)).toBeLessThanOrEqual(evenGap + 1e-6)
   })
 
-  it('reports an extent that grows past the old R_MAX cap, bounded by MAP_RADIUS', () => {
-    expect(result.extent).toBeGreaterThan(R_MAX)
-    expect(result.extent).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
+  it('grows the map past the old R_MAX cap, bounded by MAP_RADIUS', () => {
+    const reach = Math.max(...[...result.categories.values()].map(c => Math.hypot(c.x, c.y) + c.r))
+    expect(reach).toBeGreaterThan(R_MAX)
+    expect(reach).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
   })
 
   it('gives a category a bigger radius than the old R_MAX cap allowed, with three categories sharing the map', () => {

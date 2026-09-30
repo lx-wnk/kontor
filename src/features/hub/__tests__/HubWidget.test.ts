@@ -15,7 +15,7 @@ import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
 import { DAY_MS, LAUNCHER_PX, planSectors } from '../hubGeometry'
-import { packHub } from '../hubPack'
+import { MAP_RADIUS, packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
 const NOTE_AGE_DAYS = 30
@@ -300,14 +300,13 @@ describe('hubWidget', () => {
     w.unmount()
   })
 
-  it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside the map\'s extent on a roomy one', async () => {
+  it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside MAP_RADIUS on a roomy one', async () => {
     const launcherX = (w: Hub) => Number(/translate\(([-\d.]+)px/.exec(w.get('[data-testid^="hub-launcher-"]').attributes('style')!)![1])
     const roomy = await mountHub(ROOMY)
     expect(launcherX(roomy)).not.toBe(30)
     const core = translateOf(roomy.get('[data-testid="hub-core"]'))
     const launcher = translateOf(roomy.get('[data-testid^="hub-launcher-"]'))
-    const extent = packedFor([], [{ key: 'kontor-hub', label: 'kontor-hub' }], new Map([['kontor-hub', 1]])).extent
-    expect(Math.hypot(launcher.sx - core.sx, launcher.sy - core.sy) / scale(roomy)).toBeGreaterThan(extent)
+    expect(Math.hypot(launcher.sx - core.sx, launcher.sy - core.sy) / scale(roomy)).toBeGreaterThan(MAP_RADIUS)
     roomy.unmount()
 
     const narrow = await mountHub(TILE)
@@ -373,8 +372,7 @@ describe('hubWidget', () => {
 
     const core = translateOf(w.get('[data-testid="hub-core"]'))
     const badge = translateOf(w.get('[data-testid="hub-other-badge"]'))
-    const extent = packedFor(['misc/proj/one.md'], []).extent
-    expect(Math.hypot(badge.sx - core.sx, badge.sy - core.sy) / scale(w)).toBeGreaterThan(extent)
+    expect(Math.hypot(badge.sx - core.sx, badge.sy - core.sy) / scale(w)).toBeGreaterThan(MAP_RADIUS)
     w.unmount()
   })
 
