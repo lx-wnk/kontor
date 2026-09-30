@@ -47,6 +47,8 @@ type StageRun struct {
 	LastGrantAt *time.Time `json:"last_grant_at,omitempty"`
 	// RetryCount holds the value of the "retry_count" field.
 	RetryCount int `json:"retry_count,omitempty"`
+	// RateLimitRetryCount holds the value of the "rate_limit_retry_count" field.
+	RateLimitRetryCount int `json:"rate_limit_retry_count,omitempty"`
 	// NextRetryAt holds the value of the "next_retry_at" field.
 	NextRetryAt *time.Time `json:"next_retry_at,omitempty"`
 	// PendingUserPrompt holds the value of the "pending_user_prompt" field.
@@ -97,7 +99,7 @@ func (*StageRun) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case stagerun.FieldOutput:
 			values[i] = new([]byte)
-		case stagerun.FieldPid, stagerun.FieldIteration, stagerun.FieldTokensUsed, stagerun.FieldCostCents, stagerun.FieldRetryCount:
+		case stagerun.FieldPid, stagerun.FieldIteration, stagerun.FieldTokensUsed, stagerun.FieldCostCents, stagerun.FieldRetryCount, stagerun.FieldRateLimitRetryCount:
 			values[i] = new(sql.NullInt64)
 		case stagerun.FieldID, stagerun.FieldTaskID, stagerun.FieldStage, stagerun.FieldSessionID, stagerun.FieldSessionName, stagerun.FieldStatus, stagerun.FieldPendingUserPrompt:
 			values[i] = new(sql.NullString)
@@ -215,6 +217,12 @@ func (_m *StageRun) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field retry_count", values[i])
 			} else if value.Valid {
 				_m.RetryCount = int(value.Int64)
+			}
+		case stagerun.FieldRateLimitRetryCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field rate_limit_retry_count", values[i])
+			} else if value.Valid {
+				_m.RateLimitRetryCount = int(value.Int64)
 			}
 		case stagerun.FieldNextRetryAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -335,6 +343,9 @@ func (_m *StageRun) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("retry_count=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RetryCount))
+	builder.WriteString(", ")
+	builder.WriteString("rate_limit_retry_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RateLimitRetryCount))
 	builder.WriteString(", ")
 	if v := _m.NextRetryAt; v != nil {
 		builder.WriteString("next_retry_at=")

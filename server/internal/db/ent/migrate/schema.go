@@ -856,6 +856,7 @@ var (
 		{Name: "ended_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_grant_at", Type: field.TypeTime, Nullable: true},
 		{Name: "retry_count", Type: field.TypeInt, Default: 0},
+		{Name: "rate_limit_retry_count", Type: field.TypeInt, Default: 0},
 		{Name: "next_retry_at", Type: field.TypeTime, Nullable: true},
 		{Name: "pending_user_prompt", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, Default: "datetime('now')"},
@@ -869,7 +870,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "stage_runs_tasks_stage_runs",
-				Columns:    []*schema.Column{StageRunsColumns[17]},
+				Columns:    []*schema.Column{StageRunsColumns[18]},
 				RefColumns: []*schema.Column{TasksColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -888,17 +889,17 @@ var (
 			{
 				Name:    "stagerun_task_id_stage_iteration",
 				Unique:  false,
-				Columns: []*schema.Column{StageRunsColumns[17], StageRunsColumns[1], StageRunsColumns[6]},
+				Columns: []*schema.Column{StageRunsColumns[18], StageRunsColumns[1], StageRunsColumns[6]},
 			},
 			{
 				Name:    "stagerun_task_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{StageRunsColumns[17], StageRunsColumns[16]},
+				Columns: []*schema.Column{StageRunsColumns[18], StageRunsColumns[17]},
 			},
 			{
 				Name:    "stagerun_task_id",
 				Unique:  true,
-				Columns: []*schema.Column{StageRunsColumns[17]},
+				Columns: []*schema.Column{StageRunsColumns[18]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "status = 'running'",
 				},

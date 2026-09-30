@@ -314,8 +314,12 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 	var autoRetryCount *int
 	var nextRetryAt *time.Time
 	if latestBelongsToCurrent {
-		if latest.RetryCount > 0 {
-			autoRetryCount = &latest.RetryCount
+		count := latest.RetryCount
+		if latest.Status == "rate_limited" {
+			count = latest.RateLimitRetryCount
+		}
+		if count > 0 {
+			autoRetryCount = &count
 		}
 		nextRetryAt = latest.NextRetryAt
 	}

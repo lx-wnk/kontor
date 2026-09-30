@@ -42,6 +42,8 @@ const (
 	FieldLastGrantAt = "last_grant_at"
 	// FieldRetryCount holds the string denoting the retry_count field in the database.
 	FieldRetryCount = "retry_count"
+	// FieldRateLimitRetryCount holds the string denoting the rate_limit_retry_count field in the database.
+	FieldRateLimitRetryCount = "rate_limit_retry_count"
 	// FieldNextRetryAt holds the string denoting the next_retry_at field in the database.
 	FieldNextRetryAt = "next_retry_at"
 	// FieldPendingUserPrompt holds the string denoting the pending_user_prompt field in the database.
@@ -87,6 +89,7 @@ var Columns = []string{
 	FieldEndedAt,
 	FieldLastGrantAt,
 	FieldRetryCount,
+	FieldRateLimitRetryCount,
 	FieldNextRetryAt,
 	FieldPendingUserPrompt,
 	FieldCreatedAt,
@@ -113,6 +116,8 @@ var (
 	DefaultCostCents int
 	// DefaultRetryCount holds the default value on creation for the "retry_count" field.
 	DefaultRetryCount int
+	// DefaultRateLimitRetryCount holds the default value on creation for the "rate_limit_retry_count" field.
+	DefaultRateLimitRetryCount int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -188,6 +193,11 @@ func ByLastGrantAt(opts ...sql.OrderTermOption) OrderOption {
 // ByRetryCount orders the results by the retry_count field.
 func ByRetryCount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRetryCount, opts...).ToFunc()
+}
+
+// ByRateLimitRetryCount orders the results by the rate_limit_retry_count field.
+func ByRateLimitRetryCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRateLimitRetryCount, opts...).ToFunc()
 }
 
 // ByNextRetryAt orders the results by the next_retry_at field.

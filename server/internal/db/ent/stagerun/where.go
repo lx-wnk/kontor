@@ -130,6 +130,11 @@ func RetryCount(v int) predicate.StageRun {
 	return predicate.StageRun(sql.FieldEQ(FieldRetryCount, v))
 }
 
+// RateLimitRetryCount applies equality check predicate on the "rate_limit_retry_count" field. It's identical to RateLimitRetryCountEQ.
+func RateLimitRetryCount(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldEQ(FieldRateLimitRetryCount, v))
+}
+
 // NextRetryAt applies equality check predicate on the "next_retry_at" field. It's identical to NextRetryAtEQ.
 func NextRetryAt(v time.Time) predicate.StageRun {
 	return predicate.StageRun(sql.FieldEQ(FieldNextRetryAt, v))
@@ -858,6 +863,46 @@ func RetryCountLT(v int) predicate.StageRun {
 // RetryCountLTE applies the LTE predicate on the "retry_count" field.
 func RetryCountLTE(v int) predicate.StageRun {
 	return predicate.StageRun(sql.FieldLTE(FieldRetryCount, v))
+}
+
+// RateLimitRetryCountEQ applies the EQ predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountEQ(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldEQ(FieldRateLimitRetryCount, v))
+}
+
+// RateLimitRetryCountNEQ applies the NEQ predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountNEQ(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldNEQ(FieldRateLimitRetryCount, v))
+}
+
+// RateLimitRetryCountIn applies the In predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountIn(vs ...int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldIn(FieldRateLimitRetryCount, vs...))
+}
+
+// RateLimitRetryCountNotIn applies the NotIn predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountNotIn(vs ...int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldNotIn(FieldRateLimitRetryCount, vs...))
+}
+
+// RateLimitRetryCountGT applies the GT predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountGT(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldGT(FieldRateLimitRetryCount, v))
+}
+
+// RateLimitRetryCountGTE applies the GTE predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountGTE(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldGTE(FieldRateLimitRetryCount, v))
+}
+
+// RateLimitRetryCountLT applies the LT predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountLT(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldLT(FieldRateLimitRetryCount, v))
+}
+
+// RateLimitRetryCountLTE applies the LTE predicate on the "rate_limit_retry_count" field.
+func RateLimitRetryCountLTE(v int) predicate.StageRun {
+	return predicate.StageRun(sql.FieldLTE(FieldRateLimitRetryCount, v))
 }
 
 // NextRetryAtEQ applies the EQ predicate on the "next_retry_at" field.

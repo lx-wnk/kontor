@@ -73,11 +73,11 @@ func (r *sqlStageRunBulkRepo) LatestPerTask(ctx context.Context, taskIDs []strin
 	q := fmt.Sprintf(`
 SELECT id, task_id, stage, session_id, session_name, pid, status, iteration,
        output, tokens_used, cost_cents, started_at, ended_at, last_grant_at, created_at,
-       retry_count, next_retry_at
+       retry_count, rate_limit_retry_count, next_retry_at
 FROM (
     SELECT id, task_id, stage, session_id, session_name, pid, status, iteration,
            output, tokens_used, cost_cents, started_at, ended_at, last_grant_at, created_at,
-           retry_count, next_retry_at,
+           retry_count, rate_limit_retry_count, next_retry_at,
            ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at DESC) AS rn
     FROM stage_runs
     WHERE task_id IN (%s)
@@ -116,7 +116,7 @@ func (r *sqlStageRunBulkRepo) AllForTaskIDs(ctx context.Context, taskIDs []strin
 	q := fmt.Sprintf(`
 SELECT id, task_id, stage, session_id, session_name, pid, status, iteration,
        output, tokens_used, cost_cents, started_at, ended_at, last_grant_at, created_at,
-       retry_count, next_retry_at
+       retry_count, rate_limit_retry_count, next_retry_at
 FROM stage_runs
 WHERE task_id IN (%s)
 ORDER BY task_id, iteration ASC`, placeholders)
@@ -318,7 +318,7 @@ func scanStageRun(rows *sql.Rows) (*ent.StageRun, error) {
 		&outputRaw, &sr.TokensUsed, &sr.CostCents,
 		&startedAt, &endedAt, &lastGrantAt,
 		&sr.CreatedAt,
-		&sr.RetryCount, &nextRetryAt,
+		&sr.RetryCount, &sr.RateLimitRetryCount, &nextRetryAt,
 	)
 	if err != nil {
 		return nil, err

@@ -6,6 +6,7 @@ export interface PipelineConfig {
   maxParallelOrchestrators: number
   stageTimeoutSeconds: number
   maxAutoRetries: number
+  maxRateLimitRetries: number
   retryBackoffSeconds: number
   stageModels: Record<SpawnerStage, string>
   stageSpawners: Record<SpawnerStage, string>
@@ -20,6 +21,7 @@ interface PartialPipelineConfig {
 
 const config = ref<PipelineConfig | null>(null)
 const maxAutoRetries = ref(3)
+const maxRateLimitRetries = ref(36)
 const loading = ref(false)
 const error = ref<string | null>(null)
 let configPromise: Promise<void> | null = null
@@ -36,6 +38,7 @@ function fetchConfig(): Promise<void> {
         throw new Error(`HTTP ${res.status}`)
       config.value = await res.json() as PipelineConfig
       maxAutoRetries.value = config.value.maxAutoRetries
+      maxRateLimitRetries.value = config.value.maxRateLimitRetries
     }
     catch (err) {
       error.value = (err as Error).message
@@ -70,7 +73,11 @@ async function saveConfig(partial: PartialPipelineConfig): Promise<void> {
   }
 }
 
+function retryBudgetFor(status: string | null | undefined): number {
+  return status === 'rate_limited' ? maxRateLimitRetries.value : maxAutoRetries.value
+}
+
 export function usePipelineConfig() {
   fetchConfig()
-  return { config, maxAutoRetries, loading, error, fetchConfig, saveConfig }
+  return { config, maxAutoRetries, maxRateLimitRetries, retryBudgetFor, loading, error, fetchConfig, saveConfig }
 }

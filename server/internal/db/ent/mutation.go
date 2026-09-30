@@ -23144,6 +23144,8 @@ type StageRunMutation struct {
 	last_grant_at              *time.Time
 	retry_count                *int
 	addretry_count             *int
+	rate_limit_retry_count     *int
+	addrate_limit_retry_count  *int
 	next_retry_at              *time.Time
 	pending_user_prompt        *string
 	created_at                 *time.Time
@@ -23958,6 +23960,62 @@ func (m *StageRunMutation) ResetRetryCount() {
 	m.addretry_count = nil
 }
 
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (m *StageRunMutation) SetRateLimitRetryCount(i int) {
+	m.rate_limit_retry_count = &i
+	m.addrate_limit_retry_count = nil
+}
+
+// RateLimitRetryCount returns the value of the "rate_limit_retry_count" field in the mutation.
+func (m *StageRunMutation) RateLimitRetryCount() (r int, exists bool) {
+	v := m.rate_limit_retry_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRateLimitRetryCount returns the old "rate_limit_retry_count" field's value of the StageRun entity.
+// If the StageRun object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StageRunMutation) OldRateLimitRetryCount(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRateLimitRetryCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRateLimitRetryCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRateLimitRetryCount: %w", err)
+	}
+	return oldValue.RateLimitRetryCount, nil
+}
+
+// AddRateLimitRetryCount adds i to the "rate_limit_retry_count" field.
+func (m *StageRunMutation) AddRateLimitRetryCount(i int) {
+	if m.addrate_limit_retry_count != nil {
+		*m.addrate_limit_retry_count += i
+	} else {
+		m.addrate_limit_retry_count = &i
+	}
+}
+
+// AddedRateLimitRetryCount returns the value that was added to the "rate_limit_retry_count" field in this mutation.
+func (m *StageRunMutation) AddedRateLimitRetryCount() (r int, exists bool) {
+	v := m.addrate_limit_retry_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRateLimitRetryCount resets all changes to the "rate_limit_retry_count" field.
+func (m *StageRunMutation) ResetRateLimitRetryCount() {
+	m.rate_limit_retry_count = nil
+	m.addrate_limit_retry_count = nil
+}
+
 // SetNextRetryAt sets the "next_retry_at" field.
 func (m *StageRunMutation) SetNextRetryAt(t time.Time) {
 	m.next_retry_at = &t
@@ -24207,7 +24265,7 @@ func (m *StageRunMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *StageRunMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.task != nil {
 		fields = append(fields, stagerun.FieldTaskID)
 	}
@@ -24249,6 +24307,9 @@ func (m *StageRunMutation) Fields() []string {
 	}
 	if m.retry_count != nil {
 		fields = append(fields, stagerun.FieldRetryCount)
+	}
+	if m.rate_limit_retry_count != nil {
+		fields = append(fields, stagerun.FieldRateLimitRetryCount)
 	}
 	if m.next_retry_at != nil {
 		fields = append(fields, stagerun.FieldNextRetryAt)
@@ -24295,6 +24356,8 @@ func (m *StageRunMutation) Field(name string) (ent.Value, bool) {
 		return m.LastGrantAt()
 	case stagerun.FieldRetryCount:
 		return m.RetryCount()
+	case stagerun.FieldRateLimitRetryCount:
+		return m.RateLimitRetryCount()
 	case stagerun.FieldNextRetryAt:
 		return m.NextRetryAt()
 	case stagerun.FieldPendingUserPrompt:
@@ -24338,6 +24401,8 @@ func (m *StageRunMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldLastGrantAt(ctx)
 	case stagerun.FieldRetryCount:
 		return m.OldRetryCount(ctx)
+	case stagerun.FieldRateLimitRetryCount:
+		return m.OldRateLimitRetryCount(ctx)
 	case stagerun.FieldNextRetryAt:
 		return m.OldNextRetryAt(ctx)
 	case stagerun.FieldPendingUserPrompt:
@@ -24451,6 +24516,13 @@ func (m *StageRunMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRetryCount(v)
 		return nil
+	case stagerun.FieldRateLimitRetryCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRateLimitRetryCount(v)
+		return nil
 	case stagerun.FieldNextRetryAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -24495,6 +24567,9 @@ func (m *StageRunMutation) AddedFields() []string {
 	if m.addretry_count != nil {
 		fields = append(fields, stagerun.FieldRetryCount)
 	}
+	if m.addrate_limit_retry_count != nil {
+		fields = append(fields, stagerun.FieldRateLimitRetryCount)
+	}
 	return fields
 }
 
@@ -24513,6 +24588,8 @@ func (m *StageRunMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedCostCents()
 	case stagerun.FieldRetryCount:
 		return m.AddedRetryCount()
+	case stagerun.FieldRateLimitRetryCount:
+		return m.AddedRateLimitRetryCount()
 	}
 	return nil, false
 }
@@ -24556,6 +24633,13 @@ func (m *StageRunMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddRetryCount(v)
+		return nil
+	case stagerun.FieldRateLimitRetryCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRateLimitRetryCount(v)
 		return nil
 	}
 	return fmt.Errorf("unknown StageRun numeric field %s", name)
@@ -24682,6 +24766,9 @@ func (m *StageRunMutation) ResetField(name string) error {
 		return nil
 	case stagerun.FieldRetryCount:
 		m.ResetRetryCount()
+		return nil
+	case stagerun.FieldRateLimitRetryCount:
+		m.ResetRateLimitRetryCount()
 		return nil
 	case stagerun.FieldNextRetryAt:
 		m.ResetNextRetryAt()

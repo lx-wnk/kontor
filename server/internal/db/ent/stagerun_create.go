@@ -197,6 +197,20 @@ func (_c *StageRunCreate) SetNillableRetryCount(v *int) *StageRunCreate {
 	return _c
 }
 
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (_c *StageRunCreate) SetRateLimitRetryCount(v int) *StageRunCreate {
+	_c.mutation.SetRateLimitRetryCount(v)
+	return _c
+}
+
+// SetNillableRateLimitRetryCount sets the "rate_limit_retry_count" field if the given value is not nil.
+func (_c *StageRunCreate) SetNillableRateLimitRetryCount(v *int) *StageRunCreate {
+	if v != nil {
+		_c.SetRateLimitRetryCount(*v)
+	}
+	return _c
+}
+
 // SetNextRetryAt sets the "next_retry_at" field.
 func (_c *StageRunCreate) SetNextRetryAt(v time.Time) *StageRunCreate {
 	_c.mutation.SetNextRetryAt(v)
@@ -320,6 +334,10 @@ func (_c *StageRunCreate) defaults() {
 		v := stagerun.DefaultRetryCount
 		_c.mutation.SetRetryCount(v)
 	}
+	if _, ok := _c.mutation.RateLimitRetryCount(); !ok {
+		v := stagerun.DefaultRateLimitRetryCount
+		_c.mutation.SetRateLimitRetryCount(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := stagerun.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -348,6 +366,9 @@ func (_c *StageRunCreate) check() error {
 	}
 	if _, ok := _c.mutation.RetryCount(); !ok {
 		return &ValidationError{Name: "retry_count", err: errors.New(`ent: missing required field "StageRun.retry_count"`)}
+	}
+	if _, ok := _c.mutation.RateLimitRetryCount(); !ok {
+		return &ValidationError{Name: "rate_limit_retry_count", err: errors.New(`ent: missing required field "StageRun.rate_limit_retry_count"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "StageRun.created_at"`)}
@@ -442,6 +463,10 @@ func (_c *StageRunCreate) createSpec() (*StageRun, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RetryCount(); ok {
 		_spec.SetField(stagerun.FieldRetryCount, field.TypeInt, value)
 		_node.RetryCount = value
+	}
+	if value, ok := _c.mutation.RateLimitRetryCount(); ok {
+		_spec.SetField(stagerun.FieldRateLimitRetryCount, field.TypeInt, value)
+		_node.RateLimitRetryCount = value
 	}
 	if value, ok := _c.mutation.NextRetryAt(); ok {
 		_spec.SetField(stagerun.FieldNextRetryAt, field.TypeTime, value)
@@ -765,6 +790,24 @@ func (u *StageRunUpsert) UpdateRetryCount() *StageRunUpsert {
 // AddRetryCount adds v to the "retry_count" field.
 func (u *StageRunUpsert) AddRetryCount(v int) *StageRunUpsert {
 	u.Add(stagerun.FieldRetryCount, v)
+	return u
+}
+
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (u *StageRunUpsert) SetRateLimitRetryCount(v int) *StageRunUpsert {
+	u.Set(stagerun.FieldRateLimitRetryCount, v)
+	return u
+}
+
+// UpdateRateLimitRetryCount sets the "rate_limit_retry_count" field to the value that was provided on create.
+func (u *StageRunUpsert) UpdateRateLimitRetryCount() *StageRunUpsert {
+	u.SetExcluded(stagerun.FieldRateLimitRetryCount)
+	return u
+}
+
+// AddRateLimitRetryCount adds v to the "rate_limit_retry_count" field.
+func (u *StageRunUpsert) AddRateLimitRetryCount(v int) *StageRunUpsert {
+	u.Add(stagerun.FieldRateLimitRetryCount, v)
 	return u
 }
 
@@ -1121,6 +1164,27 @@ func (u *StageRunUpsertOne) AddRetryCount(v int) *StageRunUpsertOne {
 func (u *StageRunUpsertOne) UpdateRetryCount() *StageRunUpsertOne {
 	return u.Update(func(s *StageRunUpsert) {
 		s.UpdateRetryCount()
+	})
+}
+
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (u *StageRunUpsertOne) SetRateLimitRetryCount(v int) *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.SetRateLimitRetryCount(v)
+	})
+}
+
+// AddRateLimitRetryCount adds v to the "rate_limit_retry_count" field.
+func (u *StageRunUpsertOne) AddRateLimitRetryCount(v int) *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.AddRateLimitRetryCount(v)
+	})
+}
+
+// UpdateRateLimitRetryCount sets the "rate_limit_retry_count" field to the value that was provided on create.
+func (u *StageRunUpsertOne) UpdateRateLimitRetryCount() *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.UpdateRateLimitRetryCount()
 	})
 }
 
@@ -1650,6 +1714,27 @@ func (u *StageRunUpsertBulk) AddRetryCount(v int) *StageRunUpsertBulk {
 func (u *StageRunUpsertBulk) UpdateRetryCount() *StageRunUpsertBulk {
 	return u.Update(func(s *StageRunUpsert) {
 		s.UpdateRetryCount()
+	})
+}
+
+// SetRateLimitRetryCount sets the "rate_limit_retry_count" field.
+func (u *StageRunUpsertBulk) SetRateLimitRetryCount(v int) *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.SetRateLimitRetryCount(v)
+	})
+}
+
+// AddRateLimitRetryCount adds v to the "rate_limit_retry_count" field.
+func (u *StageRunUpsertBulk) AddRateLimitRetryCount(v int) *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.AddRateLimitRetryCount(v)
+	})
+}
+
+// UpdateRateLimitRetryCount sets the "rate_limit_retry_count" field to the value that was provided on create.
+func (u *StageRunUpsertBulk) UpdateRateLimitRetryCount() *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.UpdateRateLimitRetryCount()
 	})
 }
 

@@ -576,7 +576,8 @@ func TestFinalizeCompletedAsyncRuns_RateLimited_Requeues(t *testing.T) {
 	updated, err := srRepo.GetByID(ctx, run.ID)
 	require.NoError(t, err)
 	require.Equal(t, "rate_limited", updated.Status)
-	require.Equal(t, 1, updated.RetryCount)
+	require.Equal(t, 1, updated.RateLimitRetryCount)
+	require.Equal(t, 0, updated.RetryCount, "a rate-limit retry must not spend the infra budget")
 	require.NotNil(t, updated.NextRetryAt)
 	// Rate-limit backoff is 600s (defaultRateLimitBackoff), much larger than infra backoff.
 	require.True(t, updated.NextRetryAt.After(before.Add(500*time.Second)),
@@ -587,8 +588,10 @@ func TestFinalizeCompletedAsyncRuns_RateLimited_ExhaustedBudget_HardFails(t *tes
 	ctx := context.Background()
 	orch, taskRepo, srRepo := makeOrchestratorWithSRRepo(t)
 
-	// defaultMaxRateLimitRetries is 36; start with retryCount == 36 → exhausted.
-	_, run := makeRunningStageRun(t, ctx, taskRepo, srRepo, 36)
+	// defaultMaxRateLimitRetries is 36; start with rateLimitRetryCount == 36 → exhausted.
+	_, run := makeRunningStageRun(t, ctx, taskRepo, srRepo, 0)
+	run, err := srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{RateLimitRetryCount: new(36)})
+	require.NoError(t, err)
 
 	orch.SetCompletionDetector(func(_ *ent.StageRun, _ string, _ pipeline.CompletionDeps) (pipeline.CompletionResult, error) {
 		return pipeline.CompletionResult{
@@ -599,7 +602,7 @@ func TestFinalizeCompletedAsyncRuns_RateLimited_ExhaustedBudget_HardFails(t *tes
 		}, nil
 	})
 
-	err := orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{run})
+	err = orch.FinalizeCompletedAsyncRunsForTest(ctx, []*ent.StageRun{run})
 	require.NoError(t, err)
 
 	updated, err := srRepo.GetByID(ctx, run.ID)

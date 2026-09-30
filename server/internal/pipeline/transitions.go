@@ -310,10 +310,10 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 		output["attempt"] = tr.Attempt
 		nextRetry := tr.NextRetryAt
 		if _, err := srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-			Status:      strPtr("rate_limited"),
-			RetryCount:  &tr.Attempt,
-			NextRetryAt: &nextRetry,
-			Output:      output,
+			Status:              strPtr("rate_limited"),
+			RateLimitRetryCount: &tr.Attempt,
+			NextRetryAt:         &nextRetry,
+			Output:              output,
 		}); err != nil {
 			return nil, nil, nil, fmt.Errorf("applyTransition.rateLimited.updateRun: %w", err)
 		}

@@ -29,6 +29,7 @@ type pipelineConfigResponse struct {
 	MaxParallelOrchestrators int               `json:"maxParallelOrchestrators"`
 	StageTimeoutSeconds      int               `json:"stageTimeoutSeconds"`
 	MaxAutoRetries           int               `json:"maxAutoRetries"`
+	MaxRateLimitRetries      int               `json:"maxRateLimitRetries"`
 	RetryBackoffSeconds      int               `json:"retryBackoffSeconds"`
 	ExtraSafeBashCommands    string            `json:"extraSafeBashCommands"`
 	StageModels              map[string]string `json:"stageModels"`
@@ -120,6 +121,7 @@ func (h *Handler) getPipelineConfig(w http.ResponseWriter, r *http.Request) erro
 	maxParallel := int(h.cfgRepo.GetNumber(ctx, "maxParallelOrchestrators", 3))
 	stageTimeout := int(h.cfgRepo.GetNumber(ctx, "stageTimeoutSeconds", db.DefaultStageTimeoutSeconds))
 	maxAutoRetries := int(h.cfgRepo.GetNumber(ctx, "maxAutoRetries", 3))
+	maxRateLimitRetries := int(h.cfgRepo.GetNumber(ctx, "maxRateLimitRetries", db.DefaultMaxRateLimitRetries))
 	retryBackoffSeconds := int(h.cfgRepo.GetNumber(ctx, "retryBackoffSeconds", 60))
 	extraSafeBashCommands := h.cfgRepo.GetString(ctx, "extraSafeBashCommands", "")
 	planMode := h.cfgRepo.GetString(ctx, "planMode", "") == "true"
@@ -133,6 +135,7 @@ func (h *Handler) getPipelineConfig(w http.ResponseWriter, r *http.Request) erro
 		MaxParallelOrchestrators: maxParallel,
 		StageTimeoutSeconds:      stageTimeout,
 		MaxAutoRetries:           maxAutoRetries,
+		MaxRateLimitRetries:      maxRateLimitRetries,
 		RetryBackoffSeconds:      retryBackoffSeconds,
 		ExtraSafeBashCommands:    extraSafeBashCommands,
 		StageModels:              stageModels,
