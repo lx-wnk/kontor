@@ -24,7 +24,6 @@ const props = defineProps<{
   needsYou: number
   coreTitle: string
   coreDisabled: boolean
-  agentRingPx: number
   // World point (top of its category circle) each sector's name sits at; a sector packHub gave no
   // circle (Other) is left out of the map and draws no button.
   sectorPoints: ReadonlyMap<string, [number, number]>

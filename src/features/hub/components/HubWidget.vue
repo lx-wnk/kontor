@@ -243,7 +243,6 @@ useEventListener(window, 'focus', () => refreshGraph())
 const stagePx = computed(() => Math.min(size.value.width, size.value.height))
 const ringPx = computed(() => agentRingPx(live.value.length, stagePx.value))
 const baseRingPx = computed(() => agentRadius(k0.value, false, ringPx.value) * k0.value)
-const ringOnScreenPx = computed(() => baseRingPx.value * rel.value)
 
 const placed = computed(() => {
   const k = k0.value
@@ -666,7 +665,6 @@ watch(hubFocusRequest, (target) => {
         :needs-you="needsYou.length"
         :core-title="coreTitle"
         :core-disabled="!!kontorBlock"
-        :agent-ring-px="ringOnScreenPx"
         :sector-points="sectorPoints"
         :leaf-points="leafPoints"
         :show-sector-names="showSectorNames"

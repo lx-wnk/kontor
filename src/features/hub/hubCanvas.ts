@@ -1,11 +1,9 @@
 import type { HubNote } from './composables/useObsidianGraph'
 import type { Camera, HubLevel } from './hubCamera'
-import type { Sector } from './hubGeometry'
 import type { AgentDisplayStatus } from '@/utils/statusColors'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { statusLabel } from '@/utils/statusColors'
 import { toScreen } from './hubCamera'
-import { sectorMid } from './hubGeometry'
 
 export interface LabelCandidate { index: number, sx: number, sy: number, text: string, priority: number }
 
@@ -150,25 +148,6 @@ export function agentDotBox(sx: number, sy: number): LabelBox {
 // the screen while the map pans under it (HubWidget.vue's `namedSectors`).
 export function sectorLabelBox(sx: number, sy: number, size: LabelSize = UNMEASURED): LabelBox {
   return { x: sx - size.w / 2, y: sy - size.h / 2, w: size.w, h: size.h }
-}
-
-// Nearest to the midpoint first, alternating sides, never past the sector's own margins.
-export function sectorNameAngle(sector: Sector, fits: (deg: number) => boolean, stepDeg = 4): number | null {
-  const width = sector.end - sector.start
-  const margin = Math.min(stepDeg, width / 4)
-  const min = sector.start + margin
-  const max = sector.end - margin
-  const mid = sectorMid(sector)
-  for (let offset = 0; ; offset += stepDeg) {
-    const candidates = offset === 0 ? [mid] : [mid - offset, mid + offset]
-    const inRange = candidates.filter(deg => deg >= min && deg <= max)
-    if (inRange.length === 0)
-      return null
-    for (const deg of inRange) {
-      if (fits(deg))
-        return deg
-    }
-  }
 }
 
 // needs-the-operator outranks working, which outranks everything else (Ruling R23).

@@ -22,7 +22,6 @@ const ORBIT_AGENTS = [
 
 interface OrbitOptions {
   showSectorNames?: boolean
-  agentRingPx?: number
   sectorPoints?: ReadonlyMap<string, [number, number]>
   coreDisabled?: boolean
   labelledAgents?: ReadonlySet<number>
@@ -32,11 +31,10 @@ interface OrbitOptions {
   otherBadge?: { x: number, y: number, count: number } | null
 }
 
-function mountOrbit(level: HubLevel, { showSectorNames = true, agentRingPx = 116, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections, otherBadge }: OrbitOptions = {}) {
+function mountOrbit(level: HubLevel, { showSectorNames = true, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections, otherBadge }: OrbitOptions = {}) {
   return mount(HubOrbit, {
     props: {
       cam: { k: 1, tx: 500, ty: 500 },
-      agentRingPx,
       sectorPoints,
       showSectorNames,
       sectors,

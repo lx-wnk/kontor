@@ -10,11 +10,7 @@ export const WORLD_RADIUS = 520
 // The overview map frames the whole world plus a rim, so the outermost ring is never flush against its border.
 export const MINIMAP_RIM = 20
 export const MINIMAP_HALF = WORLD_RADIUS + MINIMAP_RIM
-export const WEDGE_INNER = 100
-export const WEDGE_OUTER = 440
 export const SECTOR_LABEL_RADIUS = 392
-// Project names sit this share of the stage out from the core, so a zoomed-in camera still shows them.
-export const LEAF_NAME_STAGE_SHARE = 0.42
 export const LAUNCHER_PX = 40 // HubLaunchers.vue's `size-10` button, centred on its slot.
 export const LAUNCHER_SECTOR_CLEARANCE_PX = 56
 export const SECTOR_FLOOR_DEG = 24
@@ -172,19 +168,6 @@ export function sectorAt<T extends Sector>(sectors: readonly T[], deg: number): 
 export function polar(radius: number, deg: number): [number, number] {
   const r = deg * Math.PI / 180
   return [radius * Math.cos(r), radius * Math.sin(r)]
-}
-
-function arcTo(radius: number, deg: number, sweep: 0 | 1): string {
-  const [x, y] = polar(radius, deg)
-  return `A${radius},${radius} 0 0 ${sweep} ${x},${y}`
-}
-
-// Two half-arcs per edge: a lone 360° sector's single arc would end on its own start and draw nothing.
-export function wedgePath(start: number, end: number): string {
-  const mid = (start + end) / 2
-  const [ox, oy] = polar(WEDGE_OUTER, start)
-  const [ix, iy] = polar(WEDGE_INNER, end)
-  return `M${ox},${oy}${arcTo(WEDGE_OUTER, mid, 1)}${arcTo(WEDGE_OUTER, end, 1)}L${ix},${iy}${arcTo(WEDGE_INNER, mid, 0)}${arcTo(WEDGE_INNER, start, 0)}Z`
 }
 
 export function notePoint(path: string, sector: Sector, ageDays: number): [number, number] {
