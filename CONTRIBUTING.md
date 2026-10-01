@@ -97,6 +97,10 @@ The server binds exclusively to `127.0.0.1`. Never change this — the server re
 
 Frontend path alias: `@/*` maps to `./src/*`.
 
+### Plan usage hook
+
+The statusline hook (`server/internal/hookscript/kontor-statusline.sh`) is installed into Claude's settings via `kontor hook install` (or from the dashboard's settings panel). It reads Claude's `rate_limits` from stdin and POSTs the sample to `POST /api/hooks/plan-usage` in the background. The pipeline's usage gate reads the in-memory store before each native Claude spawn and blocks when a rate-limit window exceeds its threshold. Three settings control the thresholds: `usageGate.fiveHourPct` (default 90), `usageGate.sevenDayPct` (default 95), `usageGate.staleMinutes` (default 15). The hook only fires for interactive sessions — headless `claude -p` does not invoke the statusline command.
+
 ### Adding a provider
 
 For a CLI that writes file-per-session JSONL, add a descriptor YAML under `server/internal/provider/providers/` (or ship one via `DASHBOARD_PROVIDER_DIR`) — no Go code is needed. The descriptor declares the exe names, config dir, session glob, token/model/cost field-paths, and the token aggregation mode (`cumulative` or `perMessage`).

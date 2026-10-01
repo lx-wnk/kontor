@@ -15,6 +15,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 	"github.com/lx-wnk/kontor/server/internal/memory"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/planusage"
 	"github.com/lx-wnk/kontor/server/internal/services"
 	"github.com/lx-wnk/kontor/server/internal/settings"
 	"github.com/lx-wnk/kontor/server/internal/sse"
@@ -95,6 +96,9 @@ func provideOrchestrator(
 	memRetriever *memory.Retriever,
 	grantUsageRepo repo.GrantUsageRepo,
 	appSecrets repo.ApplicationSecretRepo,
+	planStore *planusage.Store,
+	usageGateFiveHourPct func() int,
+	usageGateSevenDayPct func() int,
 ) (*pipeline.PipelineOrchestrator, error) {
 	if client == nil {
 		return nil, nil
@@ -179,6 +183,31 @@ func provideOrchestrator(
 			Grants:       grantRepo,
 			Capabilities: capabilityRepo,
 		}.ResolveRun,
+		CheckUsageGate: func(configDir string) pipeline.UsageGateDecision {
+			sample, ok := planStore.Get(configDir)
+			if !ok {
+				return pipeline.UsageGateDecision{}
+			}
+			d := planusage.Decide(&sample, time.Now(), float64(usageGateFiveHourPct()), float64(usageGateSevenDayPct()))
+			return pipeline.UsageGateDecision{Block: d.Block, Until: d.Until, Reason: d.Reason}
+		},
+		PlanUsageResets: func(configDir string) *time.Time {
+			sample, ok := planStore.Get(configDir)
+			if !ok {
+				return nil
+			}
+			var latest time.Time
+			now := time.Now()
+			for _, w := range []*planusage.Window{sample.FiveHour, sample.SevenDay} {
+				if w != nil && w.ResetsAt.After(now) && w.ResetsAt.After(latest) {
+					latest = w.ResetsAt
+				}
+			}
+			if latest.IsZero() {
+				return nil
+			}
+			return &latest
+		},
 		// BuildTaskPayload is called inside applyTransitionWrites, bound to the
 		// active transaction, so the returned snapshot reflects the just-applied
 		// writes before tx.Commit(). The result is forwarded to OnTaskChanged

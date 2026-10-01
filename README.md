@@ -88,7 +88,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Live sessions** — agents spawned from the dashboard run interactively via tmux or a built-in pty broker; the agent modal has a real terminal tab and answers `AskUserQuestion` prompts inline.
 
-**Pipeline & schedules** — tasks move through backlog, optional plan review, implementation, self-review and finalization, each stage a `claude` process in its own git worktree behind permission gates; per-stage engine, model and reasoning effort. Schedules fire recurring tasks from a cron expression (written in plain language, translated once).
+**Pipeline & schedules** — tasks move through backlog, optional plan review, implementation, self-review and finalization, each stage a `claude` process in its own git worktree behind permission gates; per-stage engine, model and reasoning effort. A plan-usage gate blocks spawns when Claude's five-hour or seven-day rate-limit window exceeds a configurable threshold, resuming automatically after the window resets. Schedules fire recurring tasks from a cron expression (written in plain language, translated once).
 
 **Insights** — workflow patterns, cost by project and session, and eval drift detection over past stage runs.
 
