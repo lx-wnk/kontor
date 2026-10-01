@@ -149,7 +149,7 @@ describe('taskCard retry state', () => {
         } as any,
       },
     })
-    expect(wrapper.text()).not.toContain('Needs Permission')
+    expect(wrapper.find('[data-testid="attention-cause-chip"]').exists()).toBe(false)
   })
 })
 
