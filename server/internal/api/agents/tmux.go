@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -16,6 +17,13 @@ var tmuxPaneRE = regexp.MustCompile(`^%\d+$`)
 // tmuxRunner executes a tmux command; indirected for tests.
 var tmuxRunner = func(ctx context.Context, args ...string) error {
 	return exec.CommandContext(ctx, "tmux", args...).Run()
+}
+
+// tmuxStdinRunner executes a tmux command with stdin piped; indirected for tests.
+var tmuxStdinRunner = func(ctx context.Context, stdin io.Reader, args ...string) error {
+	cmd := exec.CommandContext(ctx, "tmux", args...)
+	cmd.Stdin = stdin
+	return cmd.Run()
 }
 
 // validTmuxPane reports whether pane is a well-formed tmux pane id.
@@ -40,8 +48,17 @@ func tmuxSendArgs(socket, pane, message string) (textArgs, enterArgs []string) {
 // tmuxLookPath resolves the tmux binary; indirected for tests.
 var tmuxLookPath = func() (string, error) { return exec.LookPath("tmux") }
 
-// sendKeysToTmux injects message into the given tmux pane as typed input,
-// followed by Enter, so an interactive Claude session executes it.
+// tmuxBufferName returns a per-pane buffer name for load-buffer/paste-buffer,
+// so concurrent injections to different panes don't collide.
+func tmuxBufferName(pane string) string {
+	return "kontor-" + pane
+}
+
+// sendKeysToTmux injects message into the given tmux pane using bracketed
+// paste (load-buffer + paste-buffer), followed by Enter. Bracketed paste
+// delivers the entire payload atomically — unlike send-keys -l, which splits
+// long content across multiple events and causes Claude Code to see them as
+// separate inputs.
 func sendKeysToTmux(ctx context.Context, socket, pane, message string) error {
 	if !validTmuxPane(pane) {
 		return fmt.Errorf("invalid tmux pane %q", pane)
@@ -49,15 +66,32 @@ func sendKeysToTmux(ctx context.Context, socket, pane, message string) error {
 	if strings.ContainsAny(socket, "\n\x00") {
 		return fmt.Errorf("invalid tmux socket")
 	}
-	// tmux is a hard requirement for live prompt injection; surface a clear
-	// message rather than a raw exec-not-found error.
 	if _, err := tmuxLookPath(); err != nil {
 		return fmt.Errorf("tmux is required for live prompt injection but was not found on the server PATH; install tmux or send will resume the session instead")
 	}
-	textArgs, enterArgs := tmuxSendArgs(socket, pane, message)
-	if err := tmuxRunner(ctx, textArgs...); err != nil {
-		return fmt.Errorf("tmux send-keys (text): %w", err)
+
+	var base []string
+	if socket != "" {
+		base = []string{"-S", socket}
 	}
+	bufName := tmuxBufferName(pane)
+
+	// Step 1: load the message into a named tmux buffer via stdin.
+	// "-b <name>" names the buffer; "-" reads from stdin.
+	loadArgs := append(append([]string{}, base...), "load-buffer", "-b", bufName, "-")
+	if err := tmuxStdinRunner(ctx, strings.NewReader(message), loadArgs...); err != nil {
+		return fmt.Errorf("tmux load-buffer: %w", err)
+	}
+
+	// Step 2: paste the buffer into the pane. -p = bracketed paste mode,
+	// -d = delete the buffer after pasting (cleanup).
+	pasteArgs := append(append([]string{}, base...), "paste-buffer", "-p", "-d", "-b", bufName, "-t", pane)
+	if err := tmuxRunner(ctx, pasteArgs...); err != nil {
+		return fmt.Errorf("tmux paste-buffer: %w", err)
+	}
+
+	// Step 3: send Enter to submit the pasted prompt.
+	enterArgs := append(append([]string{}, base...), "send-keys", "-t", pane, "Enter")
 	if err := tmuxRunner(ctx, enterArgs...); err != nil {
 		return fmt.Errorf("tmux send-keys (enter): %w", err)
 	}

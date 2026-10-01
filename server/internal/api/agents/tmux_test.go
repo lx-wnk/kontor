@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,29 +29,81 @@ func TestTmuxSendArgs(t *testing.T) {
 	require.Equal(t, []string{"send-keys", "-t", "%1", "Enter"}, enter2)
 }
 
-func TestSendKeysToTmux_RunsTextThenEnter(t *testing.T) {
+func TestTmuxBracketedPaste_SendsLoadBufferThenPasteBuffer(t *testing.T) {
 	var calls [][]string
-	origRun, origLook := tmuxRunner, tmuxLookPath
-	t.Cleanup(func() { tmuxRunner = origRun; tmuxLookPath = origLook })
+	var stdinCalls []string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
 	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
 	tmuxRunner = func(_ context.Context, args ...string) error {
 		calls = append(calls, args)
 		return nil
 	}
+	tmuxStdinRunner = func(_ context.Context, stdin io.Reader, args ...string) error {
+		data, _ := io.ReadAll(stdin)
+		stdinCalls = append(stdinCalls, string(data))
+		calls = append(calls, args)
+		return nil
+	}
 
-	err := sendKeysToTmux(context.Background(), "", "%5", "run it")
+	err := sendKeysToTmux(context.Background(), "", "%5", "hello world")
 	require.NoError(t, err)
-	require.Len(t, calls, 2)
-	require.Equal(t, "-l", calls[0][3]) // literal text send
-	require.Equal(t, "run it", calls[0][len(calls[0])-1])
-	require.Equal(t, "Enter", calls[1][len(calls[1])-1]) // separate Enter
+	require.Len(t, calls, 3)
+
+	// Call 1: load-buffer with message on stdin (NOT send-keys -l)
+	require.Contains(t, calls[0], "load-buffer")
+	require.Contains(t, calls[0], "-b")
+	require.Contains(t, calls[0], "kontor-%5")
+	require.Contains(t, calls[0], "-")
+	require.Len(t, stdinCalls, 1)
+	require.Equal(t, "hello world", stdinCalls[0])
+
+	// Call 2: paste-buffer with bracketed paste (-p) and delete (-d)
+	require.Contains(t, calls[1], "paste-buffer")
+	require.Contains(t, calls[1], "-p")
+	require.Contains(t, calls[1], "-d")
+	require.Contains(t, calls[1], "-b")
+	require.Contains(t, calls[1], "kontor-%5")
+
+	// Call 3: send-keys Enter
+	require.Equal(t, "Enter", calls[2][len(calls[2])-1])
+}
+
+func TestSendKeysToTmux_MultiLinePreservesNewlines(t *testing.T) {
+	var stdinData string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxRunner = func(_ context.Context, _ ...string) error { return nil }
+	tmuxStdinRunner = func(_ context.Context, stdin io.Reader, _ ...string) error {
+		data, _ := io.ReadAll(stdin)
+		stdinData = string(data)
+		return nil
+	}
+
+	err := sendKeysToTmux(context.Background(), "", "%1", "line1\nline2")
+	require.NoError(t, err)
+	require.Equal(t, "line1\nline2", stdinData, "newlines must be preserved in stdin")
 }
 
 func TestSendKeysToTmux_TmuxMissing(t *testing.T) {
 	ran := false
-	origRun, origLook := tmuxRunner, tmuxLookPath
-	t.Cleanup(func() { tmuxRunner = origRun; tmuxLookPath = origLook })
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
 	tmuxRunner = func(_ context.Context, _ ...string) error { ran = true; return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, _ ...string) error { ran = true; return nil }
 	tmuxLookPath = func() (string, error) { return "", errors.New("not found") }
 
 	err := sendKeysToTmux(context.Background(), "", "%2", "x")
@@ -61,9 +114,10 @@ func TestSendKeysToTmux_TmuxMissing(t *testing.T) {
 
 func TestSendKeysToTmux_RejectsBadPane(t *testing.T) {
 	called := false
-	orig := tmuxRunner
-	t.Cleanup(func() { tmuxRunner = orig })
+	origRun, origStdin := tmuxRunner, tmuxStdinRunner
+	t.Cleanup(func() { tmuxRunner = origRun; tmuxStdinRunner = origStdin })
 	tmuxRunner = func(_ context.Context, _ ...string) error { called = true; return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, _ ...string) error { called = true; return nil }
 
 	err := sendKeysToTmux(context.Background(), "", "$(evil)", "x")
 	require.Error(t, err)

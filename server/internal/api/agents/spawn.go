@@ -739,21 +739,23 @@ func (m *SpawnManager) TerminalTarget(pid int) (port int, token string, err erro
 }
 
 // sanitizeInjectMessage strips control characters that could inject premature
-// Enter/submit or produce unexpected terminal behaviour. Tab (0x09) is
-// preserved. DEL (0x7F) and all CR/LF sequences are removed.
+// Enter/submit or produce unexpected terminal behaviour. Tab (0x09) and
+// newline (0x0A) are preserved — newlines are part of multi-line prompts and
+// the delivery layer (bracketed paste / load-buffer) handles them atomically.
+// DEL (0x7F), CR (0x0D) and other C0 controls are removed.
 func sanitizeInjectMessage(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
 		switch {
-		case r == '\t':
-			b.WriteRune(r) // horizontal tab preserved
-		case r == '\n' || r == '\r':
-			// strip — pty appends its own \r to submit
+		case r == '\t' || r == '\n':
+			b.WriteRune(r) // tab and newline preserved
+		case r == '\r':
+			// CR stripped — pty appends its own \r to submit
 		case r == 0x7F:
 			// DEL stripped
 		case r < 0x20:
-			// C0 control characters stripped
+			// C0 control characters stripped (ESC, etc.)
 		default:
 			b.WriteRune(r)
 		}
@@ -920,10 +922,24 @@ func (h *SpawnHandler) Message(w http.ResponseWriter, r *http.Request) {
 		sub = payload.Sub
 	}
 
+	// Cap the request body at 64 KB to prevent unbounded memory use.
+	const maxBodyBytes = 64 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
 	var body struct {
 		Message string `json:"message"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Message == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if err.Error() == "http: request body too large" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "message exceeds 64 KB limit"})
+			return
+		}
+		http.Error(w, `{"error":"missing message"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Message == "" {
 		http.Error(w, `{"error":"missing message"}`, http.StatusBadRequest)
 		return
 	}
@@ -965,7 +981,7 @@ func (h *SpawnHandler) Message(w http.ResponseWriter, r *http.Request) {
 	h.recordAudit(r.Context(), sub, repo.AuditActionLiveInject, target, auditMeta("delivered"))
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	_ = json.NewEncoder(w).Encode(map[string]string{"text": sanitized})
 }
 
 // recordAudit writes a best-effort audit row. Logs a warning on failure.
