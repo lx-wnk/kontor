@@ -8,7 +8,8 @@ import { expect, test } from '@playwright/test'
 
 const LONG_LINE = 'x'.repeat(300)
 
-/** Rendered HTML that mirrors what renderMarkdown() produces for:
+/**
+ * Rendered HTML that mirrors what renderMarkdown() produces for:
  *  ```bash
  *  <300 chars>
  *  ```
