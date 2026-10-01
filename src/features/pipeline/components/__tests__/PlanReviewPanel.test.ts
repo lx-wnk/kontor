@@ -127,3 +127,100 @@ describe('planReviewPanel', () => {
     wrapper.unmount()
   })
 })
+
+describe('gate-state guards', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  async function mountWithMock(overrides: Record<string, unknown>) {
+    const defaults = {
+      gateState: ref('awaiting_user'),
+      approvedPlan: ref({ steps: [] }),
+      loading: ref(false),
+      error: ref(null),
+      fetchStatus: vi.fn(),
+      start: vi.fn(),
+      stop: vi.fn(),
+      approve: vi.fn().mockResolvedValue(null),
+      reject: vi.fn().mockResolvedValue(undefined),
+    }
+    // The outer beforeEach already cached the component against the hoisted mock.
+    vi.resetModules()
+    vi.doMock('@/features/pipeline/composables/usePlanReview', () => ({
+      usePlanReview: () => ({ ...defaults, ...overrides }),
+    }))
+    vi.doMock('@/utils/markdown', () => ({
+      renderMarkdown: (text: string) => `<p>${text}</p>`,
+    }))
+    const mod = await import('@/features/pipeline/components/PlanReviewPanel.vue')
+    return mount(mod.default as any, {
+      props: {
+        open: true,
+        task: { id: 't1', slug: 's1', title: 'T', currentStage: 'plan_review', createdAt: '', updatedAt: '' },
+      },
+      attachTo: document.body,
+    })
+  }
+
+  it('approve and request-changes disabled while running', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('running'), approvedPlan: ref(null) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('approve and request-changes disabled when awaiting_user but no plan', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref(null) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('approve and request-changes enabled when awaiting_user with plan', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref({ steps: [] }) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('pending hint visible while running', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('running'), approvedPlan: ref(null) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="plan-review-pending-hint"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('pending hint absent when awaiting_user', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref({ steps: [] }) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="plan-review-pending-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('409 from approve surfaces as toast error', async () => {
+    const errorRef = ref<string | null>(null)
+    const approveFn = vi.fn(async () => {
+      errorRef.value = 'plan_review is running, not awaiting_user'
+      return null
+    })
+    const wrapper = await mountWithMock({
+      gateState: ref('awaiting_user'),
+      approvedPlan: ref({ steps: [] }),
+      error: errorRef,
+      approve: approveFn,
+    })
+    // Import after mountWithMock so the spy targets the same useToast instance the component got.
+    const { toast } = await import('@/composables/useToast')
+    vi.spyOn(toast, 'error')
+    await flushPromises()
+    await wrapper.find('[data-testid="approve-plan-btn"]').trigger('click')
+    await flushPromises()
+    expect(toast.error).toHaveBeenCalledWith('plan_review is running, not awaiting_user')
+    wrapper.unmount()
+  })
+})

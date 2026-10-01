@@ -3,6 +3,7 @@ package plan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -57,16 +58,48 @@ const (
 	localDefaultPlanIterationCap = 3
 )
 
-// ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
-// and advances the task to implementation. Mirrors refine.Confirm.
-func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
-	// Fetch current plan output to freeze it.
-	var planOutput map[string]any
-	if d.StageRuns != nil {
-		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
-			planOutput = sr.Output
-		}
+// ErrPlanNotReady is returned when approve/reject is attempted while the latest
+// plan_review run is missing, not awaiting_user, or carries no plan content.
+var ErrPlanNotReady = errors.New("plan_review is not ready")
+
+// requireReadyPlan returns the latest plan_review run only when it is awaiting_user
+// and holds real plan content beyond the submitted marker.
+func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	if runs == nil {
+		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 	}
+	sr, err := runs.GetLatestByTaskAndStage(ctx, taskID, "plan_review")
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
+		}
+		return nil, fmt.Errorf("requireReadyPlan: %w", err)
+	}
+	if sr == nil {
+		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
+	}
+	if sr.Status != "awaiting_user" {
+		return nil, fmt.Errorf("%w: plan_review is %s, not awaiting_user", ErrPlanNotReady, sr.Status)
+	}
+	cleaned := maps.Clone(sr.Output)
+	delete(cleaned, pipeline.StageOutputSubmittedKey)
+	if len(cleaned) == 0 {
+		return nil, fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
+	}
+	return sr, nil
+}
+
+// ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
+// and advances the task to implementation. Mirrors refine.Confirm. Returns
+// ErrPlanNotReady unless the plan_review run is awaiting_user with plan content.
+func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
+	sr, err := requireReadyPlan(ctx, d.StageRuns, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	planOutput := maps.Clone(sr.Output)
+	delete(planOutput, pipeline.StageOutputSubmittedKey)
 
 	// Build metadata update: freeze plan + clear reject counter.
 	meta := map[string]any{approvedPlanKey: planOutput}
@@ -91,19 +124,15 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 	}
 
 	// Mark the plan_review stage run done.
-	if d.StageRuns != nil {
-		now := time.Now()
-		done := "done"
-		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
-			_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-				Status:  &done,
-				EndedAt: &now,
-			})
-			if d.Revoke != nil {
-				if rerr := d.Revoke(ctx, sr.ID); rerr != nil {
-					slog.Warn("plan: revoking stage-run credentials failed", "stageRun", sr.ID, "err", rerr)
-				}
-			}
+	now := time.Now()
+	done := "done"
+	_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+		Status:  &done,
+		EndedAt: &now,
+	})
+	if d.Revoke != nil {
+		if rerr := d.Revoke(ctx, sr.ID); rerr != nil {
+			slog.Warn("plan: revoking stage-run credentials failed", "stageRun", sr.ID, "err", rerr)
 		}
 	}
 
@@ -121,8 +150,13 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 }
 
 // RejectPlan records feedback and triggers a new plan_review run up to DefaultPlanIterationCap.
-// Beyond the cap, it stores feedback but does not requeue.
+// Beyond the cap, it stores feedback but does not requeue. Returns ErrPlanNotReady
+// unless the plan_review run is awaiting_user with plan content.
 func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) error {
+	if _, err := requireReadyPlan(ctx, d.StageRuns, taskID); err != nil {
+		return err
+	}
+
 	task, err := d.Tasks.GetByID(ctx, taskID)
 	if err != nil {
 		return fmt.Errorf("reject_plan: get task: %w", err)

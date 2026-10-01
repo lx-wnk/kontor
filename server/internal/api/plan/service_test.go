@@ -2,6 +2,7 @@ package plan_test
 
 import (
 	"context"
+	"errors"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"testing"
 
@@ -11,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// seedPlanReviewTask creates a task in plan_review stage with an awaiting_user stage run.
-func seedPlanReviewTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo) (string, string) {
+// seedPlanReviewTaskNoRun creates a task in plan_review stage without any stage run.
+func seedPlanReviewTaskNoRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo) string {
 	t.Helper()
 	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
 		Slug:          "plan-svc-test-" + t.Name(),
@@ -23,18 +24,56 @@ func seedPlanReviewTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRep
 		CurrentStage:  "plan_review",
 	})
 	require.NoError(t, err)
+	return task.ID
+}
+
+// seedPlanReviewRun creates a plan_review task whose stage run has the given
+// status and output (nil output leaves it unset).
+func seedPlanReviewRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo, status string, output map[string]any) (string, string) {
+	t.Helper()
+	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
 
 	run, err := srRepo.Create(ctx, repo.CreateStageRunInput{
-		TaskID:    task.ID,
+		TaskID:    taskID,
 		Stage:     "plan_review",
 		Iteration: 0,
 	})
 	require.NoError(t, err)
-	status := "awaiting_user"
 	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &status})
 	require.NoError(t, err)
+	if output != nil {
+		_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Output: output})
+		require.NoError(t, err)
+	}
 
-	return task.ID, run.ID
+	return taskID, run.ID
+}
+
+// seedPlanReviewTask creates a task in plan_review stage with an awaiting_user
+// stage run carrying plan content.
+func seedPlanReviewTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo) (string, string) {
+	t.Helper()
+	return seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", map[string]any{"plan": "test plan content"})
+}
+
+// assertPlanGateUntouched asserts a refused approve/reject changed nothing: the
+// task is still in plan_review, the run keeps wantRunStatus (when a run exists),
+// and no turn was written.
+func assertPlanGateUntouched(t *testing.T, ctx context.Context, bundle *db.DBBundle, taskID, wantRunStatus string) {
+	t.Helper()
+	task, err := repo.NewTaskRepo(bundle.Client).GetByID(ctx, taskID)
+	require.NoError(t, err)
+	require.Equal(t, "plan_review", task.CurrentStage)
+
+	if wantRunStatus != "" {
+		sr, err := repo.NewStageRunRepo(bundle.Client).GetLatestByTaskAndStage(ctx, taskID, "plan_review")
+		require.NoError(t, err)
+		require.Equal(t, wantRunStatus, sr.Status)
+	}
+
+	turns, err := repo.NewRefinementTurnRepo(bundle.Client).ListForTask(ctx, taskID, 0)
+	require.NoError(t, err)
+	require.Empty(t, turns, "a refused plan gate action must not write turns")
 }
 
 func TestApprovePlan_AdvancesTaskToImplementation(t *testing.T) {
@@ -258,4 +297,137 @@ func TestPlanStatus_FrozenPlanAfterApproval(t *testing.T) {
 	require.NotNil(t, status.ApprovedPlan, "frozen plan must be returned after approval")
 	require.Equal(t, "LIVE_PLAN_SENTINEL", status.ApprovedPlan["summary"],
 		"frozen plan must match the plan that was approved")
+}
+
+func TestApprovePlan_RunningRun_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "running", nil)
+
+	revoked := false
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Revoke:    func(context.Context, string) error { revoked = true; return nil },
+	}, taskID)
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "running")
+	require.False(t, revoked, "Revoke must not be called when approval is refused")
+}
+
+func TestApprovePlan_NoRun_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
+
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID)
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "")
+}
+
+func TestApprovePlan_AwaitingUserNilOutput_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", nil)
+
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID)
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "awaiting_user")
+}
+
+func TestApprovePlan_AwaitingUserOnlyMarkerOutput_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user",
+		map[string]any{pipeline.StageOutputSubmittedKey: true})
+
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID)
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "awaiting_user")
+}
+
+func TestRejectPlan_RunningRun_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "running", nil)
+
+	requeued := false
+	err = plan.RejectPlan(ctx, plan.RejectDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(context.Context, string, string) error { requeued = true; return nil },
+	}, taskID, "needs more detail")
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "running")
+	require.False(t, requeued, "Requeue must not be called when rejection is refused")
+}
+
+func TestRejectPlan_NoRun_ReturnsConflict(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
+
+	err = plan.RejectPlan(ctx, plan.RejectDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID, "needs more detail")
+
+	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+	assertPlanGateUntouched(t, ctx, bundle, taskID, "")
 }
