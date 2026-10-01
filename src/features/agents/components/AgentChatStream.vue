@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage } from '@/types'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { toast } from '@/composables/useToast'
+import { reconcileDelivery } from '@/features/agents/composables/deliveryState'
 import { renderMarkdown } from '@/utils/markdown'
 import { CHAT_REFRESH_MS } from '@/utils/sse'
 
@@ -16,6 +18,7 @@ const props = defineProps<{
   // replies (a subagent has no channel) and no polling loop.
   sessionId?: string
   localMessages?: OutputMessage[]
+  trackedMessages?: TrackedMessage[]
   refreshIntervalMs?: number
 }>()
 
@@ -60,6 +63,21 @@ function formatMsgTime(ts: string | undefined): string {
   catch {
     return ''
   }
+}
+
+// Reconcile tracked message delivery states against the JSONL transcript.
+const reconciledTracked = computed<TrackedMessage[]>(() => {
+  if (!props.trackedMessages?.length)
+    return []
+  const transcriptUserTexts = sessionMessages.value
+    .filter(m => m.role === 'human')
+    .map(m => m.content)
+  return reconcileDelivery(props.trackedMessages, transcriptUserTexts)
+})
+
+function deliveryStateOf(content: string): TrackedMessage['state'] | null {
+  const match = reconciledTracked.value.find(m => m.text === content || m.serverText === content)
+  return match?.state ?? null
 }
 
 const outputMessages = computed<OutputMessage[]>(() => {
@@ -342,11 +360,16 @@ defineExpose({ scrollToBottom })
             >
               {{ entry.msg.content }}
             </div>
-            <time
-              v-if="formatMsgTime(entry.msg.timestamp)"
-              :datetime="isoTimestamp(entry.msg.timestamp)"
-              class="text-[10px] text-fg-mute select-none"
-            >{{ formatMsgTime(entry.msg.timestamp) }}</time>
+            <span class="flex items-center gap-1 text-[10px] text-fg-mute select-none">
+              <time
+                v-if="formatMsgTime(entry.msg.timestamp)"
+                :datetime="isoTimestamp(entry.msg.timestamp)"
+              >{{ formatMsgTime(entry.msg.timestamp) }}</time>
+              <span v-if="entry.msg.queued" title="Queued (offline)" aria-label="Queued">☁</span>
+              <span v-else-if="deliveryStateOf(entry.msg.content) === 'sending'" title="Sending" aria-label="Sending" class="animate-pulse">⟳</span>
+              <span v-else-if="deliveryStateOf(entry.msg.content) === 'sent'" title="Sent" aria-label="Sent">✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg.content) === 'delivered'" title="Delivered" aria-label="Delivered">✓✓</span>
+            </span>
           </div>
           <div v-else-if="entry.msg.role === 'channel_reply'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
             <div

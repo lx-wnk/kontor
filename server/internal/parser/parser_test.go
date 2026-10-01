@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/lx-wnk/kontor/server/internal/parser"
@@ -28,6 +29,79 @@ func TestParse_TurnOpen(t *testing.T) {
 	d2, err := parser.ParseSessionFile(open)
 	require.NoError(t, err)
 	assert.True(t, d2.TurnOpen, "trailing user message → TurnOpen true")
+}
+
+func TestParse_TurnOpenExtended(t *testing.T) {
+	const (
+		userPrompt = `{"type":"user","message":{"role":"user","content":"hi"}}`
+		bgToolUse  = `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"bg1","name":"Agent","input":{"prompt":"do stuff","run_in_background":true}}],"stop_reason":"end_turn"}}`
+	)
+
+	tests := []struct {
+		name               string
+		lines              []string
+		wantTurnOpen       bool
+		wantPendingBgTasks bool
+	}{
+		{
+			name: "end_turn closes the turn",
+			lines: []string{
+				userPrompt,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn"}}`,
+			},
+			wantTurnOpen: false,
+		},
+		{
+			name: "tool_use stop_reason keeps the turn open",
+			lines: []string{
+				userPrompt,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Read","input":{"file_path":"/tmp/x"}}],"stop_reason":"tool_use"}}`,
+			},
+			wantTurnOpen: true,
+		},
+		{
+			name: "max_tokens keeps the turn open",
+			lines: []string{
+				userPrompt,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"partial"}],"stop_reason":"max_tokens"}}`,
+			},
+			wantTurnOpen: true,
+		},
+		{
+			name: "unresolved run_in_background tool_use is pending background",
+			lines: []string{
+				userPrompt,
+				bgToolUse,
+			},
+			// The unresolved tool_use is also the pending tool use, which opens the turn.
+			wantTurnOpen:       true,
+			wantPendingBgTasks: true,
+		},
+		{
+			name: "run_in_background tool_use with matching tool_result is resolved",
+			lines: []string{
+				userPrompt,
+				bgToolUse,
+				`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"bg1","content":"done"}]}}`,
+				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"bg done"}],"stop_reason":"end_turn"}}`,
+			},
+			wantTurnOpen:       false,
+			wantPendingBgTasks: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "session.jsonl")
+			require.NoError(t, os.WriteFile(path, []byte(strings.Join(tc.lines, "\n")+"\n"), 0o644))
+
+			d, err := parser.ParseSessionFile(path)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantTurnOpen, d.TurnOpen, "TurnOpen")
+			assert.Equal(t, tc.wantPendingBgTasks, d.HasPendingBackground, "HasPendingBackground")
+		})
+	}
 }
 
 func TestTailRead_ReturnsContent(t *testing.T) {

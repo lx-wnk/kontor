@@ -259,10 +259,11 @@ type usageCounters struct {
 }
 
 type msgContent struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	Model   string          `json:"model"`
-	Usage   *usageCounters  `json:"usage"`
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content"`
+	Model      string          `json:"model"`
+	Usage      *usageCounters  `json:"usage"`
+	StopReason string          `json:"stop_reason"` // "end_turn", "stop_sequence", "tool_use", or ""
 }
 
 // addUsage accumulates a per-message usage object into a sdk.TokenUsage total.
@@ -323,6 +324,16 @@ func toolArgument(raw json.RawMessage) string {
 // The client renders the count as its own element instead.
 func toolDetail(raw json.RawMessage) (string, int) {
 	return sanitize.ForDisplayCapped(toolArgument(raw), toolDetailMaxLen)
+}
+
+// hasRunInBackground returns true when a tool_use input block contains
+// "run_in_background":true — marking a background task whose result the
+// agent is not blocked on.
+func hasRunInBackground(raw json.RawMessage) bool {
+	var probe struct {
+		RunInBackground bool `json:"run_in_background"`
+	}
+	return json.Unmarshal(raw, &probe) == nil && probe.RunInBackground
 }
 
 // patternDisplayMaxLen bounds the human-facing twin of a grant pattern. Longer
@@ -535,28 +546,29 @@ func tokenUsageForFile(path string) (fullScanUsage, error) {
 
 // SessionData is the parsed output of a Claude Code JSONL session log.
 type SessionData struct {
-	SessionID           string
-	Path                string
-	ProjectPath         string
-	Entrypoint          sdk.Entrypoint
-	LastActivity        time.Time
-	CurrentAction       string
-	LastTools           []sdk.RecentTool
-	RecentNotes         []NoteTouch
-	SessionTitle        string
-	Tasks               []sdk.TaskInfo
-	TokenUsage          sdk.TokenUsage
-	Model               string
-	ConversationTurns   int
-	ToolCounts          map[string]int
-	LastOutput          string
-	ConvergenceAlert    bool
-	ConvergenceToolName string
-	ErrorState          sdk.ErrorState
-	Meta                *sdk.SessionMeta
-	LastBtw             *sdk.BtwMessage
-	PendingToolUse      *sdk.PendingToolUse
-	TurnOpen            bool
+	SessionID            string
+	Path                 string
+	ProjectPath          string
+	Entrypoint           sdk.Entrypoint
+	LastActivity         time.Time
+	CurrentAction        string
+	LastTools            []sdk.RecentTool
+	RecentNotes          []NoteTouch
+	SessionTitle         string
+	Tasks                []sdk.TaskInfo
+	TokenUsage           sdk.TokenUsage
+	Model                string
+	ConversationTurns    int
+	ToolCounts           map[string]int
+	LastOutput           string
+	ConvergenceAlert     bool
+	ConvergenceToolName  string
+	ErrorState           sdk.ErrorState
+	Meta                 *sdk.SessionMeta
+	LastBtw              *sdk.BtwMessage
+	PendingToolUse       *sdk.PendingToolUse
+	TurnOpen             bool
+	HasPendingBackground bool // a run_in_background tool_use with no matching tool_result
 }
 
 // sessionFileCandidate holds mtime + inode info gathered via os.Stat (cheap).
@@ -846,6 +858,9 @@ func ParseSessionFile(path string) (*SessionData, error) {
 
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(content)))
 	var lastEntryType string
+	var lastAssistantStopReason string
+	// Track tool_use blocks with run_in_background:true that have no tool_result.
+	backgroundToolUseIDs := make(map[string]bool)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -876,6 +891,7 @@ func ParseSessionFile(path string) (*SessionData, error) {
 					for _, b := range blocks {
 						if b.Type == "tool_result" && b.ToolUseID != "" {
 							resolvedToolUseIDs[b.ToolUseID] = true
+							delete(backgroundToolUseIDs, b.ToolUseID)
 						}
 					}
 				}
@@ -896,6 +912,8 @@ func ParseSessionFile(path string) (*SessionData, error) {
 			if msg.Model != "" {
 				data.Model = msg.Model
 			}
+			// Track stop_reason for TurnOpen derivation.
+			lastAssistantStopReason = msg.StopReason
 			// Token usage is NOT accumulated here. It comes exclusively from the
 			// whole-file scan below so the tail's 32 KB limit can never undercount.
 			if ts, parseErr := time.Parse(time.RFC3339Nano, entry.Timestamp); parseErr == nil {
@@ -918,6 +936,10 @@ func ParseSessionFile(path string) (*SessionData, error) {
 						data.CurrentAction = b.Name
 						if b.ID != "" {
 							toolUseOrder = append(toolUseOrder, trackedToolUse{id: b.ID, name: b.Name, input: b.Input})
+							// Detect run_in_background tool calls.
+							if hasRunInBackground(b.Input) {
+								backgroundToolUseIDs[b.ID] = true
+							}
 						}
 						if b.Name == "TodoWrite" {
 							var inp todoInput
@@ -972,9 +994,14 @@ func ParseSessionFile(path string) (*SessionData, error) {
 		}
 	}
 
-	// TurnOpen: the agent owes the next step when the trailing entry is a user
-	// message (prompt or tool_result), or a tool_use is still unresolved.
-	data.TurnOpen = lastEntryType == "user" || data.PendingToolUse != nil
+	// TurnOpen: the agent owes the next step when:
+	//  - trailing entry is a user message (prompt or tool_result), OR
+	//  - a tool_use is still unresolved, OR
+	//  - the last assistant message has no terminal stop_reason (mid-turn streaming).
+	data.TurnOpen = lastEntryType == "user" || data.PendingToolUse != nil ||
+		(lastEntryType == "assistant" && lastAssistantStopReason != "end_turn" &&
+			lastAssistantStopReason != "stop_sequence" && lastAssistantStopReason != "")
+	data.HasPendingBackground = len(backgroundToolUseIDs) > 0
 
 	if err := scanner.Err(); err != nil {
 		slog.Warn("parser: session scan error — partial data returned", "err", err)

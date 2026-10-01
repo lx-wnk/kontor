@@ -475,7 +475,7 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 		ClaudeConfigDirKnown:      proc.ClaudeConfigDirKnown,
 		Entrypoint:                session.Entrypoint,
 		Status:                    CalculateStatus(session.LastActivity),
-		Working:                   session.TurnOpen || discovery.recentOutput,
+		Working:                   session.TurnOpen || session.HasPendingBackground || discovery.recentOutput,
 		ChannelAvailable:          discovery.channelAvailable,
 		LiveInjectable:            discovery.liveInjectable,
 		InternalProcess:           proc.InternalProcess,
