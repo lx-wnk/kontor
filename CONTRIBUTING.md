@@ -99,7 +99,15 @@ Frontend path alias: `@/*` maps to `./src/*`.
 
 ### Plan usage hook
 
-The statusline hook (`server/internal/hookscript/kontor-statusline.sh`) is installed into Claude's settings via `kontor hook install` (or from the dashboard's settings panel). It reads Claude's `rate_limits` from stdin and POSTs the sample to `POST /api/hooks/plan-usage` in the background. The pipeline's usage gate reads the in-memory store before each native Claude spawn and blocks when a rate-limit window exceeds its threshold. Three settings control the thresholds: `usageGate.fiveHourPct` (default 90), `usageGate.sevenDayPct` (default 95), `usageGate.staleMinutes` (default 15). The hook only fires for interactive sessions — headless `claude -p` does not invoke the statusline command.
+The statusline hook (`server/internal/hookscript/kontor-statusline.sh`) is installed into Claude's settings via `kontor hook install` (or from the dashboard's settings panel). It reads Claude's `rate_limits` from stdin and POSTs the sample to `POST /api/hooks/plan-usage` in the background. The pipeline's usage gate reads the in-memory store before each native Claude spawn and blocks when a rate-limit window exceeds its threshold. The hook only fires for interactive sessions — headless `claude -p` does not invoke the statusline command.
+
+Three settings control the gate:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `usageGate.fiveHourPct` | 90 | Block spawns when the 5-hour window is at or above this percentage. |
+| `usageGate.sevenDayPct` | 95 | Block spawns when the 7-day window is at or above this percentage. |
+| `usageGate.staleMinutes` | 15 | **UI only.** Marks the Plan Usage widget row as visually stale after this many minutes without a fresh sample. Does **not** affect the spawn gate — a sample older than `staleMinutes` still gates spawns when its usage percentage exceeds the threshold. |
 
 ### Adding a provider
 

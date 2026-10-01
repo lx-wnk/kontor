@@ -12,7 +12,9 @@
 # Environment:
 #   KONTOR_URL                default http://127.0.0.1:13120
 #   KONTOR_STATUSLINE_CMD     when set, the payload is piped into this command
-#                             for the original statusline chain (replaces cat)
+#                             for the original statusline chain (replaces cat).
+#                             May include arguments (e.g. "my-status --flag");
+#                             executed via sh -c.
 #   KONTOR_HOOKS_SECRET       overrides the secret file below
 #   DASHBOARD_URL             legacy alias for KONTOR_URL
 #   DASHBOARD_HOOKS_SECRET    legacy alias for KONTOR_HOOKS_SECRET
@@ -23,7 +25,7 @@ payload="$(cat)"
 
 # Chain stdout: pass the payload to the next statusline command unchanged.
 if [ -n "${KONTOR_STATUSLINE_CMD:-}" ]; then
-  printf '%s' "$payload" | $KONTOR_STATUSLINE_CMD
+  printf '%s' "$payload" | sh -c "$KONTOR_STATUSLINE_CMD"
 else
   printf '%s' "$payload"
 fi
@@ -41,9 +43,11 @@ done
 [ -n "$secret" ] || exit 0
 command -v curl >/dev/null 2>&1 || exit 0
 
-# Build the POST body: {config_dir, rate_limits: <payload>}.
+# Build the POST body using jq to safely encode config_dir and the payload.
+# If jq is missing or the payload is not valid JSON, skip the POST silently.
+command -v jq >/dev/null 2>&1 || exit 0
 config_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
-post_body="{\"config_dir\":\"${config_dir}\",\"rate_limits\":${payload}}"
+post_body="$(printf '%s' "$payload" | jq -e --arg cd "$config_dir" '{"config_dir":$cd,"rate_limits":.}' 2>/dev/null)" || exit 0
 
 # Fire-and-forget: -m 1 caps connect+transfer, background + redirect ensures
 # the statusline never waits on Kontor. The secret goes via --config stdin,

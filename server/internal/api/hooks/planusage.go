@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -181,7 +182,7 @@ func parseWindow(raw *rateLimitWindow, now time.Time) (*planusage.Window, bool) 
 
 func (h *PlanUsageHandler) requireSecret(w http.ResponseWriter, r *http.Request) bool {
 	got := bearerToken(r)
-	if len(got) == 0 || got != h.secret {
+	if len(got) == 0 || subtle.ConstantTimeCompare([]byte(got), []byte(h.secret)) == 0 {
 		jsonError(w, http.StatusUnauthorized, "unauthorized")
 		return false
 	}
