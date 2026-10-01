@@ -350,7 +350,7 @@ defineExpose({ scrollToBottom })
           </div>
           <div v-else-if="entry.msg.role === 'channel_reply'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
             <div
-              class="max-w-full px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute border-l-2 border-green-500 dark:border-green-400 markdown-body"
+              class="max-w-full shrink-0 min-w-0 px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute border-l-2 border-green-500 dark:border-green-400 markdown-body"
               v-html="renderMarkdown(entry.msg.content)"
             />
             <time
@@ -361,7 +361,7 @@ defineExpose({ scrollToBottom })
           </div>
           <div v-else-if="entry.msg.role === 'assistant'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
             <div
-              class="max-w-full px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute markdown-body"
+              class="max-w-full shrink-0 min-w-0 px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute markdown-body"
               v-html="renderMarkdown(entry.msg.content)"
             />
             <time
