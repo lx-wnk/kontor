@@ -83,3 +83,50 @@ func EvaluateTaskDeps(
 	}
 	return allSat, blocked, unsatisfiable, nil
 }
+
+// BlockingUpstream identifies an upstream dependency that is not yet satisfied,
+// carrying enough info for the client to display "Waiting for: slug (stage)".
+type BlockingUpstream struct {
+	Slug  string `json:"slug"`
+	Stage string `json:"stage"`
+}
+
+// EvaluateTaskDepsDetail is like EvaluateTaskDeps but additionally returns the
+// list of blocking/unsatisfiable upstreams with their slug and current stage.
+// resolveInfo returns (currentStage, slug, error) for a given task ID.
+func EvaluateTaskDepsDetail(
+	ctx context.Context,
+	taskID string,
+	depRepo repo.DependencyRepo,
+	resolveInfo func(ctx context.Context, taskID string) (stage, slug string, err error),
+) (allSatisfied, blocked, unsatisfiable bool, upstreams []BlockingUpstream, err error) {
+	deps, err := depRepo.ListUpstream(ctx, taskID)
+	if err != nil {
+		return false, false, false, nil, err
+	}
+	if len(deps) == 0 {
+		return true, false, false, nil, nil
+	}
+	allSat := true
+	for _, dep := range deps {
+		stage, slug, serr := resolveInfo(ctx, dep.DependsOnID)
+		if serr != nil {
+			allSat = false
+			blocked = true
+			continue
+		}
+		switch EvaluateDependency(dep, stage) {
+		case DepSatisfied:
+			// fine
+		case DepBlocked:
+			allSat = false
+			blocked = true
+			upstreams = append(upstreams, BlockingUpstream{Slug: slug, Stage: stage})
+		case DepUnsatisfiable:
+			allSat = false
+			unsatisfiable = true
+			upstreams = append(upstreams, BlockingUpstream{Slug: slug, Stage: stage})
+		}
+	}
+	return allSat, blocked, unsatisfiable, upstreams, nil
+}

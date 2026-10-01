@@ -194,6 +194,10 @@ export interface PipelineTask {
   // True when blocked AND every blocking prereq is terminal (done/cancelled)
   // but reached the wrong stage — dependency can never be satisfied.
   isUnsatisfiable?: boolean
+  // Slugs and current stages of blocking upstream dependencies.
+  blockingUpstreams?: Array<{ slug: string, stage: string }> | null
+  // Human-readable reason from the stage run output (e.g. "Plan review: awaiting user approval").
+  waitReason?: string | null
   // True when the latest stage_run on the current stage is terminal
   // (done/failed) OR a zombie awaiting_user (dead PID), AND it still has
   // unresolved permission_requests. The orchestrator's lingering-pending

@@ -126,6 +126,12 @@ type EnrichedTask struct {
 	IsBlocked       bool `json:"isBlocked"`
 	IsUnsatisfiable bool `json:"isUnsatisfiable"`
 
+	// Blocking upstream details — populated when IsBlocked or IsUnsatisfiable.
+	BlockingUpstreams []pipeline.BlockingUpstream `json:"blockingUpstreams,omitempty"`
+
+	// Human-readable reason from the stage run's wait_reason output key.
+	WaitReason string `json:"waitReason,omitempty"`
+
 	// Child-task summary — populated by ChildSummariesByParent, zero when no children.
 	ChildCount       int          `json:"childCount"`
 	ActiveChildCount int          `json:"activeChildCount"`
@@ -171,16 +177,16 @@ func memoizeProbe(probe func(int) bool) func(int) bool {
 
 // stageResolver returns a closure that resolves a task's current_stage by ID,
 // or nil when no taskRepo is available (dependency state is then skipped).
-func stageResolver(taskRepo repo.TaskRepo) func(context.Context, string) (string, error) {
+func stageResolver(taskRepo repo.TaskRepo) func(context.Context, string) (string, string, error) {
 	if taskRepo == nil {
 		return nil
 	}
-	return func(ctx context.Context, id string) (string, error) {
+	return func(ctx context.Context, id string) (string, string, error) {
 		up, err := taskRepo.GetByID(ctx, id)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return up.CurrentStage, nil
+		return up.CurrentStage, up.Slug, nil
 	}
 }
 
@@ -188,24 +194,25 @@ func stageResolver(taskRepo repo.TaskRepo) func(context.Context, string) (string
 // cache with the stages of every task already in the slice (no query) and
 // memoizes a GetByID fallback for upstreams outside it, so each distinct
 // out-of-slice upstream is fetched at most once per pass.
-func bulkStageResolver(taskRepo repo.TaskRepo, slice []*ent.Task) func(context.Context, string) (string, error) {
+func bulkStageResolver(taskRepo repo.TaskRepo, slice []*ent.Task) func(context.Context, string) (string, string, error) {
 	if taskRepo == nil {
 		return nil
 	}
-	cache := make(map[string]string, len(slice))
+	type cached struct{ stage, slug string }
+	cache := make(map[string]cached, len(slice))
 	for _, t := range slice {
-		cache[t.ID] = t.CurrentStage
+		cache[t.ID] = cached{t.CurrentStage, t.Slug}
 	}
-	return func(ctx context.Context, id string) (string, error) {
-		if s, ok := cache[id]; ok {
-			return s, nil
+	return func(ctx context.Context, id string) (string, string, error) {
+		if c, ok := cache[id]; ok {
+			return c.stage, c.slug, nil
 		}
 		up, err := taskRepo.GetByID(ctx, id)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		cache[id] = up.CurrentStage
-		return up.CurrentStage, nil
+		cache[id] = cached{up.CurrentStage, up.Slug}
+		return up.CurrentStage, up.Slug, nil
 	}
 }
 
@@ -287,7 +294,7 @@ func EnrichTasksBulkWithDeps(ctx context.Context, tasks []*ent.Task, _ repo.Stag
 	return result, nil
 }
 
-func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPermsCount int, isAlive func(int) bool, childSummary *rawrepo.ChildSummary, depRepo repo.DependencyRepo, resolveStage func(context.Context, string) (string, error)) (*EnrichedTask, error) {
+func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPermsCount int, isAlive func(int) bool, childSummary *rawrepo.ChildSummary, depRepo repo.DependencyRepo, resolveInfo func(context.Context, string) (string, string, error)) (*EnrichedTask, error) {
 	latestBelongsToCurrent := latest != nil && latest.Stage == t.CurrentStage
 	var latestStatus *string
 	currentIteration := 0
@@ -337,10 +344,19 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 	// picker gate is authoritative and fails conservative (errs → skip), so an
 	// optimistic display here cannot cause an unmet-dependency task to actually run.
 	var isBlocked, isUnsatisfiable bool
-	if depRepo != nil && resolveStage != nil {
-		if _, blocked, unsatisfiable, err := pipeline.EvaluateTaskDeps(ctx, t.ID, depRepo, resolveStage); err == nil {
+	var blockingUpstreams []pipeline.BlockingUpstream
+	if depRepo != nil && resolveInfo != nil {
+		if _, blocked, unsatisfiable, ups, derr := pipeline.EvaluateTaskDepsDetail(ctx, t.ID, depRepo, resolveInfo); derr == nil {
 			isBlocked = blocked
 			isUnsatisfiable = unsatisfiable
+			blockingUpstreams = ups
+		}
+	}
+
+	var waitReason string
+	if latestBelongsToCurrent && latestStatus != nil && *latestStatus == "awaiting_user" && latest.Output != nil {
+		if r, ok := latest.Output["wait_reason"].(string); ok {
+			waitReason = r
 		}
 	}
 
@@ -357,6 +373,8 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 		BlockedByPendingPermissions: blockedByPendingPermissions,
 		IsBlocked:                   isBlocked,
 		IsUnsatisfiable:             isUnsatisfiable,
+		BlockingUpstreams:           blockingUpstreams,
+		WaitReason:                  waitReason,
 		pendingPermsCount:           pendingPermsCount,
 	}
 

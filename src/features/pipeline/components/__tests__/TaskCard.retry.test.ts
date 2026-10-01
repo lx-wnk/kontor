@@ -134,7 +134,7 @@ describe('taskCard retry state', () => {
       },
     })
     expect(wrapper.text()).not.toContain('Retrying')
-    expect(wrapper.text()).toContain('Needs Permission')
+    expect(wrapper.find('[data-testid="attention-cause-chip"]').text()).toContain('Needs input')
   })
 
   it('does NOT render needs-user block for requeued task', () => {

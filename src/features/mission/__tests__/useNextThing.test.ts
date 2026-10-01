@@ -124,4 +124,29 @@ describe('rankNextThings', () => {
     const ranked = rankNextThings([], [], [], [newer, older])
     expect(ranked.map(n => n.decision?.id)).toEqual(['d-old', 'd-new'])
   })
+
+  it('excludes blocked plan_review tasks from the result', () => {
+    const out = rankNextThings(
+      [],
+      [task('blocked-plan', { currentStage: 'plan_review', isBlocked: true })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
+  })
+
+  it('excludes unsatisfiable plan_review tasks from the result', () => {
+    const out = rankNextThings(
+      [],
+      [task('unsat-plan', { currentStage: 'plan_review', isUnsatisfiable: true })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
+  })
+
+  it('still includes unblocked plan_review tasks', () => {
+    const out = rankNextThings(
+      [],
+      [task('ok-plan', { currentStage: 'plan_review' })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(1)
+    expect(out[0].taskId).toBe('ok-plan')
+  })
 })

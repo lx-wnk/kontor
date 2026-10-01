@@ -107,6 +107,8 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
   for (const task of tasks) {
     if (task.currentStage !== 'plan_review')
       continue
+    if (task.isBlocked || task.isUnsatisfiable)
+      continue
     out.push({
       kind: 'plan',
       taskId: task.id,
