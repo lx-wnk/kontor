@@ -55,22 +55,32 @@ export function taskAttentionCause(task: PipelineTask): AttentionCause | null {
   }
 
   // 5. Unsatisfiable dependency — upstream is terminal but wrong stage.
-  if (task.isUnsatisfiable && task.blockingUpstreams?.length) {
-    return {
-      kind: 'unsatisfiable',
-      label: `Unsatisfiable: ${task.blockingUpstreams[0].slug} cancelled`,
-      tone: 'warning',
+  if (task.isUnsatisfiable) {
+    // Pick the entry tagged as unsatisfiable so a mixed list can't name a still-running dep.
+    const entry = task.blockingUpstreams?.find(u => u.unsatisfiable)
+    if (entry) {
+      return {
+        kind: 'unsatisfiable',
+        label: `Unsatisfiable: ${entry.slug} (${entry.stage})`,
+        tone: 'warning',
+      }
     }
+    // Fallback when the list is empty (e.g. upstream was deleted and couldn't be resolved).
+    return { kind: 'unsatisfiable', label: 'Unsatisfiable dependency', tone: 'warning' }
   }
 
   // 6. Blocked by dependency — upstream still in progress.
-  if (task.isBlocked && task.blockingUpstreams?.length) {
-    const parts = task.blockingUpstreams.map(u => `${u.slug} (${u.stage})`)
-    return {
-      kind: 'blocked',
-      label: `Waiting for: ${parts.join(', ')}`,
-      tone: 'neutral',
+  if (task.isBlocked) {
+    if (task.blockingUpstreams?.length) {
+      const parts = task.blockingUpstreams.map(u => `${u.slug} (${u.stage})`)
+      return {
+        kind: 'blocked',
+        label: `Waiting for: ${parts.join(', ')}`,
+        tone: 'neutral',
+      }
     }
+    // Fallback when the list is empty (resolve error — upstream couldn't be looked up).
+    return { kind: 'blocked', label: 'Blocked by dependency', tone: 'neutral' }
   }
 
   return null

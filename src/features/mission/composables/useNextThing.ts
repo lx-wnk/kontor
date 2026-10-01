@@ -2,6 +2,7 @@ import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import type { DetectedConfirm, DetectedQuestion } from '@/utils/askQuestionScreen'
+import { taskAttentionCause } from '@/utils/taskAttentionCause'
 
 /**
  * The one item mission control puts in the centre, and the reason it is first.
@@ -105,9 +106,7 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
   }
 
   for (const task of tasks) {
-    if (task.currentStage !== 'plan_review')
-      continue
-    if (task.isBlocked || task.isUnsatisfiable)
+    if (taskAttentionCause(task)?.kind !== 'plan_approval')
       continue
     out.push({
       kind: 'plan',

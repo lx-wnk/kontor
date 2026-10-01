@@ -74,16 +74,44 @@ describe('taskAttentionCause', () => {
     expect(result?.label).toContain('Paused: usage limit — resets')
   })
 
-  it('returns unsatisfiable with first blocking slug', () => {
+  it('returns unsatisfiable with the slug and real stage of the unsatisfiable entry', () => {
     const result = taskAttentionCause(task({
       isUnsatisfiable: true,
-      blockingUpstreams: [{ slug: 'upstream-a', stage: 'cancelled' }],
+      blockingUpstreams: [{ slug: 'upstream-a', stage: 'cancelled', unsatisfiable: true }],
     }))
     expect(result).toMatchObject({
       kind: 'unsatisfiable',
-      label: 'Unsatisfiable: upstream-a cancelled',
+      label: 'Unsatisfiable: upstream-a (cancelled)',
       tone: 'warning',
     })
+  })
+
+  it('returns unsatisfiable fallback label when flag is set but list is empty', () => {
+    const result = taskAttentionCause(task({ isUnsatisfiable: true }))
+    expect(result).toMatchObject({ kind: 'unsatisfiable', label: 'Unsatisfiable dependency', tone: 'warning' })
+  })
+
+  it('returns unsatisfiable fallback label when flag is set but no entry has unsatisfiable=true', () => {
+    // Mixed list where unsatisfiable entries are absent (e.g. stale client data).
+    const result = taskAttentionCause(task({
+      isUnsatisfiable: true,
+      blockingUpstreams: [{ slug: 'upstream-a', stage: 'implementation' }],
+    }))
+    expect(result).toMatchObject({ kind: 'unsatisfiable', label: 'Unsatisfiable dependency', tone: 'warning' })
+  })
+
+  it('picks the unsatisfiable entry from a mixed blocked + unsatisfiable list', () => {
+    // blocked entry first, unsatisfiable entry second — must pick the second one
+    const result = taskAttentionCause(task({
+      isUnsatisfiable: true,
+      isBlocked: true,
+      blockingUpstreams: [
+        { slug: 'running-dep', stage: 'implementation', unsatisfiable: false },
+        { slug: 'cancelled-dep', stage: 'cancelled', unsatisfiable: true },
+      ],
+    }))
+    expect(result?.kind).toBe('unsatisfiable')
+    expect(result?.label).toBe('Unsatisfiable: cancelled-dep (cancelled)')
   })
 
   it('returns blocked with slug(stage) list', () => {
@@ -96,6 +124,11 @@ describe('taskAttentionCause', () => {
     }))
     expect(result).toMatchObject({ kind: 'blocked', tone: 'neutral' })
     expect(result?.label).toBe('Waiting for: upstream-a (implementation), upstream-b (self_review)')
+  })
+
+  it('returns blocked fallback label when flag is set but list is empty', () => {
+    const result = taskAttentionCause(task({ isBlocked: true }))
+    expect(result).toMatchObject({ kind: 'blocked', label: 'Blocked by dependency', tone: 'neutral' })
   })
 
   it('returns null when no cause applies', () => {
@@ -129,7 +162,7 @@ describe('taskAttentionCause', () => {
     const result = taskAttentionCause(task({
       latestStageRunStatus: 'rate_limited',
       isUnsatisfiable: true,
-      blockingUpstreams: [{ slug: 'x', stage: 'cancelled' }],
+      blockingUpstreams: [{ slug: 'x', stage: 'cancelled', unsatisfiable: true }],
     }))
     expect(result?.kind).toBe('usage_limit')
   })
@@ -138,7 +171,7 @@ describe('taskAttentionCause', () => {
     const result = taskAttentionCause(task({
       isUnsatisfiable: true,
       isBlocked: true,
-      blockingUpstreams: [{ slug: 'x', stage: 'cancelled' }],
+      blockingUpstreams: [{ slug: 'x', stage: 'cancelled', unsatisfiable: true }],
     }))
     expect(result?.kind).toBe('unsatisfiable')
   })

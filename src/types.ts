@@ -191,11 +191,12 @@ export interface PipelineTask {
   activePid?: number | null
   // True when this task is blocked by unfulfilled dependencies.
   isBlocked?: boolean
-  // True when blocked AND every blocking prereq is terminal (done/cancelled)
-  // but reached the wrong stage — dependency can never be satisfied.
+  // True when at least one upstream has reached a terminal stage (done/cancelled)
+  // that can never become the required stage. Independent of isBlocked.
   isUnsatisfiable?: boolean
-  // Slugs and current stages of blocking upstream dependencies.
-  blockingUpstreams?: Array<{ slug: string, stage: string }> | null
+  // Slugs, current stages, and type of each unsatisfied upstream dependency.
+  // unsatisfiable=true on an entry means that upstream is terminal at the wrong stage.
+  blockingUpstreams?: Array<{ slug: string, stage: string, unsatisfiable?: boolean }> | null
   // Human-readable reason from the stage run output (e.g. "Plan review: awaiting user approval").
   waitReason?: string | null
   // True when the latest stage_run on the current stage is terminal

@@ -216,7 +216,7 @@ const attentionCause = computed(() => taskAttentionCause(props.task))
         {{ stageLabel(task.currentStage) }}
       </AppChip>
       <AppChip
-        v-if="task.latestStageRunStatus"
+        v-if="task.latestStageRunStatus && attentionCause?.kind !== 'usage_limit'"
         :tone="runStatusTone(task.latestStageRunStatus)"
         mono
         uppercase

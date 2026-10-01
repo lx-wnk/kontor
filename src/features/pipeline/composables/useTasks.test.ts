@@ -84,8 +84,11 @@ describe('byLatestActivity', () => {
 })
 
 describe('live-work resort window', () => {
-  it('is 30 seconds', () => {
-    expect(LIVE_WORK_RESORT_MS).toBe(30_000)
+  it('is a throttle interval between 5 s and 5 min (prevents cards jumping on every heartbeat)', () => {
+    // Lower bound: instant re-sort (≤5s) would make cards jump on agent heartbeats.
+    // Upper bound: a >5min window means a newly-active task stays at the bottom too long.
+    expect(LIVE_WORK_RESORT_MS).toBeGreaterThanOrEqual(5_000)
+    expect(LIVE_WORK_RESORT_MS).toBeLessThanOrEqual(300_000)
   })
 })
 

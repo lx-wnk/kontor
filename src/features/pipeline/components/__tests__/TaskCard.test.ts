@@ -134,18 +134,18 @@ describe('taskCard — attention cause chip', () => {
     wrapper.unmount()
   })
 
-  it('shows unsatisfiable label with blocking slug', () => {
+  it('shows unsatisfiable label with blocking slug and real stage', () => {
     const wrapper = mount(TaskCard, {
       props: {
         task: makeTask({
           isUnsatisfiable: true,
-          blockingUpstreams: [{ slug: 'upstream-a', stage: 'cancelled' }],
+          blockingUpstreams: [{ slug: 'upstream-a', stage: 'cancelled', unsatisfiable: true }],
         }),
       },
     })
     const chip = wrapper.find('[data-testid="attention-cause-chip"]')
     expect(chip.exists()).toBe(true)
-    expect(chip.text()).toContain('Unsatisfiable: upstream-a cancelled')
+    expect(chip.text()).toContain('Unsatisfiable: upstream-a (cancelled)')
     wrapper.unmount()
   })
 

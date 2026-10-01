@@ -6,6 +6,8 @@ import (
 
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
 	"github.com/lx-wnk/kontor/server/internal/db"
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/stretchr/testify/require"
 )
@@ -257,4 +259,90 @@ func TestEnrich_WaitReason_EmptyWhenNotAwaitingUser(t *testing.T) {
 	enriched := enrichForTest(ctx, t, task, srRepo, permRepo)
 
 	require.Empty(t, enriched.WaitReason, "WaitReason must be empty when run is not awaiting_user")
+}
+
+// TestEnrichDep_UnsatisfiableFlag_SetOnBlockingUpstream asserts that the
+// BlockingUpstream entry for an unsatisfiable dep carries Unsatisfiable=true.
+func TestEnrichDep_UnsatisfiableFlag_SetOnBlockingUpstream(t *testing.T) {
+	bundle := openEnrichDB(t)
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	permRepo := repo.NewPermissionRepo(bundle.Client)
+	depRepo := repo.NewDependencyRepo(bundle.Client)
+
+	upstreamID := createEnrichTask(t, taskRepo, "enrich-dep-unsat-flag-up", "cancelled")
+	downstreamID := createEnrichTask(t, taskRepo, "enrich-dep-unsat-flag-down", "ready")
+
+	_, err := depRepo.Add(ctx, downstreamID, upstreamID, "done", "on_hold")
+	require.NoError(t, err)
+
+	enriched := enrichWithDeps(t, taskRepo, srRepo, permRepo, depRepo, downstreamID)
+
+	require.True(t, enriched.IsUnsatisfiable)
+	require.NotEmpty(t, enriched.BlockingUpstreams)
+	require.True(t, enriched.BlockingUpstreams[0].Unsatisfiable,
+		"BlockingUpstream.Unsatisfiable must be true for an unsatisfiable dependency")
+}
+
+// TestEnrichDep_BlockedFlag_NotSetOnBlockingUpstream asserts that the
+// BlockingUpstream entry for a merely-blocked dep carries Unsatisfiable=false.
+func TestEnrichDep_BlockedFlag_NotSetOnBlockingUpstream(t *testing.T) {
+	bundle := openEnrichDB(t)
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	permRepo := repo.NewPermissionRepo(bundle.Client)
+	depRepo := repo.NewDependencyRepo(bundle.Client)
+
+	upstreamID := createEnrichTask(t, taskRepo, "enrich-dep-blocked-flag-up", "implementation")
+	downstreamID := createEnrichTask(t, taskRepo, "enrich-dep-blocked-flag-down", "ready")
+
+	_, err := depRepo.Add(ctx, downstreamID, upstreamID, "done", "on_hold")
+	require.NoError(t, err)
+
+	enriched := enrichWithDeps(t, taskRepo, srRepo, permRepo, depRepo, downstreamID)
+
+	require.True(t, enriched.IsBlocked)
+	require.NotEmpty(t, enriched.BlockingUpstreams)
+	require.False(t, enriched.BlockingUpstreams[0].Unsatisfiable,
+		"BlockingUpstream.Unsatisfiable must be false for a merely-blocked dependency")
+}
+
+// TestEnrichBulkDeps_UpstreamInProgress_IsBlocked asserts that EnrichTasksBulkWithDeps
+// sets IsBlocked and populates BlockingUpstreams the same way the single-task path does.
+func TestEnrichBulkDeps_UpstreamInProgress_IsBlocked(t *testing.T) {
+	bundle := openEnrichDB(t)
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	permRepo := repo.NewPermissionRepo(bundle.Client)
+	depRepo := repo.NewDependencyRepo(bundle.Client)
+	bulkRepo := rawrepo.NewStageRunBulkRepo(bundle.DB)
+
+	upstreamID := createEnrichTask(t, taskRepo, "enrich-bulk-dep-up", "implementation")
+	downstreamID := createEnrichTask(t, taskRepo, "enrich-bulk-dep-down", "ready")
+
+	_, err := depRepo.Add(ctx, downstreamID, upstreamID, "done", "on_hold")
+	require.NoError(t, err)
+
+	downstream, err := taskRepo.GetByID(ctx, downstreamID)
+	require.NoError(t, err)
+	upstream, err := taskRepo.GetByID(ctx, upstreamID)
+	require.NoError(t, err)
+
+	// Pass both tasks so bulkStageResolver can seed the upstream from cache.
+	results, err := tasks.EnrichTasksBulkWithDeps(ctx, []*ent.Task{downstream, upstream}, srRepo, permRepo, bulkRepo, depRepo, taskRepo)
+	require.NoError(t, err)
+
+	var enriched *tasks.EnrichedTask
+	for _, r := range results {
+		if r.ID == downstreamID {
+			enriched = r
+		}
+	}
+	require.NotNil(t, enriched, "downstream task must appear in bulk results")
+	require.True(t, enriched.IsBlocked, "bulk path: IsBlocked must be true")
+	require.NotEmpty(t, enriched.BlockingUpstreams, "bulk path: BlockingUpstreams must be populated")
+	require.Equal(t, "enrich-bulk-dep-up", enriched.BlockingUpstreams[0].Slug)
 }

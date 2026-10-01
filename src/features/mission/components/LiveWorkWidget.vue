@@ -35,7 +35,7 @@ function agentActivityMs(sessionId: string | null | undefined): number {
 function activityOf(t: { activeSessionId?: string | null, updatedAt: string }): number {
   const agentMs = agentActivityMs(t.activeSessionId)
   const updatedMs = new Date(t.updatedAt).getTime()
-  return Math.max(agentMs, updatedMs) || 0
+  return Math.max(agentMs, updatedMs || 0)
 }
 
 // Sort keys are snapshotted so the order only changes on an explicit trigger,
