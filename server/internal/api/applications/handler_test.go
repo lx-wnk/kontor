@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,11 @@ import (
 
 func newMux(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo) {
 	t.Helper()
+	return newMuxWithPresets(t, mcpapps.FindPreset)
+}
+
+func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -41,7 +47,7 @@ func newMux(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, re
 	_, err = apps.Upsert(context.Background(), repo.UpsertMCPApplicationInput{ResourceID: "res-mail", ServerName: "mail"})
 	require.NoError(t, err)
 	mux := chi.NewRouter()
-	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client)).Mount(mux)
+	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client)).WithPresetLookup(find).Mount(mux)
 	return mux, apps, grants, secrets, resources, schedules
 }
 
@@ -605,6 +611,62 @@ func TestImportApplication_DeniesTheDangerousTools(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	require.Equal(t, 1, liveDenies(t, grants, mcpapps.CapabilityName("inbox", "imap_send_email")))
+}
+
+const unverifiedServerArg = "unverified-mcp"
+
+func unverifiedPresetLookup(entry mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+	if slices.Contains(entry.Args, unverifiedServerArg) {
+		return mcpapps.Preset{Server: unverifiedServerArg, Confirmed: false, DenyGlobal: []string{"send"}}, true
+	}
+	return mcpapps.FindPreset(entry)
+}
+
+// requireNothingPersisted proves a refused request left no trace beyond the
+// seeded "mail" application: no application row, no registry row, no grant.
+func requireNothingPersisted(t *testing.T, apps repo.MCPApplicationRepo, grants repo.GrantRepo, resources repo.ResourceRepo, name string) {
+	t.Helper()
+	ctx := context.Background()
+	rows, err := apps.List(ctx)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "only the seeded application may exist")
+	require.Equal(t, "mail", rows[0].ServerName)
+
+	_, err = resources.Get(ctx, repo.ResourceKindApplication, repo.GlobalScope(), mcpapps.ResourceSlug(name))
+	require.True(t, ent.IsNotFound(err), "no registry row may be left behind, got: %v", err)
+
+	allGrants, err := grants.List(ctx)
+	require.NoError(t, err)
+	require.Empty(t, allGrants)
+}
+
+func TestCreateApplication_UnconfirmedPresetIs422AndPersistsNothing(t *testing.T) {
+	mux, apps, grants, _, resources, _ := newMuxWithPresets(t, unverifiedPresetLookup)
+	body := map[string]any{"name": "inbox", "command": "npx", "args": []string{"-y", unverifiedServerArg}}
+
+	rec := do(t, mux, http.MethodPost, "/api/applications", body)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "not confirmed")
+	requireNothingPersisted(t, apps, grants, resources, "inbox")
+
+	rec = do(t, mux, http.MethodPost, "/api/applications", body)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, "a retry must not hit 409 from a half-created row: %s", rec.Body.String())
+}
+
+func TestImportApplication_UnconfirmedPresetIs422AndPersistsNothing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	require.NoError(t, os.WriteFile(dir+"/.claude.json",
+		[]byte(`{"mcpServers":{"inbox":{"command":"npx","args":["-y","`+unverifiedServerArg+`"]}}}`), 0o600))
+	mux, apps, grants, _, resources, _ := newMuxWithPresets(t, unverifiedPresetLookup)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/import", map[string]any{"name": "inbox"})
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "not confirmed")
+	requireNothingPersisted(t, apps, grants, resources, "inbox")
+
+	rec = do(t, mux, http.MethodPost, "/api/applications/import", map[string]any{"name": "inbox"})
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, "a retry must not hit 409 from a half-created row: %s", rec.Body.String())
 }
 
 func TestDenies_AppliedTwiceLeavesOneGrant(t *testing.T) {
