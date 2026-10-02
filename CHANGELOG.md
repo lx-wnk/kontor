@@ -523,6 +523,7 @@ Preparing the first public release.
 
 ### Fixed
 
+- **Spawned child processes no longer linger as `<defunct>` zombies.** Pipeline stage agents, route-analysis commands and the pty-host kill path now call `cmd.Wait()` so the kernel reaps finished children immediately instead of keeping them in the process table until Kontor exits.
 - **A failed stage no longer shows a "Retrying" chip.** A stage run that failed after using up its infra-crash retries (`maxAutoRetries`) still carried the exhausted `retry_count` on the enriched task, so the card's auto-retry chip showed alongside the "Failed" status. `autoRetryCount` is no longer reported once a run has ended (`failed` or `done`). While a retry is queued the chip reads `Retrying · n/m`; while that retry waits to start or runs it reads `Retry n/m`.
 - **Hovering or clicking a note dot hits the dot you see.** The hub picked the note with the nearest centre within 8px, but a hub note is drawn about 8.7px wide at the notes level, so its edge could not be hovered or clicked, and where dots overlapped the pointer could pick a neighbour hidden underneath. It now picks the topmost dot whose drawn circle is under the pointer and falls back to the nearest centre for tiny dots.
 - **Vault links with different letter case.** A link whose target is written in a different case than the file on disk (e.g. `private/agent-context/…` pointing at `private/Agent-Context/…`) was silently dropped from the hub graph. It now resolves, unless two notes differ only by case.
