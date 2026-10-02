@@ -32,12 +32,21 @@ type PresetSetup struct {
 	Readiness string   `json:"readiness"`
 }
 
+// ArgDeny denies one tool only when a top-level scalar parameter matches one of
+// Values. Claude Code matches exactly and case-sensitively; `*` is a wildcard.
+type ArgDeny struct {
+	Tool   string   `json:"tool"`
+	Param  string   `json:"param"`
+	Values []string `json:"values"`
+}
+
 type Preset struct {
 	Server          string       `json:"server"`
 	Version         string       `json:"version"`
 	Match           string       `json:"match"`     // substring of the entry's command line
 	Confirmed       bool         `json:"confirmed"` // true once denyGlobal is verified against a live tool catalogue
 	DenyGlobal      []string     `json:"denyGlobal"`
+	DenyArgs        []ArgDeny    `json:"denyArgs,omitempty"`
 	Setup           *PresetSetup `json:"setup,omitempty"`
 	SecretTemplates []string     `json:"secretTemplates,omitempty"`
 }
@@ -51,7 +60,42 @@ func LoadPreset(name string) (Preset, error) {
 	if err := json.Unmarshal(data, &p); err != nil {
 		return Preset{}, fmt.Errorf("mcpapps: preset %q: %w", name, err)
 	}
+	if err := p.ValidateDenyArgs(); err != nil {
+		return Preset{}, fmt.Errorf("mcpapps: preset %q: %w", name, err)
+	}
 	return p, nil
+}
+
+// argRuleSyntax cannot appear in a tool, param or value: it would end or split
+// the `tool(param:value)` rule early.
+const argRuleSyntax = "():"
+
+// ValidateDenyArgs rejects a denyArgs entry that would render a malformed rule.
+func (p Preset) ValidateDenyArgs() error {
+	for i, d := range p.DenyArgs {
+		if d.Tool == "" || d.Param == "" || len(d.Values) == 0 {
+			return fmt.Errorf("denyArgs[%d]: tool, param and values are all required", i)
+		}
+		for _, field := range append([]string{d.Tool, d.Param}, d.Values...) {
+			if field == "" || strings.ContainsAny(field, argRuleSyntax) {
+				return fmt.Errorf("denyArgs[%d]: %q must be non-empty and free of %q", i, field, argRuleSyntax)
+			}
+		}
+	}
+	return nil
+}
+
+// ArgDenyRules renders DenyArgs as `mcp__<server>__<tool>(<param>:<value>)`
+// rules in declaration order, for --disallowedTools. Claude Code ignores such
+// rules in settings.json.
+func (p Preset) ArgDenyRules(serverName string) []string {
+	var rules []string
+	for _, d := range p.DenyArgs {
+		for _, v := range d.Values {
+			rules = append(rules, CapabilityName(serverName, d.Tool)+"("+d.Param+":"+v+")")
+		}
+	}
+	return rules
 }
 
 // allPresets loads every embedded preset once, sorted by Match length
