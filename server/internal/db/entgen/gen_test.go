@@ -1,6 +1,7 @@
 package entgen
 
 import (
+	"os"
 	"testing"
 
 	"entgo.io/ent/entc"
@@ -12,8 +13,11 @@ import (
 // in environments where `go run` / `task generate` are unavailable. It does NOT
 // import package ent, so the stale generated runtime is never linked.
 //
-// Run: go test ./server/internal/db/entgen/ -run TestRegenerateEnt -count=1
+// Run: KONTOR_REGENERATE_ENT=1 go test ./server/internal/db/entgen/ -run TestRegenerateEnt -count=1
 func TestRegenerateEnt(t *testing.T) {
+	if os.Getenv("KONTOR_REGENERATE_ENT") != "1" {
+		t.Skip("set KONTOR_REGENERATE_ENT=1 to regenerate ent")
+	}
 	cfg := &gen.Config{
 		Target:  "../ent",
 		Package: "github.com/lx-wnk/kontor/server/internal/db/ent",
