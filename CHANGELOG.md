@@ -354,6 +354,7 @@ Preparing the first public release.
 - **`claude.configDir` setting.** Names the Claude config directory (absolute or `~/…`) the dashboard reads sessions and `.claude.json` from, so an app opened from Finder — which inherits no shell `CLAUDE_CONFIG_DIR` — still finds them. It wins over `CLAUDE_CONFIG_DIR` and applies after a restart.
   Pipeline agents are started on the same directory unless their spawner names its own, and the slash-command and skill lists read from it. A running session whose environment shows no `CLAUDE_CONFIG_DIR` is still looked up under `~/.claude`, where the CLI writes it. The plugin secret key stays under `CLAUDE_CONFIG_DIR` or `~/.claude`, because it is loaded before settings can be read.
 - **`task desktop:bundle`.** Swaps a fresh build into an existing `bin/Kontor.app`, stamps the version and signs it with `KONTOR_SIGN_IDENTITY`, so macOS privacy grants survive rebuilds. See [docs/code-signing.md](docs/code-signing.md).
+- **`get_refine_draft` MCP tool.** Read the refinement draft (concept + optional turns) before approving with `approve_spec`. Returns status, the parsed concept (or null with a reason when none exists), and — when `include_turns` is true — the full turn history. Scoped to `tasks:read`.
 
 ### Changed
 
