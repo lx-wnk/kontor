@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
-import { storeLayout, stubAgents } from './helpers'
+import { parkPointerOffNav, storeLayout, stubAgents } from './helpers'
 
 test.afterEach(async ({ request, baseURL }) => {
   await storeLayout(request, baseURL, '')
@@ -127,6 +127,7 @@ for (const viewport of STAGES) {
       await page.setViewportSize(viewport)
       await stubAgents(page, [...agents])
       await page.goto('/', { waitUntil: 'domcontentloaded' })
+      await parkPointerOffNav(page)
       const stage = page.getByTestId('hub-stage')
       await expect(stage).toBeVisible()
       await expect(page.getByTestId('needs-you')).toContainText(agents.length ? 'Launch failed' : 'Nothing needs you')
