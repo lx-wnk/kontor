@@ -74,10 +74,12 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 		return nil, err
 	}
 
+	var stageRunID string
 	if d.StageRuns != nil {
 		now := time.Now()
 		done := "done"
 		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "backlog"); err == nil && sr != nil {
+			stageRunID = sr.ID
 			_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
 				Status:  &done,
 				EndedAt: &now,
@@ -98,10 +100,8 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 	}
 	if d.Audit != nil {
 		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor}
-		if d.StageRuns != nil {
-			if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "backlog"); err == nil && sr != nil {
-				meta["stage_run_id"] = sr.ID
-			}
+		if stageRunID != "" {
+			meta["stage_run_id"] = stageRunID
 		}
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionSpecApproved, "task:"+taskID, meta); err != nil {
 			slog.Warn("refine: audit spec_approved failed", "task", taskID, "err", err)
