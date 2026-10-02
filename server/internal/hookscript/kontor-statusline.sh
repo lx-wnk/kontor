@@ -43,11 +43,12 @@ done
 [ -n "$secret" ] || exit 0
 command -v curl >/dev/null 2>&1 || exit 0
 
-# Build the POST body using jq to safely encode config_dir and the payload.
-# If jq is missing or the payload is not valid JSON, skip the POST silently.
+# Build the POST body using jq to safely encode config_dir and the payload's
+# rate_limits block. If jq is missing, the payload is not valid JSON, or it
+# carries no rate_limits, skip the POST silently.
 command -v jq >/dev/null 2>&1 || exit 0
 config_dir="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
-post_body="$(printf '%s' "$payload" | jq -e --arg cd "$config_dir" '{"config_dir":$cd,"rate_limits":.}' 2>/dev/null)" || exit 0
+post_body="$(printf '%s' "$payload" | jq -e --arg cd "$config_dir" 'select(.rate_limits != null) | {"config_dir":$cd,"rate_limits":.rate_limits}' 2>/dev/null)" || exit 0
 
 # Fire-and-forget: -m 1 caps connect+transfer, background + redirect ensures
 # the statusline never waits on Kontor. The secret goes via --config stdin,

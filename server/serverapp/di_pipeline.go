@@ -124,6 +124,14 @@ func provideOrchestrator(
 		}
 	}
 
+	usageDecision := func(configDir string) planusage.Decision {
+		sample, ok := planStore.Get(configDir)
+		if !ok {
+			return planusage.Decision{}
+		}
+		return planusage.Decide(&sample, time.Now(), float64(usageGateFiveHourPct()), float64(usageGateSevenDayPct()))
+	}
+
 	orch, err := pipeline.NewOrchestrator(pipeline.OrchestratorOptions{
 		Client:           client,
 		TaskRepo:         taskRepo,
@@ -184,29 +192,17 @@ func provideOrchestrator(
 			Capabilities: capabilityRepo,
 		}.ResolveRun,
 		CheckUsageGate: func(configDir string) pipeline.UsageGateDecision {
-			sample, ok := planStore.Get(configDir)
-			if !ok {
-				return pipeline.UsageGateDecision{}
-			}
-			d := planusage.Decide(&sample, time.Now(), float64(usageGateFiveHourPct()), float64(usageGateSevenDayPct()))
+			d := usageDecision(configDir)
 			return pipeline.UsageGateDecision{Block: d.Block, Until: d.Until, Reason: d.Reason}
 		},
+		// Only a window at or above its threshold explains a 429; a healthy
+		// window's resets_at (up to seven days out) must not delay the retry.
 		PlanUsageResets: func(configDir string) *time.Time {
-			sample, ok := planStore.Get(configDir)
-			if !ok {
+			d := usageDecision(configDir)
+			if !d.Block {
 				return nil
 			}
-			var latest time.Time
-			now := time.Now()
-			for _, w := range []*planusage.Window{sample.FiveHour, sample.SevenDay} {
-				if w != nil && w.ResetsAt.After(now) && w.ResetsAt.After(latest) {
-					latest = w.ResetsAt
-				}
-			}
-			if latest.IsZero() {
-				return nil
-			}
-			return &latest
+			return &d.Until
 		},
 		// BuildTaskPayload is called inside applyTransitionWrites, bound to the
 		// active transaction, so the returned snapshot reflects the just-applied
