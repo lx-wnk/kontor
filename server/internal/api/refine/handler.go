@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/auth"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/refine"
@@ -31,6 +32,7 @@ type Deps struct {
 	// Revoke invalidates the concept stage run's MCP credentials once Confirm
 	// marks it done. Nil disables revocation.
 	Revoke  func(ctx context.Context, stageRunID string) error
+	Audit   repo.AuditEventRepo
 	Spawner func(ctx context.Context, cfg refine.SpawnConfig, sp *ent.Spawner) (<-chan string, error)
 	// ResolveSpawner returns the effective spawner row for the given task. If nil,
 	// the handler falls back to passing nil to the Spawner function (which then
@@ -242,12 +244,15 @@ func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 	// Auth enforced by RequireAuth middleware (skipped in bypass mode) — see listTurns.
 	taskID := chi.URLParam(r, "taskId")
 
+	origin := originFromHTTP(r.Context())
 	task, err := Confirm(r.Context(), ConfirmDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
 		StageRuns: h.deps.StageRuns,
 		Advance:   h.deps.Advance,
 		Revoke:    h.deps.Revoke,
+		Audit:     h.deps.Audit,
+		Origin:    origin,
 	}, taskID)
 	if err != nil {
 		jsonError(w, "confirmed but could not fetch updated task", http.StatusInternalServerError)
@@ -312,6 +317,14 @@ func (h *Handler) injectConcept(w http.ResponseWriter, r *http.Request) {
 	status, _ := h.deps.Runner.State(taskID)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
+}
+
+func originFromHTTP(ctx context.Context) repo.AuditOrigin {
+	p, ok := auth.PayloadFromContext(ctx)
+	if !ok {
+		return repo.AuditOrigin{Source: "ui"}
+	}
+	return repo.AuditOrigin{Source: "ui", Actor: p.Login, UserID: &p.Sub}
 }
 
 func jsonError(w http.ResponseWriter, msg string, status int) {

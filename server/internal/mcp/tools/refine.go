@@ -20,6 +20,7 @@ type RefineDeps struct {
 	Advance   func(ctx context.Context, taskID string) error
 	Revoke    func(ctx context.Context, stageRunID string) error
 	Broadcast func(ctx context.Context, eventType, taskID string)
+	Audit     repo.AuditEventRepo
 }
 
 // RegisterRefineTools registers the refinement MCP tools into the registry.
@@ -128,6 +129,8 @@ func registerApproveSpec(registry mcp.ToolRegistry, d RefineDeps) {
 				StageRuns: d.StageRuns,
 				Advance:   d.Advance,
 				Revoke:    d.Revoke,
+				Audit:     d.Audit,
+				Origin:    originFromMCP(ctx),
 			}, taskID)
 			if err != nil {
 				return nil, mcp.Fail("approve_spec: " + err.Error())

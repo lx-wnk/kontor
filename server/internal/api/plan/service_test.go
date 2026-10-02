@@ -259,3 +259,99 @@ func TestPlanStatus_FrozenPlanAfterApproval(t *testing.T) {
 	require.Equal(t, "LIVE_PLAN_SENTINEL", status.ApprovedPlan["summary"],
 		"frozen plan must match the plan that was approved")
 }
+
+func TestApprovePlan_RecordsPlanApprovedAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+
+	taskID, runID := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+	userID := "user-42"
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+		Audit:     auditRepo,
+		Origin:    repo.AuditOrigin{Source: "ui", Actor: "testuser", UserID: &userID},
+	}, taskID)
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "exactly one audit event expected")
+
+	evt := events[0]
+	require.Equal(t, repo.AuditActionPlanApproved, evt.Action)
+	require.Equal(t, "task:"+taskID, evt.Target)
+	require.NotNil(t, evt.UserID)
+	require.Equal(t, "user-42", *evt.UserID)
+	require.Equal(t, "ui", evt.Metadata["source"])
+	require.Equal(t, "testuser", evt.Metadata["actor"])
+	require.Equal(t, runID, evt.Metadata["stage_run_id"])
+}
+
+func TestRejectPlan_RecordsPlanRejectedAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+
+	taskID, _ := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+	err = plan.RejectPlan(ctx, plan.RejectDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(_ context.Context, _, _ string) error { return nil },
+		Audit:     auditRepo,
+		Origin:    repo.AuditOrigin{Source: "mcp", Actor: "key:test-key-id"},
+	}, taskID, "needs work")
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "exactly one audit event expected")
+
+	evt := events[0]
+	require.Equal(t, repo.AuditActionPlanRejected, evt.Action)
+	require.Equal(t, "task:"+taskID, evt.Target)
+	require.Equal(t, "mcp", evt.Metadata["source"])
+	require.Equal(t, "key:test-key-id", evt.Metadata["actor"])
+	require.Equal(t, float64(1), evt.Metadata["reject_count"])
+	require.Equal(t, true, evt.Metadata["requeued"])
+}
+
+func TestApprovePlan_NoAuditWhenNilRepo(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	taskID, _ := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+	// No Audit field set — must not panic.
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+	}, taskID)
+	require.NoError(t, err)
+}

@@ -116,6 +116,7 @@ func provideMCPHandler(
 		},
 		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
 		Broadcast: broadcast,
+		Audit:     auditRepo,
 	})
 	mcptools.RegisterPlanTools(registry, mcptools.PlanDeps{
 		Turns:     turnsRepo,
@@ -131,6 +132,7 @@ func provideMCPHandler(
 		},
 		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
 		Broadcast: broadcast,
+		Audit:     auditRepo,
 	})
 	mcptools.RegisterScheduleTools(registry, mcptools.ScheduleDeps{
 		Repo:       repo.NewTaskScheduleRepo(client),

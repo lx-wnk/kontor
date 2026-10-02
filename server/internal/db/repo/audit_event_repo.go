@@ -23,7 +23,17 @@ const (
 	AuditActionLiveInjectRejected = "live_inject_rejected"
 	AuditActionCapabilityAllow    = "capability_allow"
 	AuditActionCapabilityDeny     = "capability_deny"
+	AuditActionPlanApproved       = "plan_approved"
+	AuditActionPlanRejected       = "plan_rejected"
+	AuditActionSpecApproved       = "spec_approved"
 )
+
+// AuditOrigin identifies who triggered an auditable action and through which channel.
+type AuditOrigin struct {
+	Source string  // "ui" or "mcp"
+	Actor  string  // JWT Login, "key:<id>", or empty in bypass mode
+	UserID *string // JWT Sub or nil
+}
 
 // AuditEventRepo persists and queries security-relevant audit events.
 type AuditEventRepo interface {

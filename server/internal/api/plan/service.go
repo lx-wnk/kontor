@@ -23,6 +23,8 @@ type ApproveDeps struct {
 	// marked done — its agent is gone by then. Nil disables revocation; a
 	// failure logs and never blocks the approval.
 	Revoke func(ctx context.Context, stageRunID string) error
+	Audit  repo.AuditEventRepo
+	Origin repo.AuditOrigin
 }
 
 // RejectDeps are the dependencies required by RejectPlan.
@@ -32,6 +34,8 @@ type RejectDeps struct {
 	StageRuns repo.StageRunRepo
 	// Requeue triggers a new plan_review run carrying the feedback prompt.
 	Requeue func(ctx context.Context, taskID, prompt string) error
+	Audit   repo.AuditEventRepo
+	Origin  repo.AuditOrigin
 }
 
 // StatusDeps are the dependencies required by PlanStatus.
@@ -60,6 +64,8 @@ const (
 // ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
 // and advances the task to implementation. Mirrors refine.Confirm.
 func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
+	var stageRunID string
+
 	// Fetch current plan output to freeze it.
 	var planOutput map[string]any
 	if d.StageRuns != nil {
@@ -95,6 +101,7 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 		now := time.Now()
 		done := "done"
 		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
+			stageRunID = sr.ID
 			_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
 				Status:  &done,
 				EndedAt: &now,
@@ -110,6 +117,16 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 	if d.Tasks != nil {
 		if _, err := d.Tasks.Update(ctx, taskID, update); err != nil {
 			return nil, fmt.Errorf("approve_plan: update task: %w", err)
+		}
+	}
+
+	if d.Audit != nil {
+		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor}
+		if stageRunID != "" {
+			meta["stage_run_id"] = stageRunID
+		}
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanApproved, "task:"+taskID, meta); err != nil {
+			slog.Warn("plan: audit plan_approved failed", "task", taskID, "err", err)
 		}
 	}
 
@@ -160,8 +177,26 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 		return fmt.Errorf("reject_plan: update task metadata: %w", err)
 	}
 
+	requeued := count < localDefaultPlanIterationCap && d.Requeue != nil
+	if d.Audit != nil {
+		meta := map[string]any{
+			"source":       d.Origin.Source,
+			"actor":        d.Origin.Actor,
+			"reject_count": count + 1,
+			"requeued":     requeued,
+		}
+		if d.StageRuns != nil {
+			if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
+				meta["stage_run_id"] = sr.ID
+			}
+		}
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanRejected, "task:"+taskID, meta); err != nil {
+			slog.Warn("plan: audit plan_rejected failed", "task", taskID, "err", err)
+		}
+	}
+
 	// Only requeue when under the cap.
-	if count < localDefaultPlanIterationCap && d.Requeue != nil {
+	if requeued {
 		if err := d.Requeue(ctx, taskID, feedback); err != nil {
 			return fmt.Errorf("reject_plan: requeue: %w", err)
 		}

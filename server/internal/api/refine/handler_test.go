@@ -21,6 +21,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/refine"
 	"github.com/lx-wnk/kontor/server/internal/services"
+	"github.com/stretchr/testify/require"
 )
 
 const testJWTSecret = "test-secret-32-chars-minimum-here"
@@ -436,4 +437,67 @@ func TestConfirm_WireFormat(t *testing.T) {
 			t.Errorf("unexpected key %q in %v", k, row)
 		}
 	}
+}
+
+type fakeAuditRepo struct {
+	events []fakeAuditEvent
+}
+
+type fakeAuditEvent struct {
+	taskID   string
+	userID   *string
+	action   string
+	target   string
+	metadata map[string]any
+}
+
+func (f *fakeAuditRepo) RecordAudit(_ context.Context, userID *string, action, target string, metadata map[string]any) error {
+	f.events = append(f.events, fakeAuditEvent{userID: userID, action: action, target: target, metadata: metadata})
+	return nil
+}
+
+func (f *fakeAuditRepo) RecordTaskAudit(_ context.Context, taskID string, userID *string, action, target string, metadata map[string]any) error {
+	f.events = append(f.events, fakeAuditEvent{taskID: taskID, userID: userID, action: action, target: target, metadata: metadata})
+	return nil
+}
+
+func (f *fakeAuditRepo) List(_ context.Context, _ repo.AuditEventFilters) ([]*ent.AuditEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditRepo) ListForTask(_ context.Context, _ string) ([]*ent.AuditEvent, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditRepo) ListAll(_ context.Context, _, _ int) ([]*ent.AuditEvent, error) {
+	return nil, nil
+}
+
+func TestConfirm_RecordsSpecApprovedAuditEvent(t *testing.T) {
+	turns := &fakeTurnRepo{}
+	tasks := &fakeTaskRepo{byID: map[string]*ent.Task{
+		"t1": {ID: "t1", Title: "test", CurrentStage: "backlog", Metadata: map[string]any{}, Cwd: t.TempDir()},
+	}}
+	audit := &fakeAuditRepo{}
+
+	h := apirefine.NewHandler(apirefine.Deps{
+		Turns:   turns,
+		Tasks:   tasks,
+		Advance: func(_ context.Context, _ string) error { return nil },
+		Audit:   audit,
+	})
+
+	router := chi.NewRouter()
+	h.Mount(router)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/refine/t1/confirm", nil))
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	require.Len(t, audit.events, 1, "exactly one audit event expected")
+	evt := audit.events[0]
+	require.Equal(t, "t1", evt.taskID)
+	require.Equal(t, repo.AuditActionSpecApproved, evt.action)
+	require.Equal(t, "task:t1", evt.target)
+	require.Equal(t, "ui", evt.metadata["source"])
 }

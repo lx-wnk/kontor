@@ -17,6 +17,7 @@ type PlanDeps struct {
 	Requeue   func(ctx context.Context, taskID, prompt string) error
 	Revoke    func(ctx context.Context, stageRunID string) error
 	Broadcast func(ctx context.Context, eventType, taskID string)
+	Audit     repo.AuditEventRepo
 }
 
 // RegisterPlanTools registers the plan gate MCP tools into the registry.
@@ -48,6 +49,8 @@ func registerApprovePlan(registry mcp.ToolRegistry, d PlanDeps) {
 				StageRuns: d.StageRuns,
 				Advance:   d.Advance,
 				Revoke:    d.Revoke,
+				Audit:     d.Audit,
+				Origin:    originFromMCP(ctx),
 			}, taskID)
 			if err != nil {
 				return nil, mcp.Fail("approve_plan: " + err.Error())
@@ -84,6 +87,8 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 				Tasks:     d.Tasks,
 				StageRuns: d.StageRuns,
 				Requeue:   d.Requeue,
+				Audit:     d.Audit,
+				Origin:    originFromMCP(ctx),
 			}, taskID, feedback); err != nil {
 				return nil, mcp.Fail("reject_plan: " + err.Error())
 			}
@@ -91,6 +96,14 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 			return mcp.OK(map[string]any{"status": "requeued"})
 		},
 	})
+}
+
+func originFromMCP(ctx context.Context) repo.AuditOrigin {
+	info := mcp.AuthFromContext(ctx)
+	if info == nil {
+		return repo.AuditOrigin{Source: "mcp"}
+	}
+	return repo.AuditOrigin{Source: "mcp", Actor: "key:" + info.KeyID}
 }
 
 func registerGetPlanStatus(registry mcp.ToolRegistry, d PlanDeps) {

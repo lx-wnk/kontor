@@ -22,6 +22,8 @@ type ConfirmDeps struct {
 	// marked done — its agent is gone by then. Nil disables revocation; a
 	// failure logs and never blocks confirmation.
 	Revoke func(ctx context.Context, stageRunID string) error
+	Audit  repo.AuditEventRepo
+	Origin repo.AuditOrigin
 }
 
 // Confirm freezes the concept from refinement turns onto the task and advances
@@ -92,6 +94,17 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 	if d.Tasks != nil {
 		if _, err := d.Tasks.Update(ctx, taskID, update); err != nil {
 			return nil, fmt.Errorf("confirm: apply concept to task: %w", err)
+		}
+	}
+	if d.Audit != nil {
+		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor}
+		if d.StageRuns != nil {
+			if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "backlog"); err == nil && sr != nil {
+				meta["stage_run_id"] = sr.ID
+			}
+		}
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionSpecApproved, "task:"+taskID, meta); err != nil {
+			slog.Warn("refine: audit spec_approved failed", "task", taskID, "err", err)
 		}
 	}
 	if d.Advance != nil {

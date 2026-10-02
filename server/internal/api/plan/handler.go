@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
+	"github.com/lx-wnk/kontor/server/internal/auth"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
@@ -19,6 +20,7 @@ type HandlerDeps struct {
 	Advance   func(ctx context.Context, taskID string) error
 	Requeue   func(ctx context.Context, taskID, prompt string) error
 	Revoke    func(ctx context.Context, stageRunID string) error
+	Audit     repo.AuditEventRepo
 }
 
 // Handler handles /api/plan routes.
@@ -42,12 +44,15 @@ func (h *Handler) Mount(r chi.Router) {
 // POST /api/plan/{taskId}/approve
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "taskId")
+	origin := originFromHTTP(r.Context())
 	task, err := ApprovePlan(r.Context(), ApproveDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
 		StageRuns: h.deps.StageRuns,
 		Advance:   h.deps.Advance,
 		Revoke:    h.deps.Revoke,
+		Audit:     h.deps.Audit,
+		Origin:    origin,
 	}, taskID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -69,11 +74,14 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	origin := originFromHTTP(r.Context())
 	if err := RejectPlan(r.Context(), RejectDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
 		StageRuns: h.deps.StageRuns,
 		Requeue:   h.deps.Requeue,
+		Audit:     h.deps.Audit,
+		Origin:    origin,
 	}, taskID, body.Feedback); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -97,6 +105,14 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+func originFromHTTP(ctx context.Context) repo.AuditOrigin {
+	p, ok := auth.PayloadFromContext(ctx)
+	if !ok {
+		return repo.AuditOrigin{Source: "ui"}
+	}
+	return repo.AuditOrigin{Source: "ui", Actor: p.Login, UserID: &p.Sub}
 }
 
 func jsonError(w http.ResponseWriter, msg string, status int) {
