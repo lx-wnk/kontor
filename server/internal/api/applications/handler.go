@@ -37,6 +37,7 @@ type Handler struct {
 	setup        SetupRunner
 	tools        ToolCaller
 	capabilities repo.CapabilityRepo
+	findPreset   mcpapps.PresetFinder
 }
 
 // ToolCaller runs one tool on an application's own MCP server. It is an
@@ -71,7 +72,15 @@ func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo
 	if tools == nil {
 		tools = StdioToolCaller{}
 	}
-	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities}
+	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset}
+}
+
+// WithPresetLookup replaces the lookup the deny preflight and the deny apply
+// share. It exists so a test can supply a preset the embedded catalogue does
+// not contain; production keeps mcpapps.FindPreset.
+func (h *Handler) WithPresetLookup(find mcpapps.PresetFinder) *Handler {
+	h.findPreset = find
+	return h
 }
 
 func (h *Handler) Mount(r chi.Router) {
@@ -321,6 +330,14 @@ func (h *Handler) importApplication(w http.ResponseWriter, r *http.Request) erro
 		}
 	}
 
+	parsed, err := mcpapps.ParseEntry(entry)
+	if err != nil {
+		return err
+	}
+	if err := h.refuseUnconfirmedPreset(parsed); err != nil {
+		return err
+	}
+
 	res, err := mcpapps.EnsureResource(r.Context(), h.resources, body.Name)
 	if err != nil {
 		return err
@@ -380,11 +397,16 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
+	serverEntry := mcpapps.ServerEntry{Command: body.Command, Args: body.Args, Env: body.Env}
+	if err := h.refuseUnconfirmedPreset(serverEntry); err != nil {
+		return err
+	}
+
 	res, err := mcpapps.EnsureResource(r.Context(), h.resources, body.Name)
 	if err != nil {
 		return err
 	}
-	entry, err := json.Marshal(mcpapps.ServerEntry{Command: body.Command, Args: body.Args, Env: body.Env})
+	entry, err := json.Marshal(serverEntry)
 	if err != nil {
 		return err
 	}
@@ -467,6 +489,20 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, http.StatusOK, v)
 }
 
+// refuseUnconfirmedPreset fails before anything is persisted when entry matches
+// a preset whose deny list is unverified. applyDenies refuses such a preset too,
+// but only after the row exists, which would leave an application with no denies.
+func (h *Handler) refuseUnconfirmedPreset(entry mcpapps.ServerEntry) error {
+	p, ok := h.findPreset(entry)
+	if !ok {
+		return nil
+	}
+	if err := p.CheckConfirmed(); err != nil {
+		return apierr.NewAppError(http.StatusUnprocessableEntity, "preset "+p.Server+" is not confirmed against a live tool catalogue; its deny list cannot be applied")
+	}
+	return nil
+}
+
 // applyDenies writes the preset's default denies for app. It runs wherever an
 // application's definition appears or changes, and is idempotent, so the
 // window between adding a server and reading its tool list is never open.
@@ -476,7 +512,7 @@ func (h *Handler) applyDenies(r *http.Request, app *ent.MCPApplication) error {
 		// Missing payload ⟹ bypass mode (DASHBOARD_AUTH=none); act as local admin.
 		payload = auth.BypassPayload()
 	}
-	_, err := mcpapps.ApplyDefaultDenies(r.Context(), h.grants, app, payload.Sub)
+	_, err := mcpapps.ApplyDefaultDeniesWith(r.Context(), h.grants, h.findPreset, app, payload.Sub)
 	return err
 }
 
@@ -490,7 +526,7 @@ func (h *Handler) denies(w http.ResponseWriter, r *http.Request) error {
 		// Missing payload ⟹ bypass mode (DASHBOARD_AUTH=none); act as local admin.
 		payload = auth.BypassPayload()
 	}
-	res, err := mcpapps.ApplyDefaultDenies(r.Context(), h.grants, app, payload.Sub)
+	res, err := mcpapps.ApplyDefaultDeniesWith(r.Context(), h.grants, h.findPreset, app, payload.Sub)
 	if err != nil {
 		return err
 	}

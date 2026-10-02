@@ -79,6 +79,9 @@ func loadAllPresets() []Preset {
 	return presets
 }
 
+// PresetFinder resolves the preset that applies to a server entry.
+type PresetFinder func(ServerEntry) (Preset, bool)
+
 // FindPreset returns the preset whose Match occurs in the entry's command line
 // (Command and Args joined by a space), longest Match first so a specific
 // package beats a generic one.
@@ -101,13 +104,23 @@ type DenyResult struct {
 	Existing []string `json:"existing"`
 }
 
+// CheckConfirmed returns ErrPresetUnconfirmed when p's deny list has not been
+// verified against a live tool catalogue. It is pure, so a caller can refuse
+// before persisting anything the denies depend on.
+func (p Preset) CheckConfirmed() error {
+	if !p.Confirmed {
+		return fmt.Errorf("mcpapps: preset %q: %w", p.Server, ErrPresetUnconfirmed)
+	}
+	return nil
+}
+
 // ApplyPresetDenies writes a global deny for every tool p names. It is
 // idempotent and returns ErrPresetUnconfirmed when p.Confirmed is false.
 // Callers that already have a Preset value (e.g. tests) call this directly;
 // ApplyDefaultDenies is the convenience wrapper that resolves the preset first.
 func ApplyPresetDenies(ctx context.Context, grants repo.GrantRepo, p Preset, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
-	if !p.Confirmed {
-		return DenyResult{}, fmt.Errorf("mcpapps.ApplyPresetDenies %q: %w", p.Server, ErrPresetUnconfirmed)
+	if err := p.CheckConfirmed(); err != nil {
+		return DenyResult{}, fmt.Errorf("mcpapps.ApplyPresetDenies: %w", err)
 	}
 	res := DenyResult{Preset: p.Server, Created: []string{}, Existing: []string{}}
 	for _, tool := range p.DenyGlobal {
@@ -139,6 +152,12 @@ func ApplyPresetDenies(ctx context.Context, grants repo.GrantRepo, p Preset, app
 // against a live tool catalogue — set confirmed:true in the preset JSON after
 // running the probe.
 func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
+	return ApplyDefaultDeniesWith(ctx, grants, FindPreset, app, grantedBy)
+}
+
+// ApplyDefaultDeniesWith is ApplyDefaultDenies with the preset lookup supplied
+// by the caller, so the lookup a caller preflights with is the one it applies.
+func ApplyDefaultDeniesWith(ctx context.Context, grants repo.GrantRepo, find PresetFinder, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
 	empty := DenyResult{Created: []string{}, Existing: []string{}}
 	if IsEmptyEntry(app.Entry) {
 		return empty, nil
@@ -147,7 +166,7 @@ func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCP
 	if err != nil {
 		return DenyResult{}, fmt.Errorf("mcpapps.ApplyDefaultDenies: %w", err)
 	}
-	p, ok := FindPreset(entry)
+	p, ok := find(entry)
 	if !ok {
 		return empty, nil
 	}

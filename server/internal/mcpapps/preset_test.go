@@ -79,26 +79,26 @@ func TestApplyDefaultDenies_DeniesEvenWithoutCatalogue(t *testing.T) {
 	require.Equal(t, repo.GrantContextGlobal, rows[0].ContextKind)
 }
 
-func TestPresetDenyGlobal_AllNamesExistInLiveFixture(t *testing.T) {
+func liveToolFixture(t *testing.T) map[string]bool {
+	t.Helper()
 	raw, err := os.ReadFile("testdata/imap-mcp-server-2.0.0-tools.txt")
 	require.NoError(t, err)
 
-	var liveTools []string
+	live := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			liveTools = append(liveTools, line)
+		if line = strings.TrimSpace(line); line != "" {
+			live[line] = true
 		}
 	}
-	require.NotEmpty(t, liveTools)
+	require.NotEmpty(t, live)
+	return live
+}
+
+func TestPresetDenyGlobal_AllNamesExistInLiveFixture(t *testing.T) {
+	live := liveToolFixture(t)
 
 	preset, err := mcpapps.LoadPreset("imap-mcp-server")
 	require.NoError(t, err)
-
-	live := make(map[string]bool, len(liveTools))
-	for _, name := range liveTools {
-		live[name] = true
-	}
 
 	for _, denied := range preset.DenyGlobal {
 		require.True(t, live[denied], "denyGlobal entry %q is not in the live tool fixture — tool renamed or removed?", denied)
@@ -177,6 +177,18 @@ func TestPresetDenyGlobal_AllDangerousToolsAreDenied(t *testing.T) {
 
 	for _, tool := range dangerousTools {
 		require.True(t, denied[tool], "dangerous tool %q is not in denyGlobal — security regression", tool)
+	}
+
+	// Deliberate exceptions: destructive in some argument shapes, kept at the
+	// default ask tier because denying the whole tool would disable the core
+	// triage action. A grant matches the tool name only, never its arguments.
+	intentionallyAsked := map[string]string{
+		"imap_move_email": "a move to a trash folder is a soft delete; every other folder move is triage",
+	}
+	live := liveToolFixture(t)
+	for tool, why := range intentionallyAsked {
+		require.True(t, live[tool], "intentionally-asked tool %q is not in the live tool fixture — renamed or removed?", tool)
+		require.False(t, denied[tool], "%q is an intentional ask-tier tool (%s); moving it into denyGlobal disables triage — decide that deliberately", tool, why)
 	}
 }
 
