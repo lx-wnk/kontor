@@ -247,6 +247,18 @@ func isCompactBoundaryType(typ, subtype string) bool {
 	return typ == "system" && subtype == "compact_boundary"
 }
 
+// Anthropic stop_reason values after which the agent still owes the next step.
+const (
+	stopReasonToolUse   = "tool_use"
+	stopReasonPauseTurn = "pause_turn"
+)
+
+// stopReasonContinuesTurn is an allowlist: every other value (end_turn, refusal,
+// max_tokens, empty, any future reason) closes the turn.
+func stopReasonContinuesTurn(stopReason string) bool {
+	return stopReason == stopReasonToolUse || stopReason == stopReasonPauseTurn
+}
+
 // usageCounters mirrors the per-message Anthropic `usage` object. It is the
 // single canonical shape for extracting token counts; both the tail parse in
 // ParseSessionFile and the full scan in scanCompactionBaseline accumulate
@@ -263,7 +275,7 @@ type msgContent struct {
 	Content    json.RawMessage `json:"content"`
 	Model      string          `json:"model"`
 	Usage      *usageCounters  `json:"usage"`
-	StopReason string          `json:"stop_reason"` // "end_turn", "stop_sequence", "tool_use", or ""
+	StopReason string          `json:"stop_reason"` // Anthropic stop_reason; "" while streaming
 }
 
 // addUsage accumulates a per-message usage object into a sdk.TokenUsage total.
@@ -994,13 +1006,10 @@ func ParseSessionFile(path string) (*SessionData, error) {
 		}
 	}
 
-	// TurnOpen: the agent owes the next step when:
-	//  - trailing entry is a user message (prompt or tool_result), OR
-	//  - a tool_use is still unresolved, OR
-	//  - the last assistant message has no terminal stop_reason (mid-turn streaming).
+	// TurnOpen: the trailing entry is a user message, a tool_use is unresolved, or the
+	// last assistant message stopped for tool_use/pause_turn.
 	data.TurnOpen = lastEntryType == "user" || data.PendingToolUse != nil ||
-		(lastEntryType == "assistant" && lastAssistantStopReason != "end_turn" &&
-			lastAssistantStopReason != "stop_sequence" && lastAssistantStopReason != "")
+		(lastEntryType == "assistant" && stopReasonContinuesTurn(lastAssistantStopReason))
 	data.HasPendingBackground = len(backgroundToolUseIDs) > 0
 
 	if err := scanner.Err(); err != nil {

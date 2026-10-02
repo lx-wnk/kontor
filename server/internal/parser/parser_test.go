@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,14 +61,6 @@ func TestParse_TurnOpenExtended(t *testing.T) {
 			wantTurnOpen: true,
 		},
 		{
-			name: "max_tokens keeps the turn open",
-			lines: []string{
-				userPrompt,
-				`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"partial"}],"stop_reason":"max_tokens"}}`,
-			},
-			wantTurnOpen: true,
-		},
-		{
 			name: "unresolved run_in_background tool_use is pending background",
 			lines: []string{
 				userPrompt,
@@ -100,6 +93,40 @@ func TestParse_TurnOpenExtended(t *testing.T) {
 
 			assert.Equal(t, tc.wantTurnOpen, d.TurnOpen, "TurnOpen")
 			assert.Equal(t, tc.wantPendingBgTasks, d.HasPendingBackground, "HasPendingBackground")
+		})
+	}
+}
+
+func TestParse_TurnOpenByStopReason(t *testing.T) {
+	const assistantTextFmt = `{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"x"}],"stop_reason":%s}}`
+
+	tests := []struct {
+		name         string
+		stopReasonJS string
+		wantTurnOpen bool
+	}{
+		{"tool_use", `"tool_use"`, true},
+		{"pause_turn", `"pause_turn"`, true},
+		{"end_turn", `"end_turn"`, false},
+		{"stop_sequence", `"stop_sequence"`, false},
+		{"refusal", `"refusal"`, false},
+		{"model_context_window_exceeded", `"model_context_window_exceeded"`, false},
+		{"max_tokens", `"max_tokens"`, false},
+		{"empty string", `""`, false},
+		{"null", `null`, false},
+		{"future_reason", `"future_reason"`, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			line := fmt.Sprintf(assistantTextFmt, tc.stopReasonJS)
+			path := filepath.Join(t.TempDir(), "session.jsonl")
+			require.NoError(t, os.WriteFile(path, []byte(line+"\n"), 0o644))
+
+			d, err := parser.ParseSessionFile(path)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.wantTurnOpen, d.TurnOpen, "TurnOpen")
 		})
 	}
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
+import type { DeliveryState, TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage } from '@/types'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { toast } from '@/composables/useToast'
@@ -65,30 +65,17 @@ function formatMsgTime(ts: string | undefined): string {
   }
 }
 
-// Reconcile tracked message delivery states against the JSONL transcript.
-const reconciledTracked = computed<TrackedMessage[]>(() => {
-  if (!props.trackedMessages?.length)
-    return []
-  const transcriptUserTexts = sessionMessages.value
-    .filter(m => m.role === 'human')
-    .map(m => m.content)
-  return reconcileDelivery(props.trackedMessages, transcriptUserTexts)
-})
+const delivery = computed(() =>
+  reconcileDelivery(props.trackedMessages ?? [], sessionMessages.value, props.localMessages),
+)
 
-function deliveryStateOf(content: string): TrackedMessage['state'] | null {
-  const match = reconciledTracked.value.find(m => m.text === content || m.serverText === content)
-  return match?.state ?? null
+function deliveryStateOf(msg: OutputMessage): DeliveryState | null {
+  return delivery.value.bubbleState.get(msg) ?? null
 }
 
 const outputMessages = computed<OutputMessage[]>(() => {
-  // Deduplicate: once a human message appears in sessionMessages (from JSONL),
-  // remove it from localMessages to avoid showing it twice during the poll gap.
-  const inSession = new Set(
-    sessionMessages.value.filter(m => m.role === 'human').map(m => m.content),
-  )
-  const filteredLocal = (props.localMessages ?? []).filter(
-    m => m.role !== 'human' || !inSession.has(m.content),
-  )
+  // A local echo gives way once its own transcript entry has arrived; an identical earlier message does not count.
+  const filteredLocal = (props.localMessages ?? []).filter(m => !delivery.value.echoed.has(m))
   const all = [...sessionMessages.value, ...channelReplies.value, ...filteredLocal]
   all.sort((a, b) => {
     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0
@@ -366,9 +353,9 @@ defineExpose({ scrollToBottom })
                 :datetime="isoTimestamp(entry.msg.timestamp)"
               >{{ formatMsgTime(entry.msg.timestamp) }}</time>
               <span v-if="entry.msg.queued" title="Queued (offline)" aria-label="Queued">☁</span>
-              <span v-else-if="deliveryStateOf(entry.msg.content) === 'sending'" title="Sending" aria-label="Sending" class="animate-pulse">⟳</span>
-              <span v-else-if="deliveryStateOf(entry.msg.content) === 'sent'" title="Sent" aria-label="Sent">✓</span>
-              <span v-else-if="deliveryStateOf(entry.msg.content) === 'delivered'" title="Delivered" aria-label="Delivered">✓✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'sending'" title="Sending" aria-label="Sending" class="animate-pulse">⟳</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'sent'" title="Sent" aria-label="Sent">✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'delivered'" title="Delivered" aria-label="Delivered">✓✓</span>
             </span>
           </div>
           <div v-else-if="entry.msg.role === 'channel_reply'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
