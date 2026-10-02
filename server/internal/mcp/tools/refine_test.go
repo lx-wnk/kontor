@@ -42,7 +42,7 @@ func seedBacklogTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, 
 func TestRegisterRefineTools_AllToolsPresent(t *testing.T) {
 	registry := mcp.ToolRegistry{}
 	RegisterRefineTools(registry, RefineDeps{})
-	for _, name := range []string{"get_refine_status", "approve_spec", "refine_task"} {
+	for _, name := range []string{"get_refine_status", "get_refine_draft", "approve_spec", "refine_task", "inject_concept"} {
 		require.Contains(t, registry, name, "expected tool %q to be registered", name)
 	}
 }
@@ -266,6 +266,227 @@ func TestApproveSpec_BroadcastsTaskUpdated(t *testing.T) {
 	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
 	require.Equal(t, "task_updated", gotEventType)
 	require.Equal(t, task.ID, gotTaskID)
+}
+
+// --- get_refine_draft tests ---
+
+func TestGetRefineDraft_DraftReadyWithConcept(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	// Inject a concept via inject_concept to get draft_ready state.
+	runner := refine.NewRunner(turnsRepo, nil)
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns:  turnsRepo,
+		Tasks:  taskRepo,
+		Runner: runner,
+	})
+
+	inject := registry["inject_concept"]
+	_, err = inject.Handler(ctx, map[string]any{
+		"task_id": task.ID,
+		"concept": map[string]any{
+			"spec":         "Add a foo endpoint",
+			"plan":         []any{"1. handler", "2. test"},
+			"refinedTitle": "Foo endpoint",
+			"sourceBranch": "feat/foo",
+		},
+	})
+	require.NoError(t, err)
+
+	tool := registry["get_refine_draft"]
+	result, err := tool.Handler(ctx, map[string]any{"task_id": task.ID})
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Equal(t, "draft_ready", payload["status"])
+	require.NotNil(t, payload["concept"])
+
+	concept := payload["concept"].(map[string]any)
+	require.Equal(t, "Add a foo endpoint", concept["spec"])
+	require.Equal(t, "Foo endpoint", concept["refinedTitle"])
+	require.Equal(t, "feat/foo", concept["sourceBranch"])
+
+	// turns should be absent by default.
+	require.Nil(t, payload["turns"])
+}
+
+func TestGetRefineDraft_NoConceptBlock(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	// Create a turn without any json block.
+	_, err = turnsRepo.Create(ctx, repo.CreateTurnInput{
+		TaskID:  task.ID,
+		Role:    "assistant",
+		Content: "I am thinking about the implementation but have not finalized yet.",
+	})
+	require.NoError(t, err)
+
+	runner := refine.NewRunner(turnsRepo, nil)
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns:  turnsRepo,
+		Tasks:  taskRepo,
+		Runner: runner,
+	})
+
+	tool := registry["get_refine_draft"]
+	result, err := tool.Handler(ctx, map[string]any{"task_id": task.ID})
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Nil(t, payload["concept"])
+	require.Equal(t, "no parseable json concept block in assistant turns", payload["concept_reason"])
+}
+
+func TestGetRefineDraft_UnknownTask(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	runner := refine.NewRunner(turnsRepo, nil)
+
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns:  turnsRepo,
+		Tasks:  taskRepo,
+		Runner: runner,
+	})
+
+	tool := registry["get_refine_draft"]
+	_, err = tool.Handler(context.Background(), map[string]any{"task_id": "no-such-id"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "task not found")
+}
+
+func TestGetRefineDraft_IncludeTurnsFalse(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	_, err = turnsRepo.Create(ctx, repo.CreateTurnInput{
+		TaskID: task.ID, Role: "user", Content: "hello",
+	})
+	require.NoError(t, err)
+
+	runner := refine.NewRunner(turnsRepo, nil)
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns: turnsRepo, Tasks: taskRepo, Runner: runner,
+	})
+
+	tool := registry["get_refine_draft"]
+	result, err := tool.Handler(ctx, map[string]any{"task_id": task.ID, "include_turns": false})
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Nil(t, payload["turns"], "turns must be absent when include_turns=false")
+}
+
+func TestGetRefineDraft_IncludeTurnsTrue(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	_, err = turnsRepo.Create(ctx, repo.CreateTurnInput{
+		TaskID: task.ID, Role: "user", Content: "hello",
+	})
+	require.NoError(t, err)
+	_, err = turnsRepo.Create(ctx, repo.CreateTurnInput{
+		TaskID: task.ID, Role: "assistant", Content: "hi back",
+	})
+	require.NoError(t, err)
+
+	runner := refine.NewRunner(turnsRepo, nil)
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns: turnsRepo, Tasks: taskRepo, Runner: runner,
+	})
+
+	tool := registry["get_refine_draft"]
+	result, err := tool.Handler(ctx, map[string]any{"task_id": task.ID, "include_turns": true})
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.NotNil(t, payload["turns"], "turns must be present when include_turns=true")
+
+	turns := payload["turns"].([]any)
+	require.Len(t, turns, 2)
+	first := turns[0].(map[string]any)
+	require.Equal(t, "user", first["role"])
+	require.Equal(t, "hello", first["content"])
+	require.NotEmpty(t, first["created_at"])
+}
+
+func TestGetRefineDraft_NeverRefinedTask(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	runner := refine.NewRunner(turnsRepo, nil)
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns: turnsRepo, Tasks: taskRepo, Runner: runner,
+	})
+
+	tool := registry["get_refine_draft"]
+	result, err := tool.Handler(ctx, map[string]any{"task_id": task.ID})
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Nil(t, payload["concept"])
+	require.Equal(t, "no refinement turns", payload["concept_reason"])
+	require.NotEmpty(t, payload["status"])
+}
+
+func TestGetRefineDraft_ScopeIsTasksRead(t *testing.T) {
+	require.Equal(t, "tasks:read", mcp.ToolScopeMap["get_refine_draft"])
 }
 
 func TestInjectConcept_BroadcastsTaskUpdated(t *testing.T) {

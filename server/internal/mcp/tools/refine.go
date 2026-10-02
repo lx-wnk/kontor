@@ -25,6 +25,7 @@ type RefineDeps struct {
 // RegisterRefineTools registers the refinement MCP tools into the registry.
 func RegisterRefineTools(registry mcp.ToolRegistry, d RefineDeps) {
 	registerGetRefineStatus(registry, d)
+	registerGetRefineDraft(registry, d)
 	registerApproveSpec(registry, d)
 	registerRefineTask(registry, d)
 	registerInjectConcept(registry, d)
@@ -73,6 +74,71 @@ func registerInjectConcept(registry mcp.ToolRegistry, d RefineDeps) {
 			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
 			status, _ := d.Runner.State(taskID)
 			return mcp.OK(map[string]any{"status": status})
+		},
+	})
+}
+
+func registerGetRefineDraft(registry mcp.ToolRegistry, d RefineDeps) {
+	registry.Register(&mcp.ToolDef{
+		Name:        "get_refine_draft",
+		Description: "Read the refinement draft for a task — call this before approve_spec to review the concept the agent produced. Returns status, the parsed concept (or null with a reason), and (when include_turns is true) the full turn history.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id":       map[string]any{"type": "string", "description": "Task ID"},
+				"include_turns": map[string]any{"type": "boolean", "description": "Include full turn history (default false)"},
+			},
+			"required": []string{"task_id"},
+		},
+		Handler: func(ctx context.Context, args map[string]any) (*mcp.ToolResult, error) {
+			taskID, err := mcp.StringArg(args, "task_id")
+			if err != nil {
+				return nil, err
+			}
+			if d.Runner == nil {
+				return nil, mcp.Fail("refinement runner not available")
+			}
+			if _, err := d.Tasks.GetByID(ctx, taskID); err != nil {
+				return nil, mcp.Fail("task not found: " + taskID)
+			}
+
+			status, errMsg := d.Runner.State(taskID)
+			resp := map[string]any{"status": status}
+			if errMsg != "" {
+				resp["error"] = errMsg
+			}
+
+			rawTurns, err := d.Turns.ListForTask(ctx, taskID, 0)
+			if err != nil {
+				return nil, mcp.Fail("get_refine_draft: failed to list turns: " + err.Error())
+			}
+
+			if len(rawTurns) == 0 {
+				resp["concept"] = nil
+				resp["concept_reason"] = "no refinement turns"
+			} else if c, ok := refine.ExtractConcept(rawTurns); !ok {
+				resp["concept"] = nil
+				resp["concept_reason"] = "no parseable json concept block in assistant turns"
+			} else {
+				concept := c.Metadata()
+				if c.RefinedTitle != "" {
+					concept["refinedTitle"] = c.RefinedTitle
+				}
+				if c.SourceBranch != "" {
+					concept["sourceBranch"] = c.SourceBranch
+				}
+				if c.TargetBranch != "" {
+					concept["targetBranch"] = c.TargetBranch
+				}
+				resp["concept"] = concept
+			}
+
+			includeTurns, _ := args["include_turns"].(bool)
+			if includeTurns {
+				resp["turns"] = refineapi.NewTurnResponses(rawTurns)
+			}
+
+			return mcp.OK(resp)
 		},
 	})
 }
