@@ -189,3 +189,58 @@ func pathEnv() string {
 	}
 	return "/usr/bin:/bin"
 }
+
+// runStatusline executes the installed statusline script with payload on stdin.
+// The environment is bare: no secret (env or file, HOME is empty) and an
+// unroutable URL, so the script exits before the POST and cannot reach anything.
+func runStatusline(t *testing.T, payload string, extraEnv ...string) string {
+	t.Helper()
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skip("jq not on PATH")
+	}
+	dir := t.TempDir()
+	script, err := hookscript.InstallStatusline(dir)
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	cmd := exec.Command("bash", script)
+	cmd.Stdin = strings.NewReader(payload)
+	cmd.Env = append([]string{"PATH=" + pathEnv(), "HOME=" + dir, "KONTOR_URL=http://127.0.0.1:1"}, extraEnv...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("script exited non-zero (%v); Claude Code would blank the status line", err)
+	}
+	return string(out)
+}
+
+const statuslinePayload = `{"model":{"id":"claude-opus","display_name":"Opus"},"workspace":{"current_dir":"/home/me/code/myrepo"},"cwd":"/elsewhere","rate_limits":{"five_hour":{"used_percentage":12}}}`
+
+func TestStatuslineDefaultIsAMinimalLine(t *testing.T) {
+	got := runStatusline(t, statuslinePayload)
+	if got != "[Opus] myrepo\n" {
+		t.Fatalf("stdout = %q, want %q", got, "[Opus] myrepo\n")
+	}
+	if strings.Contains(got, "{") {
+		t.Fatalf("stdout = %q, must not echo the raw JSON payload", got)
+	}
+}
+
+func TestStatuslineDefaultFallsBackToCwd(t *testing.T) {
+	got := runStatusline(t, `{"model":{"display_name":"Opus"},"cwd":"/home/me/code/other"}`)
+	if got != "[Opus] other\n" {
+		t.Fatalf("stdout = %q, want %q", got, "[Opus] other\n")
+	}
+}
+
+func TestStatuslineDefaultIsEmptyForInvalidJSON(t *testing.T) {
+	if got := runStatusline(t, "not json {"); got != "" {
+		t.Fatalf("stdout = %q, want nothing for a payload that is not JSON", got)
+	}
+}
+
+func TestStatuslineChainedCommandOutputIsUnchanged(t *testing.T) {
+	got := runStatusline(t, statuslinePayload, "KONTOR_STATUSLINE_CMD=tr a-z A-Z")
+	if want := strings.ToUpper(statuslinePayload); got != want {
+		t.Fatalf("stdout = %q, want the chained command's output %q", got, want)
+	}
+}
