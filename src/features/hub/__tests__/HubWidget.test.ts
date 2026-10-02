@@ -1,4 +1,6 @@
+import type { ComputedRef } from 'vue'
 import type { GraphStatus, HubNote } from '../composables/useObsidianGraph'
+import type { NextThing } from '@/features/mission/composables/useNextThing'
 import type { Agent } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +17,7 @@ import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
 import { DAY_MS, LAUNCHER_PX, planSectors } from '../hubGeometry'
+import { controlsBox, queueWorstCaseBox } from '../hubLaunchers'
 import { MAP_RADIUS, packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
@@ -65,18 +68,28 @@ vi.mock('@/features/mission', () => ({
 const { default: HubWidget } = await import('../components/HubWidget.vue')
 
 class MockResizeObserver {
-  static last: MockResizeObserver | null = null
+  static instances: MockResizeObserver[] = []
   callback: ResizeObserverCallback
   observe = vi.fn()
   unobserve = vi.fn()
   disconnect = vi.fn()
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback
-    MockResizeObserver.last = this
+    MockResizeObserver.instances.push(this)
   }
 }
 
+// The widget runs several observers (stage camera, queue height); each is told apart by what it observes.
+function observerOf(el: Element): MockResizeObserver | undefined {
+  return MockResizeObserver.instances.filter(o => o.observe.mock.calls.some(([target]) => target === el)).at(-1)
+}
+
+function resizeTo(observer: MockResizeObserver, size: { width: number, height: number }) {
+  observer.callback([{ contentRect: size } as ResizeObserverEntry], observer as unknown as ResizeObserver)
+}
+
 beforeEach(() => {
+  MockResizeObserver.instances = []
   vi.stubGlobal('ResizeObserver', MockResizeObserver)
   window.matchMedia = vi.fn((query: string) => ({
     matches: query.includes('reduce'),
@@ -117,12 +130,13 @@ const TILE = { width: 584, height: 734 }
 // Only a stage this large leaves the launcher ring room outside a map that fills the fitted disc.
 const ROOMY = { width: 8000, height: 8040 }
 
-async function mountHub(size = { width: 1090, height: 1130 }) {
+// queueHeight is the height the queue wrapper's observer reports; 0 leaves it unmeasured.
+async function mountHub(size = { width: 1090, height: 1130 }, needsYouCount = 0, queueHeight = 0) {
   const w = mount(HubWidget, {
     attachTo: document.body,
     global: {
       provide: {
-        [NEEDS_YOU]: computed(() => []),
+        [NEEDS_YOU]: computed(() => Array.from({ length: needsYouCount }, () => ({}))) as unknown as ComputedRef<NextThing[]>,
         [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() },
         [OPEN_TASK]: vi.fn(),
         [OPEN_SETTINGS]: openSettings,
@@ -131,9 +145,15 @@ async function mountHub(size = { width: 1090, height: 1130 }) {
   })
   // vueuse's post-flush observers bind to the stage only after the next tick.
   await flushPromises()
-  const observer = MockResizeObserver.last!
-  observer.callback([{ contentRect: size } as ResizeObserverEntry], observer as unknown as ResizeObserver)
+  resizeTo(observerOf(w.get('[data-testid="hub-stage"]').element)!, size)
   await flushPromises()
+  if (queueHeight > 0) {
+    const queueWrapper = w.get('[data-testid="stub-queue"]').element.parentElement!
+    const observer = observerOf(queueWrapper)
+    if (observer)
+      resizeTo(observer, { width: queueWorstCaseBox(size.width, size.height).w, height: queueHeight })
+    await flushPromises()
+  }
   return w
 }
 
@@ -298,6 +318,67 @@ describe('hubWidget', () => {
     }
     expect(slots[0]).not.toEqual(slots[1])
     w.unmount()
+  })
+
+  // On this stage, zoomed out three steps, the ring is undocked and a launcher's default (unrotated)
+  // slot falls inside the needs-you queue's worst-case box. The ring rotates clear of that box only
+  // while a question is pending; an empty queue is unmeasured here, so it blocks nothing.
+  const WIDE = { width: 3200, height: 2400 }
+
+  async function zoomOutThrice(w: Hub) {
+    for (let i = 0; i < 3; i++)
+      await press(w, '-')
+  }
+
+  function launcherBoxesOf(w: Hub) {
+    return w.findAll('[data-testid^="hub-launcher-"]').map(translateOf).map(({ sx, sy }) => ({ x: sx - LAUNCHER_PX / 2, y: sy - LAUNCHER_PX / 2, w: LAUNCHER_PX, h: LAUNCHER_PX }))
+  }
+
+  async function launcherBoxesAt(size: { width: number, height: number }, rel: number, needsYouCount: number, queueHeight = 0) {
+    lastHubView.value = { wx: 0, wy: 0, rel }
+    const w = await mountHub(size, needsYouCount, queueHeight)
+    const boxes = launcherBoxesOf(w)
+    w.unmount()
+    return boxes
+  }
+
+  it('rotates the launcher ring clear of the needs-you queue\'s worst-case box only while a question is pending, not for an unmeasured empty queue', async () => {
+    const box = queueWorstCaseBox(WIDE.width, WIDE.height)
+
+    const empty = await mountHub(WIDE, 0)
+    await zoomOutThrice(empty)
+    const emptyBoxes = launcherBoxesOf(empty)
+    empty.unmount()
+    expect(emptyBoxes.some(b => boxesOverlap(b, box))).toBe(true)
+
+    const busy = await mountHub(WIDE, 1)
+    await zoomOutThrice(busy)
+    const busyBoxes = launcherBoxesOf(busy)
+    busy.unmount()
+    expect(busyBoxes.some(b => boxesOverlap(b, box))).toBe(false)
+  })
+
+  // Near the fit, a wide stage lays the ring across the top strip, where the calm queue card sits.
+  const CALM_STAGE = { width: 1182, height: 734 }
+  const CALM_CARD_HEIGHT_PX = 37
+  const CALM_REL = 0.9
+
+  it('keeps every launcher off the calm queue card once its height is measured, with nothing pending', async () => {
+    const card = { ...queueWorstCaseBox(CALM_STAGE.width, CALM_STAGE.height), h: CALM_CARD_HEIGHT_PX }
+    const unmeasured = await launcherBoxesAt(CALM_STAGE, CALM_REL, 0)
+    expect(unmeasured.some(b => boxesOverlap(b, card))).toBe(true)
+
+    const measured = await launcherBoxesAt(CALM_STAGE, CALM_REL, 0, CALM_CARD_HEIGHT_PX)
+    expect(measured.some(b => boxesOverlap(b, card))).toBe(false)
+  })
+
+  // Rotating clear of the worst-case queue box moved a launcher under the zoom controls on a tall stage.
+  const TALL_STAGE = { width: 1092, height: 1127 }
+
+  it.each([0.88, 0.89, 0.9, 0.91])('keeps every launcher off the zoom controls at rel %s while a question is pending', async (rel) => {
+    const boxes = await launcherBoxesAt(TALL_STAGE, rel, 1)
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.some(b => boxesOverlap(b, controlsBox(TALL_STAGE.width, TALL_STAGE.height)))).toBe(false)
   })
 
   it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside MAP_RADIUS on a roomy one', async () => {
