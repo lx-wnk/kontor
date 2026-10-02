@@ -1,8 +1,10 @@
+import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { NAV_ITEMS } from '@/utils/navConfig'
+import HubControls from './components/HubControls.vue'
 import { boxesOverlap } from './hubCanvas'
 import { LAUNCHER_PX, polar } from './hubGeometry'
-import { launcherAngles, launchersFor, launcherSlotDeg, MAX_LAUNCHERS } from './hubLaunchers'
+import { CONTROLS_BUTTON_COUNT, CONTROLS_BUTTON_PX, CONTROLS_GAP_PX, CONTROLS_RIGHT_INSET_PX, controlsBox, launcherAngles, launchersFor, launcherSlotDeg, MAX_LAUNCHERS } from './hubLaunchers'
 
 describe('launchersFor', () => {
   it('lists the other core views and ends with New page', () => {
@@ -57,5 +59,23 @@ describe('launcherAngles', () => {
   it('signals to dock when no rotation clears the blocked arc', () => {
     const blocked = [{ x: -1000, y: -1000, w: 2000, h: 2000 }]
     expect(launcherAngles(4, RING, blocked)).toBeNull()
+  })
+})
+
+describe('controlsBox', () => {
+  it('is a 30x166 column, right-aligned and vertically centred on a wide stage', () => {
+    expect(controlsBox(1092, 1127)).toEqual({ x: 1092 - 10 - 30, y: (1127 - 166) / 2, w: 30, h: 166 })
+  })
+
+  it('is a 30x166 column, right-aligned and vertically centred on a narrow stage', () => {
+    expect(controlsBox(584, 734)).toEqual({ x: 584 - 10 - 30, y: (734 - 166) / 2, w: 30, h: 166 })
+  })
+
+  it('matches what HubControls renders', () => {
+    const column = mount(HubControls, { props: { level: 1, wide: false } }).get('div')
+    expect(column.findAll('button')).toHaveLength(CONTROLS_BUTTON_COUNT)
+    expect(column.attributes('style')).toContain(`right: ${CONTROLS_RIGHT_INSET_PX}px`)
+    expect(column.attributes('style')).toContain(`gap: ${CONTROLS_GAP_PX}px`)
+    expect(column.attributes('style')).toContain(`--controls-button: ${CONTROLS_BUTTON_PX}px`)
   })
 })

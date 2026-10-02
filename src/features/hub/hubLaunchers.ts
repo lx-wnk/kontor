@@ -82,3 +82,15 @@ export function queueWorstCaseBox(stageWidth: number, stageHeight: number): Labe
   const w = Math.min(QUEUE_MAX_WIDTH_PX, stageWidth - QUEUE_SIDE_INSET_PX)
   return { x: (stageWidth - w) / 2, y: QUEUE_TOP_PX, w, h: stageHeight * QUEUE_MAX_HEIGHT_SHARE }
 }
+
+// The zoom-controls column's layout; HubControls.vue binds its style from these.
+export const CONTROLS_RIGHT_INSET_PX = 10
+export const CONTROLS_BUTTON_PX = 30
+export const CONTROLS_GAP_PX = 4
+export const CONTROLS_BUTTON_COUNT = 5
+
+// The controls column, vertically centred and right-aligned, from the stage size alone.
+export function controlsBox(stageWidth: number, stageHeight: number): LabelBox {
+  const h = CONTROLS_BUTTON_COUNT * CONTROLS_BUTTON_PX + (CONTROLS_BUTTON_COUNT - 1) * CONTROLS_GAP_PX
+  return { x: stageWidth - CONTROLS_RIGHT_INSET_PX - CONTROLS_BUTTON_PX, y: (stageHeight - h) / 2, w: CONTROLS_BUTTON_PX, h }
+}
