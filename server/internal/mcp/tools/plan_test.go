@@ -9,6 +9,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ func seedPlanReviewTaskMCP(t *testing.T, ctx context.Context, taskRepo repo.Task
 	status := "awaiting_user"
 	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &status})
 	require.NoError(t, err)
-	planOutput := map[string]any{"plan": "test plan content"}
+	planOutput := map[string]any{"plan": "test plan content", pipeline.StageOutputSubmittedKey: true}
 	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Output: planOutput})
 	require.NoError(t, err)
 

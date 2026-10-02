@@ -172,11 +172,11 @@ describe('gate-state guards', () => {
     wrapper.unmount()
   })
 
-  it('approve and request-changes disabled when awaiting_user but no plan', async () => {
+  it('approve disabled but request-changes enabled when awaiting_user without a plan', async () => {
     const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref(null) })
     await flushPromises()
     expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 

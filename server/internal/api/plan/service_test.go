@@ -53,7 +53,13 @@ func seedPlanReviewRun(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo
 // stage run carrying plan content.
 func seedPlanReviewTask(t *testing.T, ctx context.Context, taskRepo repo.TaskRepo, srRepo repo.StageRunRepo) (string, string) {
 	t.Helper()
-	return seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", map[string]any{"plan": "test plan content"})
+	return seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", submittedPlan("plan", "test plan content"))
+}
+
+// submittedPlan builds the output set_stage_output stores: plan content plus the
+// agent-submitted marker.
+func submittedPlan(key, value string) map[string]any {
+	return map[string]any{key: value, pipeline.StageOutputSubmittedKey: true}
 }
 
 // assertPlanGateUntouched asserts a refused approve/reject changed nothing: the
@@ -275,7 +281,7 @@ func TestPlanStatus_FrozenPlanAfterApproval(t *testing.T) {
 
 	taskID, runID := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
 
-	livePlan := map[string]any{"summary": "LIVE_PLAN_SENTINEL"}
+	livePlan := submittedPlan("summary", "LIVE_PLAN_SENTINEL")
 	_, err = srRepo.Update(ctx, runID, repo.UpdateStageRunInput{Output: livePlan})
 	require.NoError(t, err)
 
@@ -430,4 +436,123 @@ func TestRejectPlan_NoRun_ReturnsConflict(t *testing.T) {
 
 	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
 	assertPlanGateUntouched(t, ctx, bundle, taskID, "")
+}
+
+func TestApprovePlan_OutputWithoutSubmittedMarker_ReturnsConflict(t *testing.T) {
+	outputs := map[string]map[string]any{
+		"validation_error":       {"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}},
+		"synthetic_session_file": {"synthetic_session_file": "/tmp/session.jsonl"},
+		"wait_reason":            {"wait_reason": "rate_limit"},
+		"empty":                  {},
+		"marker_false":           {"plan": "draft", pipeline.StageOutputSubmittedKey: false},
+	}
+	for name, output := range outputs {
+		t.Run(name, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			ctx := context.Background()
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
+
+			revoked := false
+			_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+				Tasks:     taskRepo,
+				StageRuns: srRepo,
+				Revoke:    func(context.Context, string) error { revoked = true; return nil },
+			}, taskID)
+
+			require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+			assertPlanGateUntouched(t, ctx, bundle, taskID, "awaiting_user")
+			require.False(t, revoked, "Revoke must not be called when approval is refused")
+		})
+	}
+}
+
+func TestApprovePlan_SubmittedPlan_FreezesPlanWithoutMarker(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", submittedPlan("summary", "SUBMITTED_PLAN"))
+
+	task, err := plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, "implementation", task.CurrentStage)
+	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, task.Metadata["approvedPlan"])
+}
+
+func TestRejectPlan_AwaitingUserWithoutPlanContent_RequeuesWithFeedback(t *testing.T) {
+	outputs := map[string]map[string]any{
+		"nil":              nil,
+		"empty":            {},
+		"validation_error": {"validation_error": "missing field: summary", "rejected_output": map[string]any{}},
+		"wait_reason":      {"wait_reason": "rate_limit"},
+	}
+	for name, output := range outputs {
+		t.Run(name, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			ctx := context.Background()
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
+
+			var requeuedPrompt string
+			err = plan.RejectPlan(ctx, plan.RejectDeps{
+				Turns:     turnsRepo,
+				Tasks:     taskRepo,
+				StageRuns: srRepo,
+				Requeue:   func(_ context.Context, _, prompt string) error { requeuedPrompt = prompt; return nil },
+			}, taskID, "write the plan again")
+
+			require.NoError(t, err)
+			require.Equal(t, "write the plan again", requeuedPrompt)
+			turns, err := turnsRepo.ListForTask(ctx, taskID, 0)
+			require.NoError(t, err)
+			require.Len(t, turns, 1)
+			require.Equal(t, "plan_rejected", *turns[0].Phase)
+		})
+	}
+}
+
+func TestRejectPlan_OutsideAwaitingUser_ReturnsConflict(t *testing.T) {
+	for _, status := range []string{"done", "failed"} {
+		t.Run(status, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			ctx := context.Background()
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, status, submittedPlan("plan", "test plan content"))
+
+			requeued := false
+			err = plan.RejectPlan(ctx, plan.RejectDeps{
+				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+				Tasks:     taskRepo,
+				StageRuns: srRepo,
+				Requeue:   func(context.Context, string, string) error { requeued = true; return nil },
+			}, taskID, "needs more detail")
+
+			require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
+			assertPlanGateUntouched(t, ctx, bundle, taskID, status)
+			require.False(t, requeued, "Requeue must not be called when rejection is refused")
+		})
+	}
 }

@@ -59,12 +59,13 @@ const (
 )
 
 // ErrPlanNotReady is returned when approve/reject is attempted while the latest
-// plan_review run is missing, not awaiting_user, or carries no plan content.
+// plan_review run is missing or not awaiting_user, or when approve finds no
+// submitted plan in its output.
 var ErrPlanNotReady = errors.New("plan_review is not ready")
 
-// requireReadyPlan returns the latest plan_review run only when it is awaiting_user
-// and holds real plan content beyond the submitted marker.
-func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+// requireAwaitingPlanReview returns the latest plan_review run only when it is
+// awaiting_user, whatever its output holds.
+func requireAwaitingPlanReview(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
 	if runs == nil {
 		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 	}
@@ -73,7 +74,7 @@ func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string
 		if ent.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 		}
-		return nil, fmt.Errorf("requireReadyPlan: %w", err)
+		return nil, fmt.Errorf("requireAwaitingPlanReview: %w", err)
 	}
 	if sr == nil {
 		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
@@ -81,9 +82,21 @@ func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string
 	if sr.Status != "awaiting_user" {
 		return nil, fmt.Errorf("%w: plan_review is %s, not awaiting_user", ErrPlanNotReady, sr.Status)
 	}
-	cleaned := maps.Clone(sr.Output)
-	delete(cleaned, pipeline.StageOutputSubmittedKey)
-	if len(cleaned) == 0 {
+	return sr, nil
+}
+
+// requireReadyPlan additionally demands the agent-submitted marker plus content
+// beyond it: orchestrator notes in the same field (validation_error,
+// synthetic_session_file, wait_reason) carry no marker and are never a plan.
+func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	sr, err := requireAwaitingPlanReview(ctx, runs, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if submitted, _ := sr.Output[pipeline.StageOutputSubmittedKey].(bool); !submitted {
+		return nil, fmt.Errorf("%w: plan output was not submitted by the agent", ErrPlanNotReady)
+	}
+	if len(sr.Output) == 1 {
 		return nil, fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
 	}
 	return sr, nil
@@ -91,7 +104,7 @@ func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string
 
 // ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
 // and advances the task to implementation. Mirrors refine.Confirm. Returns
-// ErrPlanNotReady unless the plan_review run is awaiting_user with plan content.
+// ErrPlanNotReady unless the plan_review run is awaiting_user with a submitted plan.
 func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
 	sr, err := requireReadyPlan(ctx, d.StageRuns, taskID)
 	if err != nil {
@@ -151,9 +164,10 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 
 // RejectPlan records feedback and triggers a new plan_review run up to DefaultPlanIterationCap.
 // Beyond the cap, it stores feedback but does not requeue. Returns ErrPlanNotReady
-// unless the plan_review run is awaiting_user with plan content.
+// unless the plan_review run is awaiting_user; plan content is not required, so a
+// run that produced no usable plan can still be sent back.
 func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) error {
-	if _, err := requireReadyPlan(ctx, d.StageRuns, taskID); err != nil {
+	if _, err := requireAwaitingPlanReview(ctx, d.StageRuns, taskID); err != nil {
 		return err
 	}
 

@@ -26,7 +26,8 @@ const { gateState, approvedPlan, loading, error, start, stop, approve, reject } 
   () => props.task?.id ?? null,
 )
 
-const planReady = computed(() => gateState.value === 'awaiting_user' && approvedPlan.value !== null)
+const awaitingUser = computed(() => gateState.value === 'awaiting_user')
+const planReady = computed(() => awaitingUser.value && approvedPlan.value !== null)
 
 // Surface plan-review load/action failures as toasts; the panel keeps its state.
 watch(error, (msg) => {
@@ -161,7 +162,7 @@ function renderedPlan(): string {
         <button
           data-testid="reject-plan-btn"
           class="flex-1 py-3 px-4 rounded-xl bg-raised border border-line text-fg-mute font-semibold text-[0.95rem] cursor-pointer transition-all hover:enabled:border-orange-400 hover:enabled:text-orange-500 disabled:opacity-40 disabled:cursor-default"
-          :disabled="!planReady || isActing || loading"
+          :disabled="!awaitingUser || isActing || loading"
           @click="showRejectForm = true"
         >
           Request Changes
