@@ -357,6 +357,7 @@ Preparing the first public release.
 
 ### Changed
 
+- **Agents tile rows are clickable and show session titles.** Each row opens the session on click and displays `<project> - <session title>` with the full label on hover; rows without a session title show the project name only.
 - **README restructured for first-time visitors.** The root README is now an inverted pyramid: title and badges, etymology, hero image, why-Kontor bullets, quickstart, screenshots, grouped features, how-it-works, and documentation table. Detail sections (Desktop app, Troubleshooting, Obsidian vault, GitHub) moved to their own guide files. Screenshots generated from demo data using `pnpm screenshots`.
 - **Obsidian status now tells you why the vault is unreachable, not just that it's configured.** `GET /api/obsidian/status` probes the vault with a cheap unauthenticated ping and reports `reachable` plus a short error and an actionable hint (self-signed certificate, wrong API key, Obsidian not running); the settings panel shows that hint under the Index button and disables it until the vault is reachable. A denied "Index now" run now links straight to the Grants settings instead of leaving you to find them yourself.
 - **Index now is disabled until the vault works.** The button used to be
