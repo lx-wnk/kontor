@@ -321,6 +321,69 @@ func TestGetRefineDraft_DraftReadyWithConcept(t *testing.T) {
 	require.Nil(t, payload["turns"])
 }
 
+// getDraftConcept stores storedJSON as the task's fenced concept turn and returns
+// the concept get_refine_draft reports for it.
+func getDraftConcept(t *testing.T, storedJSON string) map[string]any {
+	t.Helper()
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	_, err = turnsRepo.Create(ctx, repo.CreateTurnInput{
+		TaskID:  task.ID,
+		Role:    "assistant",
+		Content: "Final concept:\n```json\n" + storedJSON + "\n```",
+	})
+	require.NoError(t, err)
+
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns: turnsRepo, Tasks: taskRepo, Runner: refine.NewRunner(turnsRepo, nil),
+	})
+	result, err := registry["get_refine_draft"].Handler(ctx, map[string]any{"task_id": task.ID})
+	require.NoError(t, err)
+
+	var payload struct {
+		Concept map[string]any `json:"concept"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	return payload.Concept
+}
+
+func TestGetRefineDraft_ConceptEqualsStoredRawJSON(t *testing.T) {
+	stored := `{
+		"refinedTitle": "Foo endpoint",
+		"spec": "Add a foo endpoint",
+		"plan": ["1. handler", "2. test"],
+		"toolRequests": [{"tool": "Bash", "pattern": "go test:*"}],
+		"sourceBranch": "feat/foo",
+		"targetBranch": "main",
+		"futureKey": {"nested": [1, 2.5, null, true]}
+	}`
+
+	var want map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stored), &want))
+
+	require.Equal(t, want, getDraftConcept(t, stored))
+}
+
+func TestGetRefineDraft_ConceptRoutingKeysShowEffectiveValues(t *testing.T) {
+	concept := getDraftConcept(t, `{
+		"spec": "keep me",
+		"refinedTitle": "  Foo endpoint  ",
+		"sourceBranch": "   ",
+		"targetBranch": 5
+	}`)
+
+	require.Equal(t, map[string]any{"spec": "keep me", "refinedTitle": "Foo endpoint"}, concept)
+}
+
 func TestGetRefineDraft_NoConceptBlock(t *testing.T) {
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)

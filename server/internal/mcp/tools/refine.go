@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"maps"
 	"os"
 	"strings"
 
@@ -120,15 +121,19 @@ func registerGetRefineDraft(registry mcp.ToolRegistry, d RefineDeps) {
 				resp["concept"] = nil
 				resp["concept_reason"] = "no parseable json concept block in assistant turns"
 			} else {
-				concept := c.Metadata()
-				if c.RefinedTitle != "" {
-					concept["refinedTitle"] = c.RefinedTitle
-				}
-				if c.SourceBranch != "" {
-					concept["sourceBranch"] = c.SourceBranch
-				}
-				if c.TargetBranch != "" {
-					concept["targetBranch"] = c.TargetBranch
+				// Raw verbatim, except the routing keys carry the effective value
+				// approve_spec applies (trimmed; blank or non-string dropped).
+				concept := maps.Clone(c.Raw)
+				for key, val := range map[string]string{
+					"refinedTitle": c.RefinedTitle,
+					"sourceBranch": c.SourceBranch,
+					"targetBranch": c.TargetBranch,
+				} {
+					if val == "" {
+						delete(concept, key)
+					} else {
+						concept[key] = val
+					}
 				}
 				resp["concept"] = concept
 			}
