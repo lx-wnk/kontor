@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/lx-wnk/kontor/server/internal/hookscript"
+	"github.com/spf13/cobra"
 )
 
 const testScript = "/opt/dash/kontor-hooks/kontor-permission.sh"
@@ -473,6 +475,204 @@ func TestApplyPermissionHooksReplacesAPreRenameEntry(t *testing.T) {
 		cmd, ours, _ := entryCommand(entries[0], testScript)
 		if !ours || !strings.HasPrefix(cmd, testScript) {
 			t.Fatalf("%s points at %q, want the renamed script", event, cmd)
+		}
+	}
+}
+
+// runHooksCmd drives the real command against a temp CLAUDE_CONFIG_DIR, so the
+// settings file, the materialised scripts and the printed messages are all the
+// ones a user would get.
+func runHooksCmd(t *testing.T, cmd *cobra.Command) (stdout, stderr string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hooks command: %v", err)
+	}
+	return out.String(), errOut.String()
+}
+
+func newConfigDir(t *testing.T, settings map[string]any) (dir, settingsPath string) {
+	t.Helper()
+	dir = t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	settingsPath = filepath.Join(dir, "settings.json")
+	if settings != nil {
+		writeJSON(t, settingsPath, settings)
+	}
+	return dir, settingsPath
+}
+
+func mustReadSettings(t *testing.T, path string) map[string]any {
+	t.Helper()
+	settings, err := readSettings(path)
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	return settings
+}
+
+func TestInstallWritesTheStatusLineWhenAbsent(t *testing.T) {
+	dir, settingsPath := newConfigDir(t, nil)
+	wantScript := filepath.Join(dir, hookscript.Dir, hookscript.StatuslineName)
+
+	runHooksCmd(t, newHooksInstallCmd())
+
+	got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+	if got["type"] != "command" || got["command"] != wantScript {
+		t.Fatalf("statusLine = %v, want a command entry for %s", got, wantScript)
+	}
+	if _, err := os.Stat(wantScript); err != nil {
+		t.Fatalf("statusline script was not written: %v", err)
+	}
+
+	stdout, _ := runHooksCmd(t, newHooksInstallCmd())
+	if !strings.Contains(stdout, "already installed") {
+		t.Fatalf("second install printed %q, want it to report nothing changed", stdout)
+	}
+}
+
+func TestInstallRepairsAnOwnedStatusLinePathAndKeepsItsOtherFields(t *testing.T) {
+	dir, settingsPath := newConfigDir(t, map[string]any{statusLineKey: map[string]any{
+		"type":    "command",
+		"command": "/old/home/.claude/kontor-hooks/kontor-statusline.sh",
+		"padding": 2,
+	}})
+	wantScript := filepath.Join(dir, hookscript.Dir, hookscript.StatuslineName)
+
+	runHooksCmd(t, newHooksInstallCmd())
+
+	got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+	if got["command"] != wantScript || got["padding"] != float64(2) {
+		t.Fatalf("statusLine = %v, want the path repaired and padding kept", got)
+	}
+}
+
+// The chaining instruction the install prints puts a KONTOR_STATUSLINE_CMD prefix
+// in front of the script; re-running install must not turn that back into a bare
+// path and drop the user's own statusline.
+func TestInstallKeepsTheChainPrefixWhenRepairingTheStatusLinePath(t *testing.T) {
+	dir, settingsPath := newConfigDir(t, map[string]any{statusLineKey: map[string]any{
+		"type":    "command",
+		"command": "KONTOR_STATUSLINE_CMD='my status' /old/.claude/kontor-hooks/kontor-statusline.sh",
+	}})
+	wantScript := filepath.Join(dir, hookscript.Dir, hookscript.StatuslineName)
+
+	runHooksCmd(t, newHooksInstallCmd())
+
+	got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+	if want := "KONTOR_STATUSLINE_CMD='my status' " + wantScript; got["command"] != want {
+		t.Fatalf("command = %q, want %q", got["command"], want)
+	}
+}
+
+func TestInstallLeavesAForeignStatusLineAloneAndSaysHowToChainIt(t *testing.T) {
+	foreign := map[string]any{"type": "command", "command": "~/bin/my-status.sh --fancy"}
+	dir, settingsPath := newConfigDir(t, map[string]any{statusLineKey: foreign})
+	wantScript := filepath.Join(dir, hookscript.Dir, hookscript.StatuslineName)
+
+	_, stderr := runHooksCmd(t, newHooksInstallCmd())
+
+	settings := mustReadSettings(t, settingsPath)
+	if got, _ := settings[statusLineKey].(map[string]any); got["command"] != foreign["command"] || got["type"] != "command" {
+		t.Fatalf("statusLine = %v, want the foreign entry untouched", got)
+	}
+	if _, ok := settings["hooks"]; !ok {
+		t.Fatal("a foreign statusLine stopped the permission hooks from being installed")
+	}
+	for _, want := range []string{
+		"~/bin/my-status.sh --fancy",
+		"KONTOR_STATUSLINE_CMD='~/bin/my-status.sh --fancy' " + wantScript,
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("notice %q does not contain %q", stderr, want)
+		}
+	}
+}
+
+func TestShellQuoteEscapesSingleQuotes(t *testing.T) {
+	if got, want := shellQuote(`echo 'hi'`), `'echo '\''hi'\'''`; got != want {
+		t.Fatalf("shellQuote = %s, want %s", got, want)
+	}
+}
+
+func TestUninstallRemovesAnOwnedStatusLine(t *testing.T) {
+	_, settingsPath := newConfigDir(t, map[string]any{"permissions": map[string]any{"defaultMode": "auto"}})
+	runHooksCmd(t, newHooksInstallCmd())
+
+	runHooksCmd(t, newHooksUninstallCmd())
+
+	settings := mustReadSettings(t, settingsPath)
+	if _, ok := settings[statusLineKey]; ok {
+		t.Fatalf("statusLine survived the uninstall: %v", settings[statusLineKey])
+	}
+	if _, ok := settings["hooks"]; ok {
+		t.Fatalf("hooks survived the uninstall: %v", settings["hooks"])
+	}
+	if _, ok := settings["permissions"]; !ok {
+		t.Fatal("uninstall removed settings it does not own")
+	}
+}
+
+func TestUninstallLeavesAForeignStatusLine(t *testing.T) {
+	foreign := map[string]any{"type": "command", "command": "~/bin/my-status.sh"}
+	_, settingsPath := newConfigDir(t, map[string]any{statusLineKey: foreign})
+
+	stdout, _ := runHooksCmd(t, newHooksUninstallCmd())
+
+	got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+	if got["command"] != foreign["command"] {
+		t.Fatalf("statusLine = %v, want the foreign entry untouched", got)
+	}
+	if !strings.Contains(stdout, "nothing to remove") {
+		t.Fatalf("uninstall printed %q, want it to report nothing removed", stdout)
+	}
+}
+
+// Deleting a chained statusLine would take the user's own status bar with it, so
+// uninstall hands their command back. The originals cover the quoting that
+// shellQuote has to survive: a single quote, shell operators and double quotes.
+func TestUninstallRestoresTheChainedStatusLineCommand(t *testing.T) {
+	for _, original := range []string{"~/bin/my-status.sh --fancy", `echo 'hi'`, `a && b | c "d"`} {
+		_, settingsPath := newConfigDir(t, map[string]any{statusLineKey: map[string]any{
+			"type":    "command",
+			"command": statusLineChainEnv + "=" + shellQuote(original) + " /home/me/.claude/kontor-hooks/kontor-statusline.sh",
+			"padding": 2,
+		}})
+
+		_, stderr := runHooksCmd(t, newHooksUninstallCmd())
+
+		got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+		if got["command"] != original || got["type"] != "command" || got["padding"] != float64(2) {
+			t.Fatalf("statusLine = %v, want command %q restored with the other fields kept", got, original)
+		}
+		if stderr != "" {
+			t.Fatalf("restoring %q printed %q, want no notice", original, stderr)
+		}
+	}
+}
+
+func TestUninstallLeavesAChainItCannotUnpack(t *testing.T) {
+	unpackable := []string{
+		statusLineChainEnv + "=my-status /home/me/.claude/kontor-hooks/kontor-statusline.sh",
+		statusLineChainEnv + `="my status" /home/me/.claude/kontor-hooks/kontor-statusline.sh`,
+		statusLineChainEnv + "='my status /home/me/.claude/kontor-hooks/kontor-statusline.sh",
+		"FOO=1 " + statusLineChainEnv + "='x' /home/me/.claude/kontor-hooks/kontor-statusline.sh",
+	}
+	for _, command := range unpackable {
+		entry := map[string]any{"type": "command", "command": command}
+		_, settingsPath := newConfigDir(t, map[string]any{statusLineKey: entry})
+
+		stdout, stderr := runHooksCmd(t, newHooksUninstallCmd())
+
+		got, _ := mustReadSettings(t, settingsPath)[statusLineKey].(map[string]any)
+		if got["command"] != command {
+			t.Fatalf("statusLine = %v, want %q untouched", got, command)
+		}
+		if !strings.Contains(stderr, command) || !strings.Contains(stdout, "nothing to remove") {
+			t.Fatalf("stdout %q, stderr %q: want a notice naming %q and nothing removed", stdout, stderr, command)
 		}
 	}
 }

@@ -4,15 +4,16 @@
 # Claude Code's statusLine command pipes JSON containing rate_limits on stdin.
 # This script:
 #   1. Reads stdin into $payload.
-#   2. Passes $payload byte-identically to stdout — via $KONTOR_STATUSLINE_CMD
-#      if set, otherwise cat — so the original statusline behaviour is preserved.
+#   2. Prints the status line: $payload piped through $KONTOR_STATUSLINE_CMD if
+#      set, otherwise a minimal "[<model>] <dir>" line (empty without jq).
 #   3. POSTs the plan-usage sample to Kontor in the background, fire-and-forget.
 #      curl -m 1 ensures it never blocks, and all output goes to /dev/null.
 #
 # Environment:
 #   KONTOR_URL                default http://127.0.0.1:13120
 #   KONTOR_STATUSLINE_CMD     when set, the payload is piped into this command
-#                             for the original statusline chain (replaces cat).
+#                             for the original statusline chain (replaces the
+#                             default line).
 #                             May include arguments (e.g. "my-status --flag");
 #                             executed via sh -c.
 #   KONTOR_HOOKS_SECRET       overrides the secret file below
@@ -26,8 +27,8 @@ payload="$(cat)"
 # Chain stdout: pass the payload to the next statusline command unchanged.
 if [ -n "${KONTOR_STATUSLINE_CMD:-}" ]; then
   printf '%s' "$payload" | sh -c "$KONTOR_STATUSLINE_CMD"
-else
-  printf '%s' "$payload"
+elif command -v jq >/dev/null 2>&1; then
+  printf '%s' "$payload" | jq -r '[(.model.display_name // empty | "[\(.)]"), ((.workspace.current_dir // .cwd // empty) | split("/") | last)] | join(" ")' 2>/dev/null
 fi
 
 # Resolve Kontor URL and secret.

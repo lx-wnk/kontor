@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,18 @@ const notificationArg = "notification"
 // success no longer spawns a process and a round trip to be discarded.
 const permissionPromptNotification = "permission_prompt"
 
+// statusLineKey is the settings key Claude Code reads the statusline command
+// from. It is a single object, not a list, so there is no room for two owners.
+const statusLineKey = "statusLine"
+
+// statusLineChainEnv is the variable the statusline script pipes its payload
+// through, which is how an existing statusline survives next to ours.
+const statusLineChainEnv = "KONTOR_STATUSLINE_CMD"
+
+// statusLineOwnedDir is the part of the command that makes the statusLine entry
+// ours, for the same reason ownedDirs exists for the hooks.
+var statusLineOwnedDir = hookscript.Dir + string(os.PathSeparator) + hookscript.StatuslineName
+
 // newHooksCmd builds `agent-dashboard hooks`.
 //
 // The permission bridge only reaches sessions whose settings name the hook, and
@@ -58,10 +71,14 @@ func newHooksInstallCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Register the permission bridge as a PreToolUse and Notification hook",
+		Short: "Register the permission bridge hooks and the plan-usage statusline",
 		Long: "Adds two hook entries to the Claude Code settings file so a permission\n" +
 			"prompt can be answered in the dashboard instead of in the session's\n" +
-			"terminal. Existing hooks are preserved; running it twice changes nothing.\n\n" +
+			"terminal, and sets statusLine to the script that reports plan usage.\n" +
+			"Existing hooks are preserved; running it twice changes nothing.\n\n" +
+			"A statusLine you configured yourself is never overwritten: it is left in\n" +
+			"place and the command prints how to chain it through the dashboard's\n" +
+			"script with " + statusLineChainEnv + ".\n\n" +
 			"Sessions read settings at start, so restart any session that should use it.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveSettingsPath(settingsPath)
@@ -83,10 +100,22 @@ func newHooksInstallCmd() *cobra.Command {
 				}
 			}
 
-			outcome, err := applyPermissionHooks(settings, script)
+			statusline := filepath.Join(filepath.Dir(path), hookscript.Dir, hookscript.StatuslineName)
+			if !dryRun {
+				if statusline, err = hookscript.InstallStatusline(filepath.Dir(path)); err != nil {
+					return err
+				}
+			}
+
+			permOutcome, err := applyPermissionHooks(settings, script)
 			if err != nil {
 				return err
 			}
+			statusLineOutcome, foreignCmd, foreign := applyStatusLine(settings, statusline)
+			if foreign {
+				fmt.Fprint(cmd.ErrOrStderr(), foreignStatusLineNotice(path, foreignCmd, statusline))
+			}
+			outcome := max(permOutcome, statusLineOutcome)
 			if outcome == hooksUnchanged {
 				fmt.Fprintf(cmd.OutOrStdout(), "already installed: %s\n", path)
 				return nil
@@ -104,8 +133,8 @@ func newHooksInstallCmd() *cobra.Command {
 				verb = "updated"
 			}
 			fmt.Fprintf(cmd.OutOrStdout(),
-				"%s the permission bridge in %s\nscript: %s\nRestart any running session to pick it up.\n",
-				verb, path, script)
+				"%s the dashboard hooks in %s\nscript: %s\nstatusline: %s\nRestart any running session to pick it up.\n",
+				verb, path, script, statusline)
 			return nil
 		},
 	}
@@ -119,7 +148,7 @@ func newHooksUninstallCmd() *cobra.Command {
 	var settingsPath string
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "Remove the dashboard's permission-bridge hooks",
+		Short: "Remove the dashboard's permission-bridge hooks and plan-usage statusline",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveSettingsPath(settingsPath)
 			if err != nil {
@@ -130,6 +159,12 @@ func newHooksUninstallCmd() *cobra.Command {
 				return err
 			}
 			removed, foreign := removePermissionHooks(settings)
+			statusLineChanged, unrestorable := removeStatusLine(settings)
+			removed = removed || statusLineChanged
+			if unrestorable != "" {
+				fmt.Fprintf(cmd.ErrOrStderr(),
+					"left in place: statusLine runs %s, which chains your own command in a form this command cannot unpack — restore it by hand\n", unrestorable)
+			}
 			for _, cmdLine := range foreign {
 				fmt.Fprintf(cmd.ErrOrStderr(),
 					"left in place: %s — it runs the same script from a path this command did not install\n", cmdLine)
@@ -141,7 +176,7 @@ func newHooksUninstallCmd() *cobra.Command {
 			if err := writeSettings(path, settings); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "removed the permission bridge from %s\n", path)
+			fmt.Fprintf(cmd.OutOrStdout(), "removed the dashboard hooks from %s\n", path)
 			return nil
 		},
 	}
@@ -434,6 +469,118 @@ func entryCommand(entry any, want string) (cmd string, ours, foreign bool) {
 		return c, false, true
 	}
 	return "", false, false
+}
+
+// statusLineCommand returns the statusLine command, empty when the entry is not
+// a command object, and whether the entry is set at all.
+func statusLineCommand(settings map[string]any) (cmd string, present bool) {
+	v := settings[statusLineKey]
+	m, _ := v.(map[string]any)
+	cmd, _ = m["command"].(string)
+	return cmd, v != nil
+}
+
+// applyStatusLine writes the statusLine entry, repairs the path of one this
+// command owns, and leaves anything else alone, reporting it as foreign.
+// statusLine holds a single command, so overwriting the user's would silently
+// replace their status bar.
+func applyStatusLine(settings map[string]any, script string) (outcome hooksOutcome, foreignCmd string, foreign bool) {
+	cmd, present := statusLineCommand(settings)
+	if !present {
+		settings[statusLineKey] = map[string]any{"type": "command", "command": script}
+		return hooksInstalled, "", false
+	}
+	if !strings.Contains(cmd, statusLineOwnedDir) {
+		return hooksUnchanged, cmd, true
+	}
+	repointed := repointStatusLine(cmd, script)
+	if repointed == cmd {
+		return hooksUnchanged, "", false
+	}
+	settings[statusLineKey].(map[string]any)["command"] = repointed
+	return hooksRepaired, "", false
+}
+
+// repointStatusLine swaps only the script path inside an owned command. A user
+// who chained their own statusline put a KONTOR_STATUSLINE_CMD prefix in front
+// of it, and replacing the whole command would delete exactly that.
+func repointStatusLine(cmd, script string) string {
+	dirAt := strings.Index(cmd, statusLineOwnedDir)
+	start := strings.LastIndex(cmd[:dirAt], " ") + 1
+	return cmd[:start] + script + cmd[dirAt+len(statusLineOwnedDir):]
+}
+
+// removeStatusLine undoes applyStatusLine for an entry this command owns. A plain
+// one is deleted. One that chains the user's own command is rewritten to that
+// command, because deleting it would take their status bar with it; when the
+// chain cannot be unpacked the entry stays and is returned as unrestorable.
+func removeStatusLine(settings map[string]any) (changed bool, unrestorable string) {
+	cmd, _ := statusLineCommand(settings)
+	if !strings.Contains(cmd, statusLineOwnedDir) {
+		return false, ""
+	}
+	if !strings.Contains(cmd, statusLineChainEnv+"=") {
+		delete(settings, statusLineKey)
+		return true, ""
+	}
+	original, ok := unchainStatusLine(cmd)
+	if !ok {
+		return false, cmd
+	}
+	settings[statusLineKey].(map[string]any)["command"] = original
+	return true, ""
+}
+
+// unchainStatusLine is the inverse of the chained command foreignStatusLineNotice
+// prints: KONTOR_STATUSLINE_CMD=<shellQuote(original)> <script>. Anything else,
+// including a hand-edited quoting style, is reported as not unpackable.
+func unchainStatusLine(cmd string) (original string, ok bool) {
+	rest, found := strings.CutPrefix(cmd, statusLineChainEnv+"=")
+	if !found {
+		return "", false
+	}
+	var word strings.Builder
+	for rest != "" && rest[0] != ' ' {
+		switch {
+		case rest[0] == '\'':
+			end := strings.IndexByte(rest[1:], '\'')
+			if end < 0 {
+				return "", false
+			}
+			word.WriteString(rest[1 : 1+end])
+			rest = rest[end+2:]
+		case strings.HasPrefix(rest, `\'`):
+			word.WriteByte('\'')
+			rest = rest[2:]
+		default:
+			return "", false
+		}
+	}
+	if !strings.Contains(rest, statusLineOwnedDir) {
+		return "", false
+	}
+	return word.String(), true
+}
+
+// foreignStatusLineNotice tells the user what was left alone and gives them the
+// exact statusLine entry that keeps their command running behind ours.
+func foreignStatusLineNotice(settingsPath, foreignCmd, script string) string {
+	if foreignCmd == "" {
+		return fmt.Sprintf("left in place: statusLine in %s is not a command this tool can chain, so plan usage is not collected\n", settingsPath)
+	}
+	chained := statusLineChainEnv + "=" + shellQuote(foreignCmd) + " " + script
+	var entry bytes.Buffer
+	enc := json.NewEncoder(&entry)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(map[string]any{statusLineKey: map[string]any{"type": "command", "command": chained}})
+	return fmt.Sprintf(
+		"left in place: statusLine in %s already runs %s, which this command did not install,\n"+
+			"so plan usage is not collected. To keep it and collect usage, replace statusLine with:\n%s",
+		settingsPath, foreignCmd, entry.String())
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // containsAny reports whether s contains any of the fragments. Both the marker
