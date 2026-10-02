@@ -503,6 +503,7 @@ Preparing the first public release.
   assignment. A prefix assignment (`F=… cmd`) only reaches its own command,
   an unquoted heredoc body line ending in `\` continues into its closer as in
   bash, and a command the parser rejects yields no touches at all.
+- **imap-mcp-server preset deny-list verified against live tool catalogue.** The 16 `denyGlobal` entries are cross-referenced with the live `tools/list` output of `imap-mcp-server@2.0.0` (40 tools); a committed fixture (`server/internal/mcpapps/testdata/imap-mcp-server-2.0.0-tools.txt`) and `TestPresetDenyGlobal_AllNamesExistInLiveFixture` catch drift when the server renames or removes a tool.
 
 ### Deprecated
 

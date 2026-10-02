@@ -3,6 +3,8 @@ package mcpapps_test
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,6 +76,32 @@ func TestApplyDefaultDenies_DeniesEvenWithoutCatalogue(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, repo.GrantModeDeny, rows[0].Mode)
 	require.Equal(t, repo.GrantContextGlobal, rows[0].ContextKind)
+}
+
+func TestPresetDenyGlobal_AllNamesExistInLiveFixture(t *testing.T) {
+	raw, err := os.ReadFile("testdata/imap-mcp-server-2.0.0-tools.txt")
+	require.NoError(t, err)
+
+	var liveTools []string
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			liveTools = append(liveTools, line)
+		}
+	}
+	require.NotEmpty(t, liveTools)
+
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+
+	live := make(map[string]bool, len(liveTools))
+	for _, name := range liveTools {
+		live[name] = true
+	}
+
+	for _, denied := range preset.DenyGlobal {
+		require.True(t, live[denied], "denyGlobal entry %q is not in the live tool fixture — tool renamed or removed?", denied)
+	}
 }
 
 func TestApplyDefaultDenies_NoMatchIsNoOp(t *testing.T) {
