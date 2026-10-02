@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -263,7 +264,8 @@ func resolvePermissionDecisions(perms []*ent.TaskPermission, allowGitPush bool, 
 // spawnToolLists renders one spawn's tool decisions in one place, so the
 // settings file and the spawn's command-line flags always agree: permission
 // grants and channel tools, plus whatever the run's attached MCP applications
-// allow or deny on top.
+// allow or deny on top. Applications.ArgDeny is the one exception and is added
+// by buildSpawnArgsWithChannelConfig alone.
 func spawnToolLists(opts SpawnAgentOptions, allowGitPush bool) (allow, deny []string) {
 	allow = append(BuildAllowList(opts.Task.Autonomy, opts.Permissions, opts.EnableChannel, allowGitPush, opts.Applications.CatalogueTools), taskAPIAllow(opts)...)
 	allow = append(allow, opts.Applications.Allow...)
@@ -394,7 +396,12 @@ func isLegacyClaudeSpawner(sp *ent.Spawner) bool {
 // Verified 2026-09-05 in an untrusted directory: a settings file allowing Write
 // leaves Write blocked ("Permission not granted, session non-interactive"),
 // while --allowedTools Write lets the same call through.
+//
+// Applications.ArgDeny joins the deny flag here and nowhere else: Claude Code
+// skips parenthesised mcp__ rules in settings.json, and `claude doctor` reports
+// them as invalid.
 func buildSpawnArgsWithChannelConfig(opts SpawnAgentOptions, channelCfgPath string, allow, deny []string) []string {
+	deny = slices.Concat(deny, opts.Applications.ArgDeny)
 	args := BuildSpawnArgs(opts)
 	if len(allow) > 0 {
 		args = append(args, "--allowedTools")

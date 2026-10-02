@@ -180,15 +180,71 @@ func TestPresetDenyGlobal_AllDangerousToolsAreDenied(t *testing.T) {
 	}
 
 	// Deliberate exceptions: destructive in some argument shapes, kept at the
-	// default ask tier because denying the whole tool would disable the core
-	// triage action. A grant matches the tool name only, never its arguments.
+	// ask tier because denying the whole tool would disable the core triage
+	// action. A grant matches the tool name only, so the destructive shape is
+	// denied through argument-scoped denyArgs instead.
 	intentionallyAsked := map[string]string{
 		"imap_move_email": "a move to a trash folder is a soft delete; every other folder move is triage",
 	}
 	live := liveToolFixture(t)
+	rules := preset.ArgDenyRules("mail")
 	for tool, why := range intentionallyAsked {
 		require.True(t, live[tool], "intentionally-asked tool %q is not in the live tool fixture — renamed or removed?", tool)
 		require.False(t, denied[tool], "%q is an intentional ask-tier tool (%s); moving it into denyGlobal disables triage — decide that deliberately", tool, why)
+		require.Contains(t, rules, mcpapps.CapabilityName("mail", tool)+"(targetFolder:*Trash*)", "%q is ask-tier only with argument-scoped trash denies", tool)
+	}
+}
+
+func TestPresetDenyArgs_ToolsExistInLiveFixture(t *testing.T) {
+	live := liveToolFixture(t)
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+	require.NotEmpty(t, preset.DenyArgs)
+	for _, d := range preset.DenyArgs {
+		require.True(t, live[d.Tool], "denyArgs tool %q is not in the live tool fixture — tool renamed or removed?", d.Tool)
+	}
+}
+
+func TestPreset_ArgDenyRules_RendersImapTrashDenies(t *testing.T) {
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+
+	require.Equal(t, []string{
+		"mcp__mail__imap_move_email(targetFolder:*Trash*)",
+		"mcp__mail__imap_move_email(targetFolder:*trash*)",
+		"mcp__mail__imap_move_email(targetFolder:*TRASH*)",
+		"mcp__mail__imap_move_email(targetFolder:[Gmail]/Bin)",
+		"mcp__mail__imap_move_email(targetFolder:[Google Mail]/Bin)",
+		"mcp__mail__imap_move_email(targetFolder:*Deleted*)",
+		"mcp__mail__imap_move_email(targetFolder:*deleted*)",
+		"mcp__mail__imap_move_email(targetFolder:*Papierkorb*)",
+		"mcp__mail__imap_move_email(targetFolder:*Gelöschte*)",
+	}, preset.ArgDenyRules("mail"))
+}
+
+func TestPreset_ArgDenyRules_NoneDeclared(t *testing.T) {
+	require.Empty(t, mcpapps.Preset{Server: "x"}.ArgDenyRules("x"))
+}
+
+func TestPreset_ValidateDenyArgs(t *testing.T) {
+	valid := mcpapps.ArgDeny{Tool: "t", Param: "p", Values: []string{"*v*"}}
+	require.NoError(t, mcpapps.Preset{DenyArgs: []mcpapps.ArgDeny{valid}}.ValidateDenyArgs())
+
+	cases := map[string]mcpapps.ArgDeny{
+		"empty tool":      {Tool: "", Param: "p", Values: []string{"v"}},
+		"empty param":     {Tool: "t", Param: "", Values: []string{"v"}},
+		"no values":       {Tool: "t", Param: "p"},
+		"empty value":     {Tool: "t", Param: "p", Values: []string{""}},
+		"open paren":      {Tool: "t", Param: "p", Values: []string{"a(b"}},
+		"close paren":     {Tool: "t", Param: "p", Values: []string{"a)b"}},
+		"colon":           {Tool: "t", Param: "p", Values: []string{"a:b"}},
+		"colon in param":  {Tool: "t", Param: "p:q", Values: []string{"v"}},
+		"later value bad": {Tool: "t", Param: "p", Values: []string{"ok", "bad)"}},
+	}
+	for name, d := range cases {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, mcpapps.Preset{DenyArgs: []mcpapps.ArgDeny{d}}.ValidateDenyArgs())
+		})
 	}
 }
 
