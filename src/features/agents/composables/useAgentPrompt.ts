@@ -131,6 +131,7 @@ export function useAgentPrompt(
       sendStatus.value = 'sent'
     }
     catch (err) {
+      trackedMessages.value = trackedMessages.value.filter(m => m.id !== trackId)
       if (isNetworkFailure(err)) {
         const useChannel = mode === 'inject'
         try {

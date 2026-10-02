@@ -34,9 +34,6 @@ test.describe('markdown code block + heading overlap', () => {
       document.body.appendChild(div)
     }, MARKDOWN_HTML)
 
-    // Screenshot: RED evidence before fix
-    await page.screenshot({ path: 'tests/e2e/screenshots/chat-markdown-overflow.png' })
-
     // Measure: h2's top must be at or below pre's bottom (no overlap).
     const gap = await page.evaluate(() => {
       const pre = document.querySelector('.markdown-body pre')!

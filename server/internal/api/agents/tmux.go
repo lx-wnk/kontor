@@ -48,10 +48,10 @@ func tmuxSendArgs(socket, pane, message string) (textArgs, enterArgs []string) {
 // tmuxLookPath resolves the tmux binary; indirected for tests.
 var tmuxLookPath = func() (string, error) { return exec.LookPath("tmux") }
 
-// tmuxBufferName returns a per-pane buffer name for load-buffer/paste-buffer,
-// so concurrent injections to different panes don't collide.
+// tmuxBufferName returns a buffer name unique to one injection: two sends to
+// the same pane sharing a name would paste each other's text and lose one.
 func tmuxBufferName(pane string) string {
-	return "kontor-" + pane
+	return "kontor-" + pane + "-" + newSpawnID()
 }
 
 // sendKeysToTmux injects message into the given tmux pane using bracketed

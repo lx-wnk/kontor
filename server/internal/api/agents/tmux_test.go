@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,8 +58,8 @@ func TestTmuxBracketedPaste_SendsLoadBufferThenPasteBuffer(t *testing.T) {
 
 	// Call 1: load-buffer with message on stdin (NOT send-keys -l)
 	require.Contains(t, calls[0], "load-buffer")
-	require.Contains(t, calls[0], "-b")
-	require.Contains(t, calls[0], "kontor-%5")
+	buf := bufferArg(t, calls[0])
+	require.True(t, strings.HasPrefix(buf, "kontor-%5-"), "buffer %q", buf)
 	require.Contains(t, calls[0], "-")
 	require.Len(t, stdinCalls, 1)
 	require.Equal(t, "hello world", stdinCalls[0])
@@ -66,11 +68,39 @@ func TestTmuxBracketedPaste_SendsLoadBufferThenPasteBuffer(t *testing.T) {
 	require.Contains(t, calls[1], "paste-buffer")
 	require.Contains(t, calls[1], "-p")
 	require.Contains(t, calls[1], "-d")
-	require.Contains(t, calls[1], "-b")
-	require.Contains(t, calls[1], "kontor-%5")
+	require.Equal(t, buf, bufferArg(t, calls[1]), "paste must read the buffer this call loaded")
 
 	// Call 3: send-keys Enter
 	require.Equal(t, "Enter", calls[2][len(calls[2])-1])
+}
+
+func bufferArg(t *testing.T, args []string) string {
+	t.Helper()
+	i := slices.Index(args, "-b")
+	require.GreaterOrEqual(t, i, 0, "no -b in %v", args)
+	require.Less(t, i+1, len(args), "-b without a name in %v", args)
+	return args[i+1]
+}
+
+func TestSendKeysToTmux_ConcurrentSendsToOnePaneUseDistinctBuffers(t *testing.T) {
+	var buffers []string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxRunner = func(_ context.Context, _ ...string) error { return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, args ...string) error {
+		buffers = append(buffers, bufferArg(t, args))
+		return nil
+	}
+
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "first"))
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "second"))
+	require.Len(t, buffers, 2)
+	require.NotEqual(t, buffers[0], buffers[1])
 }
 
 func TestSendKeysToTmux_MultiLinePreservesNewlines(t *testing.T) {

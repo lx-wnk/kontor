@@ -94,6 +94,16 @@ describe('useAgentPrompt routing', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('drops the tracked message when the send fails, so no bubble keeps a sending badge', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({ error: 'tmux gone' }) })))
+    const agent = makeAgent({ liveInjectable: true })
+    const { promptInput, handleSend, trackedMessages, sendStatus } = useAgentPrompt(() => agent)
+    promptInput.value = 'hello'
+    await handleSend()
+    expect(sendStatus.value).toBe('error')
+    expect(trackedMessages.value).toEqual([])
+  })
+
   it('confirmResume clears state gracefully when getAgent returns null at confirm time', async () => {
     let agent: Agent | null = makeAgent({ liveInjectable: false, sessionId: 'gone' })
     const { promptInput, handleSend, confirmResume, resumeConfirm } = useAgentPrompt(() => agent)
