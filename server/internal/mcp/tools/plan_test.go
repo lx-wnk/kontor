@@ -206,6 +206,7 @@ func TestGetPlanStatus_MCPTool_ReturnsGateState(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
 	require.Equal(t, "awaiting_user", payload["gate_state"])
+	require.Equal(t, true, payload["plan_ready"])
 }
 
 func TestApprovePlan_BroadcastsTaskUpdated(t *testing.T) {

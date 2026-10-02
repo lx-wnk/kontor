@@ -12,6 +12,7 @@ vi.mock('@/features/pipeline/composables/usePlanReview', () => ({
   usePlanReview: () => ({
     gateState: ref('awaiting_user'),
     approvedPlan: ref({ steps: ['step one', 'step two'] }),
+    planReady: ref(true),
     loading: ref(false),
     error: ref(null),
     fetchStatus: fetchStatusMock,
@@ -138,6 +139,7 @@ describe('gate-state guards', () => {
     const defaults = {
       gateState: ref('awaiting_user'),
       approvedPlan: ref({ steps: [] }),
+      planReady: ref(true),
       loading: ref(false),
       error: ref(null),
       fetchStatus: vi.fn(),
@@ -173,17 +175,29 @@ describe('gate-state guards', () => {
   })
 
   it('approve disabled but request-changes enabled when awaiting_user without a plan', async () => {
-    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref(null) })
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref(null), planReady: ref(false) })
     await flushPromises()
     expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 
-  it('approve and request-changes enabled when awaiting_user with plan', async () => {
-    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref({ steps: [] }) })
+  it('approve and request-changes enabled when awaiting_user with plan_ready', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref({ steps: [] }), planReady: ref(true) })
     await flushPromises()
     expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('approve disabled when plan_ready is false even with a non-null approved plan', async () => {
+    const wrapper = await mountWithMock({
+      gateState: ref('awaiting_user'),
+      approvedPlan: ref({ validation_error: 'missing steps' }),
+      planReady: ref(false),
+    })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="approve-plan-btn"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="reject-plan-btn"]').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })

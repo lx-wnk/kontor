@@ -42,9 +42,11 @@ type StatusDeps struct {
 	StageRuns repo.StageRunRepo
 }
 
-// PlanStatusResult carries the gate state and latest plan output.
+// PlanStatusResult carries the gate state and latest plan output. PlanReady is
+// true exactly when ApprovePlan would accept the gate.
 type PlanStatusResult struct {
 	GateState    string         `json:"gate_state"`
+	PlanReady    bool           `json:"plan_ready"`
 	ApprovedPlan map[string]any `json:"approved_plan,omitempty"`
 }
 
@@ -63,9 +65,9 @@ const (
 // submitted plan in its output.
 var ErrPlanNotReady = errors.New("plan_review is not ready")
 
-// requireAwaitingPlanReview returns the latest plan_review run only when it is
-// awaiting_user, whatever its output holds.
-func requireAwaitingPlanReview(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+// latestPlanReviewRun returns the task's latest plan_review run, or
+// ErrPlanNotReady when there is none.
+func latestPlanReviewRun(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
 	if runs == nil {
 		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 	}
@@ -74,30 +76,61 @@ func requireAwaitingPlanReview(ctx context.Context, runs repo.StageRunRepo, task
 		if ent.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 		}
-		return nil, fmt.Errorf("requireAwaitingPlanReview: %w", err)
+		return nil, fmt.Errorf("latestPlanReviewRun: %w", err)
 	}
 	if sr == nil {
 		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 	}
+	return sr, nil
+}
+
+// awaitingError is nil only when the run is awaiting_user, whatever its output holds.
+func awaitingError(sr *ent.StageRun) error {
 	if sr.Status != "awaiting_user" {
-		return nil, fmt.Errorf("%w: plan_review is %s, not awaiting_user", ErrPlanNotReady, sr.Status)
+		return fmt.Errorf("%w: plan_review is %s, not awaiting_user", ErrPlanNotReady, sr.Status)
+	}
+	return nil
+}
+
+// readyPlanError is the single rule for "this plan can be approved": awaiting_user
+// plus the agent-submitted marker plus content beyond it. Orchestrator notes in
+// the same field (validation_error, synthetic_session_file, wait_reason) carry no
+// marker and are never a plan. Nil means ready.
+func readyPlanError(sr *ent.StageRun) error {
+	if err := awaitingError(sr); err != nil {
+		return err
+	}
+	if submitted, _ := sr.Output[pipeline.StageOutputSubmittedKey].(bool); !submitted {
+		return fmt.Errorf("%w: plan output was not submitted by the agent", ErrPlanNotReady)
+	}
+	if len(sr.Output) == 1 {
+		return fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
+	}
+	return nil
+}
+
+// requireAwaitingPlanReview returns the latest plan_review run only when it is
+// awaiting_user, whatever its output holds.
+func requireAwaitingPlanReview(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	sr, err := latestPlanReviewRun(ctx, runs, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if err := awaitingError(sr); err != nil {
+		return nil, err
 	}
 	return sr, nil
 }
 
-// requireReadyPlan additionally demands the agent-submitted marker plus content
-// beyond it: orchestrator notes in the same field (validation_error,
-// synthetic_session_file, wait_reason) carry no marker and are never a plan.
+// requireReadyPlan returns the latest plan_review run only when readyPlanError
+// accepts it.
 func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
-	sr, err := requireAwaitingPlanReview(ctx, runs, taskID)
+	sr, err := latestPlanReviewRun(ctx, runs, taskID)
 	if err != nil {
 		return nil, err
 	}
-	if submitted, _ := sr.Output[pipeline.StageOutputSubmittedKey].(bool); !submitted {
-		return nil, fmt.Errorf("%w: plan output was not submitted by the agent", ErrPlanNotReady)
-	}
-	if len(sr.Output) == 1 {
-		return nil, fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
+	if err := readyPlanError(sr); err != nil {
+		return nil, err
 	}
 	return sr, nil
 }
@@ -227,6 +260,7 @@ func PlanStatus(ctx context.Context, d StatusDeps, taskID string) (PlanStatusRes
 		if fetched, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && fetched != nil {
 			sr = fetched
 			result.GateState = sr.Status
+			result.PlanReady = readyPlanError(sr) == nil
 		}
 	}
 

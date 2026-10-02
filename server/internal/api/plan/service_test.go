@@ -305,6 +305,60 @@ func TestPlanStatus_FrozenPlanAfterApproval(t *testing.T) {
 		"frozen plan must match the plan that was approved")
 }
 
+func TestPlanStatus_PlanReady(t *testing.T) {
+	cases := map[string]struct {
+		status string
+		output map[string]any
+		want   bool
+	}{
+		"marker_and_plan":  {"awaiting_user", submittedPlan("plan", "test plan content"), true},
+		"validation_error": {"awaiting_user", map[string]any{"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}}, false},
+		"wait_reason":      {"awaiting_user", map[string]any{"wait_reason": "rate_limit"}, false},
+		"empty":            {"awaiting_user", map[string]any{}, false},
+		"nil_output":       {"awaiting_user", nil, false},
+		"marker_only":      {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true}, false},
+		"marker_false":     {"awaiting_user", map[string]any{"plan": "draft", pipeline.StageOutputSubmittedKey: false}, false},
+		"gate_running":     {"running", submittedPlan("plan", "test plan content"), false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			ctx := context.Background()
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, tc.status, tc.output)
+
+			status, err := plan.PlanStatus(ctx, plan.StatusDeps{Tasks: taskRepo, StageRuns: srRepo}, taskID)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, status.PlanReady)
+
+			_, approveErr := plan.ApprovePlan(ctx, plan.ApproveDeps{
+				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+				Tasks:     taskRepo,
+				StageRuns: srRepo,
+			}, taskID)
+			require.Equal(t, tc.want, approveErr == nil, "plan_ready must agree with ApprovePlan: %v", approveErr)
+		})
+	}
+}
+
+func TestPlanStatus_NoRun_PlanNotReady(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
+
+	status, err := plan.PlanStatus(ctx, plan.StatusDeps{Tasks: taskRepo, StageRuns: repo.NewStageRunRepo(bundle.Client)}, taskID)
+	require.NoError(t, err)
+	require.False(t, status.PlanReady)
+}
+
 func TestApprovePlan_RunningRun_ReturnsConflict(t *testing.T) {
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
