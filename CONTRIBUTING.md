@@ -62,6 +62,7 @@ Build the SPA **before** the binary — `go:embed` bakes the compiled frontend i
 | `task test` | Run all tests with race detector |
 | `task lint` | Run golangci-lint and the formatter check (sdk, server, every plugin) |
 | `task generate` | Run ent schema + tygo TS code generation |
+| `go test -tags entgen ./server/internal/db/entgen/ -count=1` | Regenerate ent (opt-in via build tag; required when ent schema changes) |
 | `task fmt` | Format with the same formatter `task lint` checks (sdk, server, plugins) |
 | `task changelog:check` | Fail on a repeated release heading or `###` heading within one `CHANGELOG.md` release section |
 
