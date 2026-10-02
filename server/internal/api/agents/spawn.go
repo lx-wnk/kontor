@@ -930,7 +930,8 @@ func (h *SpawnHandler) Message(w http.ResponseWriter, r *http.Request) {
 		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		if err.Error() == "http: request body too large" {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "message exceeds 64 KB limit"})

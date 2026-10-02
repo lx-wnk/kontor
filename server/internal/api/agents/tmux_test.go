@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -18,17 +20,6 @@ func TestValidTmuxPane(t *testing.T) {
 	require.False(t, validTmuxPane("0"))
 	require.False(t, validTmuxPane("%1; rm -rf /"))
 	require.False(t, validTmuxPane("session:0.1"))
-}
-
-func TestTmuxSendArgs(t *testing.T) {
-	text, enter := tmuxSendArgs("/tmp/tmux-501/default", "%3", "/security-review")
-	require.Equal(t, []string{"-S", "/tmp/tmux-501/default", "send-keys", "-t", "%3", "-l", "--", "/security-review"}, text)
-	require.Equal(t, []string{"-S", "/tmp/tmux-501/default", "send-keys", "-t", "%3", "Enter"}, enter)
-
-	// no socket → no -S
-	text2, enter2 := tmuxSendArgs("", "%1", "hi")
-	require.Equal(t, []string{"send-keys", "-t", "%1", "-l", "--", "hi"}, text2)
-	require.Equal(t, []string{"send-keys", "-t", "%1", "Enter"}, enter2)
 }
 
 func TestTmuxBracketedPaste_SendsLoadBufferThenPasteBuffer(t *testing.T) {
@@ -152,4 +143,28 @@ func TestSendKeysToTmux_RejectsBadPane(t *testing.T) {
 	err := sendKeysToTmux(context.Background(), "", "$(evil)", "x")
 	require.Error(t, err)
 	require.False(t, called, "must not exec tmux for an invalid pane")
+}
+
+func postMessage(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/123/message", strings.NewReader(body))
+	req.SetPathValue("pid", "123")
+	rec := httptest.NewRecorder()
+	NewSpawnHandler(nil).Message(rec, req)
+	return rec
+}
+
+func TestMessage_OversizedBodyIs413(t *testing.T) {
+	rec := postMessage(t, `{"message":"`+strings.Repeat("a", 64*1024)+`"}`)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.JSONEq(t, `{"error":"message exceeds 64 KB limit"}`, rec.Body.String())
+}
+
+func TestMessage_MalformedBodyIs400(t *testing.T) {
+	rec := postMessage(t, `{"message":`)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"missing message"}`, rec.Body.String())
 }

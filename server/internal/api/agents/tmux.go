@@ -31,20 +31,6 @@ func validTmuxPane(pane string) bool {
 	return tmuxPaneRE.MatchString(pane)
 }
 
-// tmuxSendArgs builds the two tmux arg vectors that inject message as real
-// keyboard input into the pane: the literal text, then a separate Enter.
-// socket may be "" (default tmux server). The message is passed literally (-l)
-// after "--" so it is never interpreted as options or key names.
-func tmuxSendArgs(socket, pane, message string) (textArgs, enterArgs []string) {
-	var base []string
-	if socket != "" {
-		base = []string{"-S", socket}
-	}
-	textArgs = append(append([]string{}, base...), "send-keys", "-t", pane, "-l", "--", message)
-	enterArgs = append(append([]string{}, base...), "send-keys", "-t", pane, "Enter")
-	return textArgs, enterArgs
-}
-
 // tmuxLookPath resolves the tmux binary; indirected for tests.
 var tmuxLookPath = func() (string, error) { return exec.LookPath("tmux") }
 
