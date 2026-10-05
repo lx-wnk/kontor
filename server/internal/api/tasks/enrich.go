@@ -355,7 +355,7 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 
 	var waitReason string
 	if latestBelongsToCurrent && latestStatus != nil && *latestStatus == "awaiting_user" && latest.Output != nil {
-		if r, ok := latest.Output["wait_reason"].(string); ok {
+		if r, ok := latest.Output[pipeline.WaitReasonKey].(string); ok {
 			waitReason = r
 		}
 	}

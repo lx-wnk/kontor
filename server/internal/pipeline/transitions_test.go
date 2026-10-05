@@ -128,9 +128,8 @@ func TestFinalizeCompletedAsyncRuns_PlanReview_TranscriptFencePlanIsApprovable(t
 	got, err := srRepo.GetByID(ctx, run.ID)
 	require.NoError(t, err)
 	require.Equal(t, "awaiting_user", got.Status)
-	want := maps.Clone(submittedPlan)
-	want[pipeline.StageOutputSubmittedKey] = true
-	require.Equal(t, want, got.Output, "the plan from the fence must be on the run, marked as submitted")
+	require.Equal(t, true, got.Output[pipeline.StageOutputSubmittedKey], "the fenced plan must be marked as submitted")
+	require.Equal(t, submittedPlan, pipeline.StageResult(got.Output), "the plan from the fence must be on the run")
 }
 
 func TestFinalizeCompletedAsyncRuns_PlanReview_SetStageOutputResultUnchanged(t *testing.T) {
@@ -148,5 +147,6 @@ func TestFinalizeCompletedAsyncRuns_PlanReview_SetStageOutputResultUnchanged(t *
 	got, err := srRepo.GetByID(ctx, run.ID)
 	require.NoError(t, err)
 	require.Equal(t, "awaiting_user", got.Status)
-	require.Equal(t, stored, got.Output, "the tool-submitted result must not be rewritten from the transcript")
+	require.Equal(t, pipeline.StageResult(stored), pipeline.StageResult(got.Output), "the tool-submitted result must not be rewritten from the transcript")
+	require.Equal(t, true, got.Output[pipeline.StageOutputSubmittedKey])
 }

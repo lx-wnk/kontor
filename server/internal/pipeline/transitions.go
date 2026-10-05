@@ -187,7 +187,7 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 			for k, v := range tr.Output {
 				output[k] = v
 			}
-			output["wait_reason"] = tr.Reason
+			output[WaitReasonKey] = tr.Reason
 		}
 		if _, err := srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
 			Status:   strPtr("awaiting_user"),

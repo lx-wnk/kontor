@@ -17,6 +17,19 @@ const agentMessageMaxChars = 2000
 // never mistaken for a submitted stage result.
 const StageOutputSubmittedKey = "stage_output_submitted"
 
+// WaitReasonKey holds the human-readable reason a WaitUserTransition parked the
+// run, written into the same stage_run.output as the stage result.
+const WaitReasonKey = "wait_reason"
+
+// StageResult returns a copy of a stage_run.output without the keys the
+// orchestrator writes beside the agent's result.
+func StageResult(output map[string]any) map[string]any {
+	result := maps.Clone(output)
+	delete(result, StageOutputSubmittedKey)
+	delete(result, WaitReasonKey)
+	return result
+}
+
 // isRateLimitError returns true when the API error represents a rate or usage limit.
 // Matches by HTTP status (429/529/503) or by the structured error kind field.
 func isRateLimitError(e *APIError) bool {
