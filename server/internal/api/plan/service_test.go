@@ -311,14 +311,15 @@ func TestPlanStatus_PlanReady(t *testing.T) {
 		output map[string]any
 		want   bool
 	}{
-		"marker_and_plan":  {"awaiting_user", submittedPlan("plan", "test plan content"), true},
-		"validation_error": {"awaiting_user", map[string]any{"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}}, false},
-		"wait_reason":      {"awaiting_user", map[string]any{"wait_reason": "rate_limit"}, false},
-		"empty":            {"awaiting_user", map[string]any{}, false},
-		"nil_output":       {"awaiting_user", nil, false},
-		"marker_only":      {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true}, false},
-		"marker_false":     {"awaiting_user", map[string]any{"plan": "draft", pipeline.StageOutputSubmittedKey: false}, false},
-		"gate_running":     {"running", submittedPlan("plan", "test plan content"), false},
+		"marker_and_plan":             {"awaiting_user", submittedPlan("plan", "test plan content"), true},
+		"validation_error":            {"awaiting_user", map[string]any{"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}}, false},
+		"wait_reason":                 {"awaiting_user", map[string]any{"wait_reason": "rate_limit"}, false},
+		"empty":                       {"awaiting_user", map[string]any{}, false},
+		"nil_output":                  {"awaiting_user", nil, false},
+		"marker_only":                 {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true}, false},
+		"marker_and_wait_reason_only": {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true, pipeline.WaitReasonKey: "Plan review: awaiting user approval"}, false},
+		"marker_false":                {"awaiting_user", map[string]any{"plan": "draft", pipeline.StageOutputSubmittedKey: false}, false},
+		"gate_running":                {"running", submittedPlan("plan", "test plan content"), false},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -609,4 +610,29 @@ func TestRejectPlan_OutsideAwaitingUser_ReturnsConflict(t *testing.T) {
 			require.False(t, requeued, "Requeue must not be called when rejection is refused")
 		})
 	}
+}
+
+func TestApprovePlan_SubmittedPlanWithWaitReason_FreezesOnlyThePlan(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	output := submittedPlan("summary", "SUBMITTED_PLAN")
+	output[pipeline.WaitReasonKey] = "Plan review: awaiting user approval"
+	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
+
+	status, err := plan.PlanStatus(ctx, plan.StatusDeps{Tasks: taskRepo, StageRuns: srRepo}, taskID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, status.ApprovedPlan, "the live plan view must not show orchestrator keys")
+
+	task, err := plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+	}, taskID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, task.Metadata["approvedPlan"], "wait_reason must not be frozen into the approved plan")
 }

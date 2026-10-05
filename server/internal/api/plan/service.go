@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -103,7 +102,7 @@ func readyPlanError(sr *ent.StageRun) error {
 	if submitted, _ := sr.Output[pipeline.StageOutputSubmittedKey].(bool); !submitted {
 		return fmt.Errorf("%w: plan output was not submitted by the agent", ErrPlanNotReady)
 	}
-	if len(sr.Output) == 1 {
+	if len(pipeline.StageResult(sr.Output)) == 0 {
 		return fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
 	}
 	return nil
@@ -144,8 +143,7 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 		return nil, err
 	}
 
-	planOutput := maps.Clone(sr.Output)
-	delete(planOutput, pipeline.StageOutputSubmittedKey)
+	planOutput := pipeline.StageResult(sr.Output)
 
 	// Build metadata update: freeze plan + clear reject counter.
 	meta := map[string]any{approvedPlanKey: planOutput}
@@ -277,8 +275,7 @@ func PlanStatus(ctx context.Context, d StatusDeps, taskID string) (PlanStatusRes
 
 	// Fall back to the live stage_run output before approval freezes the plan.
 	if result.ApprovedPlan == nil && sr != nil && len(sr.Output) > 0 {
-		result.ApprovedPlan = maps.Clone(sr.Output)
-		delete(result.ApprovedPlan, pipeline.StageOutputSubmittedKey)
+		result.ApprovedPlan = pipeline.StageResult(sr.Output)
 	}
 
 	return result, nil

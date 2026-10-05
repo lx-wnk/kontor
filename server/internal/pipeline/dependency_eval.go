@@ -45,27 +45,57 @@ func EvaluateDependency(dep *ent.TaskDependency, upstreamStage string) DepStatus
 //
 // Returns:
 //
-//	allSatisfied — every upstream is DepSatisfied; task may be picked
-//	blocked      — at least one upstream is DepBlocked
+//	allSatisfied  — every upstream is DepSatisfied; task may be picked
+//	blocked       — at least one upstream is DepBlocked
 //	unsatisfiable — at least one upstream is DepUnsatisfiable (no path to satisfied)
+//
+// EvaluateTaskDeps is a thin adapter over EvaluateTaskDepsDetail that drops the
+// per-upstream slug; the scheduler only needs the aggregate booleans.
 func EvaluateTaskDeps(
 	ctx context.Context,
 	taskID string,
 	depRepo repo.DependencyRepo,
 	resolveStage func(ctx context.Context, taskID string) (string, error),
 ) (allSatisfied, blocked, unsatisfiable bool, err error) {
-	upstreams, err := depRepo.ListUpstream(ctx, taskID)
-	if err != nil {
-		return false, false, false, err
+	resolveInfo := func(ctx context.Context, id string) (string, string, error) {
+		stage, serr := resolveStage(ctx, id)
+		return stage, "", serr
 	}
-	if len(upstreams) == 0 {
-		return true, false, false, nil
+	allSatisfied, blocked, unsatisfiable, _, err = EvaluateTaskDepsDetail(ctx, taskID, depRepo, resolveInfo)
+	return
+}
+
+// BlockingUpstream identifies an upstream dependency that is not yet satisfied,
+// carrying enough info for the client to display "Waiting for: slug (stage)".
+// Unsatisfiable is true when the upstream has reached a terminal stage that
+// can never become the required stage — the client uses it to select the correct
+// entry from a mixed list and to render the right label.
+type BlockingUpstream struct {
+	Slug          string `json:"slug"`
+	Stage         string `json:"stage"`
+	Unsatisfiable bool   `json:"unsatisfiable,omitempty"`
+}
+
+// EvaluateTaskDepsDetail is like EvaluateTaskDeps but additionally returns the
+// list of blocking/unsatisfiable upstreams with their slug and current stage.
+// resolveInfo returns (currentStage, slug, error) for a given task ID.
+func EvaluateTaskDepsDetail(
+	ctx context.Context,
+	taskID string,
+	depRepo repo.DependencyRepo,
+	resolveInfo func(ctx context.Context, taskID string) (stage, slug string, err error),
+) (allSatisfied, blocked, unsatisfiable bool, upstreams []BlockingUpstream, err error) {
+	deps, err := depRepo.ListUpstream(ctx, taskID)
+	if err != nil {
+		return false, false, false, nil, err
+	}
+	if len(deps) == 0 {
+		return true, false, false, nil, nil
 	}
 	allSat := true
-	for _, dep := range upstreams {
-		stage, serr := resolveStage(ctx, dep.DependsOnID)
+	for _, dep := range deps {
+		stage, slug, serr := resolveInfo(ctx, dep.DependsOnID)
 		if serr != nil {
-			// treat resolution failure conservatively as blocked
 			allSat = false
 			blocked = true
 			continue
@@ -76,10 +106,12 @@ func EvaluateTaskDeps(
 		case DepBlocked:
 			allSat = false
 			blocked = true
+			upstreams = append(upstreams, BlockingUpstream{Slug: slug, Stage: stage})
 		case DepUnsatisfiable:
 			allSat = false
 			unsatisfiable = true
+			upstreams = append(upstreams, BlockingUpstream{Slug: slug, Stage: stage, Unsatisfiable: true})
 		}
 	}
-	return allSat, blocked, unsatisfiable, nil
+	return allSat, blocked, unsatisfiable, upstreams, nil
 }
