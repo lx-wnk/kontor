@@ -355,7 +355,9 @@ defineExpose({ scrollToBottom })
               <span v-if="entry.msg.queued" title="Queued (offline)" aria-label="Queued">☁</span>
               <span v-else-if="deliveryStateOf(entry.msg) === 'sending'" title="Sending" aria-label="Sending" class="animate-pulse">⟳</span>
               <span v-else-if="deliveryStateOf(entry.msg) === 'sent'" title="Sent" aria-label="Sent">✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'queued'" title="Queued — sends when back online" aria-label="Queued">☁</span>
               <span v-else-if="deliveryStateOf(entry.msg) === 'delivered'" title="Delivered" aria-label="Delivered">✓✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'failed'" title="Not sent" aria-label="Not sent" class="text-danger-text">⚠</span>
             </span>
           </div>
           <div v-else-if="entry.msg.role === 'channel_reply'" class="flex flex-col items-start gap-0.5 max-w-[80%]">

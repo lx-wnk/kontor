@@ -72,6 +72,10 @@ export function useAgentPrompt(
     return [text, ...paths.map(p => `@${p}`)].filter(Boolean).join(' ')
   }
 
+  function updateTracked(id: string, patch: Partial<TrackedMessage>): void {
+    trackedMessages.value = trackedMessages.value.map(m => m.id === id ? { ...m, ...patch } : m)
+  }
+
   /**
    * Shared delivery helper. Performs the correct fetch for inject vs resume,
    * handles optimistic echo, isSending, sendStatus, offline queueing, and
@@ -125,13 +129,10 @@ export function useAgentPrompt(
           throw new Error(data.error || `Resume failed (${res.status})`)
         }
       }
-      trackedMessages.value = trackedMessages.value.map(m =>
-        m.id === trackId ? { ...m, state: 'sent' as const, serverText } : m,
-      )
+      updateTracked(trackId, { state: 'sent', serverText })
       sendStatus.value = 'sent'
     }
     catch (err) {
-      trackedMessages.value = trackedMessages.value.filter(m => m.id !== trackId)
       if (isNetworkFailure(err)) {
         const useChannel = mode === 'inject'
         try {
@@ -143,16 +144,19 @@ export function useAgentPrompt(
             useChannel,
             cwd: agent.cwd,
           })
+          updateTracked(trackId, { state: 'queued' })
           await registerBackgroundSync()
           sendStatus.value = 'queued'
           sendError.value = 'Offline — message queued'
         }
         catch {
+          updateTracked(trackId, { state: 'failed' })
           sendStatus.value = 'error'
           sendError.value = 'Offline and could not queue message'
         }
       }
       else {
+        updateTracked(trackId, { state: 'failed' })
         sendStatus.value = 'error'
         sendError.value = errorMessage(err, 'Failed')
       }

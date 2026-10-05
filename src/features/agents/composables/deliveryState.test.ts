@@ -133,6 +133,51 @@ describe('reconcileDelivery', () => {
     expect(echoed).toEqual(new Set([sentEcho]))
   })
 
+  it('hides the echo of a queued send once the drained message shows up in the transcript', () => {
+    const echo = human('hello', T0)
+    const entry = human('hello', T0 + 60_000)
+    const { bubbleState, echoed } = reconcileDelivery([makeMsg({ state: 'queued' })], [entry], [echo])
+    expect(bubbleState.get(entry)).toBe('delivered')
+    expect(echoed).toEqual(new Set([echo]))
+  })
+
+  it('shows the queued state on the echo until the drained message arrives', () => {
+    const echo = human('hello', T0)
+    const { bubbleState, echoed } = reconcileDelivery([makeMsg({ state: 'queued' })], [], [echo])
+    expect(bubbleState.get(echo)).toBe('queued')
+    expect(echoed.size).toBe(0)
+  })
+
+  it('keeps the echo of a failed send visible with the failed state', () => {
+    const echo = human('hello', T0)
+    const { bubbleState, echoed } = reconcileDelivery([makeMsg({ state: 'failed' })], [], [echo])
+    expect(bubbleState.get(echo)).toBe('failed')
+    expect(echoed.size).toBe(0)
+  })
+
+  it('never promotes a failed send, even when an identical entry follows it', () => {
+    const echo = human('hello', T0)
+    const entry = human('hello', T0 + 500)
+    const { bubbleState, echoed } = reconcileDelivery([makeMsg({ state: 'failed' })], [entry], [echo])
+    expect(bubbleState.get(echo)).toBe('failed')
+    expect(bubbleState.has(entry)).toBe(false)
+    expect(echoed.size).toBe(0)
+  })
+
+  it('lets a later identical send claim the entry a failed send must not take', () => {
+    const failedEcho = human('hello', T0)
+    const sentEcho = human('hello', T0 + 5000)
+    const entry = human('hello', T0 + 6000)
+    const tracked = [
+      makeMsg({ id: 'failed', state: 'failed', sentAt: T0 }),
+      makeMsg({ id: 'sent', state: 'sent', sentAt: T0 + 5000 }),
+    ]
+    const { bubbleState, echoed } = reconcileDelivery(tracked, [entry], [failedEcho, sentEcho])
+    expect(bubbleState.get(entry)).toBe('delivered')
+    expect(bubbleState.get(failedEcho)).toBe('failed')
+    expect(echoed).toEqual(new Set([sentEcho]))
+  })
+
   it.each([
     ['missing', undefined],
     ['unparsable', 'not a date'],

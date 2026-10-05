@@ -94,14 +94,14 @@ describe('useAgentPrompt routing', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('drops the tracked message when the send fails, so no bubble keeps a sending badge', async () => {
+  it('keeps the tracked message as failed when the server rejects the send, so its echo is not mistaken for delivered', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({ error: 'tmux gone' }) })))
     const agent = makeAgent({ liveInjectable: true })
     const { promptInput, handleSend, trackedMessages, sendStatus } = useAgentPrompt(() => agent)
     promptInput.value = 'hello'
     await handleSend()
     expect(sendStatus.value).toBe('error')
-    expect(trackedMessages.value).toEqual([])
+    expect(trackedMessages.value).toEqual([expect.objectContaining({ text: 'hello', state: 'failed' })])
   })
 
   it('confirmResume clears state gracefully when getAgent returns null at confirm time', async () => {
@@ -149,5 +149,25 @@ describe('useAgentPrompt offline queueing', () => {
     expect(addPending).toHaveBeenCalledWith(expect.objectContaining({ message: 'offline message' }))
     expect(sendStatus.value).toBe('queued')
     expect(isSending.value).toBe(false)
+  })
+
+  it('keeps the tracked message as queued once the offline send is stored', async () => {
+    vi.stubGlobal('navigator', {})
+    const agent = makeAgent({ liveInjectable: true })
+    const { promptInput, handleSend, trackedMessages } = useAgentPrompt(() => agent)
+    promptInput.value = 'offline message'
+    await handleSend()
+    expect(trackedMessages.value).toEqual([expect.objectContaining({ text: 'offline message', state: 'queued' })])
+  })
+
+  it('marks the tracked message failed when the offline send cannot be stored', async () => {
+    vi.stubGlobal('navigator', {})
+    vi.mocked(addPending).mockRejectedValueOnce(new Error('idb unavailable'))
+    const agent = makeAgent({ liveInjectable: true })
+    const { promptInput, handleSend, trackedMessages, sendStatus } = useAgentPrompt(() => agent)
+    promptInput.value = 'offline message'
+    await handleSend()
+    expect(sendStatus.value).toBe('error')
+    expect(trackedMessages.value).toEqual([expect.objectContaining({ text: 'offline message', state: 'failed' })])
   })
 })

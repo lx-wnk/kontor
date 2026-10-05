@@ -1,7 +1,8 @@
 import type { OutputMessage } from '@/types'
 
-// sending = fetch in flight, sent = server acknowledged (HTTP 200), delivered = its own entry seen in the JSONL transcript
-export type DeliveryState = 'sending' | 'sent' | 'delivered'
+// sending = fetch in flight, sent = server acknowledged (HTTP 200), queued = stored offline for the service worker to drain,
+// delivered = its own entry seen in the JSONL transcript, failed = rejected or unstorable: never delivered, never auto-promoted
+export type DeliveryState = 'sending' | 'sent' | 'queued' | 'delivered' | 'failed'
 
 export interface TrackedMessage {
   id: string
@@ -63,9 +64,10 @@ export function reconcileDelivery(
   echoes: OutputMessage[] = [],
 ): DeliveryReconciliation {
   // The transcript carries the server's sanitized text, stamped when Claude Code wrote it: never before the send.
-  const seen = claim(tracked, humanOnly(transcript), m => m.serverText, (at, sentAt) =>
+  // A failed send wrote nothing, so an identical entry belongs to someone else.
+  const seen = claim(tracked.filter(m => m.state !== 'failed'), humanOnly(transcript), m => m.serverText, (at, sentAt) =>
     at >= sentAt - CLOCK_TOLERANCE_MS ? at : null)
-  // Echo and tracked message are created in one call, so the nearest stamp is the pair; a failed send leaves an echo without one.
+  // Echo and tracked message are created in one call, so the nearest stamp is the pair.
   const echoOf = claim(tracked, humanOnly(echoes), m => m.text, (at, sentAt) => {
     const gap = Math.abs(at - sentAt)
     return gap <= CLOCK_TOLERANCE_MS ? gap : null

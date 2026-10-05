@@ -7,7 +7,11 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
+
+// tmuxBufferCleanupTimeout bounds the delete-buffer that follows a failed paste.
+const tmuxBufferCleanupTimeout = 2 * time.Second
 
 // tmuxPaneRE matches a tmux pane id (e.g. "%3"). The bridge records $TMUX_PANE,
 // which is always of this form; restricting to it keeps the value safe to pass
@@ -38,6 +42,16 @@ var tmuxLookPath = func() (string, error) { return exec.LookPath("tmux") }
 // the same pane sharing a name would paste each other's text and lose one.
 func tmuxBufferName(pane string) string {
 	return "kontor-" + pane + "-" + newSpawnID()
+}
+
+// deleteTmuxBuffer drops a named buffer that paste-buffer -d never got to
+// delete. It runs on a fresh context because the failed paste is often the
+// caller's cancellation, and its error is ignored: the paste error is the one
+// worth reporting.
+func deleteTmuxBuffer(base []string, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxBufferCleanupTimeout)
+	defer cancel()
+	_ = tmuxRunner(ctx, append(append([]string{}, base...), "delete-buffer", "-b", name)...)
 }
 
 // sendKeysToTmux injects message into the given tmux pane using bracketed
@@ -73,6 +87,7 @@ func sendKeysToTmux(ctx context.Context, socket, pane, message string) error {
 	// -d = delete the buffer after pasting (cleanup).
 	pasteArgs := append(append([]string{}, base...), "paste-buffer", "-p", "-d", "-b", bufName, "-t", pane)
 	if err := tmuxRunner(ctx, pasteArgs...); err != nil {
+		deleteTmuxBuffer(base, bufName)
 		return fmt.Errorf("tmux paste-buffer: %w", err)
 	}
 

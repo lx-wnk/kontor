@@ -94,6 +94,69 @@ func TestSendKeysToTmux_ConcurrentSendsToOnePaneUseDistinctBuffers(t *testing.T)
 	require.NotEqual(t, buffers[0], buffers[1])
 }
 
+func stubTmuxCalls(t *testing.T, run func(ctx context.Context, args []string) error) {
+	t.Helper()
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, args ...string) error { return run(context.Background(), args) }
+	tmuxRunner = func(ctx context.Context, args ...string) error { return run(ctx, args) }
+}
+
+func TestSendKeysToTmux_PasteFailureDeletesTheLoadedBuffer(t *testing.T) {
+	var calls [][]string
+	stubTmuxCalls(t, func(_ context.Context, args []string) error {
+		calls = append(calls, args)
+		if slices.Contains(args, "paste-buffer") {
+			return errors.New("no such pane")
+		}
+		return nil
+	})
+
+	err := sendKeysToTmux(context.Background(), "/tmp/tmux.sock", "%5", "yes")
+	require.ErrorContains(t, err, "tmux paste-buffer")
+	require.Len(t, calls, 3, "load, paste, then cleanup; no Enter after a failed paste")
+
+	del := calls[2]
+	require.Equal(t, []string{"-S", "/tmp/tmux.sock", "delete-buffer", "-b", bufferArg(t, calls[0])}, del)
+}
+
+func TestSendKeysToTmux_CancelledContextStillDeletesTheLoadedBuffer(t *testing.T) {
+	var deleteCtxErr error
+	deleted := false
+	stubTmuxCalls(t, func(ctx context.Context, args []string) error {
+		if slices.Contains(args, "delete-buffer") {
+			deleted = true
+			deleteCtxErr = ctx.Err()
+			return nil
+		}
+		return ctx.Err()
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.Error(t, sendKeysToTmux(ctx, "", "%5", "yes"))
+	require.True(t, deleted, "buffer must be deleted even though the caller's context is gone")
+	require.NoError(t, deleteCtxErr, "cleanup must not run on the cancelled caller context")
+}
+
+func TestSendKeysToTmux_SuccessfulPasteLeavesDeletionToPasteBuffer(t *testing.T) {
+	var calls [][]string
+	stubTmuxCalls(t, func(_ context.Context, args []string) error {
+		calls = append(calls, args)
+		return nil
+	})
+
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "yes"))
+	for _, c := range calls {
+		require.NotContains(t, c, "delete-buffer")
+	}
+}
+
 func TestSendKeysToTmux_MultiLinePreservesNewlines(t *testing.T) {
 	var stdinData string
 	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
