@@ -48,6 +48,18 @@ describe('usePlanReview.fetchStatus', () => {
     expect(pr.approvedPlan.value).toEqual({ steps: ['build'] })
   })
 
+  it('exposes plan_ready from the server and defaults to false when absent', async () => {
+    mockFetchOnce({ gate_state: 'awaiting_user', approved_plan: { steps: ['build'] }, plan_ready: true })
+    const ready = usePlanReview(() => 'task-ready')
+    await ready.fetchStatus()
+    expect(ready.planReady.value).toBe(true)
+
+    mockFetchOnce({ gate_state: 'awaiting_user', approved_plan: { validation_error: 'x' } })
+    const absent = usePlanReview(() => 'task-absent')
+    await absent.fetchStatus()
+    expect(absent.planReady.value).toBe(false)
+  })
+
   it('no-ops when taskId is null', async () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)

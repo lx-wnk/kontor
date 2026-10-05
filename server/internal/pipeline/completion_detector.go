@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/proc"
@@ -41,6 +42,8 @@ func ValidateStageOutput(stage string, output map[string]any) ValidationResult {
 		return validateFinalization(output)
 	case StageJob:
 		return validateJob(output)
+	case "plan_review":
+		return validatePlanReview(output)
 	default:
 		return ValidationResult{OK: true}
 	}
@@ -87,6 +90,32 @@ func validateJob(o map[string]any) ValidationResult {
 		return missing("result (string)")
 	}
 	return ValidationResult{OK: true}
+}
+
+// validatePlanReview rejects only an empty submission: the plan has no enforced
+// schema, but an empty one would otherwise reach the approve gate.
+func validatePlanReview(o map[string]any) ValidationResult {
+	for _, v := range o {
+		if !isEmptyValue(v) {
+			return ValidationResult{OK: true}
+		}
+	}
+	return ValidationResult{OK: false, Error: "plan output is empty: provide a summary, steps, filesTouched and testApproach"}
+}
+
+func isEmptyValue(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(x) == ""
+	case []any:
+		return len(x) == 0
+	case map[string]any:
+		return len(x) == 0
+	default:
+		return false
+	}
 }
 
 type CompletionResult struct {

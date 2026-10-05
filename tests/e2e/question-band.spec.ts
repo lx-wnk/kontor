@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { expect, test } from '@playwright/test'
-import { parkPointerOffNav } from './helpers'
+import { parkPointerOffNav, stubAgents } from './helpers'
 
 async function stubAuthDisabled(page: Page) {
   await page.route('/api/me', route => route.fulfill({
@@ -69,29 +69,15 @@ function agentWithConfirm() {
   return agent
 }
 
-async function stubAgentsWith(page: Page, makeAgent: () => unknown) {
-  await page.route('/api/agents', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify([makeAgent()]),
-  }))
-  // The SSE stream also feeds the store; one frame carrying the same agent.
-  await page.route('/api/agents/stream', route => route.fulfill({
-    status: 200,
-    contentType: 'text/event-stream',
-    body: `data: ${JSON.stringify({ agents: [makeAgent()] })}\n\n`,
-  }))
-}
-
-async function stubAgents(page: Page, multiSelect: boolean) {
-  await stubAgentsWith(page, () => agentWithQuestion(multiSelect))
+function questionAgents(multiSelect: boolean) {
+  return [agentWithQuestion(multiSelect)]
 }
 
 test.describe('AskUserQuestion in the needs-you band', () => {
   test('single-select: answering posts {mode:single,index:0}', async ({ page }) => {
     await pinDashboardLanding(page)
     await stubAuthDisabled(page)
-    await stubAgents(page, false)
+    await stubAgents(page, questionAgents(false))
 
     let posted: unknown = null
     await page.route('/api/agents/4242/answer-question', async (route: Route) => {
@@ -122,7 +108,7 @@ test.describe('AskUserQuestion in the needs-you band', () => {
   test('multi-select: answering posts {mode:multi,indices:[0,2]}', async ({ page }) => {
     await pinDashboardLanding(page)
     await stubAuthDisabled(page)
-    await stubAgents(page, true)
+    await stubAgents(page, questionAgents(true))
 
     let posted: unknown = null
     await page.route('/api/agents/4242/answer-question', async (route: Route) => {
@@ -151,7 +137,7 @@ test.describe('AskUserQuestion in the needs-you band', () => {
   test('confirm screen: submitting posts {mode:single,index:0}', async ({ page }) => {
     await pinDashboardLanding(page)
     await stubAuthDisabled(page)
-    await stubAgentsWith(page, agentWithConfirm)
+    await stubAgents(page, [agentWithConfirm()])
 
     let posted: unknown = null
     await page.route('/api/agents/4242/answer-question', async (route: Route) => {
