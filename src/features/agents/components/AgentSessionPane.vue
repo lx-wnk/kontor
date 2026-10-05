@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage, SubAgent } from '@/types'
 import { computed, nextTick, ref, watch } from 'vue'
 import CrossLinkBanner from '@/components/CrossLinkBanner.vue'
@@ -57,6 +58,10 @@ const approveHandler = computed(() =>
   props.agent.pipelineTaskId && props.agent.pendingPermissions?.length
     ? handleApprove
     : null,
+)
+
+const activeTrackedMessages = computed<TrackedMessage[]>(
+  () => promptInputRef.value?.trackedMessages ?? [],
 )
 
 function onMessageSent(msg: OutputMessage) {
@@ -157,6 +162,7 @@ defineExpose({ prefill: (t: string) => promptInputRef.value?.prefill(t) })
         ref="chatStreamRef"
         :agent="agent"
         :local-messages="localMessages"
+        :tracked-messages="activeTrackedMessages"
         class="flex-1 min-h-0 overflow-y-auto p-4"
       />
       <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" />

@@ -161,14 +161,13 @@ func ptyMux(ptmx *ptyWriter, hub *ptyHub, token *rotatingToken) *http.ServeMux {
 			http.Error(w, `{"error":"missing message"}`, http.StatusBadRequest)
 			return
 		}
-		// Inject the text, then submit with a carriage return written SEPARATELY
-		// after a short delay. Claude's TUI debounces pasted input, so a CR
-		// coalesced into the same write is absorbed as a literal newline in the
-		// prompt (typed-but-not-submitted) instead of triggering submit. Splitting
-		// the write mirrors the tmux path, which sends the text then a separate Enter.
-		// One job: no other writer can slip between the text and the CR and get
-		// its bytes submitted as part of this prompt.
-		if err := ptmx.WriteParts(injectSubmitDelay, []byte(payload.Message), []byte("\r")); err != nil {
+		// Wrap the message in bracketed paste sequences so the terminal treats
+		// the entire payload as one atomic paste event — multi-line content and
+		// long messages arrive as a single input, not split across chunks.
+		// ESC[200~ = start bracketed paste, ESC[201~ = end bracketed paste.
+		// The submitting CR is written SEPARATELY after a delay (same as before).
+		bracketedMsg := "\x1b[200~" + payload.Message + "\x1b[201~"
+		if err := ptmx.WriteParts(injectSubmitDelay, []byte(bracketedMsg), []byte("\r")); err != nil {
 			http.Error(w, `{"error":"write failed"}`, http.StatusInternalServerError)
 			return
 		}

@@ -24,3 +24,19 @@ func TestBuildAgent_WorkingFromTurnOpen(t *testing.T) {
 		t.Error("closed turn (no B signal here) → agent.Working must be false")
 	}
 }
+
+func TestBuildAgent_WorkingFromHasPendingBackground(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	m := New()
+	pending := &parser.SessionData{SessionID: "s1", LastActivity: time.Now(), TurnOpen: false, HasPendingBackground: true}
+	a := m.buildAgent(scanner.ProcessInfo{PID: 1, CWD: "/p", Provider: sdk.ProviderClaude}, pending, resolveExtra{}, 0)
+	if !a.Working {
+		t.Error("HasPendingBackground with closed turn → agent.Working must be true")
+	}
+	none := &parser.SessionData{SessionID: "s2", LastActivity: time.Now(), TurnOpen: false, HasPendingBackground: false}
+	b := m.buildAgent(scanner.ProcessInfo{PID: 2, CWD: "/p", Provider: sdk.ProviderClaude}, none, resolveExtra{}, 0)
+	if b.Working {
+		t.Error("no pending background and closed turn → agent.Working must be false")
+	}
+}
