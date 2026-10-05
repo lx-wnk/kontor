@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/capability"
 	"github.com/lx-wnk/kontor/server/internal/channelconfig"
@@ -725,12 +726,14 @@ func SpawnStageAgent(opts SpawnAgentOptions) (SpawnResult, error) {
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = &stderrLogger{prefix: fmt.Sprintf("agent[%s]", opts.Task.Slug)}
+	cmd.WaitDelay = 5 * time.Second
 	if err := cmd.Start(); err != nil {
 		if channelCfgPath != "" {
 			_ = os.Remove(channelCfgPath)
 		}
 		return SpawnResult{}, fmt.Errorf("SpawnStageAgent.Start: %w", err)
 	}
+	go func() { _ = cmd.Wait() }() // reap child on exit — prevents <defunct> zombies
 	cleanup := func() {
 		if channelCfgPath != "" {
 			_ = os.Remove(channelCfgPath)
