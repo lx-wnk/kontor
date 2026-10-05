@@ -1,6 +1,6 @@
 import type { Agent } from '@/types'
-import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AgentModal from './AgentModal.vue'
 
@@ -156,5 +156,34 @@ describe('agentModal session context', () => {
   it('mounts no terminal', () => {
     const w = mountModal({ ...baseAgent, liveInjectable: true })
     expect(w.html()).not.toContain('agent-terminal')
+  })
+})
+
+describe('agentModal delivery tracking', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  // The modal is reused across agents; a send tracked on agent A must not show
+  // as delivered on agent B.
+  it('does not carry a tracked send over to the next agent', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
+    const w = mount(AgentModal, {
+      props: { agent: { ...baseAgent, liveInjectable: true } },
+      global: {
+        stubs: {
+          ...stubs,
+          PromptInput: false,
+          AgentChatStream: { name: 'AgentChatStream', props: ['trackedMessages'], template: '<div />', methods: { scrollToBottom() {} } },
+        },
+      },
+    })
+    const trackedOnStream = () => w.findComponent({ name: 'AgentChatStream' }).props('trackedMessages')
+
+    await w.get('textarea').setValue('yes')
+    await w.get('textarea').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(trackedOnStream()).toHaveLength(1)
+
+    await w.setProps({ agent: { ...baseAgent, pid: 5678, sessionId: 'sess-2', liveInjectable: true } })
+    expect(trackedOnStream()).toHaveLength(0)
   })
 })

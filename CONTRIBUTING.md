@@ -62,6 +62,7 @@ Build the SPA **before** the binary — `go:embed` bakes the compiled frontend i
 | `task test` | Run all tests with race detector |
 | `task lint` | Run golangci-lint and the formatter check (sdk, server, every plugin) |
 | `task generate` | Run ent schema + tygo TS code generation |
+| `go test -tags entgen ./server/internal/db/entgen/ -count=1` | Fallback ent regeneration when `task generate` is unavailable (opt-in via build tag; drops the runtime `Version/Sum` block under the pinned toolchain, restore `runtime.go` by hand) |
 | `task fmt` | Format with the same formatter `task lint` checks (sdk, server, plugins) |
 | `task changelog:check` | Fail on a repeated release heading or `###` heading within one `CHANGELOG.md` release section |
 
@@ -96,6 +97,18 @@ plugins/anthropic-spawner/        Out-of-process Anthropic Messages API binary (
 The server binds exclusively to `127.0.0.1`. Never change this — the server reads sensitive Claude session data.
 
 Frontend path alias: `@/*` maps to `./src/*`.
+
+### Plan usage hook
+
+The statusline hook (`server/internal/hookscript/kontor-statusline.sh`) is installed by `kontor hooks install`, which writes the script to `<claude config dir>/kontor-hooks/` and sets `statusLine` in Claude's `settings.json` to it. `kontor hooks uninstall` removes the entry again, only when it points at that script; if you chained your own command as described below, uninstall puts that command back as `statusLine.command` instead of deleting it (and leaves the entry alone with a notice when it cannot unpack your chain). Install likewise leaves an owned command it cannot parse untouched and prints the command to set by hand. Claude Code allows a single `statusLine` command, so one you configured yourself is never overwritten: install leaves it in place and prints the entry that chains it, i.e. `statusLine.command` set to `KONTOR_STATUSLINE_CMD='<your command>' '<path to kontor-statusline.sh>'`. The script pipes the payload through that command, so your status bar keeps rendering. It reads Claude's `rate_limits` from stdin and POSTs the sample to `POST /api/hooks/plan-usage` in the background. The pipeline's usage gate reads the in-memory store before each native Claude spawn and blocks when a rate-limit window exceeds its threshold. The hook only fires for interactive sessions — headless `claude -p` does not invoke the statusline command.
+
+Three settings control the gate:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `usageGate.fiveHourPct` | 90 | Block spawns when the 5-hour window is at or above this percentage. |
+| `usageGate.sevenDayPct` | 95 | Block spawns when the 7-day window is at or above this percentage. |
+| `usageGate.staleMinutes` | 15 | **UI only.** Marks the Plan Usage widget row as visually stale after this many minutes without a fresh sample. Does **not** affect the spawn gate — a sample older than `staleMinutes` still gates spawns when its usage percentage exceeds the threshold. |
 
 ### Adding a provider
 

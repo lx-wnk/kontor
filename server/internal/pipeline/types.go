@@ -196,6 +196,13 @@ type StageContext struct {
 	// means the run gets no MCP applications.
 	ResolveApplications func(ctx context.Context, task *ent.Task) (mcpapps.RunApplications, error)
 
+	// CheckUsageGate, when non-nil, is called immediately before the native-
+	// Claude spawn. It returns a Decision; when Block is true the handler
+	// returns a RateLimitedTransition whose NextRetryAt is Decision.Until
+	// (without incrementing the retry counter — the agent did not run).
+	// Nil disables the gate (fail-open).
+	CheckUsageGate func(configDir string) UsageGateDecision
+
 	// RegisterSpawnCleanup takes the cleanup closure a spawn returns, so the
 	// files it wrote — the temp --mcp-config carrying the credential minted
 	// above, and the settings allow-list entries — are removed when the run
@@ -411,6 +418,23 @@ type OrchestratorOptions struct {
 	// does. nil disables MCP applications the same way a nil AuthorizeMemory
 	// disables the memory push.
 	ResolveApplications func(ctx context.Context, task *ent.Task) (mcpapps.RunApplications, error)
+
+	// CheckUsageGate is forwarded verbatim onto every StageContext this
+	// orchestrator builds — see the matching StageContext field. nil = no gate.
+	CheckUsageGate func(configDir string) UsageGateDecision
+
+	// PlanUsageResets, when non-nil, is consulted in the 429 backstop; the
+	// orchestrator sets nextRetryAt to max(backoff, returned reset).
+	PlanUsageResets func(configDir string) *time.Time
+}
+
+// UsageGateDecision is the outcome of a plan-usage gate check. Defined here
+// so the pipeline package does not import planusage; the DI root maps
+// planusage.Decision to this type in the closure it wires.
+type UsageGateDecision struct {
+	Block  bool
+	Until  time.Time
+	Reason string
 }
 
 // StageFailedInfo carries failure metadata to the OnStageFailed callback.

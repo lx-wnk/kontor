@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -50,7 +51,7 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		Revoke:    h.deps.Revoke,
 	}, taskID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), statusFor(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -75,7 +76,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		StageRuns: h.deps.StageRuns,
 		Requeue:   h.deps.Requeue,
 	}, taskID, body.Feedback); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), statusFor(err))
 		return
 	}
 
@@ -97,6 +98,15 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// statusFor maps a service error to its HTTP status: ErrPlanNotReady is a 409,
+// everything else a 500.
+func statusFor(err error) int {
+	if errors.Is(err, ErrPlanNotReady) {
+		return http.StatusConflict
+	}
+	return http.StatusInternalServerError
 }
 
 func jsonError(w http.ResponseWriter, msg string, status int) {
