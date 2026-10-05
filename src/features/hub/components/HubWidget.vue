@@ -29,7 +29,7 @@ import { agentNoteRows, liveEdges } from '../hubEdges'
 import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
-import { controlsBox, launcherAngles, launcherBox, launchersFor, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
+import { controlsBox, CORNER_INSET_PX, cornerBoxes, launcherAngles, launcherBox, launchersFor, LEGEND_ROW_BOTTOM_PX, LEGEND_ROW_GAP_PX, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
 import { MAP_RADIUS, packHub } from '../hubPack'
 import HubAgentCard from './HubAgentCard.vue'
 import HubBrainCanvas from './HubBrainCanvas.vue'
@@ -368,17 +368,24 @@ const queueBox = computed<LabelBox>(() => {
   const worstCase = queueWorstCaseBox(size.value.width, size.value.height)
   return needsYou.value.length > 0 ? worstCase : { ...worstCase, h: queueHeight.value }
 })
+// The lens row and the zoom-level group are text-sized, so they are measured; an unmeasured one is 0 wide and blocks nothing.
+const lensRow = ref<HTMLElement | null>(null)
+const { width: lensRowWidth } = useElementSize(lensRow)
+const levelGroup = computed(() => stage.value?.querySelector<HTMLElement>('[role="group"][aria-label="Zoom level"]') ?? null)
+const { width: levelGroupWidth, height: levelGroupHeight } = useElementSize(levelGroup, undefined, { box: 'border-box' })
 // launcherAngles works around the world origin, so the stage-local boxes drop the camera offset.
 const ringBlocked = computed<LabelBox[]>(() => {
   if (ringDocked.value)
     return []
-  return [queueBox.value, controlsBox(size.value.width, size.value.height)]
+  const corners = cornerBoxes(size.value.width, size.value.height, lensRowWidth.value, { width: levelGroupWidth.value, height: levelGroupHeight.value })
+  return [queueBox.value, controlsBox(size.value.width, size.value.height), ...Object.values(corners)]
     .map(box => ({ ...box, x: box.x - cam.value.tx, y: box.y - cam.value.ty }))
 })
 const ringAngles = computed(() => launcherAngles(launchers.value.length, launcherRingRadius(k0.value, outerRingBasePx.value) * cam.value.k, ringBlocked.value))
-// Undocked but no rotation clears the queue and the controls: dock rather than draw a launcher under them.
+// Undocked but no rotation clears the queue and the stage chrome: dock rather than draw a launcher under it.
 const docked = computed(() => ringDocked.value || ringAngles.value === null)
 const launcherBoxes = computed(() => launchers.value.map((_, i) => launcherBox(i, docked.value, cam.value, k0.value, outerRingBasePx.value, docked.value ? undefined : ringAngles.value?.[i])))
+const legendRowStyle = { left: `${CORNER_INSET_PX}px`, bottom: `${LEGEND_ROW_BOTTOM_PX}px`, gap: `${LEGEND_ROW_GAP_PX}px` }
 const queueWrapperStyle = { top: `${QUEUE_TOP_PX}px`, maxHeight: `${QUEUE_MAX_HEIGHT_SHARE * 100}%`, width: `min(${QUEUE_MAX_WIDTH_PX}px, calc(100% - ${QUEUE_SIDE_INSET_PX}px))` }
 // A launcher is opaque chrome. The ring clears the map by construction; the docked rail is fixed to
 // the screen while the map pans under it, so whatever it covers is unreachable and stays undrawn.
@@ -782,9 +789,9 @@ watch(hubFocusRequest, (target) => {
         @other="toggleList"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" :angles="docked ? undefined : ringAngles ?? undefined" @launch="launch" />
-      <div class="absolute bottom-12 left-2.5 z-[2] flex items-end gap-1.5">
+      <div class="absolute z-[2] flex items-end" :style="legendRowStyle">
         <HubLegend :open="legendOpen" :level="level" @toggle="toggleLegend" />
-        <div v-if="lensCounts" class="flex items-center gap-1.5" data-testid="hub-lenses">
+        <div v-if="lensCounts" ref="lensRow" class="flex items-center gap-1.5" data-testid="hub-lenses">
           <button
             v-for="l in HEALTH_LENSES"
             :key="l"

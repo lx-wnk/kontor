@@ -94,3 +94,29 @@ export function controlsBox(stageWidth: number, stageHeight: number): LabelBox {
   const h = CONTROLS_BUTTON_COUNT * CONTROLS_BUTTON_PX + (CONTROLS_BUTTON_COUNT - 1) * CONTROLS_GAP_PX
   return { x: stageWidth - CONTROLS_RIGHT_INSET_PX - CONTROLS_BUTTON_PX, y: (stageHeight - h) / 2, w: CONTROLS_BUTTON_PX, h }
 }
+
+// The chrome pinned to the stage's bottom corners. HubWidget.vue binds the legend row's position and gap
+// from these; HubLegend.vue's button, HubMinimap.vue and HubControls.vue's zoom-level group carry the
+// same sizes and inset in their classes.
+export const CORNER_INSET_PX = 10
+export const LEGEND_ROW_BOTTOM_PX = 48
+export const LEGEND_ROW_GAP_PX = 6
+export const LEGEND_BUTTON_PX = 30
+export const MINIMAP_PX = 108
+
+export interface MeasuredSize { width: number, height: number }
+
+// The legend button with the lens row beside it, the zoom-level group and the minimap. The lens row
+// (0 wide while there is no vault) and the level group are text-sized, so they arrive measured.
+export function cornerBoxes(stageWidth: number, stageHeight: number, lensRowWidth: number, levelGroup: MeasuredSize): Record<'legendRow' | 'levelGroup' | 'minimap', LabelBox> {
+  return {
+    legendRow: {
+      x: CORNER_INSET_PX,
+      y: stageHeight - LEGEND_ROW_BOTTOM_PX - LEGEND_BUTTON_PX,
+      w: LEGEND_BUTTON_PX + (lensRowWidth > 0 ? LEGEND_ROW_GAP_PX + lensRowWidth : 0),
+      h: LEGEND_BUTTON_PX,
+    },
+    levelGroup: { x: CORNER_INSET_PX, y: stageHeight - CORNER_INSET_PX - levelGroup.height, w: levelGroup.width, h: levelGroup.height },
+    minimap: { x: stageWidth - CORNER_INSET_PX - MINIMAP_PX, y: stageHeight - CORNER_INSET_PX - MINIMAP_PX, w: MINIMAP_PX, h: MINIMAP_PX },
+  }
+}

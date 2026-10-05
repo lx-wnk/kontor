@@ -17,7 +17,7 @@ import { fitScale } from '../hubCamera'
 import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
 import { DAY_MS, LAUNCHER_PX, planSectors } from '../hubGeometry'
-import { controlsBox, queueWorstCaseBox } from '../hubLaunchers'
+import { controlsBox, cornerBoxes, queueWorstCaseBox } from '../hubLaunchers'
 import { MAP_RADIUS, packHub } from '../hubPack'
 import { labelSize, stubLabelMeasurement } from './labelMeasurement'
 
@@ -379,6 +379,51 @@ describe('hubWidget', () => {
     const boxes = await launcherBoxesAt(TALL_STAGE, rel, 1)
     expect(boxes.length).toBeGreaterThan(0)
     expect(boxes.some(b => boxesOverlap(b, controlsBox(TALL_STAGE.width, TALL_STAGE.height)))).toBe(false)
+  })
+
+  // Panning slides launchers under the chrome pinned to the stage's bottom corners, which paints above them.
+  // Its text-sized parts are measured; jsdom lays nothing out, so the test tells their observers the size.
+  const LEVEL_GROUP = { width: 187, height: 28 }
+  const LENS_ROW_WIDTH = 200
+  const LEVEL_GROUP_SELECTOR = '[role="group"][aria-label="Zoom level"]'
+
+  async function launchersOverCorners(view: { wx: number, wy: number, rel: number }, withVault = false) {
+    lastHubView.value = view
+    if (withVault) {
+      graph.status.value = 'ready'
+      graph.notes.value = [vaultNote(0, 'alpha/one.md')]
+    }
+    const w = await mountHub(TALL_STAGE)
+    const measure = (el: Element, size: { width: number, height: number }) => {
+      const observer = observerOf(el)
+      if (observer)
+        resizeTo(observer, size)
+    }
+    measure(w.get(LEVEL_GROUP_SELECTOR).element, LEVEL_GROUP)
+    if (withVault)
+      measure(w.get('[data-testid="hub-lenses"]').element, { width: LENS_ROW_WIDTH, height: 30 })
+    await flushPromises()
+    const boxes = launcherBoxesOf(w)
+    w.unmount()
+    return { boxes, corners: cornerBoxes(TALL_STAGE.width, TALL_STAGE.height, withVault ? LENS_ROW_WIDTH : 0, LEVEL_GROUP) }
+  }
+
+  it('keeps every launcher off the zoom-level group when the map is panned toward it', async () => {
+    const { boxes, corners } = await launchersOverCorners({ wx: 220, wy: -100, rel: 0.86 })
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.some(b => boxesOverlap(b, corners.levelGroup))).toBe(false)
+  })
+
+  it('keeps every launcher off the minimap when the map is panned toward it', async () => {
+    const { boxes, corners } = await launchersOverCorners({ wx: -380, wy: -100, rel: 0.8 })
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.some(b => boxesOverlap(b, corners.minimap))).toBe(false)
+  })
+
+  it('keeps every launcher off the legend and lens row when the map is panned toward it', async () => {
+    const { boxes, corners } = await launchersOverCorners({ wx: 400, wy: -280, rel: 0.62 }, true)
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.some(b => boxesOverlap(b, corners.legendRow))).toBe(false)
   })
 
   it('docks the launchers when the map leaves no room on a narrow stage, keeps the ring outside MAP_RADIUS on a roomy one', async () => {
