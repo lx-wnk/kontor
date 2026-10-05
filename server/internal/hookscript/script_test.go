@@ -1,12 +1,16 @@
 package hookscript_test
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/hookscript"
 )
@@ -242,5 +246,83 @@ func TestStatuslineChainedCommandOutputIsUnchanged(t *testing.T) {
 	got := runStatusline(t, statuslinePayload, "KONTOR_STATUSLINE_CMD=tr a-z A-Z")
 	if want := strings.ToUpper(statuslinePayload); got != want {
 		t.Fatalf("stdout = %q, want the chained command's output %q", got, want)
+	}
+}
+
+type recordedPost struct {
+	method, path, auth string
+	body               []byte
+}
+
+// recordPosts serves 204 and records every request. The POST runs in a
+// background subshell of the script, so tests read from the channel with a
+// timeout instead of assuming it has landed when the script exits.
+func recordPosts(t *testing.T) (*httptest.Server, <-chan recordedPost) {
+	t.Helper()
+	posts := make(chan recordedPost, 8)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		posts <- recordedPost{method: r.Method, path: r.URL.Path, auth: r.Header.Get("Authorization"), body: body}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+	return srv, posts
+}
+
+func statuslineEnvFor(srv *httptest.Server) []string {
+	return []string{"KONTOR_URL=" + srv.URL, "KONTOR_HOOKS_SECRET=test-secret", "CLAUDE_CONFIG_DIR=/cfg/acct"}
+}
+
+func TestStatuslinePostsOnlyTheRateLimitsBlock(t *testing.T) {
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("curl not on PATH")
+	}
+	srv, posts := recordPosts(t)
+	payload := `{"model":{"display_name":"Opus"},"cwd":"/secret/project","session_id":"s1",` +
+		`"rate_limits":{"five_hour":{"used_percentage":12,"resets_at":1790000000},"seven_day":{"used_percentage":3,"resets_at":1790500000}}}`
+	runStatusline(t, payload, statuslineEnvFor(srv)...)
+
+	select {
+	case got := <-posts:
+		if got.method != http.MethodPost || got.path != "/api/hooks/plan-usage" {
+			t.Fatalf("request = %s %s, want POST /api/hooks/plan-usage", got.method, got.path)
+		}
+		if got.auth != "Bearer test-secret" {
+			t.Fatalf("Authorization = %q, want the bearer secret", got.auth)
+		}
+		var gotBody, wantBody any
+		if err := json.Unmarshal(got.body, &gotBody); err != nil {
+			t.Fatalf("body %q is not JSON: %v", got.body, err)
+		}
+		want := `{"config_dir":"/cfg/acct","rate_limits":{"five_hour":{"used_percentage":12,"resets_at":1790000000},"seven_day":{"used_percentage":3,"resets_at":1790500000}}}`
+		if err := json.Unmarshal([]byte(want), &wantBody); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(gotBody, wantBody) {
+			t.Fatalf("body = %s, want exactly %s (nothing but config_dir and rate_limits)", got.body, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no POST reached Kontor")
+	}
+}
+
+func TestStatuslineSkipsThePostWithoutRateLimits(t *testing.T) {
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Skip("curl not on PATH")
+	}
+	for name, payload := range map[string]string{
+		"no rate_limits key": `{"model":{"display_name":"Opus"},"cwd":"/work/repo"}`,
+		"null rate_limits":   `{"model":{"display_name":"Opus"},"rate_limits":null}`,
+		"payload not JSON":   "not json {",
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv, posts := recordPosts(t)
+			runStatusline(t, payload, statuslineEnvFor(srv)...)
+			select {
+			case got := <-posts:
+				t.Fatalf("unexpected %s %s with body %q", got.method, got.path, got.body)
+			case <-time.After(500 * time.Millisecond):
+			}
+		})
 	}
 }

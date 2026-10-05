@@ -195,14 +195,12 @@ func provideOrchestrator(
 			d := usageDecision(configDir)
 			return pipeline.UsageGateDecision{Block: d.Block, Until: d.Until, Reason: d.Reason}
 		},
-		// Only a window at or above its threshold explains a 429; a healthy
-		// window's resets_at (up to seven days out) must not delay the retry.
 		PlanUsageResets: func(configDir string) *time.Time {
-			d := usageDecision(configDir)
-			if !d.Block {
+			sample, ok := planStore.Get(configDir)
+			if !ok {
 				return nil
 			}
-			return &d.Until
+			return planusage.RetryResetAfter429(&sample, time.Now(), float64(usageGateFiveHourPct()), float64(usageGateSevenDayPct()))
 		},
 		// BuildTaskPayload is called inside applyTransitionWrites, bound to the
 		// active transaction, so the returned snapshot reflects the just-applied

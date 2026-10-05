@@ -134,3 +134,83 @@ func TestDecide_UntilIsMaxOfWindows(t *testing.T) {
 		t.Errorf("Until = %v, want %v (the later reset)", d.Until, weeklyReset)
 	}
 }
+
+func TestRetryResetAfter429(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	fiveReset := now.Add(2 * time.Hour)
+	weeklyReset := now.Add(72 * time.Hour)
+	past := now.Add(-1 * time.Hour)
+
+	tests := []struct {
+		name   string
+		sample *Sample
+		want   *time.Time
+	}{
+		{
+			name:   "no sample",
+			sample: nil,
+		},
+		{
+			name:   "sample without windows",
+			sample: &Sample{},
+		},
+		{
+			name:   "over-threshold 5h window = its reset, not the later weekly one",
+			sample: &Sample{FiveHour: &Window{UsedPct: 95, ResetsAt: fiveReset}, SevenDay: &Window{UsedPct: 50, ResetsAt: weeklyReset}},
+			want:   &fiveReset,
+		},
+		{
+			name:   "over-threshold weekly window = its reset, not the earlier 5h one",
+			sample: &Sample{FiveHour: &Window{UsedPct: 50, ResetsAt: fiveReset}, SevenDay: &Window{UsedPct: 99, ResetsAt: weeklyReset}},
+			want:   &weeklyReset,
+		},
+		{
+			name:   "both over threshold = the blocking decision's later reset",
+			sample: &Sample{FiveHour: &Window{UsedPct: 95, ResetsAt: fiveReset}, SevenDay: &Window{UsedPct: 99, ResetsAt: weeklyReset}},
+			want:   &weeklyReset,
+		},
+		{
+			name:   "none over threshold = earliest future reset (5h, not 7d)",
+			sample: &Sample{FiveHour: &Window{UsedPct: 70, ResetsAt: fiveReset}, SevenDay: &Window{UsedPct: 40, ResetsAt: weeklyReset}},
+			want:   &fiveReset,
+		},
+		{
+			name:   "none over threshold, 5h reset order reversed = still the earliest",
+			sample: &Sample{FiveHour: &Window{UsedPct: 70, ResetsAt: weeklyReset}, SevenDay: &Window{UsedPct: 40, ResetsAt: fiveReset}},
+			want:   &fiveReset,
+		},
+		{
+			name:   "none over threshold, only weekly present",
+			sample: &Sample{SevenDay: &Window{UsedPct: 40, ResetsAt: weeklyReset}},
+			want:   &weeklyReset,
+		},
+		{
+			name:   "none over threshold, past 5h reset ignored",
+			sample: &Sample{FiveHour: &Window{UsedPct: 70, ResetsAt: past}, SevenDay: &Window{UsedPct: 40, ResetsAt: weeklyReset}},
+			want:   &weeklyReset,
+		},
+		{
+			name:   "all resets in the past",
+			sample: &Sample{FiveHour: &Window{UsedPct: 70, ResetsAt: past}, SevenDay: &Window{UsedPct: 40, ResetsAt: past}},
+		},
+		{
+			name:   "over-threshold window already reset falls back to the other future reset",
+			sample: &Sample{FiveHour: &Window{UsedPct: 95, ResetsAt: past}, SevenDay: &Window{UsedPct: 40, ResetsAt: weeklyReset}},
+			want:   &weeklyReset,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RetryResetAfter429(tt.sample, now, 90, 95)
+			switch {
+			case tt.want == nil && got != nil:
+				t.Errorf("RetryResetAfter429() = %v, want nil", *got)
+			case tt.want != nil && got == nil:
+				t.Errorf("RetryResetAfter429() = nil, want %v", *tt.want)
+			case tt.want != nil && !got.Equal(*tt.want):
+				t.Errorf("RetryResetAfter429() = %v, want %v", *got, *tt.want)
+			}
+		})
+	}
+}

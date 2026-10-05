@@ -423,9 +423,8 @@ type OrchestratorOptions struct {
 	// orchestrator builds — see the matching StageContext field. nil = no gate.
 	CheckUsageGate func(configDir string) UsageGateDecision
 
-	// PlanUsageStore, when non-nil, is consulted in the 429 backstop to set
-	// nextRetryAt to max(backoff, resets_at) when a known sample exists. The
-	// concrete type is opaque here; the closure accesses the store's Get method.
+	// PlanUsageResets, when non-nil, is consulted in the 429 backstop; the
+	// orchestrator sets nextRetryAt to max(backoff, returned reset).
 	PlanUsageResets func(configDir string) *time.Time
 }
 
