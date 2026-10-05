@@ -74,8 +74,87 @@ func TestPtyHTTPServer_InjectsMessageWithCR(t *testing.T) {
 	for time.Now().Before(deadline) && w.String() == "" {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if got := w.String(); got != "/security-review\r" {
-		t.Fatalf("pty got %q, want %q", got, "/security-review\r")
+	// The message is wrapped in bracketed paste sequences: ESC[200~ ... ESC[201~
+	want := "\x1b[200~/security-review\x1b[201~\r"
+	if got := w.String(); got != want {
+		t.Fatalf("pty got %q, want %q", got, want)
+	}
+}
+
+// TestPtyHTTPServer_BracketedPasteWraps asserts that POST /message wraps the
+// payload in bracketed paste sequences (ESC[200~ ... ESC[201~).
+func TestPtyHTTPServer_BracketedPasteWraps(t *testing.T) {
+	w := &syncBuf{}
+	srv, port, err := startPtyHTTPServer(newPtyWriter(w), newPtyHub(1024), newRotatingToken("secret-token"))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/message", port)
+
+	req, _ := http.NewRequest("POST", url, strings.NewReader(`{"message":"hello\nworld"}`))
+	req.Header.Set("Authorization", "Bearer secret-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("req: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && w.String() == "" {
+		time.Sleep(5 * time.Millisecond)
+	}
+	got := w.String()
+	// Must start with bracketed paste start sequence
+	if !strings.HasPrefix(got, "\x1b[200~") {
+		t.Fatalf("expected bracketed paste start, got %q", got)
+	}
+	// Must end with bracketed paste end sequence + CR
+	if !strings.HasSuffix(got, "\x1b[201~\r") {
+		t.Fatalf("expected bracketed paste end + CR, got %q", got)
+	}
+}
+
+// TestPtyHTTPServer_MultiLinePreserved asserts that POST /message preserves
+// newlines in the payload, delivering multi-line content atomically via
+// bracketed paste.
+func TestPtyHTTPServer_MultiLinePreserved(t *testing.T) {
+	w := &syncBuf{}
+	srv, port, err := startPtyHTTPServer(newPtyWriter(w), newPtyHub(1024), newRotatingToken("secret-token"))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/message", port)
+
+	// Multi-line message — newlines must survive inside the bracketed paste.
+	req, _ := http.NewRequest("POST", url, strings.NewReader(`{"message":"line1\nline2\nline3"}`))
+	req.Header.Set("Authorization", "Bearer secret-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("req: %v", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && w.String() == "" {
+		time.Sleep(5 * time.Millisecond)
+	}
+	got := w.String()
+	// All three lines must be present, wrapped in bracketed paste.
+	want := "\x1b[200~line1\nline2\nline3\x1b[201~\r"
+	if got != want {
+		t.Fatalf("pty got %q, want %q", got, want)
 	}
 }
 

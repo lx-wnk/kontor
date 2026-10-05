@@ -20,6 +20,7 @@ import (
 	"time"
 
 	sdk "github.com/lx-wnk/kontor/sdk"
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
@@ -636,6 +637,17 @@ func (o *PipelineOrchestrator) handleFailedResult(ctx context.Context, task *ent
 			attempt := fresh.RateLimitRetryCount + 1
 			backoffSec := o.configCache.Number(ctx, rateLimitBackoffKey, defaultRateLimitBackoff)
 			nextRetryAt := time.Now().Add(time.Duration(backoffSec) * time.Second)
+			// Backstop: when the plan-usage store knows this account's
+			// resets_at, push nextRetryAt out to at least that time so the
+			// retry does not fire before the window resets.
+			if o.opts.PlanUsageResets != nil {
+				configDir := o.resolveConfigDirFromRun(ctx, task, fresh)
+				if resetsAt := o.opts.PlanUsageResets(configDir); resetsAt != nil && resetsAt.After(nextRetryAt) {
+					nextRetryAt = *resetsAt
+					slog.Info("orchestrator: 429 backstop extended nextRetryAt to resets_at",
+						"runID", fresh.ID, "configDir", configDir, "resetsAt", resetsAt)
+				}
+			}
 			slog.Info("orchestrator: requeuing rate-limited run",
 				"runID", fresh.ID, "stage", fresh.Stage, "attempt", attempt,
 				"maxRateLimitRetries", maxRL, "backoffSec", backoffSec)
@@ -1179,4 +1191,18 @@ func syscallKill(pid int) error {
 		return err
 	}
 	return proc.Signal(syscall.SIGTERM)
+}
+
+// resolveConfigDirFromRun resolves the Claude config dir for a completed run
+// by looking up its spawner (if available) and extracting CLAUDE_CONFIG_DIR
+// from the spawner env. Falls back to the server's own claudeconfig.ConfigDir().
+func (o *PipelineOrchestrator) resolveConfigDirFromRun(ctx context.Context, task *ent.Task, run *ent.StageRun) string {
+	if o.opts.ResolveSpawner != nil {
+		sp, err := o.opts.ResolveSpawner(ctx, task.ID, run.Stage)
+		if err == nil {
+			return resolveConfigDir(sp)
+		}
+		slog.Warn("orchestrator: resolveConfigDirFromRun failed, using default", "err", err)
+	}
+	return claudeconfig.ConfigDir()
 }

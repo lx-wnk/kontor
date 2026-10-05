@@ -14,6 +14,7 @@ import { formatCost, formatDuration } from '@/utils/format'
 import { secondsUntil } from '@/utils/retryCountdown'
 import { STAGE_LABELS } from '@/utils/stageLabels'
 import { agentStatusTone, runStatusLabel, runStatusTone, stageTone } from '@/utils/statusColors'
+import { taskAttentionCause } from '@/utils/taskAttentionCause'
 
 const props = withDefaults(defineProps<{
   task: PipelineTask
@@ -80,6 +81,7 @@ const prError = computed(() => {
 useIntervalFn(refreshCountdown, 1000, { immediate: true })
 
 const activeChildOutputExpanded = ref(false)
+const attentionCause = computed(() => taskAttentionCause(props.task))
 </script>
 
 <template>
@@ -214,7 +216,7 @@ const activeChildOutputExpanded = ref(false)
         {{ stageLabel(task.currentStage) }}
       </AppChip>
       <AppChip
-        v-if="task.latestStageRunStatus"
+        v-if="task.latestStageRunStatus && attentionCause?.kind !== 'usage_limit'"
         :tone="runStatusTone(task.latestStageRunStatus)"
         mono
         uppercase
@@ -232,13 +234,14 @@ const activeChildOutputExpanded = ref(false)
         {{ retryChipInfo.label }}
       </AppChip>
       <AppChip
-        v-if="task.needsUser && task.latestStageRunStatus === 'awaiting_user'"
-        tone="warning"
+        v-if="attentionCause"
+        :tone="attentionCause.tone"
         mono
         uppercase
-        title="Agent is paused and waiting for a permission grant"
+        :title="attentionCause.title"
+        data-testid="attention-cause-chip"
       >
-        ⚠ Needs Permission
+        {{ attentionCause.label }}
       </AppChip>
       <AppChip
         v-if="task.blockedByPendingPermissions"
@@ -268,12 +271,6 @@ const activeChildOutputExpanded = ref(false)
       </AppChip>
       <AppChip v-if="task.parentTaskId" tone="info" mono title="Follow-up task">
         ↳
-      </AppChip>
-      <AppChip v-if="task.isUnsatisfiable" tone="warning" mono title="Unsatisfiable dep">
-        ⚠ Unsatisfiable dep
-      </AppChip>
-      <AppChip v-else-if="task.isBlocked" tone="neutral" mono title="Waiting for prerequisite">
-        🔒 Blocked
       </AppChip>
       <AppChip v-if="task.currentStage === 'implementation'" tone="warning" mono>
         max iter {{ task.maxIterations }}

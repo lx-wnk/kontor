@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/proc"
@@ -15,6 +16,19 @@ const agentMessageMaxChars = 2000
 // set_stage_output endpoint, so orchestrator bookkeeping in the same field is
 // never mistaken for a submitted stage result.
 const StageOutputSubmittedKey = "stage_output_submitted"
+
+// WaitReasonKey holds the human-readable reason a WaitUserTransition parked the
+// run, written into the same stage_run.output as the stage result.
+const WaitReasonKey = "wait_reason"
+
+// StageResult returns a copy of a stage_run.output without the keys the
+// orchestrator writes beside the agent's result.
+func StageResult(output map[string]any) map[string]any {
+	result := maps.Clone(output)
+	delete(result, StageOutputSubmittedKey)
+	delete(result, WaitReasonKey)
+	return result
+}
 
 // isRateLimitError returns true when the API error represents a rate or usage limit.
 // Matches by HTTP status (429/529/503) or by the structured error kind field.
@@ -41,6 +55,8 @@ func ValidateStageOutput(stage string, output map[string]any) ValidationResult {
 		return validateFinalization(output)
 	case StageJob:
 		return validateJob(output)
+	case "plan_review":
+		return validatePlanReview(output)
 	default:
 		return ValidationResult{OK: true}
 	}
@@ -87,6 +103,32 @@ func validateJob(o map[string]any) ValidationResult {
 		return missing("result (string)")
 	}
 	return ValidationResult{OK: true}
+}
+
+// validatePlanReview rejects only an empty submission: the plan has no enforced
+// schema, but an empty one would otherwise reach the approve gate.
+func validatePlanReview(o map[string]any) ValidationResult {
+	for _, v := range o {
+		if !isEmptyValue(v) {
+			return ValidationResult{OK: true}
+		}
+	}
+	return ValidationResult{OK: false, Error: "plan output is empty: provide a summary, steps, filesTouched and testApproach"}
+}
+
+func isEmptyValue(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(x) == ""
+	case []any:
+		return len(x) == 0
+	case map[string]any:
+		return len(x) == 0
+	default:
+		return false
+	}
 }
 
 type CompletionResult struct {

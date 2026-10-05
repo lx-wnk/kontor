@@ -79,6 +79,23 @@ type TurnResponse struct {
 	CreatedAt string   `json:"created_at"` // RFC3339
 }
 
+// NewTurnResponses converts ent turns to the canonical JSON shape used by both
+// the HTTP handler and the MCP get_refine_draft tool.
+func NewTurnResponses(turns []*ent.RefinementTurn) []TurnResponse {
+	resp := make([]TurnResponse, 0, len(turns))
+	for _, t := range turns {
+		resp = append(resp, TurnResponse{
+			ID:        t.ID,
+			Role:      string(t.Role),
+			Content:   t.Content,
+			Phase:     t.Phase,
+			Options:   t.Options,
+			CreatedAt: t.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	return resp
+}
+
 // GET /api/refine/{taskId}/turns
 func (h *Handler) listTurns(w http.ResponseWriter, r *http.Request) {
 	// Auth is enforced by RequireAuth middleware on the protected group; in
@@ -91,20 +108,8 @@ func (h *Handler) listTurns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]TurnResponse, 0, len(turns))
-	for _, t := range turns {
-		resp = append(resp, TurnResponse{
-			ID:        t.ID,
-			Role:      string(t.Role),
-			Content:   t.Content,
-			Phase:     t.Phase,
-			Options:   t.Options,
-			CreatedAt: t.CreatedAt.Format(time.RFC3339),
-		})
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(NewTurnResponses(turns))
 }
 
 // GET /api/refine/{taskId}/status — current refine run status for the task.

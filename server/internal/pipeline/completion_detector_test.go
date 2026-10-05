@@ -452,3 +452,51 @@ func TestDetectCompletion_EnvelopeMiss_CarriesFeedback(t *testing.T) {
 	require.Equal(t, "I finished the work but forgot the envelope", res.Output["agentMessage"],
 		"the agent's own text must survive into the feedback, else the retry is blind")
 }
+
+func TestValidateStageOutput_PlanReview_RejectsEmptySubmission(t *testing.T) {
+	cases := map[string]map[string]any{
+		"no keys":    {},
+		"nil map":    nil,
+		"all empty":  {"summary": "", "steps": []any{}, "filesTouched": []any{}, "testApproach": ""},
+		"whitespace": {"summary": "  \n", "steps": nil},
+	}
+	for name, out := range cases {
+		t.Run(name, func(t *testing.T) {
+			v := pipeline.ValidateStageOutput("plan_review", out)
+			require.False(t, v.OK)
+			require.Contains(t, v.Error, "empty")
+		})
+	}
+}
+
+func TestValidateStageOutput_PlanReview_AcceptsRealisticPlan(t *testing.T) {
+	v := pipeline.ValidateStageOutput("plan_review", map[string]any{
+		"summary":      "Guard approve on the submitted marker",
+		"steps":        []any{"extend ValidateStageOutput", "carry transcript plan into the run"},
+		"filesTouched": []any{"server/internal/pipeline/transitions.go"},
+		"testApproach": "table tests plus a finalize integration test",
+	})
+	require.True(t, v.OK)
+}
+
+func TestValidateStageOutput_OtherStagesAcceptEmptyObject(t *testing.T) {
+	for _, stage := range []string{"implementation", "ready"} {
+		require.True(t, pipeline.ValidateStageOutput(stage, map[string]any{}).OK, stage)
+	}
+}
+
+func TestDetectCompletion_PlanReviewEmptyFence_RetryableSchemaFailure(t *testing.T) {
+	now := time.Now()
+	sid := "sid-empty-plan"
+	sr := stageRun("plan_review", ptr(0), &sid, &now)
+
+	res, err := pipeline.DetectCompletion(sr, "/tmp", pipeline.CompletionDeps{
+		IsPidAlive: func(int) bool { return false },
+		ReadOutput: func(string, string) (pipeline.StageOutputRead, error) {
+			return pipeline.StageOutputRead{Output: map[string]any{}, RawText: "```json\n{}\n```"}, nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "failed", res.Kind)
+	require.True(t, res.Retryable, "an empty plan takes the schema-rejection feedback path")
+}

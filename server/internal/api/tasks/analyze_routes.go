@@ -152,7 +152,7 @@ func (h *Handler) analyzeTask(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("analyze: spawn: %w", err)
 	}
 	pid := cmd.Process.Pid
-	cmd.Process.Release() //nolint:errcheck // detach
+	go func() { _ = cmd.Wait() }() // reap child on exit — prevents <defunct> zombies
 
 	analysisMu.Lock()
 	activeAnalysisPIDs[id] = pid
