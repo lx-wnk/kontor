@@ -687,6 +687,93 @@ func TestDenies_AppliedTwiceLeavesOneGrant(t *testing.T) {
 		"re-applying the denies must not stack a second grant")
 }
 
+func TestPatch_IntoAPresetDeniesTheDangerousToolsAtOnce(t *testing.T) {
+	mux, apps, grants, _, _, _ := newMux(t)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"node","args":["x.js"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"entry": map[string]any{"command": "npx", "args": []string{"-y", "imap-mcp-server@2.0.0"}},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+	require.NotEmpty(t, preset.DenyGlobal)
+	for _, tool := range preset.DenyGlobal {
+		require.Equal(t, 1, liveDenies(t, grants, mcpapps.CapabilityName("mail", tool)),
+			"editing a server into a preset must deny %s like creating it does", tool)
+	}
+}
+
+func TestPatch_IntoAnUnconfirmedPresetIs422AndChangesNothing(t *testing.T) {
+	mux, apps, grants, _, _, _ := newMuxWithPresets(t, unverifiedPresetLookup)
+	ctx := context.Background()
+	stored := json.RawMessage(`{"command":"node","args":["x.js"]}`)
+	_, err := apps.SetEntry(ctx, "res-mail", stored)
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"attachAll":   true,
+		"requiredEnv": []string{"TOKEN"},
+		"entry":       map[string]any{"command": "npx", "args": []string{"-y", unverifiedServerArg}},
+	})
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "not confirmed")
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.JSONEq(t, string(stored), string(app.Entry), "a refused edit must leave the stored entry alone")
+	require.False(t, app.AttachAll, "a refused edit must not apply the other fields of the same request")
+	require.Empty(t, app.RequiredEnv)
+	allGrants, err := grants.List(ctx)
+	require.NoError(t, err)
+	require.Empty(t, allGrants)
+}
+
+func TestPatch_WithoutAnEntryChangesNoDenies(t *testing.T) {
+	mux, apps, grants, _, _, _ := newMux(t)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"attachAll": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	allGrants, err := grants.List(ctx)
+	require.NoError(t, err)
+	require.Empty(t, allGrants, "only a changed entry re-applies the denies")
+}
+
+func TestPatch_ToAnEntryWithoutAPresetAddsNoDenies(t *testing.T) {
+	mux, _, grants, _, _, _ := newMux(t)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"entry": map[string]any{"command": "node", "args": []string{"x.js"}},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	allGrants, err := grants.List(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, allGrants)
+}
+
+func TestDenies_UnconfirmedPresetIs422(t *testing.T) {
+	mux, apps, grants, _, _, _ := newMuxWithPresets(t, unverifiedPresetLookup)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["-y","`+unverifiedServerArg+`"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/denies", nil)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "not confirmed")
+
+	allGrants, err := grants.List(ctx)
+	require.NoError(t, err)
+	require.Empty(t, allGrants)
+}
+
 // fakeSetup records what the routes asked for and answers without starting a
 // process. The manager's own behaviour is covered in its package.
 type fakeSetup struct {

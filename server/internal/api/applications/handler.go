@@ -27,6 +27,8 @@ import (
 
 var envNameRE = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
 
+const presetUnconfirmedMessage = "is not confirmed against a live tool catalogue; its deny list cannot be applied"
+
 type Handler struct {
 	apps         repo.MCPApplicationRepo
 	secrets      repo.ApplicationSecretRepo
@@ -226,6 +228,19 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
 	}
+	var entry json.RawMessage
+	if body.Entry != nil {
+		if entry, err = mcpapps.MergeEntry(app.Entry, *body.Entry); err != nil {
+			return err
+		}
+		merged, err := mcpapps.ParseEntry(entry)
+		if err != nil {
+			return err
+		}
+		if err := h.refuseUnconfirmedPreset(merged); err != nil {
+			return err
+		}
+	}
 	if body.RequiredEnv != nil {
 		for _, name := range *body.RequiredEnv {
 			if !envNameRE.MatchString(name) {
@@ -242,11 +257,10 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	if body.Entry != nil {
-		raw, err := mcpapps.MergeEntry(app.Entry, *body.Entry)
-		if err != nil {
+		if app, err = h.apps.SetEntry(r.Context(), app.ResourceID, entry); err != nil {
 			return err
 		}
-		if app, err = h.apps.SetEntry(r.Context(), app.ResourceID, raw); err != nil {
+		if _, err := h.applyDenies(r, app); err != nil {
 			return err
 		}
 	}
@@ -352,7 +366,7 @@ func (h *Handler) importApplication(w http.ResponseWriter, r *http.Request) erro
 	}
 	// A server whose dangerous tools are not denied yet is the state this
 	// exists to prevent, so a failure here fails the request.
-	if err := h.applyDenies(r, app); err != nil {
+	if _, err := h.applyDenies(r, app); err != nil {
 		return err
 	}
 	v, err := h.view(r, app)
@@ -420,7 +434,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 	}
 	// A server whose dangerous tools are not denied yet is the state this
 	// exists to prevent, so a failure here fails the request.
-	if err := h.applyDenies(r, app); err != nil {
+	if _, err := h.applyDenies(r, app); err != nil {
 		return err
 	}
 	v, err := h.view(r, app)
@@ -479,7 +493,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if err := h.applyDenies(r, app); err != nil {
+	if _, err := h.applyDenies(r, app); err != nil {
 		return err
 	}
 	v, err := h.view(r, app)
@@ -498,7 +512,7 @@ func (h *Handler) refuseUnconfirmedPreset(entry mcpapps.ServerEntry) error {
 		return nil
 	}
 	if err := p.CheckConfirmed(); err != nil {
-		return apierr.NewAppError(http.StatusUnprocessableEntity, "preset "+p.Server+" is not confirmed against a live tool catalogue; its deny list cannot be applied")
+		return apierr.NewAppError(http.StatusUnprocessableEntity, "preset "+p.Server+" "+presetUnconfirmedMessage)
 	}
 	return nil
 }
@@ -506,14 +520,17 @@ func (h *Handler) refuseUnconfirmedPreset(entry mcpapps.ServerEntry) error {
 // applyDenies writes the preset's default denies for app. It runs wherever an
 // application's definition appears or changes, and is idempotent, so the
 // window between adding a server and reading its tool list is never open.
-func (h *Handler) applyDenies(r *http.Request, app *ent.MCPApplication) error {
+func (h *Handler) applyDenies(r *http.Request, app *ent.MCPApplication) (mcpapps.DenyResult, error) {
 	payload, ok := auth.PayloadFromContext(r.Context())
 	if !ok {
 		// Missing payload ⟹ bypass mode (DASHBOARD_AUTH=none); act as local admin.
 		payload = auth.BypassPayload()
 	}
-	_, err := mcpapps.ApplyDefaultDeniesWith(r.Context(), h.grants, h.findPreset, app, payload.Sub)
-	return err
+	res, err := mcpapps.ApplyDefaultDeniesWith(r.Context(), h.grants, h.findPreset, app, payload.Sub)
+	if errors.Is(err, mcpapps.ErrPresetUnconfirmed) {
+		return mcpapps.DenyResult{}, apierr.NewAppError(http.StatusUnprocessableEntity, "the application's preset "+presetUnconfirmedMessage)
+	}
+	return res, err
 }
 
 func (h *Handler) denies(w http.ResponseWriter, r *http.Request) error {
@@ -521,12 +538,7 @@ func (h *Handler) denies(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	payload, ok := auth.PayloadFromContext(r.Context())
-	if !ok {
-		// Missing payload ⟹ bypass mode (DASHBOARD_AUTH=none); act as local admin.
-		payload = auth.BypassPayload()
-	}
-	res, err := mcpapps.ApplyDefaultDeniesWith(r.Context(), h.grants, h.findPreset, app, payload.Sub)
+	res, err := h.applyDenies(r, app)
 	if err != nil {
 		return err
 	}
