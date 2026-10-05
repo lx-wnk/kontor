@@ -442,13 +442,24 @@ func (o *PipelineOrchestrator) decideCompletedTransition(ctx context.Context, ta
 	}
 	// plan_review gates on human approval; it never auto-advances.
 	if run.Stage == "plan_review" {
-		return WaitUserTransition{Reason: "Plan review: awaiting user approval", AgentDone: true}
+		return WaitUserTransition{Reason: "Plan review: awaiting user approval", Output: transcriptPlanOutput(run, output), AgentDone: true}
 	}
 	// After ready, enter plan_review only when the task opted into plan mode.
 	if run.Stage == "ready" {
 		return NextTransition{Stage: stageAfterReady(task), Output: output}
 	}
 	return NextTransition{Stage: NextStageForKind(task.Kind, run.Stage), Output: output}
+}
+
+// transcriptPlanOutput stamps a plan recovered from the transcript fence as
+// submitted. Nil keeps the stored output, so a set_stage_output result is never rewritten.
+func transcriptPlanOutput(run *ent.StageRun, output map[string]any) map[string]any {
+	if submitted, _ := run.Output[StageOutputSubmittedKey].(bool); submitted || len(output) == 0 {
+		return nil
+	}
+	stamped := maps.Clone(output)
+	stamped[StageOutputSubmittedKey] = true
+	return stamped
 }
 
 func stageAfterReady(task *ent.Task) string {

@@ -119,6 +119,7 @@ func registerGetPlanStatus(registry mcp.ToolRegistry, d PlanDeps) {
 			}
 			return mcp.OK(map[string]any{
 				"gate_state":    status.GateState,
+				"plan_ready":    status.PlanReady,
 				"approved_plan": status.ApprovedPlan,
 			})
 		},
