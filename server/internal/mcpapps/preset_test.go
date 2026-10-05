@@ -3,6 +3,9 @@ package mcpapps_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -74,6 +77,119 @@ func TestApplyDefaultDenies_DeniesEvenWithoutCatalogue(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, repo.GrantModeDeny, rows[0].Mode)
 	require.Equal(t, repo.GrantContextGlobal, rows[0].ContextKind)
+}
+
+func liveToolFixture(t *testing.T) map[string]bool {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/imap-mcp-server-2.0.0-tools.txt")
+	require.NoError(t, err)
+
+	live := map[string]bool{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			live[line] = true
+		}
+	}
+	require.NotEmpty(t, live)
+	return live
+}
+
+func TestPresetDenyGlobal_AllNamesExistInLiveFixture(t *testing.T) {
+	live := liveToolFixture(t)
+
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+
+	for _, denied := range preset.DenyGlobal {
+		require.True(t, live[denied], "denyGlobal entry %q is not in the live tool fixture — tool renamed or removed?", denied)
+	}
+}
+
+// TestApplyPresetDenies_UnconfirmedPresetIsRefused proves that a preset with
+// Confirmed:false is rejected before any grant is written. This is the gate
+// that prevents an unreviewed deny list from being applied to a server.
+func TestApplyPresetDenies_UnconfirmedPresetIsRefused(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+	ctx := context.Background()
+	apps := repo.NewMCPApplicationRepo(bundle.Client)
+	grants := repo.NewGrantRepo(bundle.Client)
+
+	_, err = apps.Upsert(ctx, repo.UpsertMCPApplicationInput{
+		ResourceID: "res-mail2", ServerName: "mail2",
+		Entry: json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`),
+	})
+	require.NoError(t, err)
+	app, err := apps.GetByResourceID(ctx, "res-mail2")
+	require.NoError(t, err)
+
+	unconfirmed := mcpapps.Preset{
+		Server:     "imap-mcp-server",
+		Confirmed:  false,
+		DenyGlobal: []string{"imap_send_email"},
+	}
+
+	_, err = mcpapps.ApplyPresetDenies(ctx, grants, unconfirmed, app, "test")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, mcpapps.ErrPresetUnconfirmed), "expected ErrPresetUnconfirmed, got: %v", err)
+
+	// No grants written.
+	rows, listErr := grants.ListForCapability(ctx, mcpapps.CapabilityName("mail2", "imap_send_email"))
+	require.NoError(t, listErr)
+	require.Empty(t, rows, "unconfirmed preset must not write any grants")
+}
+
+// TestPresetDenyGlobal_AllDangerousToolsAreDenied is the inverse of
+// TestPresetDenyGlobal_AllNamesExistInLiveFixture: it asserts that every
+// send, delete, and account-management tool known to be dangerous is present
+// in denyGlobal, catching accidental removals that would slip through the
+// name-staleness check.
+func TestPresetDenyGlobal_AllDangerousToolsAreDenied(t *testing.T) {
+	// This list is the security invariant. Add a tool here if the live
+	// catalogue adds a new dangerous capability and the deny list must cover it.
+	dangerousTools := []string{
+		"imap_send_email",
+		"imap_reply_to_email",
+		"imap_forward_email",
+		"imap_delete_email",
+		"imap_bulk_delete",
+		"imap_bulk_delete_by_search",
+		"imap_delete_spam",
+		"imap_delete_by_domain",
+		"imap_add_account",
+		"imap_update_account",
+		"imap_remove_account",
+		"imap_download_attachment",
+		"imap_upload_file",
+		"imap_add_spam_domain",
+		"imap_remove_spam_domain",
+		"imap_add_whitelist_domain",
+	}
+
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+
+	denied := make(map[string]bool, len(preset.DenyGlobal))
+	for _, tool := range preset.DenyGlobal {
+		denied[tool] = true
+	}
+
+	for _, tool := range dangerousTools {
+		require.True(t, denied[tool], "dangerous tool %q is not in denyGlobal — security regression", tool)
+	}
+
+	// Deliberate exceptions: destructive in some argument shapes, kept at the
+	// default ask tier because denying the whole tool would disable the core
+	// triage action. A grant matches the tool name only, never its arguments.
+	intentionallyAsked := map[string]string{
+		"imap_move_email": "a move to a trash folder is a soft delete; every other folder move is triage",
+	}
+	live := liveToolFixture(t)
+	for tool, why := range intentionallyAsked {
+		require.True(t, live[tool], "intentionally-asked tool %q is not in the live tool fixture — renamed or removed?", tool)
+		require.False(t, denied[tool], "%q is an intentional ask-tier tool (%s); moving it into denyGlobal disables triage — decide that deliberately", tool, why)
+	}
 }
 
 func TestApplyDefaultDenies_NoMatchIsNoOp(t *testing.T) {
