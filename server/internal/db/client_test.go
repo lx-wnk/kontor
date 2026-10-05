@@ -977,3 +977,78 @@ func TestOpen_MCPApplicationTables(t *testing.T) {
 		Save(ctx)
 	require.Error(t, err, "one value per application and variable name")
 }
+
+// TestOpen_BackfillsWaitReasonOutOfStageRunOutput seeds rows the way the
+// output-merging writer left them and proves Open moves the key into the
+// column for awaiting_user runs, drops it from everything else, leaves other
+// output keys alone, and does nothing on a second boot. It also executes the
+// down path documented on backfillStageRunWaitReason.
+func TestOpen_BackfillsWaitReasonOutOfStageRunOutput(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "waitreason.db")
+
+	seed, err := db.Open(path)
+	require.NoError(t, err)
+	_, err = seed.DB.Exec(
+		`INSERT INTO tasks (id, slug, title, cwd, current_stage, priority, max_iterations, silver_bullet, created_at, updated_at)
+		 VALUES ('t1', 't1', 'Test', '', 'plan_review', 'medium', 20, 0, datetime('now'), datetime('now'))`)
+	require.NoError(t, err)
+	_, err = seed.DB.Exec(
+		`INSERT INTO stage_runs (id, task_id, stage, status, iteration, output) VALUES
+		 ('awaiting', 't1', 'plan_review', 'awaiting_user', 0, '{"summary":"plan","wait_reason":"Plan review: awaiting user approval"}'),
+		 ('finished', 't1', 'plan_review', 'done',          1, '{"summary":"old","wait_reason":"stale"}'),
+		 ('plain',    't1', 'plan_review', 'awaiting_user', 2, '{"summary":"keep"}'),
+		 ('empty',    't1', 'plan_review', 'awaiting_user', 3, NULL)`)
+	require.NoError(t, err)
+	require.NoError(t, seed.Close())
+
+	assertMigrated := func(t *testing.T, bundle *db.DBBundle) {
+		t.Helper()
+		awaiting, err := bundle.Client.StageRun.Get(ctx, "awaiting")
+		require.NoError(t, err)
+		require.NotNil(t, awaiting.WaitReason)
+		require.Equal(t, "Plan review: awaiting user approval", *awaiting.WaitReason)
+		require.Equal(t, map[string]any{"summary": "plan"}, awaiting.Output)
+
+		finished, err := bundle.Client.StageRun.Get(ctx, "finished")
+		require.NoError(t, err)
+		require.Nil(t, finished.WaitReason, "a run that already left awaiting_user must not get a reason back")
+		require.Equal(t, map[string]any{"summary": "old"}, finished.Output)
+
+		plain, err := bundle.Client.StageRun.Get(ctx, "plain")
+		require.NoError(t, err)
+		require.Nil(t, plain.WaitReason)
+		require.Equal(t, map[string]any{"summary": "keep"}, plain.Output)
+
+		empty, err := bundle.Client.StageRun.Get(ctx, "empty")
+		require.NoError(t, err)
+		require.Nil(t, empty.WaitReason)
+		require.Empty(t, empty.Output)
+	}
+
+	first, err := db.Open(path)
+	require.NoError(t, err)
+	assertMigrated(t, first)
+	_, err = first.DB.Exec(`UPDATE stage_runs SET wait_reason = 'edited after migration' WHERE id = 'awaiting'`)
+	require.NoError(t, err)
+	require.NoError(t, first.Close())
+
+	second, err := db.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = second.Close() }()
+	awaiting, err := second.Client.StageRun.Get(ctx, "awaiting")
+	require.NoError(t, err)
+	require.Equal(t, "edited after migration", *awaiting.WaitReason, "a second boot must be a no-op")
+	require.Equal(t, map[string]any{"summary": "plan"}, awaiting.Output)
+
+	_, err = second.DB.Exec(`UPDATE stage_runs
+		SET output = json_set(COALESCE(output, '{}'), '$.wait_reason', wait_reason)
+		WHERE wait_reason IS NOT NULL`)
+	require.NoError(t, err)
+	_, err = second.DB.Exec(`ALTER TABLE stage_runs DROP COLUMN wait_reason`)
+	require.NoError(t, err)
+	var restored string
+	require.NoError(t, second.DB.QueryRow(
+		`SELECT json_extract(output, '$.wait_reason') FROM stage_runs WHERE id = 'awaiting'`).Scan(&restored))
+	require.Equal(t, "edited after migration", restored, "the down path must put the reason back where the previous binary reads it")
+}

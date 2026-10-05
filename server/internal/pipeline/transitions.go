@@ -176,24 +176,15 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 		postCommit = append(postCommit, func() { o.stageRuns.releaseStageRun(ctx, sr.ID) })
 
 	case WaitUserTransition:
-		output := tr.Output
-		if tr.Reason != "" {
-			// Seed from sr.Output so the run's existing content (e.g. the plan)
-			// is preserved, same pattern as FailTransition.
-			output = make(map[string]any, len(sr.Output)+len(tr.Output)+1)
-			for k, v := range sr.Output {
-				output[k] = v
-			}
-			for k, v := range tr.Output {
-				output[k] = v
-			}
-			output[WaitReasonKey] = tr.Reason
-		}
-		if _, err := srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+		update := repo.UpdateStageRunInput{
 			Status:   strPtr("awaiting_user"),
-			Output:   output,
+			Output:   tr.Output,
 			PIDClear: tr.AgentDone, // clear dead PID so the awaiting_user reaper does not immediately re-fail
-		}); err != nil {
+		}
+		if tr.Reason != "" {
+			update.WaitReason = &tr.Reason
+		}
+		if _, err := srRepo.Update(ctx, sr.ID, update); err != nil {
 			return nil, nil, nil, fmt.Errorf("applyTransition.waitUser.updateRun: %w", err)
 		}
 		_ = auditRepo.RecordTaskAudit(ctx, task.ID, nil, "awaiting_user", "task:"+task.ID,

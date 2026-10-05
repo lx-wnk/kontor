@@ -17,16 +17,11 @@ const agentMessageMaxChars = 2000
 // never mistaken for a submitted stage result.
 const StageOutputSubmittedKey = "stage_output_submitted"
 
-// WaitReasonKey holds the human-readable reason a WaitUserTransition parked the
-// run, written into the same stage_run.output as the stage result.
-const WaitReasonKey = "wait_reason"
-
-// StageResult returns a copy of a stage_run.output without the keys the
-// orchestrator writes beside the agent's result.
+// StageResult returns a copy of a stage_run.output without the marker the
+// set_stage_output endpoint writes beside the agent's result.
 func StageResult(output map[string]any) map[string]any {
 	result := maps.Clone(output)
 	delete(result, StageOutputSubmittedKey)
-	delete(result, WaitReasonKey)
 	return result
 }
 

@@ -23148,6 +23148,7 @@ type StageRunMutation struct {
 	addrate_limit_retry_count  *int
 	next_retry_at              *time.Time
 	pending_user_prompt        *string
+	wait_reason                *string
 	created_at                 *time.Time
 	clearedFields              map[string]struct{}
 	task                       *string
@@ -24114,6 +24115,55 @@ func (m *StageRunMutation) ResetPendingUserPrompt() {
 	delete(m.clearedFields, stagerun.FieldPendingUserPrompt)
 }
 
+// SetWaitReason sets the "wait_reason" field.
+func (m *StageRunMutation) SetWaitReason(s string) {
+	m.wait_reason = &s
+}
+
+// WaitReason returns the value of the "wait_reason" field in the mutation.
+func (m *StageRunMutation) WaitReason() (r string, exists bool) {
+	v := m.wait_reason
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWaitReason returns the old "wait_reason" field's value of the StageRun entity.
+// If the StageRun object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *StageRunMutation) OldWaitReason(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWaitReason is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWaitReason requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWaitReason: %w", err)
+	}
+	return oldValue.WaitReason, nil
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (m *StageRunMutation) ClearWaitReason() {
+	m.wait_reason = nil
+	m.clearedFields[stagerun.FieldWaitReason] = struct{}{}
+}
+
+// WaitReasonCleared returns if the "wait_reason" field was cleared in this mutation.
+func (m *StageRunMutation) WaitReasonCleared() bool {
+	_, ok := m.clearedFields[stagerun.FieldWaitReason]
+	return ok
+}
+
+// ResetWaitReason resets all changes to the "wait_reason" field.
+func (m *StageRunMutation) ResetWaitReason() {
+	m.wait_reason = nil
+	delete(m.clearedFields, stagerun.FieldWaitReason)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *StageRunMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -24265,7 +24315,7 @@ func (m *StageRunMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *StageRunMutation) Fields() []string {
-	fields := make([]string, 0, 18)
+	fields := make([]string, 0, 19)
 	if m.task != nil {
 		fields = append(fields, stagerun.FieldTaskID)
 	}
@@ -24317,6 +24367,9 @@ func (m *StageRunMutation) Fields() []string {
 	if m.pending_user_prompt != nil {
 		fields = append(fields, stagerun.FieldPendingUserPrompt)
 	}
+	if m.wait_reason != nil {
+		fields = append(fields, stagerun.FieldWaitReason)
+	}
 	if m.created_at != nil {
 		fields = append(fields, stagerun.FieldCreatedAt)
 	}
@@ -24362,6 +24415,8 @@ func (m *StageRunMutation) Field(name string) (ent.Value, bool) {
 		return m.NextRetryAt()
 	case stagerun.FieldPendingUserPrompt:
 		return m.PendingUserPrompt()
+	case stagerun.FieldWaitReason:
+		return m.WaitReason()
 	case stagerun.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -24407,6 +24462,8 @@ func (m *StageRunMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldNextRetryAt(ctx)
 	case stagerun.FieldPendingUserPrompt:
 		return m.OldPendingUserPrompt(ctx)
+	case stagerun.FieldWaitReason:
+		return m.OldWaitReason(ctx)
 	case stagerun.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -24536,6 +24593,13 @@ func (m *StageRunMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPendingUserPrompt(v)
+		return nil
+	case stagerun.FieldWaitReason:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWaitReason(v)
 		return nil
 	case stagerun.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -24676,6 +24740,9 @@ func (m *StageRunMutation) ClearedFields() []string {
 	if m.FieldCleared(stagerun.FieldPendingUserPrompt) {
 		fields = append(fields, stagerun.FieldPendingUserPrompt)
 	}
+	if m.FieldCleared(stagerun.FieldWaitReason) {
+		fields = append(fields, stagerun.FieldWaitReason)
+	}
 	return fields
 }
 
@@ -24716,6 +24783,9 @@ func (m *StageRunMutation) ClearField(name string) error {
 		return nil
 	case stagerun.FieldPendingUserPrompt:
 		m.ClearPendingUserPrompt()
+		return nil
+	case stagerun.FieldWaitReason:
+		m.ClearWaitReason()
 		return nil
 	}
 	return fmt.Errorf("unknown StageRun nullable field %s", name)
@@ -24775,6 +24845,9 @@ func (m *StageRunMutation) ResetField(name string) error {
 		return nil
 	case stagerun.FieldPendingUserPrompt:
 		m.ResetPendingUserPrompt()
+		return nil
+	case stagerun.FieldWaitReason:
+		m.ResetWaitReason()
 		return nil
 	case stagerun.FieldCreatedAt:
 		m.ResetCreatedAt()

@@ -194,9 +194,9 @@ func TestEnrichDep_NoDeps_BlockingUpstreamsNil(t *testing.T) {
 	require.Nil(t, enriched.BlockingUpstreams, "BlockingUpstreams must be nil when task has no deps")
 }
 
-// TestEnrich_WaitReason_PopulatedFromStageRunOutput asserts that WaitReason is
-// populated from the stage run's output["wait_reason"] field.
-func TestEnrich_WaitReason_PopulatedFromStageRunOutput(t *testing.T) {
+// TestEnrich_WaitReason_PopulatedFromStageRunColumn asserts that WaitReason is
+// populated from the stage run's wait_reason column.
+func TestEnrich_WaitReason_PopulatedFromStageRunColumn(t *testing.T) {
 	bundle := openEnrichDB(t)
 	ctx := context.Background()
 	taskRepo := repo.NewTaskRepo(bundle.Client)
@@ -216,16 +216,18 @@ func TestEnrich_WaitReason_PopulatedFromStageRunOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	status := "awaiting_user"
+	reason := "Plan review: awaiting user approval"
 	_, err = srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-		Status: &status,
-		Output: map[string]any{"wait_reason": "Plan review: awaiting user approval"},
+		Status:     &status,
+		WaitReason: &reason,
+		Output:     map[string]any{"wait_reason": "legacy key in output must be ignored"},
 	})
 	require.NoError(t, err)
 
 	enriched := enrichForTest(ctx, t, task, srRepo, permRepo)
 
-	require.Equal(t, "Plan review: awaiting user approval", enriched.WaitReason,
-		"WaitReason must be populated from stage run output wait_reason")
+	require.Equal(t, reason, enriched.WaitReason,
+		"WaitReason must be populated from the stage run wait_reason column")
 }
 
 // TestEnrich_WaitReason_EmptyWhenNotAwaitingUser asserts that WaitReason is
@@ -250,9 +252,10 @@ func TestEnrich_WaitReason_EmptyWhenNotAwaitingUser(t *testing.T) {
 	require.NoError(t, err)
 
 	status := "running"
+	reason := "should not be read"
 	_, err = srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-		Status: &status,
-		Output: map[string]any{"wait_reason": "should not be read"},
+		Status:     &status,
+		WaitReason: &reason,
 	})
 	require.NoError(t, err)
 

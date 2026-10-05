@@ -365,3 +365,64 @@ func TestStageRunBulkRepo_LatestPerTask_RetryFields(t *testing.T) {
 		t.Errorf("expected NextRetryAt=%v, got %v", nextRetryAt, *got.NextRetryAt)
 	}
 }
+
+// TestStageRunBulkRepo_WaitReason verifies that wait_reason round-trips through
+// LatestPerTask and AllForTaskIDs, and stays nil when unset.
+func TestStageRunBulkRepo_WaitReason(t *testing.T) {
+	bundle := openTestDB(t)
+	ctx := context.Background()
+
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	bulkRepo := rawrepo.NewStageRunBulkRepo(bundle.DB)
+
+	task, err := taskRepo.Create(ctx, repo.CreateTaskInput{
+		Slug:         "bulk-wait-reason-test",
+		Title:        "Bulk Wait Reason Test",
+		Cwd:          "/tmp/bulk-wait-reason-test",
+		CurrentStage: "implementation",
+		Priority:     "medium",
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	unset, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "implementation", Iteration: 1})
+	if err != nil {
+		t.Fatalf("create unset stage run: %v", err)
+	}
+	parked, err := srRepo.Create(ctx, repo.CreateStageRunInput{TaskID: task.ID, Stage: "implementation", Iteration: 2})
+	if err != nil {
+		t.Fatalf("create parked stage run: %v", err)
+	}
+	status, reason := "awaiting_user", "needs a decision"
+	if _, err := srRepo.Update(ctx, parked.ID, repo.UpdateStageRunInput{Status: &status, WaitReason: &reason}); err != nil {
+		t.Fatalf("update stage run: %v", err)
+	}
+
+	all, err := bulkRepo.AllForTaskIDs(ctx, []string{task.ID})
+	if err != nil {
+		t.Fatalf("AllForTaskIDs: %v", err)
+	}
+	reasonByID := map[string]*string{}
+	for _, sr := range all[task.ID] {
+		reasonByID[sr.ID] = sr.WaitReason
+	}
+	if len(reasonByID) != 2 {
+		t.Fatalf("AllForTaskIDs: want 2 runs, got %d", len(reasonByID))
+	}
+	if got := reasonByID[unset.ID]; got != nil {
+		t.Errorf("AllForTaskIDs: want nil WaitReason for unset run, got %q", *got)
+	}
+	if got := reasonByID[parked.ID]; got == nil || *got != reason {
+		t.Errorf("AllForTaskIDs: want WaitReason=%q for parked run, got %v", reason, got)
+	}
+
+	latest, err := bulkRepo.LatestPerTask(ctx, []string{task.ID})
+	if err != nil {
+		t.Fatalf("LatestPerTask: %v", err)
+	}
+	if got := latest[task.ID]; got == nil || got.WaitReason == nil || *got.WaitReason != reason {
+		t.Errorf("LatestPerTask: want WaitReason=%q, got %v", reason, got)
+	}
+}
