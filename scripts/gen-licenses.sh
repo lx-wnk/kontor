@@ -36,6 +36,10 @@ fi
 # below report it.
 declare -A LICENSE_OVERRIDES=()
 
+# go-licenses HEAD-probes GitHub for a /vN repo subdirectory and falls back to the repo root on any
+# failure, so the URL flaps. Module path -> subdirectory to strip where LICENSE sits at the repo root only.
+declare -A LICENSE_URL_SUBDIR_STRIP=([github.com/wailsapp/wails/v2]="v2/")
+
 # ── Temp files ─────────────────────────────────────────────────────────────────
 
 TMP_GO_RAW="$(mktemp)"
@@ -265,6 +269,8 @@ done
 
 while IFS= read -r line; do
   module="$(echo "${line}" | cut -d',' -f1)"
+  strip="${LICENSE_URL_SUBDIR_STRIP[${module}]-}"
+  [[ -n "${strip}" ]] && line="${line/\/${strip}LICENSE,//LICENSE,}"
   if [[ -n "${LICENSE_OVERRIDES[${module}]+x}" ]]; then
     url="$(echo "${line}" | cut -d',' -f2)"
     [[ "${url}" == "Unknown" ]] && url="https://pkg.go.dev/${module}"

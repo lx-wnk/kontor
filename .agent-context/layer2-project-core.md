@@ -46,6 +46,7 @@
 | Hub camera thresholds | `src/features/hub/hubCamera.ts` | `LEVEL_TOPICS`, `LEVEL_NOTES`, `MIN_REL`, `MAX_REL`, `levelOf`, `launchersDocked` |
 | Hub graph notices | `src/features/hub/hubGraphNotices.ts` | `GRAPH_NOTICES`, `LIST_GRAPH_NOTICES` |
 | Hub launcher cap | `src/features/hub/hubLaunchers.ts` | `MAX_LAUNCHERS` |
+| Hub overlay boxes the launcher ring avoids | `src/features/hub/hubLaunchers.ts` | `QUEUE_*`, `queueWorstCaseBox`, `CONTROLS_*`, `controlsBox`, `cornerBoxes` and its corner constants |
 | Hub sector hierarchy + note kind | `src/features/hub/hubGeometry.ts` | `planSectors`, `Leaf`, `noteKind`, `NOTE_KIND`, `SESSIONS_KIND`, `leafShade`, `shadeMix` |
 | Hub link bundling | `src/features/hub/hubLinks.ts` | `bundlePoints`, `aggregateLinks`, `LINK_BUNDLE_BETA` |
 | Obsidian graph response type (client, hand-kept parity with `server/internal/api/obsidian/handler.go`) | `src/features/hub/graphApi.ts` | `GraphResponse` — tuples `[path, mtimeMs]` or `[path, mtimeMs, type]` when type present |

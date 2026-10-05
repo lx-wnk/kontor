@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
+import { CONTROLS_BUTTON_PX, CONTROLS_GAP_PX, CONTROLS_RIGHT_INSET_PX } from '../hubLaunchers'
 
 defineProps<{ level: HubLevel, wide: boolean }>()
 const emit = defineEmits<{ zoomIn: [], zoomOut: [], fit: [], wide: [], list: [], level: [level: HubLevel] }>()
@@ -9,12 +10,13 @@ const LEVELS: ReadonlyArray<{ level: HubLevel, label: string }> = [
   { level: 1, label: 'Topics' },
   { level: 2, label: 'Notes' },
 ]
-const BUTTON = 'size-[30px] cursor-pointer rounded-[7px] border bg-card hover:border-accent'
+const BUTTON = 'size-(--controls-button) cursor-pointer rounded-[7px] border bg-card hover:border-accent'
 const IDLE = 'border-line-strong text-fg'
+const COLUMN_STYLE = { 'right': `${CONTROLS_RIGHT_INSET_PX}px`, 'gap': `${CONTROLS_GAP_PX}px`, '--controls-button': `${CONTROLS_BUTTON_PX}px` }
 </script>
 
 <template>
-  <div class="absolute right-2.5 top-1/2 z-[2] flex -translate-y-1/2 flex-col gap-1">
+  <div class="absolute top-1/2 z-[2] flex -translate-y-1/2 flex-col" :style="COLUMN_STYLE">
     <button type="button" :class="[BUTTON, IDLE]" aria-label="Zoom in" title="Zoom in (+)" @click="emit('zoomIn')">
       +
     </button>
