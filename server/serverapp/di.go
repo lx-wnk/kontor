@@ -84,6 +84,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/pathutil"
 	"github.com/lx-wnk/kontor/server/internal/permissions"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
+	"github.com/lx-wnk/kontor/server/internal/planusage"
 	"github.com/lx-wnk/kontor/server/internal/plugin"
 	"github.com/lx-wnk/kontor/server/internal/pluginmgmt"
 	"github.com/lx-wnk/kontor/server/internal/provider"
@@ -305,6 +306,8 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	taskBroadcaster := sse.NewTaskBroadcaster(taskBase)
 	spawnerBroadcaster := sse.NewSpawnerBroadcaster(sse.NewBroadcaster())
 	projectBroadcaster := sse.NewProjectBroadcaster(sse.NewBroadcaster())
+	planUsageStore := planusage.NewStore()
+	planUsageBroadcaster := sse.NewPlanUsageBroadcaster(sse.NewBroadcaster())
 
 	// memRepo and memRetriever back both the memory_search/memory_write MCP
 	// tools (di_mcp.go) and the pipeline's push-at-spawn seam
@@ -707,7 +710,11 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		}
 	}
 
-	orch, err = provideOrchestrator(cfg, settingsSvc, entClient, taskBroadcaster, systemPromptRepo, spawnerResolver, cpStart, cpStop, memRepo, memRetriever, grantUsageRepo, repo.NewApplicationSecretRepo(entClient, box))
+	orch, err = provideOrchestrator(cfg, settingsSvc, entClient, taskBroadcaster, systemPromptRepo, spawnerResolver, cpStart, cpStop, memRepo, memRetriever, grantUsageRepo, repo.NewApplicationSecretRepo(entClient, box),
+		planUsageStore,
+		func() int { return settingsSvc.Int("usageGate.fiveHourPct") },
+		func() int { return settingsSvc.Int("usageGate.sevenDayPct") },
+	)
 	if err != nil {
 		return &ServerComponents{Cleanup: cleanup}, err
 	}
@@ -1086,6 +1093,13 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 
 	usageHandler := apiusage.NewHandler(settingsSvc, nil) // nil agg = uses default scanner
 
+	planUsageHandler := hooks.NewPlanUsageHandler(
+		routerConfig.HooksSecret,
+		planUsageStore,
+		planUsageBroadcaster,
+		func() int { return settingsSvc.Int("usageGate.staleMinutes") },
+	)
+
 	var onboardingHandler *onboarding.Handler
 	if apiKeyRepo != nil {
 		onboardingHandler = onboarding.NewHandler(settingsSvc, apiKeyRepo)
@@ -1179,6 +1193,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		PluginLifecycleHandler: pluginLifecycleHandler,
 		AuditEventRepo:         auditEventRepo,
 		UsageHandler:           usageHandler,
+		PlanUsageHandler:       planUsageHandler,
 		TrackerHandler:         trackerHandler,
 		KontorSessionHandler:   kontorSessionHandler,
 		AdminHandler: admin.New(

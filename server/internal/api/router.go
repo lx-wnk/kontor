@@ -205,6 +205,7 @@ type RouterDeps struct {
 	UsageHandler           http.Handler
 	TrackerHandler         *trackerapi.Handler
 	KontorSessionHandler   *apikontorsession.Handler
+	PlanUsageHandler       *hooks.PlanUsageHandler
 }
 
 // NewRouter builds the chi router with all middleware and route mounts.
@@ -273,6 +274,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 	// falls back to its own terminal prompt.
 	r.Post("/api/hooks/permission", hooksHandler.PermissionRequest)
 	r.Post("/api/hooks/notification", hooksHandler.PermissionNotify)
+	// Plan-usage ingress — bearer-secret auth, same as the hook endpoints above.
+	if deps.PlanUsageHandler != nil {
+		r.Post("/api/hooks/plan-usage", deps.PlanUsageHandler.PlanUsage)
+	}
 	// NOTE: /api/hooks/respond and /api/hooks/pending are browser-facing (the edit
 	// gate UI reads pending edits and posts the user's decision). They carry the
 	// session cookie, not the hooks secret, so they are registered inside the
@@ -330,6 +335,10 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 		if deps.UsageHandler != nil {
 			r.Get("/api/usage", deps.UsageHandler.ServeHTTP)
+		}
+		if deps.PlanUsageHandler != nil {
+			r.Get("/api/plan-usage", deps.PlanUsageHandler.Summary)
+			r.Get("/api/plan-usage/stream", deps.PlanUsageHandler.Stream)
 		}
 		r.Get("/api/config", system.Config)        // frontend expects /api/config
 		r.Get("/api/system/config", system.Config) // keep old path for compatibility
