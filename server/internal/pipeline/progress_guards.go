@@ -207,6 +207,7 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 				}
 			}()
 		},
+		CheckUsageGate: o.opts.CheckUsageGate,
 		RecordAudit: func(action string, details map[string]any) {
 			_ = o.opts.AuditRepo.RecordTaskAudit(ctx, task.ID, nil, action, "task:"+task.ID, details)
 		},

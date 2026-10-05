@@ -1,6 +1,6 @@
 import type { PipelineTask } from '@/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { byActivityDesc } from '@/features/pipeline/composables/useTasks'
+import { byActivityDesc, byLatestActivity, LIVE_WORK_RESORT_MS } from '@/features/pipeline/composables/useTasks'
 
 function makeTask(id: string, updatedAt: string): PipelineTask {
   return {
@@ -54,6 +54,41 @@ describe('byActivityDesc', () => {
     const missing = makeTask('missing', undefined as unknown as string)
     expect(() => [missing, valid].sort(byActivityDesc)).not.toThrow()
     expect([missing, valid].sort(byActivityDesc).map(t => t.id)).toEqual(['valid', 'missing'])
+  })
+})
+
+describe('byLatestActivity', () => {
+  const ts = '2026-01-01T00:00:00Z'
+
+  it('sorts descending by activity timestamp', () => {
+    const activity = new Map([['a', 100], ['b', 300], ['c', 200]])
+    const sorted = [makeTask('a', ts), makeTask('b', ts), makeTask('c', ts)]
+      .sort(byLatestActivity(t => activity.get(t.id) ?? 0))
+    expect(sorted.map(t => t.id)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('uses byRank as tie-break when activity is equal', () => {
+    const a = { ...makeTask('a', ts), rank: 10 }
+    const b = { ...makeTask('b', ts), rank: 5 }
+    const activity = new Map([['a', 100], ['b', 100]])
+    const sorted = [a, b].sort(byLatestActivity(t => activity.get(t.id) ?? 0))
+    // byRank sorts ascending — lower rank first
+    expect(sorted.map(t => t.id)).toEqual(['b', 'a'])
+  })
+
+  it('handles empty list', () => {
+    const sorted: PipelineTask[] = []
+    sorted.sort(byLatestActivity(() => 0))
+    expect(sorted).toEqual([])
+  })
+})
+
+describe('live-work resort window', () => {
+  it('is a throttle interval between 5 s and 5 min (prevents cards jumping on every heartbeat)', () => {
+    // Lower bound: instant re-sort (≤5s) would make cards jump on agent heartbeats.
+    // Upper bound: a >5min window means a newly-active task stays at the bottom too long.
+    expect(LIVE_WORK_RESORT_MS).toBeGreaterThanOrEqual(5_000)
+    expect(LIVE_WORK_RESORT_MS).toBeLessThanOrEqual(300_000)
   })
 })
 

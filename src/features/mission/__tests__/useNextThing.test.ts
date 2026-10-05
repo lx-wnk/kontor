@@ -42,7 +42,7 @@ describe('rankNextThings', () => {
   it('puts a blocked permission ahead of a plan waiting for approval', () => {
     const out = rankNextThings(
       [item('a', [req('r1', '2026-09-18T12:00:00Z')])],
-      [task('a'), task('b', { currentStage: 'plan_review' })],
+      [task('a'), task('b', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })],
     )
     expect(out.map(n => n.kind)).toEqual(['permission', 'plan'])
     expect(out[0].taskId).toBe('a')
@@ -93,7 +93,7 @@ describe('rankNextThings', () => {
   it('orders permission, then question, then plan', () => {
     const out = rankNextThings(
       [item('a', [req('r1', '2026-09-18T12:00:00Z')])],
-      [task('a'), task('b', { currentStage: 'plan_review' })],
+      [task('a'), task('b', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })],
       [agent(4711, { pendingQuestion: colourQuestion as never })],
     )
     expect(out.map(n => n.kind)).toEqual(['permission', 'question', 'plan'])
@@ -111,7 +111,7 @@ describe('rankNextThings', () => {
 
   it('ranks a pending capability decision after questions and before plans', () => {
     const decision: PendingCapabilityDecision = { id: 'd1', capability: 'net.fetch', value: 'api.github.com', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T10:00:00Z' }
-    const planTask = task('t-plan', { currentStage: 'plan_review' })
+    const planTask = task('t-plan', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })
     const ranked = rankNextThings([], [planTask], [], [decision])
     expect(ranked.map(n => n.kind)).toEqual(['capability', 'plan'])
     expect(ranked[0]).toMatchObject({ kind: 'capability', decision, why: WHY.capability })
@@ -123,5 +123,40 @@ describe('rankNextThings', () => {
     const older: PendingCapabilityDecision = { id: 'd-old', capability: 'fs.write', value: '/tmp/out', context: 'routine:nightly', reason: 'not granted', requestedAt: '2026-09-22T09:00:00Z' }
     const ranked = rankNextThings([], [], [], [newer, older])
     expect(ranked.map(n => n.decision?.id)).toEqual(['d-old', 'd-new'])
+  })
+
+  it('excludes blocked plan_review tasks from the result', () => {
+    const out = rankNextThings(
+      [],
+      [task('blocked-plan', { currentStage: 'plan_review', isBlocked: true })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
+  })
+
+  it('excludes unsatisfiable plan_review tasks from the result', () => {
+    const out = rankNextThings(
+      [],
+      [task('unsat-plan', { currentStage: 'plan_review', isUnsatisfiable: true })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
+  })
+
+  it('still includes plan_review tasks awaiting approval', () => {
+    const out = rankNextThings(
+      [],
+      [task('ok-plan', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(1)
+    expect(out[0].taskId).toBe('ok-plan')
+  })
+
+  it('excludes plan_review tasks whose run is not yet awaiting_user', () => {
+    // A plan task whose run is still generating (running) should not appear —
+    // there is nothing for the operator to approve yet.
+    const out = rankNextThings(
+      [],
+      [task('generating-plan', { currentStage: 'plan_review', latestStageRunStatus: 'running' })],
+    )
+    expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
   })
 })

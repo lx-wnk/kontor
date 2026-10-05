@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage } from '@/types'
 import { onUnmounted, ref } from 'vue'
 import { dispatchSlashCommand, parseSlashCommand, SLASH_COMMAND_DEFS } from '@/composables/useSlashCommands'
@@ -56,6 +57,7 @@ export function useAgentPrompt(
   const sendStatus = ref<'sent' | 'error' | 'queued' | null>(null)
   const sendError = ref('')
   const resumeConfirm = ref<string | null>(null)
+  const trackedMessages = ref<TrackedMessage[]>([])
 
   /**
    * Combines the typed text with any pending attachment paths into the final
@@ -70,6 +72,10 @@ export function useAgentPrompt(
     return [text, ...paths.map(p => `@${p}`)].filter(Boolean).join(' ')
   }
 
+  function updateTracked(id: string, patch: Partial<TrackedMessage>): void {
+    trackedMessages.value = trackedMessages.value.map(m => m.id === id ? { ...m, ...patch } : m)
+  }
+
   /**
    * Shared delivery helper. Performs the correct fetch for inject vs resume,
    * handles optimistic echo, isSending, sendStatus, offline queueing, and
@@ -81,7 +87,17 @@ export function useAgentPrompt(
     isSending.value = true
     sendStatus.value = null
 
+    const trackId = crypto.randomUUID()
+    trackedMessages.value = [...trackedMessages.value, {
+      id: trackId,
+      text: msg,
+      serverText: msg,
+      state: 'sending',
+      sentAt: Date.now(),
+    }]
+
     try {
+      let serverText = msg
       if (mode === 'inject') {
         // Channel inject keyed by PID — route is /api/agents/{pid}/message
         const res = await fetch(`/api/agents/${agent.pid}/message`, {
@@ -93,6 +109,10 @@ export function useAgentPrompt(
           const data = await res.json().catch(() => ({}))
           throw new Error(data.error || `Send failed (${res.status})`)
         }
+        // Server returns {text: sanitized} — the canonical text that appears in the JSONL transcript.
+        const body = await res.json().catch(() => ({}))
+        if (body.text)
+          serverText = body.text
       }
       else {
         const res = await fetch('/api/agents/spawn', {
@@ -109,6 +129,7 @@ export function useAgentPrompt(
           throw new Error(data.error || `Resume failed (${res.status})`)
         }
       }
+      updateTracked(trackId, { state: 'sent', serverText })
       sendStatus.value = 'sent'
     }
     catch (err) {
@@ -123,16 +144,19 @@ export function useAgentPrompt(
             useChannel,
             cwd: agent.cwd,
           })
+          updateTracked(trackId, { state: 'queued' })
           await registerBackgroundSync()
           sendStatus.value = 'queued'
           sendError.value = 'Offline — message queued'
         }
         catch {
+          updateTracked(trackId, { state: 'failed' })
           sendStatus.value = 'error'
           sendError.value = 'Offline and could not queue message'
         }
       }
       else {
+        updateTracked(trackId, { state: 'failed' })
         sendStatus.value = 'error'
         sendError.value = errorMessage(err, 'Failed')
       }
@@ -241,5 +265,5 @@ export function useAgentPrompt(
   window.addEventListener('drain-success', onDrainSuccess)
   onUnmounted(() => window.removeEventListener('drain-success', onDrainSuccess))
 
-  return { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume }
+  return { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume, trackedMessages }
 }

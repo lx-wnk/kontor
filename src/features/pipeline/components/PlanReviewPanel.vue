@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PipelineTask } from '@/types'
-import { onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { toast } from '@/composables/useToast'
 import { usePlanReview } from '@/features/pipeline/composables/usePlanReview'
 import { renderMarkdown } from '@/utils/markdown'
@@ -22,9 +22,11 @@ const showRejectForm = ref(false)
 const feedbackText = ref('')
 const isActing = ref(false)
 
-const { gateState, approvedPlan, loading, error, start, stop, approve, reject } = usePlanReview(
+const { gateState, approvedPlan, planReady, loading, error, start, stop, approve, reject } = usePlanReview(
   () => props.task?.id ?? null,
 )
+
+const awaitingUser = computed(() => gateState.value === 'awaiting_user')
 
 // Surface plan-review load/action failures as toasts; the panel keeps its state.
 watch(error, (msg) => {
@@ -109,6 +111,10 @@ function renderedPlan(): string {
             Gate state: {{ gateState }}
           </p>
 
+          <p v-if="gateState === 'running'" data-testid="plan-review-pending-hint" class="text-sm text-fg-mute italic">
+            Plan is still being written…
+          </p>
+
           <div
             v-if="approvedPlan"
             class="assistant-bubble markdown-body"
@@ -151,11 +157,18 @@ function renderedPlan(): string {
       </div>
 
       <!-- Approval bar -->
-      <div v-else class="px-5 py-3 border-t border-line shrink-0 flex gap-3">
+      <div v-else class="px-5 py-3 border-t border-line shrink-0 flex flex-wrap gap-3">
+        <p
+          v-if="awaitingUser && !planReady"
+          data-testid="plan-not-ready-hint"
+          class="basis-full text-sm text-fg-mute italic"
+        >
+          No submitted plan — request changes to have it rewritten.
+        </p>
         <button
           data-testid="reject-plan-btn"
           class="flex-1 py-3 px-4 rounded-xl bg-raised border border-line text-fg-mute font-semibold text-[0.95rem] cursor-pointer transition-all hover:enabled:border-orange-400 hover:enabled:text-orange-500 disabled:opacity-40 disabled:cursor-default"
-          :disabled="isActing || loading"
+          :disabled="!awaitingUser || isActing || loading"
           @click="showRejectForm = true"
         >
           Request Changes
@@ -163,7 +176,7 @@ function renderedPlan(): string {
         <button
           data-testid="approve-plan-btn"
           class="flex-1 py-3 px-4 rounded-xl bg-green-500 text-black font-bold text-[0.95rem] tracking-tight border-none cursor-pointer transition-all hover:enabled:opacity-90 hover:enabled:-translate-y-px disabled:opacity-40 disabled:cursor-default"
-          :disabled="isActing || loading"
+          :disabled="!awaitingUser || !planReady || isActing || loading"
           @click="handleApprove"
         >
           {{ isActing ? 'Approving…' : 'Approve Plan →' }}
