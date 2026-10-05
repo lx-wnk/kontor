@@ -9,11 +9,13 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/llmadapter"
 	"github.com/lx-wnk/kontor/server/internal/mcpapps"
 	"github.com/lx-wnk/kontor/server/internal/memory"
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 	"github.com/lx-wnk/kontor/server/internal/services"
 )
 
@@ -133,6 +135,29 @@ func (h *agentStageHandler) Execute(ctx *StageContext) (StageTransition, error) 
 	// Native Claude path: resolved is either nil, claude-default, or any row
 	// with AdapterType=="claude" / "". Behaviour is byte-identical to the
 	// pre-adapter-merge code path.
+
+	// Usage gate: before attempting the spawn, check whether the account's
+	// plan-usage is at or above the configured threshold. Gating here avoids
+	// wasting a spawn attempt that would 429 immediately.
+	if ctx.CheckUsageGate != nil {
+		gateDir := resolveConfigDir(resolved)
+		d := ctx.CheckUsageGate(gateDir)
+		if d.Block {
+			slog.Info("pipeline: usage gate blocked spawn",
+				"stage", h.stage, "configDir", gateDir, "reason", d.Reason, "until", d.Until)
+			ctx.RecordAudit("stage_usage_gated", map[string]any{
+				"configDir": gateDir,
+				"reason":    d.Reason,
+				"until":     d.Until.Format("2006-01-02T15:04:05Z07:00"),
+			})
+			return RateLimitedTransition{
+				Reason:      d.Reason,
+				Attempt:     ctx.StageRun.RateLimitRetryCount,
+				NextRetryAt: d.Until,
+			}, nil
+		}
+	}
+
 	if h.spawnFn == nil {
 		return nil, fmt.Errorf("agentStageHandler.Execute(%s): spawnFn not set", h.stage)
 	}
@@ -493,4 +518,15 @@ func acpPermissionGate(ctx *StageContext) func(context.Context, acp.PermissionRe
 		},
 	}
 	return gate.Decide
+}
+
+// resolveConfigDir returns the Claude config directory that a spawn would use.
+// Spawner env overrides the server's global setting, mirroring spawner.go logic.
+func resolveConfigDir(resolved *ent.Spawner) string {
+	if resolved != nil {
+		if dir, ok := resolved.Env[claudeconfig.EnvVar]; ok && dir != "" {
+			return pathutil.ExpandLeadingTilde(dir)
+		}
+	}
+	return claudeconfig.ConfigDir()
 }

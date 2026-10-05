@@ -28,7 +28,7 @@
 
 ## Facts the tasks rely on
 
-- Ent codegen: `server/internal/db/ent/generate.go:4` (`--feature sql/upsert` baked in); fallback `server/internal/db/entgen/gen_test.go` `TestRegenerateEnt`. Auto-migrate only adds (`server/internal/db/client.go:151`).
+- Ent codegen: `server/internal/db/ent/generate.go:4` (`--feature sql/upsert` baked in); fallback `go test -tags entgen ./server/internal/db/entgen/ -count=1` from repo root (build tag keeps it allowlist-friendly). Auto-migrate only adds (`server/internal/db/client.go:151`).
 - Keys: `server/internal/db/repo/api_key_repo.go:17-22` kinds, `:45-63` interface, `:163-180` `RevokeForModule`; MCP scopes `server/internal/mcp/auth.go:18-58`; scope refusal `-32003` at `server/internal/mcp/jsonrpc.go:108-114`.
 - Spawn: `server/internal/api/agents/spawn.go:95` `NewSpawnManager`, `:278` `buildSpawnArgs`, `:430` `launchInteractive`, `:529` `pollExitWatch` (gives up after 1h), `:1068` `spawnerArgsControlPermissionMode`; `processAlive` at `agents/dismiss.go:55`; seams `execStart` `:52`, `lookTmuxPath` `:55`.
 - The live default spawner is `claude --permission-mode auto`. A Kontor session overrides the spawner's permission posture to `default` so writes prompt (spec decision 3); it does not refuse to start.
@@ -182,7 +182,7 @@ func (r *entApiKeyRepo) RevokeKontorSessions(ctx context.Context) (int, error) {
 	return n, nil
 }
 ```
-Regenerate with `cd server && go generate ./internal/db/ent/ && go mod tidy`. The `--feature sql/upsert` flag is baked into `generate.go:4`; do not call `ent generate` by hand without it. Fallback: `cd server && go test ./internal/db/entgen/ -run TestRegenerateEnt -count=1` (it uses `gen.FeatureUpsert`). Check `git diff --stat server/internal/db/ent/` still shows the `OnConflict` builders untouched.
+Regenerate with `cd server && go generate ./internal/db/ent/ && go mod tidy`. The `--feature sql/upsert` flag is baked into `generate.go:4`; do not call `ent generate` by hand without it. Fallback: `go test -tags entgen ./server/internal/db/entgen/ -count=1` from repo root (build tag makes it allowlist-friendly). Check `git diff --stat server/internal/db/ent/` still shows the `OnConflict` builders untouched.
 - [ ] Step 4: Run the same command. Expected PASS (3 tests).
 - [ ] Step 5: Gate and commit.
   - Gate: `cd server && go vet ./... && go test -race ./internal/db/...`.

@@ -487,6 +487,7 @@ func (m *SpawnManager) launchPTY(binary string, args, env []string, cwd, channel
 	if rerr != nil {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
+			_ = cmd.Wait() // reap killed child — prevents <defunct> zombie
 		}
 		return 0, nil, rerr
 	}
