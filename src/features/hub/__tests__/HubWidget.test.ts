@@ -12,7 +12,7 @@ import { useHealthLens } from '../composables/useHealthLens'
 import { lastHubView } from '../composables/useHubCamera'
 import { hubFocusRequest } from '../composables/useHubFocus'
 import { fitScale } from '../hubCamera'
-import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox } from '../hubCanvas'
+import { agentDotBox, agentLabelBox, boxesOverlap, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import * as hubGeometry from '../hubGeometry'
 import { DAY_MS, LAUNCHER_PX, planSectors } from '../hubGeometry'
 import { MAP_RADIUS, packHub } from '../hubPack'
@@ -1098,6 +1098,37 @@ describe('hubWidget', () => {
     expect(shownLeaves()).toHaveLength(0)
     await w.findAll('button').find(b => b.text() === 'Topics')!.trigger('click')
     expect(shownLeaves().length).toBeGreaterThan(0)
+    w.unmount()
+  })
+
+  // The point drives both what HubOrbit draws (leafPoints) and the box the culler judges (leafNames'
+  // own box) — a circle with room moves its name up off centre, so it clears the note dots sitting
+  // there; a circle too small on screen for that keeps it centred, same as a barely-there dot would.
+  it('anchors a project name toward the top of its circle when there is room, else keeps it centred', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/other/two.md')]
+    const w = await mountHub()
+    await w.findAll('button').find(b => b.text() === 'Topics')!.trigger('click')
+
+    const paths = graph.notes.value.map(n => n.path)
+    const { leaves } = planSectors(paths, [])
+    const packed = packedFor(paths, [])
+    const [tx, ty, k] = camera(w)
+    const MIN_SCREEN_R_PX = 20
+
+    const leafEls = w.findAll('[data-testid^="hub-leaf-"]')
+    expect(leafEls.length).toBeGreaterThan(0)
+    for (const el of leafEls) {
+      const leaf = leaves.find(l => sectorLabelKey(l.label, l.weight) === el.attributes('data-label-key'))!
+      const circle = packed.projects.get(leaf.key)!
+      const { sx, sy } = translateOf(el)
+      const centreSy = circle.y * k + ty
+      expect(sx).toBeCloseTo(circle.x * k + tx)
+      if (circle.r * k >= MIN_SCREEN_R_PX)
+        expect(sy).toBeLessThan(centreSy)
+      else
+        expect(sy).toBeCloseTo(centreSy)
+    }
     w.unmount()
   })
 

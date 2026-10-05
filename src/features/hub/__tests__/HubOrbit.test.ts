@@ -1,5 +1,6 @@
 import type { HubLevel } from '../hubCamera'
 import type { LabelSize } from '../hubCanvas'
+import type { Leaf } from '../hubGeometry'
 import type { Agent } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -29,15 +30,21 @@ interface OrbitOptions {
   drawnAgents?: ReadonlySet<number>
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
   otherBadge?: { x: number, y: number, count: number } | null
+  leaves?: Leaf[]
+  leafPoints?: ReadonlyMap<string, [number, number]>
+  namedLeaves?: ReadonlySet<string>
 }
 
-function mountOrbit(level: HubLevel, { showSectorNames = true, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections, otherBadge }: OrbitOptions = {}) {
+function mountOrbit(level: HubLevel, { showSectorNames = true, sectorPoints = DEFAULT_SECTOR_POINTS, coreDisabled = false, labelledAgents, namedSectors, drawnAgents, labelDirections, otherBadge, leaves, leafPoints, namedLeaves }: OrbitOptions = {}) {
   return mount(HubOrbit, {
     props: {
       cam: { k: 1, tx: 500, ty: 500 },
       sectorPoints,
       showSectorNames,
       sectors,
+      leaves,
+      leafPoints,
+      namedLeaves,
       agents: ORBIT_AGENTS,
       level,
       running: 3,
@@ -281,6 +288,17 @@ describe('hubOrbit', () => {
     expect(badge.attributes('style')).toContain('translate(540px, 480px)')
     await badge.trigger('click')
     expect(w.emitted('other')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('gives a project name a background-colour halo and a hue-tinted foreground, not the shaded circle colour', () => {
+    const leaves: Leaf[] = [{ key: 'kontor-hub/dashboard', label: 'dashboard', weight: 2, start: -90, end: 90, parent: 'kontor-hub' }]
+    const w = mountOrbit(1, { leaves, leafPoints: new Map([['kontor-hub/dashboard', [40, -20]]]) })
+    const label = w.get('[data-testid="hub-leaf-0"]')
+    expect(label.classes()).toEqual(expect.arrayContaining(['text-[11px]', 'font-semibold']))
+    const style = label.attributes('style')!
+    expect(style).toContain('-webkit-text-stroke: 3px var(--app)')
+    expect(style).toContain('color: color-mix(in srgb, var(--fg) 80%, var(--sector-')
     w.unmount()
   })
 
