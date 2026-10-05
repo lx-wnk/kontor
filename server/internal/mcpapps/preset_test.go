@@ -79,19 +79,24 @@ func TestApplyDefaultDenies_DeniesEvenWithoutCatalogue(t *testing.T) {
 	require.Equal(t, repo.GrantContextGlobal, rows[0].ContextKind)
 }
 
-func liveToolFixture(t *testing.T) map[string]bool {
+func fixtureSet(t *testing.T, file string) map[string]bool {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/imap-mcp-server-2.0.0-tools.txt")
+	raw, err := os.ReadFile("testdata/" + file)
 	require.NoError(t, err)
 
-	live := map[string]bool{}
+	set := map[string]bool{}
 	for _, line := range strings.Split(string(raw), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
-			live[line] = true
+			set[line] = true
 		}
 	}
-	require.NotEmpty(t, live)
-	return live
+	require.NotEmpty(t, set)
+	return set
+}
+
+func liveToolFixture(t *testing.T) map[string]bool {
+	t.Helper()
+	return fixtureSet(t, "imap-mcp-server-2.0.0-tools.txt")
 }
 
 func TestPresetDenyGlobal_AllNamesExistInLiveFixture(t *testing.T) {
@@ -202,6 +207,16 @@ func TestPresetDenyArgs_ToolsExistInLiveFixture(t *testing.T) {
 	require.NotEmpty(t, preset.DenyArgs)
 	for _, d := range preset.DenyArgs {
 		require.True(t, live[d.Tool], "denyArgs tool %q is not in the live tool fixture — tool renamed or removed?", d.Tool)
+	}
+}
+
+func TestPresetDenyArgs_ParamsExistInLiveFixture(t *testing.T) {
+	params := fixtureSet(t, "imap-mcp-server-2.0.0-params.txt")
+	preset, err := mcpapps.LoadPreset("imap-mcp-server")
+	require.NoError(t, err)
+	require.NotEmpty(t, preset.DenyArgs)
+	for _, d := range preset.DenyArgs {
+		require.True(t, params[d.Tool+" "+d.Param], "denyArgs %s(%s) is not in the live param fixture — parameter renamed? the rule would silently stop matching", d.Tool, d.Param)
 	}
 }
 
