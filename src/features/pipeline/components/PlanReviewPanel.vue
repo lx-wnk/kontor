@@ -157,7 +157,14 @@ function renderedPlan(): string {
       </div>
 
       <!-- Approval bar -->
-      <div v-else class="px-5 py-3 border-t border-line shrink-0 flex gap-3">
+      <div v-else class="px-5 py-3 border-t border-line shrink-0 flex flex-wrap gap-3">
+        <p
+          v-if="awaitingUser && !planReady"
+          data-testid="plan-not-ready-hint"
+          class="basis-full text-sm text-fg-mute italic"
+        >
+          No submitted plan — request changes to have it rewritten.
+        </p>
         <button
           data-testid="reject-plan-btn"
           class="flex-1 py-3 px-4 rounded-xl bg-raised border border-line text-fg-mute font-semibold text-[0.95rem] cursor-pointer transition-all hover:enabled:border-orange-400 hover:enabled:text-orange-500 disabled:opacity-40 disabled:cursor-default"

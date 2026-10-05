@@ -216,6 +216,29 @@ describe('gate-state guards', () => {
     wrapper.unmount()
   })
 
+  it('not-ready hint visible when awaiting_user and plan_ready is false', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref(null), planReady: ref(false) })
+    await flushPromises()
+    const hint = wrapper.find('[data-testid="plan-not-ready-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe('No submitted plan — request changes to have it rewritten.')
+    wrapper.unmount()
+  })
+
+  it('not-ready hint absent when plan_ready is true', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('awaiting_user'), approvedPlan: ref({ steps: [] }), planReady: ref(true) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="plan-not-ready-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('not-ready hint absent while running', async () => {
+    const wrapper = await mountWithMock({ gateState: ref('running'), approvedPlan: ref(null), planReady: ref(false) })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="plan-not-ready-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('409 from approve surfaces as toast error', async () => {
     const errorRef = ref<string | null>(null)
     const approveFn = vi.fn(async () => {
