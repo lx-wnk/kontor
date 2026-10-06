@@ -66,6 +66,10 @@ type UpdateStageRunInput struct {
 	NextRetryAtClear    bool
 	StartedAtClear      bool
 	PendingUserPrompt   *string
+	// WaitReason is the human-readable cause of an awaiting_user park. It only
+	// means something in the status that set it, so every Status write replaces
+	// it: set when WaitReason is non-nil, cleared otherwise.
+	WaitReason *string
 }
 
 type entStageRunRepo struct {
@@ -236,6 +240,11 @@ func (r *entStageRunRepo) Update(ctx context.Context, id string, in UpdateStageR
 	}
 	if in.PendingUserPrompt != nil {
 		q = q.SetPendingUserPrompt(*in.PendingUserPrompt)
+	}
+	if in.WaitReason != nil {
+		q = q.SetWaitReason(*in.WaitReason)
+	} else if in.Status != nil {
+		q = q.ClearWaitReason()
 	}
 	sr, err := q.Save(ctx)
 	if err != nil {

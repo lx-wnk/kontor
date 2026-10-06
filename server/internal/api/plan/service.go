@@ -93,7 +93,7 @@ func awaitingError(sr *ent.StageRun) error {
 
 // readyPlanError is the single rule for "this plan can be approved": awaiting_user
 // plus the agent-submitted marker plus content beyond it. Orchestrator notes in
-// the same field (validation_error, synthetic_session_file, wait_reason) carry no
+// the same field (validation_error, synthetic_session_file) carry no
 // marker and are never a plan. Nil means ready.
 func readyPlanError(sr *ent.StageRun) error {
 	if err := awaitingError(sr); err != nil {

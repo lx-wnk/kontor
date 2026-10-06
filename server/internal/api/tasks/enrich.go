@@ -129,7 +129,7 @@ type EnrichedTask struct {
 	// Blocking upstream details — populated when IsBlocked or IsUnsatisfiable.
 	BlockingUpstreams []pipeline.BlockingUpstream `json:"blockingUpstreams,omitempty"`
 
-	// Human-readable reason from the stage run's wait_reason output key.
+	// Human-readable reason from the stage run's wait_reason column.
 	WaitReason string `json:"waitReason,omitempty"`
 
 	// Child-task summary — populated by ChildSummariesByParent, zero when no children.
@@ -354,10 +354,8 @@ func enrichOne(ctx context.Context, t *ent.Task, latest *ent.StageRun, pendingPe
 	}
 
 	var waitReason string
-	if latestBelongsToCurrent && latestStatus != nil && *latestStatus == "awaiting_user" && latest.Output != nil {
-		if r, ok := latest.Output[pipeline.WaitReasonKey].(string); ok {
-			waitReason = r
-		}
+	if latestBelongsToCurrent && latestStatus != nil && *latestStatus == "awaiting_user" && latest.WaitReason != nil {
+		waitReason = *latest.WaitReason
 	}
 
 	e := &EnrichedTask{

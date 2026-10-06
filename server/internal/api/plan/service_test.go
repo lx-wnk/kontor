@@ -311,15 +311,13 @@ func TestPlanStatus_PlanReady(t *testing.T) {
 		output map[string]any
 		want   bool
 	}{
-		"marker_and_plan":             {"awaiting_user", submittedPlan("plan", "test plan content"), true},
-		"validation_error":            {"awaiting_user", map[string]any{"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}}, false},
-		"wait_reason":                 {"awaiting_user", map[string]any{"wait_reason": "rate_limit"}, false},
-		"empty":                       {"awaiting_user", map[string]any{}, false},
-		"nil_output":                  {"awaiting_user", nil, false},
-		"marker_only":                 {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true}, false},
-		"marker_and_wait_reason_only": {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true, pipeline.WaitReasonKey: "Plan review: awaiting user approval"}, false},
-		"marker_false":                {"awaiting_user", map[string]any{"plan": "draft", pipeline.StageOutputSubmittedKey: false}, false},
-		"gate_running":                {"running", submittedPlan("plan", "test plan content"), false},
+		"marker_and_plan":  {"awaiting_user", submittedPlan("plan", "test plan content"), true},
+		"validation_error": {"awaiting_user", map[string]any{"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}}, false},
+		"empty":            {"awaiting_user", map[string]any{}, false},
+		"nil_output":       {"awaiting_user", nil, false},
+		"marker_only":      {"awaiting_user", map[string]any{pipeline.StageOutputSubmittedKey: true}, false},
+		"marker_false":     {"awaiting_user", map[string]any{"plan": "draft", pipeline.StageOutputSubmittedKey: false}, false},
+		"gate_running":     {"running", submittedPlan("plan", "test plan content"), false},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -497,7 +495,6 @@ func TestApprovePlan_OutputWithoutSubmittedMarker_ReturnsConflict(t *testing.T) 
 	outputs := map[string]map[string]any{
 		"validation_error":       {"validation_error": "missing field: summary", "rejected_output": map[string]any{"steps": []any{}}},
 		"synthetic_session_file": {"synthetic_session_file": "/tmp/session.jsonl"},
-		"wait_reason":            {"wait_reason": "rate_limit"},
 		"empty":                  {},
 		"marker_false":           {"plan": "draft", pipeline.StageOutputSubmittedKey: false},
 	}
@@ -553,7 +550,6 @@ func TestRejectPlan_AwaitingUserWithoutPlanContent_RequeuesWithFeedback(t *testi
 		"nil":              nil,
 		"empty":            {},
 		"validation_error": {"validation_error": "missing field: summary", "rejected_output": map[string]any{}},
-		"wait_reason":      {"wait_reason": "rate_limit"},
 	}
 	for name, output := range outputs {
 		t.Run(name, func(t *testing.T) {
@@ -620,9 +616,10 @@ func TestApprovePlan_SubmittedPlanWithWaitReason_FreezesOnlyThePlan(t *testing.T
 	ctx := context.Background()
 	taskRepo := repo.NewTaskRepo(bundle.Client)
 	srRepo := repo.NewStageRunRepo(bundle.Client)
-	output := submittedPlan("summary", "SUBMITTED_PLAN")
-	output[pipeline.WaitReasonKey] = "Plan review: awaiting user approval"
-	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
+	taskID, runID := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", submittedPlan("summary", "SUBMITTED_PLAN"))
+	reason := "Plan review: awaiting user approval"
+	_, err = srRepo.Update(ctx, runID, repo.UpdateStageRunInput{WaitReason: &reason})
+	require.NoError(t, err)
 
 	status, err := plan.PlanStatus(ctx, plan.StatusDeps{Tasks: taskRepo, StageRuns: srRepo}, taskID)
 	require.NoError(t, err)
@@ -634,5 +631,5 @@ func TestApprovePlan_SubmittedPlanWithWaitReason_FreezesOnlyThePlan(t *testing.T
 		StageRuns: srRepo,
 	}, taskID)
 	require.NoError(t, err)
-	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, task.Metadata["approvedPlan"], "wait_reason must not be frozen into the approved plan")
+	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, task.Metadata["approvedPlan"], "the wait reason lives in its own column and must not reach the approved plan")
 }

@@ -239,6 +239,20 @@ func (_c *StageRunCreate) SetNillablePendingUserPrompt(v *string) *StageRunCreat
 	return _c
 }
 
+// SetWaitReason sets the "wait_reason" field.
+func (_c *StageRunCreate) SetWaitReason(v string) *StageRunCreate {
+	_c.mutation.SetWaitReason(v)
+	return _c
+}
+
+// SetNillableWaitReason sets the "wait_reason" field if the given value is not nil.
+func (_c *StageRunCreate) SetNillableWaitReason(v *string) *StageRunCreate {
+	if v != nil {
+		_c.SetWaitReason(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *StageRunCreate) SetCreatedAt(v time.Time) *StageRunCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -475,6 +489,10 @@ func (_c *StageRunCreate) createSpec() (*StageRun, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.PendingUserPrompt(); ok {
 		_spec.SetField(stagerun.FieldPendingUserPrompt, field.TypeString, value)
 		_node.PendingUserPrompt = &value
+	}
+	if value, ok := _c.mutation.WaitReason(); ok {
+		_spec.SetField(stagerun.FieldWaitReason, field.TypeString, value)
+		_node.WaitReason = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(stagerun.FieldCreatedAt, field.TypeTime, value)
@@ -844,6 +862,24 @@ func (u *StageRunUpsert) UpdatePendingUserPrompt() *StageRunUpsert {
 // ClearPendingUserPrompt clears the value of the "pending_user_prompt" field.
 func (u *StageRunUpsert) ClearPendingUserPrompt() *StageRunUpsert {
 	u.SetNull(stagerun.FieldPendingUserPrompt)
+	return u
+}
+
+// SetWaitReason sets the "wait_reason" field.
+func (u *StageRunUpsert) SetWaitReason(v string) *StageRunUpsert {
+	u.Set(stagerun.FieldWaitReason, v)
+	return u
+}
+
+// UpdateWaitReason sets the "wait_reason" field to the value that was provided on create.
+func (u *StageRunUpsert) UpdateWaitReason() *StageRunUpsert {
+	u.SetExcluded(stagerun.FieldWaitReason)
+	return u
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (u *StageRunUpsert) ClearWaitReason() *StageRunUpsert {
+	u.SetNull(stagerun.FieldWaitReason)
 	return u
 }
 
@@ -1227,6 +1263,27 @@ func (u *StageRunUpsertOne) UpdatePendingUserPrompt() *StageRunUpsertOne {
 func (u *StageRunUpsertOne) ClearPendingUserPrompt() *StageRunUpsertOne {
 	return u.Update(func(s *StageRunUpsert) {
 		s.ClearPendingUserPrompt()
+	})
+}
+
+// SetWaitReason sets the "wait_reason" field.
+func (u *StageRunUpsertOne) SetWaitReason(v string) *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.SetWaitReason(v)
+	})
+}
+
+// UpdateWaitReason sets the "wait_reason" field to the value that was provided on create.
+func (u *StageRunUpsertOne) UpdateWaitReason() *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.UpdateWaitReason()
+	})
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (u *StageRunUpsertOne) ClearWaitReason() *StageRunUpsertOne {
+	return u.Update(func(s *StageRunUpsert) {
+		s.ClearWaitReason()
 	})
 }
 
@@ -1777,6 +1834,27 @@ func (u *StageRunUpsertBulk) UpdatePendingUserPrompt() *StageRunUpsertBulk {
 func (u *StageRunUpsertBulk) ClearPendingUserPrompt() *StageRunUpsertBulk {
 	return u.Update(func(s *StageRunUpsert) {
 		s.ClearPendingUserPrompt()
+	})
+}
+
+// SetWaitReason sets the "wait_reason" field.
+func (u *StageRunUpsertBulk) SetWaitReason(v string) *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.SetWaitReason(v)
+	})
+}
+
+// UpdateWaitReason sets the "wait_reason" field to the value that was provided on create.
+func (u *StageRunUpsertBulk) UpdateWaitReason() *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.UpdateWaitReason()
+	})
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (u *StageRunUpsertBulk) ClearWaitReason() *StageRunUpsertBulk {
+	return u.Update(func(s *StageRunUpsert) {
+		s.ClearWaitReason()
 	})
 }
 
