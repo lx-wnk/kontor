@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { DeliveryState, TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage } from '@/types'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { toast } from '@/composables/useToast'
+import { reconcileDelivery } from '@/features/agents/composables/deliveryState'
 import { renderMarkdown } from '@/utils/markdown'
 import { CHAT_REFRESH_MS } from '@/utils/sse'
 
@@ -16,6 +18,7 @@ const props = defineProps<{
   // replies (a subagent has no channel) and no polling loop.
   sessionId?: string
   localMessages?: OutputMessage[]
+  trackedMessages?: TrackedMessage[]
   refreshIntervalMs?: number
 }>()
 
@@ -62,15 +65,17 @@ function formatMsgTime(ts: string | undefined): string {
   }
 }
 
+const delivery = computed(() =>
+  reconcileDelivery(props.trackedMessages ?? [], sessionMessages.value, props.localMessages),
+)
+
+function deliveryStateOf(msg: OutputMessage): DeliveryState | null {
+  return delivery.value.bubbleState.get(msg) ?? null
+}
+
 const outputMessages = computed<OutputMessage[]>(() => {
-  // Deduplicate: once a human message appears in sessionMessages (from JSONL),
-  // remove it from localMessages to avoid showing it twice during the poll gap.
-  const inSession = new Set(
-    sessionMessages.value.filter(m => m.role === 'human').map(m => m.content),
-  )
-  const filteredLocal = (props.localMessages ?? []).filter(
-    m => m.role !== 'human' || !inSession.has(m.content),
-  )
+  // A local echo gives way once its own transcript entry has arrived; an identical earlier message does not count.
+  const filteredLocal = (props.localMessages ?? []).filter(m => !delivery.value.echoed.has(m))
   const all = [...sessionMessages.value, ...channelReplies.value, ...filteredLocal]
   all.sort((a, b) => {
     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0
@@ -342,15 +347,22 @@ defineExpose({ scrollToBottom })
             >
               {{ entry.msg.content }}
             </div>
-            <time
-              v-if="formatMsgTime(entry.msg.timestamp)"
-              :datetime="isoTimestamp(entry.msg.timestamp)"
-              class="text-[10px] text-fg-mute select-none"
-            >{{ formatMsgTime(entry.msg.timestamp) }}</time>
+            <span class="flex items-center gap-1 text-[10px] text-fg-mute select-none">
+              <time
+                v-if="formatMsgTime(entry.msg.timestamp)"
+                :datetime="isoTimestamp(entry.msg.timestamp)"
+              >{{ formatMsgTime(entry.msg.timestamp) }}</time>
+              <span v-if="entry.msg.queued" title="Queued (offline)" aria-label="Queued">☁</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'sending'" title="Sending" aria-label="Sending" class="animate-pulse">⟳</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'sent'" title="Sent" aria-label="Sent">✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'queued'" title="Queued — sends when back online" aria-label="Queued">☁</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'delivered'" title="Delivered" aria-label="Delivered">✓✓</span>
+              <span v-else-if="deliveryStateOf(entry.msg) === 'failed'" title="Not sent" aria-label="Not sent" class="text-danger-text">⚠</span>
+            </span>
           </div>
           <div v-else-if="entry.msg.role === 'channel_reply'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
             <div
-              class="max-w-full px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute border-l-2 border-green-500 dark:border-green-400 markdown-body"
+              class="max-w-full shrink-0 min-w-0 px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute border-l-2 border-green-500 dark:border-green-400 markdown-body"
               v-html="renderMarkdown(entry.msg.content)"
             />
             <time
@@ -361,7 +373,7 @@ defineExpose({ scrollToBottom })
           </div>
           <div v-else-if="entry.msg.role === 'assistant'" class="flex flex-col items-start gap-0.5 max-w-[80%]">
             <div
-              class="max-w-full px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute markdown-body"
+              class="max-w-full shrink-0 min-w-0 px-3 py-2 rounded-xl rounded-bl-sm text-[13px] leading-relaxed break-words bg-raised text-fg-mute markdown-body"
               v-html="renderMarkdown(entry.msg.content)"
             />
             <time

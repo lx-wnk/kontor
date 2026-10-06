@@ -3,10 +3,15 @@ package agents
 import (
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
+
+// tmuxBufferCleanupTimeout bounds the delete-buffer that follows a failed paste.
+const tmuxBufferCleanupTimeout = 2 * time.Second
 
 // tmuxPaneRE matches a tmux pane id (e.g. "%3"). The bridge records $TMUX_PANE,
 // which is always of this form; restricting to it keeps the value safe to pass
@@ -18,30 +23,42 @@ var tmuxRunner = func(ctx context.Context, args ...string) error {
 	return exec.CommandContext(ctx, "tmux", args...).Run()
 }
 
+// tmuxStdinRunner executes a tmux command with stdin piped; indirected for tests.
+var tmuxStdinRunner = func(ctx context.Context, stdin io.Reader, args ...string) error {
+	cmd := exec.CommandContext(ctx, "tmux", args...)
+	cmd.Stdin = stdin
+	return cmd.Run()
+}
+
 // validTmuxPane reports whether pane is a well-formed tmux pane id.
 func validTmuxPane(pane string) bool {
 	return tmuxPaneRE.MatchString(pane)
 }
 
-// tmuxSendArgs builds the two tmux arg vectors that inject message as real
-// keyboard input into the pane: the literal text, then a separate Enter.
-// socket may be "" (default tmux server). The message is passed literally (-l)
-// after "--" so it is never interpreted as options or key names.
-func tmuxSendArgs(socket, pane, message string) (textArgs, enterArgs []string) {
-	var base []string
-	if socket != "" {
-		base = []string{"-S", socket}
-	}
-	textArgs = append(append([]string{}, base...), "send-keys", "-t", pane, "-l", "--", message)
-	enterArgs = append(append([]string{}, base...), "send-keys", "-t", pane, "Enter")
-	return textArgs, enterArgs
-}
-
 // tmuxLookPath resolves the tmux binary; indirected for tests.
 var tmuxLookPath = func() (string, error) { return exec.LookPath("tmux") }
 
-// sendKeysToTmux injects message into the given tmux pane as typed input,
-// followed by Enter, so an interactive Claude session executes it.
+// tmuxBufferName returns a buffer name unique to one injection: two sends to
+// the same pane sharing a name would paste each other's text and lose one.
+func tmuxBufferName(pane string) string {
+	return "kontor-" + pane + "-" + newSpawnID()
+}
+
+// deleteTmuxBuffer drops a named buffer that paste-buffer -d never got to
+// delete. It runs on a fresh context because the failed paste is often the
+// caller's cancellation, and its error is ignored: the paste error is the one
+// worth reporting.
+func deleteTmuxBuffer(base []string, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxBufferCleanupTimeout)
+	defer cancel()
+	_ = tmuxRunner(ctx, append(append([]string{}, base...), "delete-buffer", "-b", name)...)
+}
+
+// sendKeysToTmux injects message into the given tmux pane using bracketed
+// paste (load-buffer + paste-buffer), followed by Enter. Bracketed paste
+// delivers the entire payload atomically — unlike send-keys -l, which splits
+// long content across multiple events and causes Claude Code to see them as
+// separate inputs.
 func sendKeysToTmux(ctx context.Context, socket, pane, message string) error {
 	if !validTmuxPane(pane) {
 		return fmt.Errorf("invalid tmux pane %q", pane)
@@ -49,15 +66,33 @@ func sendKeysToTmux(ctx context.Context, socket, pane, message string) error {
 	if strings.ContainsAny(socket, "\n\x00") {
 		return fmt.Errorf("invalid tmux socket")
 	}
-	// tmux is a hard requirement for live prompt injection; surface a clear
-	// message rather than a raw exec-not-found error.
 	if _, err := tmuxLookPath(); err != nil {
 		return fmt.Errorf("tmux is required for live prompt injection but was not found on the server PATH; install tmux or send will resume the session instead")
 	}
-	textArgs, enterArgs := tmuxSendArgs(socket, pane, message)
-	if err := tmuxRunner(ctx, textArgs...); err != nil {
-		return fmt.Errorf("tmux send-keys (text): %w", err)
+
+	var base []string
+	if socket != "" {
+		base = []string{"-S", socket}
 	}
+	bufName := tmuxBufferName(pane)
+
+	// Step 1: load the message into a named tmux buffer via stdin.
+	// "-b <name>" names the buffer; "-" reads from stdin.
+	loadArgs := append(append([]string{}, base...), "load-buffer", "-b", bufName, "-")
+	if err := tmuxStdinRunner(ctx, strings.NewReader(message), loadArgs...); err != nil {
+		return fmt.Errorf("tmux load-buffer: %w", err)
+	}
+
+	// Step 2: paste the buffer into the pane. -p = bracketed paste mode,
+	// -d = delete the buffer after pasting (cleanup).
+	pasteArgs := append(append([]string{}, base...), "paste-buffer", "-p", "-d", "-b", bufName, "-t", pane)
+	if err := tmuxRunner(ctx, pasteArgs...); err != nil {
+		deleteTmuxBuffer(base, bufName)
+		return fmt.Errorf("tmux paste-buffer: %w", err)
+	}
+
+	// Step 3: send Enter to submit the pasted prompt.
+	enterArgs := append(append([]string{}, base...), "send-keys", "-t", pane, "Enter")
 	if err := tmuxRunner(ctx, enterArgs...); err != nil {
 		return fmt.Errorf("tmux send-keys (enter): %w", err)
 	}

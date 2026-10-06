@@ -26,7 +26,7 @@ const listboxId = useId()
 // "@<path>" tokens by useAgentPrompt (full variant only).
 const attachments = ref<string[]>([])
 
-const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume } = useAgentPrompt(
+const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume, trackedMessages } = useAgentPrompt(
   () => props.agent,
   msg => emit('messageSent', msg),
   {
@@ -277,7 +277,7 @@ function onConfirmStripKeydown(e: KeyboardEvent) {
   }
 }
 
-defineExpose({ focus, prefill })
+defineExpose({ focus, prefill, trackedMessages })
 </script>
 
 <template>

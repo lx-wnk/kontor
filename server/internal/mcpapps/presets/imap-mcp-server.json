@@ -2,6 +2,7 @@
   "server": "imap-mcp-server",
   "version": "2.0.0",
   "match": "imap-mcp-server",
+  "confirmed": true,
   "denyGlobal": [
     "imap_add_account",
     "imap_update_account",
@@ -19,6 +20,23 @@
     "imap_add_spam_domain",
     "imap_remove_spam_domain",
     "imap_add_whitelist_domain"
+  ],
+  "denyArgs": [
+    {
+      "tool": "imap_move_email",
+      "param": "targetFolder",
+      "values": [
+        "*Trash*",
+        "*trash*",
+        "*TRASH*",
+        "[Gmail]/Bin",
+        "[Google Mail]/Bin",
+        "*Deleted*",
+        "*deleted*",
+        "*Papierkorb*",
+        "*Gelöschte*"
+      ]
+    }
   ],
   "setup": {
     "command": "npx",

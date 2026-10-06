@@ -1,4 +1,4 @@
-export const WIDGET_IDS = ['kontor', 'hub', 'live-work', 'agents', 'pipeline', 'routines', 'github', 'memory', 'cost-today'] as const
+export const WIDGET_IDS = ['kontor', 'hub', 'live-work', 'agents', 'pipeline', 'routines', 'github', 'memory', 'cost-today', 'plan-usage'] as const
 export type WidgetId = typeof WIDGET_IDS[number]
 
 export const HUB_WIDGET: WidgetId = 'hub'
@@ -32,4 +32,5 @@ export const WIDGET_SPECS: Record<WidgetId, WidgetSpec> = {
   'github': spec('github', 'GitHub', [3, 3], [3, 2]),
   'memory': spec('memory', 'Memory', [3, 3], [3, 2]),
   'cost-today': spec('cost-today', 'Today', [3, 3], [2, 2]),
+  'plan-usage': spec('plan-usage', 'Plan usage', [3, 2], [2, 1]),
 }

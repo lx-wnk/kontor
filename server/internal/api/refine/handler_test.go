@@ -391,6 +391,73 @@ func TestConfirm_PersistsConceptOntoTask(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 
+// TestNewTurnResponses_JSONShape proves the shared mapper produces the correct
+// JSON shape — both the HTTP listTurns handler and the MCP get_refine_draft
+// tool use this single function.
+func TestNewTurnResponses_JSONShape(t *testing.T) {
+	phase := "drafting"
+	turns := []*ent.RefinementTurn{
+		{
+			ID:        "t1",
+			TaskID:    "task-1",
+			Role:      refinementturn.Role("user"),
+			Content:   "hello",
+			Phase:     &phase,
+			Options:   []string{"opt-a", "opt-b"},
+			CreatedAt: time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:        "t2",
+			TaskID:    "task-1",
+			Role:      refinementturn.Role("assistant"),
+			Content:   "hi back",
+			CreatedAt: time.Date(2026, 10, 1, 12, 1, 0, 0, time.UTC),
+		},
+	}
+
+	resp := apirefine.NewTurnResponses(turns)
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var parsed []map[string]any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(parsed) != 2 {
+		t.Fatalf("want 2 turns, got %d", len(parsed))
+	}
+
+	// First turn: has phase and options.
+	first := parsed[0]
+	for _, key := range []string{"id", "role", "content", "created_at", "phase", "options"} {
+		if _, ok := first[key]; !ok {
+			t.Errorf("first turn missing key %q", key)
+		}
+	}
+	if first["id"] != "t1" {
+		t.Errorf("first id = %v, want t1", first["id"])
+	}
+	if first["role"] != "user" {
+		t.Errorf("first role = %v, want user", first["role"])
+	}
+
+	// Second turn: phase and options should be omitted (nil/empty).
+	second := parsed[1]
+	for _, key := range []string{"id", "role", "content", "created_at"} {
+		if _, ok := second[key]; !ok {
+			t.Errorf("second turn missing key %q", key)
+		}
+	}
+	if _, ok := second["phase"]; ok {
+		t.Error("second turn should omit nil phase")
+	}
+	if _, ok := second["options"]; ok {
+		t.Error("second turn should omit empty options")
+	}
+}
+
 func TestStatus_ReturnsNoneForUnknownTask(t *testing.T) {
 	turns := &fakeTurnRepo{}
 	tasks := newFakeTaskRepo()

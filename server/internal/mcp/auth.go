@@ -16,13 +16,15 @@ import (
 
 // ToolScopeMap maps every MCP tool name to the minimum scope required to call it.
 var ToolScopeMap = map[string]string{
-	// tasks:read
+	// tasks:read (get_refine_draft is deliberate: read-only; pipeline:control
+	// implies tasks:read so existing sessions retain access)
 	"list_tasks": "tasks:read", "get_task": "tasks:read",
 	"list_stage_runs": "tasks:read", "list_audit": "tasks:read",
 	"list_permission_requests": "tasks:read",
 	"list_projects":            "tasks:read",
 	"list_spawners":            "tasks:read",
 	"list_schedules":           "tasks:read",
+	"get_refine_draft":         "tasks:read",
 	// tasks:write
 	"create_task": "tasks:write", "update_task": "tasks:write",
 	"delete_task": "tasks:write", "manage_task": "tasks:write",
