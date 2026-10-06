@@ -20,10 +20,11 @@ func Watch(ctx context.Context, onChange func()) error {
 	}
 
 	last := fingerprint(path)
+	debounce := WatchDebounce // the goroutine outlives this call, so it must not read the variable
 	go func() {
-		poll := time.NewTicker(WatchDebounce / 2)
+		poll := time.NewTicker(debounce / 2)
 		defer poll.Stop()
-		timer := time.NewTimer(WatchDebounce)
+		timer := time.NewTimer(debounce)
 		timer.Stop()
 		for {
 			select {
@@ -33,7 +34,7 @@ func Watch(ctx context.Context, onChange func()) error {
 			case <-poll.C:
 				if now := fingerprint(path); now != last {
 					last = now
-					resetTimer(timer, WatchDebounce)
+					resetTimer(timer, debounce)
 				}
 			case <-timer.C:
 				onChange()

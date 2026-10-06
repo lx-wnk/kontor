@@ -125,3 +125,26 @@ func TestWatchStopsOnCancel(t *testing.T) {
 		t.Fatalf("calls after cancel = %d, want %d", got, before)
 	}
 }
+
+func TestWatchIgnoresDebounceChangedAfterStart(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	setDebounce(t, 20*time.Millisecond)
+	path := configPath(t)
+	writeConfig(t, path)
+
+	reported := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := claudeconfig.Watch(ctx, func() { reported <- struct{}{} }); err != nil {
+		t.Fatalf("Watch: %v", err)
+	}
+
+	claudeconfig.WatchDebounce = time.Hour
+	writeConfig(t, path)
+
+	select {
+	case <-reported:
+	case <-time.After(5 * time.Second):
+		t.Fatal("change not reported: the watcher re-read WatchDebounce after it started")
+	}
+}
