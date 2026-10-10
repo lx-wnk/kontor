@@ -32,6 +32,7 @@ func (StageRun) Fields() []ent.Field {
 		field.Int("rate_limit_retry_count").Default(0),
 		field.Time("next_retry_at").Optional().Nillable(),
 		field.String("pending_user_prompt").Optional().Nillable(),
+		field.String("wait_reason").Optional().Nillable(),
 		field.Time("created_at").Default(time.Now).Immutable().Annotations(entsql.Default("datetime('now')")),
 	}
 }
