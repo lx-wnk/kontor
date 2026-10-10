@@ -330,11 +330,12 @@ func applyPermissionHooks(settings map[string]any, script string) (hooksOutcome,
 			}
 		}
 	}
-	pre, err := upsertHookEntry(hooks, "PreToolUse", script, map[string]any{
+	preCommand := shellQuote(script)
+	pre, err := upsertHookEntry(hooks, "PreToolUse", script, preCommand, map[string]any{
 		"matcher": permissionGatedTools,
 		"hooks": []any{map[string]any{
 			"type":    "command",
-			"command": script,
+			"command": preCommand,
 			"timeout": permissionHookTimeoutSeconds,
 		}},
 	})
@@ -343,11 +344,12 @@ func applyPermissionHooks(settings map[string]any, script string) (hooksOutcome,
 	}
 	// Not folded into one expression: both entries must be attempted, and || or
 	// && would skip the second whenever the first already decided the outcome.
-	notify, err := upsertHookEntry(hooks, "Notification", script+" "+notificationArg, map[string]any{
+	notifyCommand := preCommand + " " + notificationArg
+	notify, err := upsertHookEntry(hooks, "Notification", script, notifyCommand, map[string]any{
 		"matcher": permissionPromptNotification,
 		"hooks": []any{map[string]any{
 			"type":    "command",
-			"command": script + " " + notificationArg,
+			"command": notifyCommand,
 			"timeout": notificationHookTimeoutSeconds,
 		}},
 	})
@@ -371,15 +373,17 @@ func applyPermissionHooks(settings map[string]any, script string) (hooksOutcome,
 
 // upsertHookEntry adds the entry, or replaces an existing one of ours whose
 // command has drifted. wantCommand is the exact command line this install would
-// write, so an entry that already matches it is left untouched.
+// write, so an entry that already matches it is left untouched; an older install
+// wrote the script path raw, which differs from it and is therefore rewritten
+// to the quoted form in place. script is the path being installed.
 //
 // A foreign entry running the same script from elsewhere stops the install: two
 // registrations would both fire on every tool call, and silently replacing one
 // the user wrote by hand is not this command's decision to make.
-func upsertHookEntry(hooks map[string]any, event, wantCommand string, entry map[string]any) (hooksOutcome, error) {
+func upsertHookEntry(hooks map[string]any, event, script, wantCommand string, entry map[string]any) (hooksOutcome, error) {
 	existing, _ := hooks[event].([]any)
 	for i, e := range existing {
-		cmd, ours, foreign := entryCommand(e, wantCommand)
+		cmd, ours, foreign := entryCommand(e, script)
 		if foreign {
 			return hooksUnchanged, fmt.Errorf(
 				"hooks.%s already runs %s, which this command did not install — remove it first, or re-run with --script %s",
@@ -417,7 +421,7 @@ func removePermissionHooks(settings map[string]any) (changed bool, foreign []str
 		}
 		kept := make([]any, 0, len(raw))
 		for _, e := range raw {
-			// No wantCommand here: uninstall has no install to compare against,
+			// No script here: uninstall has no install to compare against,
 			// so only the directory this command owns identifies an entry.
 			cmd, ours, isForeign := entryCommand(e, "")
 			if ours {
@@ -448,7 +452,7 @@ func removePermissionHooks(settings map[string]any) (changed bool, foreign []str
 // may be rewritten or deleted. A marker match that is not ours is a foreign
 // script the user registered by hand, and both callers surface it instead of
 // touching it.
-func entryCommand(entry any, want string) (cmd string, ours, foreign bool) {
+func entryCommand(entry any, wantScript string) (cmd string, ours, foreign bool) {
 	m, ok := entry.(map[string]any)
 	if !ok {
 		return "", false, false
@@ -463,14 +467,24 @@ func entryCommand(entry any, want string) (cmd string, ours, foreign bool) {
 		if c == "" || !containsAny(c, hookMarkers) {
 			continue
 		}
-		// want is the exact command being installed, which for a --script
-		// override is the only thing identifying it.
-		if c == want || containsAny(c, ownedDirs) {
+		// wantScript is the path being installed, which for a --script override
+		// is the only thing identifying it. It is compared as a path so the raw
+		// form older versions wrote and the quoted form match alike.
+		if (wantScript != "" && hookScriptPath(c) == wantScript) || containsAny(c, ownedDirs) {
 			return c, true, false
 		}
 		return c, false, true
 	}
 	return "", false, false
+}
+
+// hookScriptPath extracts the script path from a permission hook command,
+// whether it is the shell-quoted form or the raw path older versions wrote.
+func hookScriptPath(command string) string {
+	if word, rest, ok := readQuotedWord(command); ok && (rest == "" || rest == " "+notificationArg) {
+		return word
+	}
+	return strings.TrimSuffix(command, " "+notificationArg)
 }
 
 // statusLineCommand returns the statusLine command, empty when the entry is not

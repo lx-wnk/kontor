@@ -124,7 +124,7 @@ func TestApplyPermissionHooksRepairsAStalePath(t *testing.T) {
 			t.Fatalf("%s has %d entries — repair appended instead of replacing", event, len(entries))
 		}
 		cmd, ours, _ := entryCommand(entries[0], testScript)
-		if !ours || !strings.HasPrefix(cmd, testScript) {
+		if !ours || !strings.HasPrefix(cmd, shellQuote(testScript)) {
 			t.Fatalf("%s still points at %q", event, cmd)
 		}
 	}
@@ -474,7 +474,7 @@ func TestApplyPermissionHooksReplacesAPreRenameEntry(t *testing.T) {
 			t.Fatalf("%s has %d entries — the pre-rename entry was not replaced", event, len(entries))
 		}
 		cmd, ours, _ := entryCommand(entries[0], testScript)
-		if !ours || !strings.HasPrefix(cmd, testScript) {
+		if !ours || !strings.HasPrefix(cmd, shellQuote(testScript)) {
 			t.Fatalf("%s points at %q, want the renamed script", event, cmd)
 		}
 	}
@@ -887,4 +887,142 @@ func TestUninstallRemovesTheStatusLineWhenTheChainedCommandWasEmpty(t *testing.T
 			t.Fatalf("uninstall printed %q, want it to report the removal", stdout)
 		}
 	}
+}
+
+const (
+	spacedScript   = "/Users/John Doe/.claude/kontor-hooks/kontor-permission.sh"
+	overrideScript = "/dev/checkout/my hooks/kontor-permission.sh"
+)
+
+var foreignPreToolUse = map[string]any{
+	"matcher": "Bash",
+	"hooks":   []any{map[string]any{"type": "command", "command": "/usr/local/bin/my-guard.sh"}},
+}
+
+func hookEntry(command string) map[string]any {
+	return map[string]any{
+		"matcher": "Bash",
+		"hooks":   []any{map[string]any{"type": "command", "command": command}},
+	}
+}
+
+// legacyPermissionSettings is what older versions wrote: the script path raw,
+// with the foreign hook the user registered next to it.
+func legacyPermissionSettings(script string) map[string]any {
+	return map[string]any{"hooks": map[string]any{
+		"PreToolUse":   []any{foreignPreToolUse, hookEntry(script)},
+		"Notification": []any{hookEntry(script + " " + notificationArg)},
+	}}
+}
+
+func hookCommands(t *testing.T, settings map[string]any, event string) []string {
+	t.Helper()
+	var out []string
+	for _, e := range settings["hooks"].(map[string]any)[event].([]any) {
+		for _, h := range e.(map[string]any)["hooks"].([]any) {
+			out = append(out, h.(map[string]any)["command"].(string))
+		}
+	}
+	return out
+}
+
+func TestInstallQuotesThePermissionHookScriptSoASpaceInTheConfigDirSurvives(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "John Doe", ".claude")
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	settingsPath := filepath.Join(dir, "settings.json")
+	script := filepath.Join(dir, hookscript.Dir, hookscript.Name)
+
+	runHooksCmd(t, newHooksInstallCmd())
+
+	settings := mustReadSettings(t, settingsPath)
+	stub := "#!/bin/sh\nprintf 'ran:%s:%s' \"$#\" \"$1\"\n"
+	if err := os.WriteFile(script, []byte(stub), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for event, want := range map[string]string{
+		"PreToolUse":   "ran:0:",
+		"Notification": "ran:1:" + notificationArg,
+	} {
+		commands := hookCommands(t, settings, event)
+		if len(commands) != 1 || !strings.HasPrefix(commands[0], shellQuote(script)) {
+			t.Fatalf("%s commands = %q, want one starting with the quoted script %s", event, commands, shellQuote(script))
+		}
+		out, err := exec.Command("sh", "-c", commands[0]).Output()
+		if err != nil {
+			t.Fatalf("sh -c %q: %v", commands[0], err)
+		}
+		if string(out) != want {
+			t.Fatalf("%s: shell ran %q as %q, want %q", event, commands[0], out, want)
+		}
+	}
+
+	first := readFile(t, settingsPath)
+	stdout, _ := runHooksCmd(t, newHooksInstallCmd())
+	if after := readFile(t, settingsPath); after != first {
+		t.Fatalf("second install changed the settings:\nfirst: %s\nafter: %s", first, after)
+	}
+	if !strings.Contains(stdout, "already installed") {
+		t.Fatalf("second install said %q, want \"already installed\"", stdout)
+	}
+}
+
+func TestInstallMigratesALegacyRawPermissionHookInPlace(t *testing.T) {
+	for name, tc := range map[string]struct{ legacy, install string }{
+		"owned dir, broken unquoted space": {spacedScript, spacedScript},
+		"owned dir, plain path":            {testScript, testScript},
+		"--script override":                {overrideScript, overrideScript},
+	} {
+		t.Run(name, func(t *testing.T) {
+			settings := legacyPermissionSettings(tc.legacy)
+
+			got, err := applyPermissionHooks(settings, tc.install)
+			if err != nil || got != hooksRepaired {
+				t.Fatalf("install over a legacy entry = (%v, %v), want (repaired, nil)", got, err)
+			}
+
+			pre := hookCommands(t, settings, "PreToolUse")
+			if want := []string{"/usr/local/bin/my-guard.sh", shellQuote(tc.install)}; !slicesEqual(pre, want) {
+				t.Fatalf("PreToolUse = %q, want %q (foreign untouched, ours migrated in place)", pre, want)
+			}
+			notify := hookCommands(t, settings, "Notification")
+			if want := []string{shellQuote(tc.install) + " " + notificationArg}; !slicesEqual(notify, want) {
+				t.Fatalf("Notification = %q, want %q", notify, want)
+			}
+			if got, err := applyPermissionHooks(settings, tc.install); err != nil || got != hooksUnchanged {
+				t.Fatalf("second install = (%v, %v), want (unchanged, nil)", got, err)
+			}
+		})
+	}
+}
+
+func TestUninstallRemovesLegacyAndQuotedPermissionHooks(t *testing.T) {
+	quoted := map[string]any{}
+	mustApply(t, quoted, spacedScript)
+	quoted["hooks"].(map[string]any)["PreToolUse"] = append(
+		[]any{foreignPreToolUse}, quoted["hooks"].(map[string]any)["PreToolUse"].([]any)...)
+
+	for name, settings := range map[string]map[string]any{
+		"legacy raw":               legacyPermissionSettings(testScript),
+		"legacy raw, broken space": legacyPermissionSettings(spacedScript),
+		"quoted":                   quoted,
+	} {
+		t.Run(name, func(t *testing.T) {
+			removed, foreign := removePermissionHooks(settings)
+
+			if !removed || len(foreign) != 0 {
+				t.Fatalf("uninstall = (%v, %v), want ours removed and nothing reported", removed, foreign)
+			}
+			pre := hookCommands(t, settings, "PreToolUse")
+			if !slicesEqual(pre, []string{"/usr/local/bin/my-guard.sh"}) {
+				t.Fatalf("PreToolUse = %q, want only the foreign hook left", pre)
+			}
+			if _, present := settings["hooks"].(map[string]any)["Notification"]; present {
+				t.Fatal("Notification entry survived uninstall")
+			}
+		})
+	}
+}
+
+func slicesEqual(a, b []string) bool {
+	return len(a) == len(b) && (len(a) == 0 || strings.Join(a, "\x00") == strings.Join(b, "\x00"))
 }
