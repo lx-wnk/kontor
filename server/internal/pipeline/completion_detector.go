@@ -100,30 +100,46 @@ func validateJob(o map[string]any) ValidationResult {
 	return ValidationResult{OK: true}
 }
 
-// validatePlanReview rejects only an empty submission: the plan has no enforced
-// schema, but an empty one would otherwise reach the approve gate.
+// validatePlanReview enforces the shape PlanReviewPrompt asks for:
+// {"summary": string, "steps": string[], "filesTouched": string[], "testApproach": string}.
+// Extra keys are tolerated, like in every other stage schema. filesTouched may
+// be empty: a plan can legitimately touch no file.
 func validatePlanReview(o map[string]any) ValidationResult {
-	for _, v := range o {
-		if !isEmptyValue(v) {
-			return ValidationResult{OK: true}
-		}
+	var invalid []string
+	if !isNonBlankString(o["summary"]) {
+		invalid = append(invalid, "summary (non-empty string)")
 	}
-	return ValidationResult{OK: false, Error: "plan output is empty: provide a summary, steps, filesTouched and testApproach"}
+	if !isStringArray(o["steps"], true) {
+		invalid = append(invalid, "steps (non-empty array of non-empty strings)")
+	}
+	if !isStringArray(o["filesTouched"], false) {
+		invalid = append(invalid, "filesTouched (array of non-empty strings)")
+	}
+	if !isNonBlankString(o["testApproach"]) {
+		invalid = append(invalid, "testApproach (non-empty string)")
+	}
+	if len(invalid) > 0 {
+		return ValidationResult{OK: false, Error: "plan output has missing or invalid fields: " + strings.Join(invalid, ", ")}
+	}
+	return ValidationResult{OK: true}
 }
 
-func isEmptyValue(v any) bool {
-	switch x := v.(type) {
-	case nil:
-		return true
-	case string:
-		return strings.TrimSpace(x) == ""
-	case []any:
-		return len(x) == 0
-	case map[string]any:
-		return len(x) == 0
-	default:
+func isNonBlankString(v any) bool {
+	s, ok := v.(string)
+	return ok && strings.TrimSpace(s) != ""
+}
+
+func isStringArray(v any, nonEmpty bool) bool {
+	items, ok := v.([]any)
+	if !ok || (nonEmpty && len(items) == 0) {
 		return false
 	}
+	for _, item := range items {
+		if !isNonBlankString(item) {
+			return false
+		}
+	}
+	return true
 }
 
 type CompletionResult struct {
