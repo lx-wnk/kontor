@@ -3,14 +3,50 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-OUTPUT="${REPO_ROOT}/THIRD_PARTY_LICENSES.md"
+DEFAULT_OUTPUT="${REPO_ROOT}/dist/THIRD_PARTY_LICENSES.md"
 GO_LICENSES="$(go env GOPATH)/bin/go-licenses"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/gen-licenses.sh [OUTPUT]
+       scripts/gen-licenses.sh --check
+
+Generates the third-party notices (summary tables plus the full license and
+NOTICE texts) at release time. OUTPUT defaults to dist/THIRD_PARTY_LICENSES.md.
+--check runs the whole collection into a temp file, enforces every gate
+(Unknown license, missing license text, tidy modules, row floor) and leaves
+no file behind.
+EOF
+}
+
+CHECK_ONLY=false
+OUTPUT=""
+for arg in "$@"; do
+  case "${arg}" in
+    --check) CHECK_ONLY=true ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "ERROR: unknown option ${arg}" >&2; usage >&2; exit 2 ;;
+    *)
+      if [[ -n "${OUTPUT}" ]]; then
+        echo "ERROR: more than one OUTPUT given (${OUTPUT}, ${arg})" >&2
+        exit 2
+      fi
+      OUTPUT="${arg}"
+      ;;
+  esac
+done
+if [[ "${CHECK_ONLY}" == "true" && -n "${OUTPUT}" ]]; then
+  echo "ERROR: --check writes no file; drop OUTPUT (${OUTPUT})" >&2
+  exit 2
+fi
+OUTPUT="${OUTPUT:-${DEFAULT_OUTPUT}}"
 
 # go-licenses v1.6.0 errored on every stdlib package under Go 1.26 ("Package
 # ... does not have module info. Non go modules projects are no longer
 # supported"), which collect_go() tolerated via `|| true` — silently emptying
 # the Go section. Bumped 2026-07-14 to go-licenses/v2@v2.0.1, which runs cleanly
-# under Go 1.26. The v2 bump corrected one long-standing misclassification:
+# under Go 1.26 but fails under Go 1.27 — run with GOTOOLCHAIN=go<.go-version>.
+# The v2 bump corrected one long-standing misclassification:
 # modernc.org/libc was reported MIT by v1.6.0 (it had classified the bundled
 # LICENSE-3RD-PARTY.md), but the module's own LICENSE is 3-clause BSD — v2
 # reads the right file and reports BSD-3-Clause. Install with:
@@ -44,9 +80,15 @@ declare -A LICENSE_URL_SUBDIR_STRIP=([github.com/wailsapp/wails/v2]="v2/")
 
 TMP_GO_RAW="$(mktemp)"
 TMP_GO_FIXED="$(mktemp)"
+TMP_MODULE_RAW="$(mktemp)"
 TMP_FRONTEND_JSON="$(mktemp)"
+TMP_FRONTEND_TABLE="$(mktemp)"
+TMP_FRONTEND_TEXTS="$(mktemp)"
+TMP_GO_TEXTS="$(mktemp)"
+TMP_SAVE_LOG="$(mktemp)"
 TMP_OUTPUT="$(mktemp)"
-trap 'rm -f "${TMP_GO_RAW}" "${TMP_GO_FIXED}" "${TMP_FRONTEND_JSON}" "${TMP_OUTPUT}"' EXIT
+TMP_SAVE_ROOT="$(mktemp -d)"
+trap 'rm -rf "${TMP_GO_RAW}" "${TMP_GO_FIXED}" "${TMP_MODULE_RAW}" "${TMP_FRONTEND_JSON}" "${TMP_FRONTEND_TABLE}" "${TMP_FRONTEND_TEXTS}" "${TMP_GO_TEXTS}" "${TMP_SAVE_LOG}" "${TMP_OUTPUT}" "${TMP_SAVE_ROOT}"' EXIT
 
 # ── Collect Go deps ────────────────────────────────────────────────────────────
 
@@ -58,14 +100,16 @@ export GOOS=linux
 export GOARCH=amd64
 
 # go-licenses' exit status for the module collect_go() last ran. Its stdout is
-# the CSV stream the caller redirects into TMP_GO_RAW, so the status cannot be
-# returned normally — collect_module() reads it from here.
+# the CSV stream the caller redirects into TMP_MODULE_RAW, so the status cannot
+# be returned normally — collect_module() reads it from here.
 GO_LICENSES_STATUS=0
 
 # The `|| true` below keeps a failing module from aborting the run before
 # collect_module() can produce a diagnostic; it is not tolerance. Stderr is left
 # visible so genuine failures surface in CI logs instead of being silently
-# swallowed.
+# swallowed. `go build -o /dev/null` still downloads and compiles the module's
+# dependencies but never writes the binaries of the plugin main packages (which
+# are tracked in git) into the working tree.
 collect_go() {
   local dir="$1"
   local gowork_off="${2:-false}"
@@ -76,11 +120,11 @@ collect_go() {
   local st=0
 
   if [[ "${gowork_off}" == "true" ]]; then
-    (cd "${dir}" && GOWORK=off GOOS="${goos}" go build ./... 2>/dev/null || true)
+    (cd "${dir}" && GOWORK=off GOOS="${goos}" go build -o /dev/null ./... 2>/dev/null || true)
     (cd "${dir}" && GOWORK=off GOOS="${goos}" "${GO_LICENSES}" report ./... \
       --ignore github.com/lx-wnk/kontor) || st=$?
   else
-    (cd "${dir}" && GOOS="${goos}" go build ./... 2>/dev/null || true)
+    (cd "${dir}" && GOOS="${goos}" go build -o /dev/null ./... 2>/dev/null || true)
     (cd "${dir}" && GOOS="${goos}" "${GO_LICENSES}" report ./... \
       --ignore github.com/lx-wnk/kontor) || st=$?
   fi
@@ -140,15 +184,16 @@ print_module_repro_cmd() {
 # module alone — the exact way #329 dropped the Go dependency count from 72 to
 # 63 without the script noticing. MIN_GO_DEP_ROWS below only catches a total
 # collapse; this catches one module vanishing.
+#
+# Every row is tagged with the module's registry index as a 4th CSV field; it
+# later locates the `go-licenses save` output holding that row's license text.
 collect_module() {
-  local dir="$1" gowork_off="$2" goos="$3" label="$4"
+  local dir="$1" gowork_off="$2" goos="$3" label="$4" idx="$5"
   echo "Collecting Go deps: ${label}..."
 
-  local before after row_count
-  before="$(wc -l < "${TMP_GO_RAW}")"
-  collect_go "${dir}" "${gowork_off}" "${goos}" >> "${TMP_GO_RAW}"
-  after="$(wc -l < "${TMP_GO_RAW}")"
-  row_count=$(( after - before ))
+  local row_count
+  collect_go "${dir}" "${gowork_off}" "${goos}" > "${TMP_MODULE_RAW}"
+  row_count="$(wc -l < "${TMP_MODULE_RAW}")"
 
   if (( GO_LICENSES_STATUS != 0 )); then
     echo "" >&2
@@ -179,6 +224,8 @@ collect_module() {
     print_module_repro_cmd "${dir}" "${gowork_off}" "${goos}"
     exit 1
   fi
+
+  sed "s/\$/,${idx}/" "${TMP_MODULE_RAW}" >> "${TMP_GO_RAW}"
 }
 
 # ── Module registry ─────────────────────────────────────────────────────────────
@@ -262,7 +309,7 @@ for i in "${!MODULE_DIRS[@]}"; do
 done
 
 for i in "${!MODULE_DIRS[@]}"; do
-  collect_module "${MODULE_DIRS[$i]}" "${MODULE_GOWORK_OFF[$i]}" "${MODULE_GOOS[$i]}" "${MODULE_LABELS[$i]}"
+  collect_module "${MODULE_DIRS[$i]}" "${MODULE_GOWORK_OFF[$i]}" "${MODULE_GOOS[$i]}" "${MODULE_LABELS[$i]}" "${i}"
 done
 
 # ── Apply license overrides ────────────────────────────────────────────────────
@@ -274,7 +321,7 @@ while IFS= read -r line; do
   if [[ -n "${LICENSE_OVERRIDES[${module}]+x}" ]]; then
     url="$(echo "${line}" | cut -d',' -f2)"
     [[ "${url}" == "Unknown" ]] && url="https://pkg.go.dev/${module}"
-    echo "${module},${url},${LICENSE_OVERRIDES[${module}]}"
+    echo "${module},${url},${LICENSE_OVERRIDES[${module}]},$(echo "${line}" | cut -d',' -f4)"
   else
     echo "${line}"
   fi
@@ -306,31 +353,118 @@ fi
 echo "Collecting frontend deps..."
 (cd "${REPO_ROOT}" && pnpm licenses list --prod --json 2>/dev/null) > "${TMP_FRONTEND_JSON}"
 
-FRONTEND_TABLE="$(python3 - "${TMP_FRONTEND_JSON}" <<'PYEOF'
-import sys, json
+# Writes the summary table rows and the full license/NOTICE texts of every
+# production package. A package whose license is Unknown, or whose directory
+# holds no license file, is a hard error — never a silently thinner notice.
+python3 -I - "${TMP_FRONTEND_JSON}" "${TMP_FRONTEND_TABLE}" "${TMP_FRONTEND_TEXTS}" <<'PYEOF'
+import json
+import os
+import re
+import sys
 
-with open(sys.argv[1]) as f:
+LICENSE_FILE_RE = re.compile(r'^(licen[sc]e|copying|notice)', re.IGNORECASE)
+FENCE = '~' * 6
+
+# Packages that publish no license file. Text copied from the upstream repository
+# and valid only while the package still declares the same license; otherwise the
+# package is reported as a problem again.
+UPSTREAM_LICENSE_FALLBACKS = {
+    'change-case': ('MIT', 'https://github.com/blakeembrey/change-case/blob/master/LICENSE', """The MIT License (MIT)
+
+Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE."""),
+}
+
+json_path, table_path, texts_path = sys.argv[1:4]
+with open(json_path) as f:
     data = json.load(f)
 
 rows = []
+entries = {}
+problems = []
 for license_type, packages in data.items():
     for pkg in packages:
         name = pkg.get('name', '')
-        versions = ', '.join(pkg.get('versions', []))
-        rows.append((name, versions, license_type))
+        versions = pkg.get('versions', [])
+        paths = pkg.get('paths', [])
+        rows.append((name, ', '.join(versions), license_type))
+        if 'unknown' in license_type.lower():
+            problems.append(f'{name}: license type is {license_type}')
+        if len(versions) != len(paths):
+            problems.append(f'{name}: {len(versions)} version(s) but {len(paths)} path(s)')
+            continue
+        for version, path in zip(versions, paths):
+            entries[(name, version)] = (license_type, path)
+
+
+def license_files(directory):
+    try:
+        names = os.listdir(directory)
+    except OSError as err:
+        problems.append(f'{directory}: {err}')
+        return []
+    found = []
+    for fname in sorted(names):
+        full = os.path.join(directory, fname)
+        if LICENSE_FILE_RE.match(fname) and os.path.isfile(full) and os.path.getsize(full) > 0:
+            found.append((fname, full))
+    return found
+
 
 rows.sort(key=lambda r: r[0].lower())
-for name, versions, lic in rows:
-    print(f"| {name} | {versions} | {lic} |")
+with open(table_path, 'w') as out:
+    for name, versions, lic in rows:
+        out.write(f'| {name} | {versions} | {lic} |\n')
+
+with open(texts_path, 'w') as out:
+    for name, version in sorted(entries, key=lambda k: (k[0].lower(), k[1])):
+        lic, path = entries[(name, version)]
+        files = license_files(path)
+        fallback = UPSTREAM_LICENSE_FALLBACKS.get(name)
+        if not files and fallback and fallback[0] == lic:
+            out.write(f'### {name}@{version} ({lic})\n\nThe package ships no license file; text from {fallback[1]}\n\n')
+            out.write(f'#### LICENSE\n\n{FENCE}text\n{fallback[2]}\n{FENCE}\n\n')
+            continue
+        if not files:
+            problems.append(f'{name}@{version}: no LICENSE/COPYING/NOTICE file in {path}')
+            continue
+        out.write(f'### {name}@{version} ({lic})\n\n')
+        for fname, full in files:
+            with open(full, encoding='utf-8', errors='replace') as src:
+                text = src.read().rstrip('\n')
+            out.write(f'#### {fname}\n\n{FENCE}text\n{text}\n{FENCE}\n\n')
+
+if problems:
+    print('', file=sys.stderr)
+    print('ERROR: frontend license problem(s) — resolve before shipping:', file=sys.stderr)
+    for problem in problems:
+        print(f'  {problem}', file=sys.stderr)
+    sys.exit(1)
 PYEOF
-)"
 
 # ── Counts ─────────────────────────────────────────────────────────────────────
 
 GO_COUNT="$(echo "${GO_SORTED}" | grep -c ',' || true)"
-FE_COUNT="$(echo "${FRONTEND_TABLE}" | grep -c '^|' || true)"
+FE_COUNT="$(grep -c '^|' "${TMP_FRONTEND_TABLE}" || true)"
 
-# ── Guard: refuse to wipe a good file with a broken run ───────────────────────
+# ── Guard: refuse to ship a broken run ────────────────────────────────────────
 # collect_go() tolerates go-licenses failures (see comment above it), so a
 # fully broken toolchain — e.g. go-licenses v1.6.0 under Go 1.26, which errors
 # on every stdlib package with "does not have module info. Non go modules
@@ -343,34 +477,119 @@ if (( GO_COUNT < MIN_GO_DEP_ROWS )); then
   echo "" >&2
   echo "ERROR: only ${GO_COUNT} Go dependency rows collected (expected >= ${MIN_GO_DEP_ROWS})." >&2
   echo "This almost always means go-licenses ${GO_LICENSES_VERSION} is failing under the" >&2
-  echo "current Go toolchain (known incompatible with Go 1.26: 'Package ... does not" >&2
-  echo "have module info. Non go modules projects are no longer supported')." >&2
-  echo "Refusing to overwrite ${OUTPUT} with a wiped Go section." >&2
-  echo "" >&2
-  echo "Workaround: manually splice the existing Go Dependencies table from the" >&2
-  echo "current ${OUTPUT} into a freshly regenerated file (see git history for prior" >&2
-  echo "splices), or investigate a go-licenses version compatible with this Go version." >&2
+  echo "current Go toolchain (known incompatible with Go 1.27, and with Go 1.26 for v1.6.0:" >&2
+  echo "'Package ... does not have module info. Non go modules projects are no longer" >&2
+  echo "supported'). Run with GOTOOLCHAIN=go<version in .go-version>." >&2
+  echo "Refusing to emit a notices file with a wiped Go section." >&2
   exit 1
 fi
 
-echo "Writing ${OUTPUT} (${GO_COUNT} Go deps, ${FE_COUNT} frontend deps)..."
+# ── Collect Go license texts ───────────────────────────────────────────────────
+# `go-licenses save` writes the license and NOTICE files of every dependency
+# package to <save_path>/<package path>/ — and, for copyleft licenses, the
+# module's source as well, which a notices file does not want. Only
+# LICENSE/COPYING/NOTICE-named files are read back from those directories.
+
+# One `go-licenses save` per module that still owns at least one row after the
+# dedupe above.
+save_module_texts() {
+  local i="$1" st=0
+  local -a run_env=("GOOS=${MODULE_GOOS[$i]}")
+  if [[ "${MODULE_GOWORK_OFF[$i]}" == "true" ]]; then
+    run_env+=("GOWORK=off")
+  fi
+
+  (cd "${MODULE_DIRS[$i]}" && env "${run_env[@]}" "${GO_LICENSES}" save ./... \
+    --ignore github.com/lx-wnk/kontor --save_path "${TMP_SAVE_ROOT}/${i}") 2>"${TMP_SAVE_LOG}" || st=$?
+
+  if (( st != 0 )); then
+    echo "" >&2
+    echo "ERROR: go-licenses save exited ${st} for ${MODULE_LABELS[$i]} (${MODULE_DIRS[$i]}):" >&2
+    cat "${TMP_SAVE_LOG}" >&2
+    exit 1
+  fi
+}
+
+# Non-empty LICENSE/LICENCE/COPYING/NOTICE files directly inside a directory.
+list_license_files() {
+  { find "$1" -maxdepth 1 -type f -size +0c \
+    \( -iname 'LICEN[SC]E*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) 2>/dev/null || true; } | LC_ALL=C sort
+}
+
+# Writes one section per distinct license URL (= module@version; go-licenses
+# derives the URL from the module version) into TMP_GO_TEXTS. A package whose
+# saved directory holds no license text is a hard error.
+build_go_texts() {
+  local pkg url license_type idx pkgs file found
+  local -a missing=()
+
+  : > "${TMP_GO_TEXTS}"
+  while IFS=$'\t' read -r pkg url license_type idx pkgs; do
+    found=false
+    {
+      printf '### %s (%s)\n\n' "${pkg}" "${license_type}"
+      printf 'Source: %s\n\n' "${url}"
+      if [[ "${pkgs}" != "${pkg}" ]]; then
+        printf 'Applies to: %s\n\n' "${pkgs}"
+      fi
+    } >> "${TMP_GO_TEXTS}"
+
+    while IFS= read -r file; do
+      [[ -n "${file}" ]] || continue
+      found=true
+      {
+        printf '#### %s\n\n~~~~~~text\n' "$(basename "${file}")"
+        printf '%s\n' "$(cat "${file}")"
+        printf '~~~~~~\n\n'
+      } >> "${TMP_GO_TEXTS}"
+    done < <(list_license_files "${TMP_SAVE_ROOT}/${idx}/${pkg}")
+
+    if [[ "${found}" == "false" ]]; then
+      missing+=("${pkg} (${url})")
+    fi
+  done < <(printf '%s\n' "${GO_SORTED}" | awk -F',' '
+    !($2 in order) { n++; key[n] = $2; first[$2] = $1; lic[$2] = $3; mod[$2] = $4; pk[$2] = $1; order[$2] = n; next }
+    { pk[$2] = pk[$2] ", " $1 }
+    END { for (i = 1; i <= n; i++) { k = key[i]; printf "%s\t%s\t%s\t%s\t%s\n", first[k], k, lic[k], mod[k], pk[k] } }')
+
+  if (( ${#missing[@]} > 0 )); then
+    echo "" >&2
+    echo "ERROR: no license text found for ${#missing[@]} Go package(s) — a notice without" >&2
+    echo "the license text does not satisfy MIT/BSD/ISC/Apache attribution:" >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    exit 1
+  fi
+}
+
+echo "Collecting Go license texts..."
+while IFS= read -r idx; do
+  save_module_texts "${idx}"
+done < <(printf '%s\n' "${GO_SORTED}" | cut -d',' -f4 | sort -un)
+build_go_texts
 
 # ── Emit output file ───────────────────────────────────────────────────────────
 
+if [[ "${CHECK_ONLY}" == "true" ]]; then
+  echo "Checking only (${GO_COUNT} Go deps, ${FE_COUNT} frontend deps) — no file written."
+else
+  echo "Writing ${OUTPUT} (${GO_COUNT} Go deps, ${FE_COUNT} frontend deps)..."
+fi
+
 {
-  printf '<!-- AUTO-GENERATED — do not edit by hand. Regenerate via: task licenses -->\n'
+  printf '<!-- AUTO-GENERATED at release time — do not edit by hand. -->\n'
   printf '<!-- Script: scripts/gen-licenses.sh -->\n'
   printf '\n'
   printf '# Third-Party License Attribution\n'
   printf '\n'
-  printf 'This project is released under the MIT License (see [LICENSE](LICENSE)).\n'
+  printf 'This project is released under the MIT License (see the LICENSE file in the repository root).\n'
   printf 'The following third-party packages are used as transitive dependencies.\n'
+  printf 'Summary tables come first; the full license and NOTICE texts follow below them.\n'
   printf '\n'
   printf '## Go Dependencies\n'
   printf '\n'
   printf '| Module | License | License URL |\n'
   printf '|--------|---------|-------------|\n'
-  echo "${GO_SORTED}" | while IFS=',' read -r module url license_type; do
+  echo "${GO_SORTED}" | while IFS=',' read -r module url license_type _; do
     printf '| %s | %s | %s |\n' "${module}" "${license_type}" "${url}"
   done
   printf '\n'
@@ -378,9 +597,23 @@ echo "Writing ${OUTPUT} (${GO_COUNT} Go deps, ${FE_COUNT} frontend deps)..."
   printf '\n'
   printf '| Package | Version | License |\n'
   printf '|---------|---------|----------|\n'
-  echo "${FRONTEND_TABLE}"
+  cat "${TMP_FRONTEND_TABLE}"
+  printf '\n'
+  printf '## Go License Texts\n'
+  printf '\n'
+  cat "${TMP_GO_TEXTS}"
+  printf '## Frontend License Texts\n'
+  printf '\n'
+  cat "${TMP_FRONTEND_TEXTS}"
 } > "${TMP_OUTPUT}"
 
+if [[ "${CHECK_ONLY}" == "true" ]]; then
+  echo "Check passed."
+  exit 0
+fi
+
+mkdir -p "$(dirname "${OUTPUT}")"
+chmod 0644 "${TMP_OUTPUT}"
 mv "${TMP_OUTPUT}" "${OUTPUT}"
 
 echo "Done: ${OUTPUT}"

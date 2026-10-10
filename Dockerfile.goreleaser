@@ -1,5 +1,6 @@
 FROM gcr.io/distroless/static:nonroot
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/kontor /kontor
+COPY bin/notices/THIRD_PARTY_LICENSES.md /licenses/THIRD_PARTY_LICENSES.md
 EXPOSE 13120
 ENTRYPOINT ["/kontor", "serve"]

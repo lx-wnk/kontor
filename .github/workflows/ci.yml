@@ -384,14 +384,8 @@ jobs:
           cache: pnpm
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
-      - name: Regenerate THIRD_PARTY_LICENSES.md
-        run: ./scripts/gen-licenses.sh
-      - name: Verify it is up to date
-        run: |
-          git diff --exit-code -- THIRD_PARTY_LICENSES.md || {
-            echo "THIRD_PARTY_LICENSES.md is stale — run 'task licenses' and commit the result."
-            exit 1
-          }
+      - name: Run license gates
+        run: bash scripts/gen-licenses.sh --check
 
   desktop-build:
     name: Desktop Shell Build (macOS)
