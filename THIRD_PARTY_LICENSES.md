@@ -14,7 +14,7 @@ The following third-party packages are used as transitive dependencies.
 | entgo.io/ent | Apache-2.0 | https://github.com/ent/ent/blob/v0.14.6/LICENSE |
 | github.com/SherClockHolmes/webpush-go | MIT | https://github.com/SherClockHolmes/webpush-go/blob/v1.4.0/LICENSE |
 | github.com/agext/levenshtein | Apache-2.0 | https://github.com/agext/levenshtein/blob/v1.2.3/LICENSE |
-| github.com/anthropics/anthropic-sdk-go | MIT | https://github.com/anthropics/anthropic-sdk-go/blob/v1.75.0/LICENSE |
+| github.com/anthropics/anthropic-sdk-go | MIT | https://github.com/anthropics/anthropic-sdk-go/blob/v1.78.0/LICENSE |
 | github.com/apparentlymart/go-textseg/v15/textseg | MIT | https://github.com/apparentlymart/go-textseg/blob/v15.0.0/LICENSE |
 | github.com/bahlo/generic-list-go | BSD-3-Clause | https://github.com/bahlo/generic-list-go/blob/v0.2.0/LICENSE |
 | github.com/bmatcuk/doublestar | MIT | https://github.com/bmatcuk/doublestar/blob/v1.3.4/LICENSE |
