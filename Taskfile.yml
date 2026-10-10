@@ -248,8 +248,12 @@ tasks:
       - cd server && govulncheck ./...
 
   licenses:
-    desc: Generate THIRD_PARTY_LICENSES.md from Go and frontend dependencies
+    desc: Generate the third-party notices (Go + frontend, full license texts) into dist/THIRD_PARTY_LICENSES.md
     cmd: ./scripts/gen-licenses.sh
+
+  licenses:check:
+    desc: Run every license gate (Unknown license, missing text, tidy modules) without writing a file
+    cmd: ./scripts/gen-licenses.sh --check
 
   audit:frontend:
     desc: Run pnpm audit on frontend dependencies (fails on high or critical vulnerabilities)
