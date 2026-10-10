@@ -875,6 +875,7 @@ Preparing the first public release.
 
 ### Security
 
+- **Go toolchain 1.26.9.** `.go-version` moves from 1.26.6 to 1.26.9, which fixes GO-2026-6617 in `net/http` (the server's HTTP listener calls the affected code; govulncheck reported it for every module).
 - **A stage run's MCP credentials now end when its agent does, on every path that ends it.** Per-stage-run keys are revoked on the transitions that end a run (done, fail, next, both iterate branches), but three paths ended an agent without ending its run, leaving a usable key until `expires_at`:
   - **Cancelling a task** wrote the terminal stage only on the task row, so the abandoned agent's stage run stayed `running` and kept its credential. Both cancel routes — `DELETE`-style cancel on the HTTP handler and the `task_cancel` MCP control tool — funnel through `NotifyTaskTerminated`, which now ends every non-terminal stage run of the task as `cancelled`. A run that already reached its own outcome is left untouched.
   - **Requeueing a run** (rate-limit or infra retry) left its key valid, and once `sweepRequeueableRuns` promoted the run back to `pending` the respawn minted a **second** key for the same `stage_run_id` — two concurrently valid credentials, of which only the newer was ever revoked. A requeue is only ever decided from a completion result, so the agent has already exited; the run is now released at the transition.
