@@ -13,6 +13,8 @@ jobs:
   goreleaser:
     name: GoReleaser
     runs-on: ubuntu-latest
+    env:
+      GO_LICENSES_VERSION: v2.0.1
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,11 +40,11 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin/go-licenses
-          key: ${{ runner.os }}-go-licenses-v2.0.1-${{ hashFiles('.go-version') }}
+          key: ${{ runner.os }}-go-licenses-${{ env.GO_LICENSES_VERSION }}-${{ hashFiles('.go-version') }}
 
       - name: Install go-licenses
         if: steps.cache-go-licenses.outputs.cache-hit != 'true'
-        run: go install github.com/google/go-licenses/v2@v2.0.1
+        run: go install "github.com/google/go-licenses/v2@${GO_LICENSES_VERSION}"
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
