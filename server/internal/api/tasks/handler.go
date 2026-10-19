@@ -3,12 +3,15 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/lx-wnk/kontor/server/internal/apierr"
@@ -842,13 +845,11 @@ func (h *Handler) complete(w http.ResponseWriter, r *http.Request) error {
 	var body struct {
 		Reference string `json:"reference"`
 	}
-	if r.ContentLength != 0 {
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
-		}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
 	}
 	reference := strings.TrimSpace(body.Reference)
-	if len(reference) > maxCompletionReferenceLen {
+	if utf8.RuneCountInString(reference) > maxCompletionReferenceLen {
 		return apierr.NewAppError(http.StatusBadRequest, fmt.Sprintf("reference must be <= %d characters", maxCompletionReferenceLen))
 	}
 	t, err := h.taskRepo.GetByID(r.Context(), id)

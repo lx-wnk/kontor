@@ -287,6 +287,21 @@ func TestCompleteREST_WithoutBody(t *testing.T) {
 	}
 }
 
+// TestCompleteREST_ReferenceLimitCountsCharacters verifies 500 multi-byte characters pass the 500-character limit.
+func TestCompleteREST_ReferenceLimitCountsCharacters(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	client, r := newLifecycleHandler(t, &lifecycleOrchestrator{})
+	taskID := seedTaskWithRun(t, client, "implementation", "failed")
+
+	body := `{"reference":"` + strings.Repeat("ü", 500) + `"}`
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, withAuth(t, httptest.NewRequest(http.MethodPost, "/api/tasks/"+taskID+"/complete", strings.NewReader(body))))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // TestCompleteREST_Rejects verifies terminal tasks, oversized references and malformed bodies are refused without a state change.
 func TestCompleteREST_Rejects(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
