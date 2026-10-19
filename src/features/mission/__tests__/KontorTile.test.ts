@@ -18,7 +18,7 @@ const session = {
   }),
 }
 const activeView = ref('zentrale')
-const agents = ref<Array<{ pid: number, errorState?: string }>>([])
+const agents = ref<Array<{ pid: number, errorState?: string, terminalAttachable?: boolean }>>([])
 const paneprefillMock = vi.fn()
 
 vi.mock('../composables/useKontorSession', () => ({
@@ -34,9 +34,9 @@ vi.mock('@/features/agents', () => ({
       expose({ prefill: paneprefillMock })
     },
   },
-  AgentTerminal: {
-    props: ['pid'],
-    template: '<div data-testid="stub-terminal" :data-pid="pid" />',
+  AgentTerminalModal: {
+    props: { open: Boolean, pid: Number },
+    template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />',
   },
 }))
 vi.mock('@/composables/useViewState', async (importOriginal) => {
@@ -251,7 +251,7 @@ describe('kontorTile', () => {
     await flushPromises()
     expect(w.find('[data-testid="kontor-login"]').exists()).toBe(false)
 
-    agents.value = [{ pid: 42, errorState: 'auth_failed' }]
+    agents.value = [{ pid: 42, errorState: 'auth_failed', terminalAttachable: true }]
     await flushPromises()
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
     await w.get('[data-testid="kontor-login"]').trigger('click')
@@ -263,7 +263,7 @@ describe('kontorTile', () => {
   it('closes the login terminal when the session changes, and drops the button once the login works again', async () => {
     session.pid.value = 42
     session.status.value = 'running'
-    agents.value = [{ pid: 42, errorState: 'auth_failed' }]
+    agents.value = [{ pid: 42, errorState: 'auth_failed', terminalAttachable: true }]
     const w = mount(KontorTile, { global: { stubs: { teleport: true } } })
     await flushPromises()
     await w.get('[data-testid="kontor-login"]').trigger('click')
@@ -271,7 +271,7 @@ describe('kontorTile', () => {
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(true)
 
     session.pid.value = 43
-    agents.value = [{ pid: 43, errorState: 'auth_failed' }]
+    agents.value = [{ pid: 43, errorState: 'auth_failed', terminalAttachable: true }]
     await flushPromises()
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
 
