@@ -190,8 +190,9 @@ func TestRejectPlan_RerunsStageAndStoresFeedback(t *testing.T) {
 	}
 
 	// First rejection — within cap.
-	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
+	got, err := plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
 	require.NoError(t, err)
+	require.True(t, got, "within the cap a new round starts")
 	require.Equal(t, 1, requeued, "first rejection must trigger requeue")
 
 	// Second rejection.
@@ -205,8 +206,9 @@ func TestRejectPlan_RerunsStageAndStoresFeedback(t *testing.T) {
 	require.Equal(t, 3, requeued)
 
 	// Fourth rejection — beyond cap, must NOT requeue.
-	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
+	got, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
 	require.NoError(t, err, "beyond-cap reject must not error, just skip requeue")
+	require.False(t, got, "beyond the cap no new round starts")
 	require.Equal(t, 3, requeued, "fourth rejection must not requeue (cap exceeded)")
 
 	// Feedback should be stored in task metadata.

@@ -158,3 +158,31 @@ func TestApproveRoute_AuditsTheSignedInUser(t *testing.T) {
 		})
 	}
 }
+
+func TestRejectRoute_ReportsWhetherANewRoundStarted(t *testing.T) {
+	for _, started := range []bool{true, false} {
+		bundle, err := db.Open(":memory:")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = bundle.Client.Close() })
+
+		ctx := context.Background()
+		taskRepo := repo.NewTaskRepo(bundle.Client)
+		srRepo := repo.NewStageRunRepo(bundle.Client)
+		taskID, _ := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+		r := chi.NewRouter()
+		plan.NewHandler(plan.HandlerDeps{
+			Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+			Tasks:     taskRepo,
+			StageRuns: srRepo,
+			Requeue:   func(context.Context, string, string) (bool, error) { return started, nil },
+		}).Mount(r)
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/plan/"+taskID+"/reject", strings.NewReader(`{"feedback":"again"}`)))
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		require.Equal(t, started, body["requeued"])
+	}
+}

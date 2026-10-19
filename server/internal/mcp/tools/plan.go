@@ -64,7 +64,7 @@ func registerApprovePlan(registry mcp.ToolRegistry, d PlanDeps) {
 func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "reject_plan",
-		Description: "Reject the plan from the plan_review stage with feedback, triggering a new plan_review run (up to the iteration cap).",
+		Description: "Reject the plan from the plan_review stage with feedback, triggering a new plan_review run (up to the iteration cap). Returns status \"requeued\" when a new round started, or \"rejected\" when the feedback was stored without one; both are successes.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
