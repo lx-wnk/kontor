@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -169,6 +170,7 @@ func (h *Handler) Mount(r chi.Router) {
 	// NOTE: advance is the preferred entry point; progress is kept for compatibility.
 	r.Post("/api/tasks/{id}/progress", apierr.ErrorMiddleware(h.progress))
 	r.Post("/api/tasks/{id}/cancel", apierr.ErrorMiddleware(h.cancel))
+	r.Post("/api/tasks/{id}/complete", apierr.ErrorMiddleware(h.complete))
 	r.Post("/api/tasks/{id}/retry", apierr.ErrorMiddleware(h.retry))
 	r.Post("/api/tasks/{id}/hold", apierr.ErrorMiddleware(h.hold))
 	r.Post("/api/tasks/{id}/resume", apierr.ErrorMiddleware(h.resume))
@@ -828,6 +830,49 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("tasks.cancel: %w", err)
 	}
 	h.orchestrator.NotifyTaskTerminated(r.Context(), id, "cancelled")
+	h.broadcastEnrichedUpdate(r.Context(), id)
+	return jsonReply(w, http.StatusOK, ToTaskResponse(updated))
+}
+
+const maxCompletionReferenceLen = 500
+
+// complete closes a task whose work landed outside the pipeline (a hand-made PR or commit).
+func (h *Handler) complete(w http.ResponseWriter, r *http.Request) error {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Reference string `json:"reference"`
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
+		}
+	}
+	reference := strings.TrimSpace(body.Reference)
+	if len(reference) > maxCompletionReferenceLen {
+		return apierr.NewAppError(http.StatusBadRequest, fmt.Sprintf("reference must be <= %d characters", maxCompletionReferenceLen))
+	}
+	t, err := h.taskRepo.GetByID(r.Context(), id)
+	if err != nil {
+		return apierr.ErrNotFound
+	}
+	if t.CurrentStage == "cancelled" || t.CurrentStage == "done" {
+		return apierr.NewAppError(http.StatusBadRequest, "task is already "+t.CurrentStage)
+	}
+	done := "done"
+	updated, err := h.taskRepo.Update(r.Context(), id, repo.UpdateTaskInput{CurrentStage: &done})
+	if err != nil {
+		return fmt.Errorf("tasks.complete: %w", err)
+	}
+	origin := repo.UIAuditOrigin(auth.PayloadOrBypass(r.Context()).Sub)
+	meta := origin.Metadata()
+	meta["fromStage"] = t.CurrentStage
+	if reference != "" {
+		meta["reference"] = reference
+	}
+	if err := h.auditRepo.RecordTaskAudit(r.Context(), id, origin.UserID, repo.AuditActionTaskCompleted, "task:"+id, meta); err != nil {
+		slog.Warn("tasks.complete: audit write failed", "taskID", id, "err", err)
+	}
+	h.orchestrator.NotifyTaskTerminated(r.Context(), id, done)
 	h.broadcastEnrichedUpdate(r.Context(), id)
 	return jsonReply(w, http.StatusOK, ToTaskResponse(updated))
 }

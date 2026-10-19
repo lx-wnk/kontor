@@ -8,6 +8,7 @@ import {
   analyzeTask,
   bulkResolvePermissionRequests,
   cancelTask,
+  completeTask,
   fetchTaskPermissions,
   grantTaskPermission,
   resolvePermissionRequest,
@@ -18,6 +19,7 @@ vi.mock('@/features/pipeline/composables/useTasks', () => ({
   analyzeTask: vi.fn(),
   bulkResolvePermissionRequests: vi.fn(),
   cancelTask: vi.fn(),
+  completeTask: vi.fn(),
   fetchTaskPermissions: vi.fn(),
   grantTaskPermission: vi.fn(),
   resolvePermissionRequest: vi.fn(),
@@ -158,6 +160,29 @@ describe('useTaskActions — onCancelClick (two-step confirm)', () => {
 
     vi.advanceTimersByTime(5000)
     expect(result.cancelConfirm.value).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+describe('useTaskActions — onCompleteClick (two-step confirm)', () => {
+  it('marks the task done on the second click only, independently of cancel', async () => {
+    const task = ref<PipelineTask | null>(makeTask({ id: 'task-7' }))
+    const details = makeDetails()
+    const { result, wrapper } = withSetup(() => useTaskActions(task, details))
+
+    result.onCompleteClick()
+    expect(result.completeConfirm.value).toBe(true)
+    expect(result.cancelConfirm.value).toBe(false)
+    expect(details.handleAction).not.toHaveBeenCalled()
+
+    result.onCompleteClick()
+    expect(result.completeConfirm.value).toBe(false)
+    const [passedAction, success] = vi.mocked(details.handleAction).mock.calls[0]
+    await passedAction()
+
+    expect(completeTask).toHaveBeenCalledWith('task-7')
+    expect(cancelTask).not.toHaveBeenCalled()
+    expect(success).toBe('Task marked done')
     wrapper.unmount()
   })
 })

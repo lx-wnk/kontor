@@ -68,6 +68,22 @@ func newTasksCmd(cfg *CLIConfig) *cobra.Command {
 		},
 	}
 
+	var reference string
+	doneCmd := &cobra.Command{
+		Use:   "done <id>",
+		Short: "Mark a task done whose work landed outside the pipeline",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cl := newClient(*cfg)
+			if err := cl.post("/api/tasks/"+args[0]+"/complete", map[string]string{"reference": reference}, nil); err != nil {
+				return err
+			}
+			fmt.Println("Task marked done.")
+			return nil
+		},
+	}
+	doneCmd.Flags().StringVar(&reference, "ref", "", "PR or commit the work landed in (e.g. owner/repo#123)")
+
 	createCmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a task from a JSON file",
@@ -121,6 +137,6 @@ func newTasksCmd(cfg *CLIConfig) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(listCmd, cancelCmd, createCmd, logsCmd)
+	cmd.AddCommand(listCmd, cancelCmd, doneCmd, createCmd, logsCmd)
 	return cmd
 }

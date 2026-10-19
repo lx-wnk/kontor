@@ -7,6 +7,7 @@ import {
   analyzeTask,
   bulkResolvePermissionRequests,
   cancelTask,
+  completeTask,
   fetchTaskPermissions,
   grantTaskPermission,
   resolvePermissionRequest,
@@ -21,6 +22,26 @@ export const TASK_SLASH_COMMANDS: SlashCommand[] = [
   { name: '/help', description: 'List available commands' },
 ]
 
+// Irreversible actions run on the second click; the armed state lapses after 5 seconds.
+function useTwoStepConfirm(run: () => void) {
+  const armed = ref(false)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  function click(): void {
+    if (!armed.value) {
+      armed.value = true
+      timer = setTimeout(() => {
+        armed.value = false
+      }, 5000)
+      return
+    }
+    clearTimeout(timer)
+    armed.value = false
+    run()
+  }
+  onUnmounted(() => clearTimeout(timer))
+  return { armed, click }
+}
+
 export function useTaskActions(task: Ref<PipelineTask | null>, details: UseTaskDetails) {
   const additionalPrompt = ref('')
   const analysisInfo = ref<{ pid: number, cwd: string } | null>(null)
@@ -28,26 +49,8 @@ export function useTaskActions(task: Ref<PipelineTask | null>, details: UseTaskD
   const isGranting = ref(false)
   const permError = ref('')
 
-  // Two-step confirm for the irreversible Cancel action.
-  const cancelConfirm = ref(false)
-  let cancelConfirmTimer: ReturnType<typeof setTimeout> | undefined
-  function onCancelClick(): void {
-    if (!cancelConfirm.value) {
-      cancelConfirm.value = true
-      cancelConfirmTimer = setTimeout(() => {
-        cancelConfirm.value = false
-      }, 5000)
-      return
-    }
-    if (cancelConfirmTimer)
-      clearTimeout(cancelConfirmTimer)
-    cancelConfirm.value = false
-    void details.handleAction(() => cancelTask(task.value!.id))
-  }
-  onUnmounted(() => {
-    if (cancelConfirmTimer)
-      clearTimeout(cancelConfirmTimer)
-  })
+  const cancel = useTwoStepConfirm(() => void details.handleAction(() => cancelTask(task.value!.id)))
+  const complete = useTwoStepConfirm(() => void details.handleAction(() => completeTask(task.value!.id), 'Task marked done'))
 
   function onResolve(req: PermissionRequest, outcome: 'granted' | 'denied'): Promise<void> {
     return details.handleAction(() => resolvePermissionRequest(task.value!.id, req.id, outcome === 'granted' ? 'allow_once' : 'deny_once'))
@@ -128,9 +131,11 @@ export function useTaskActions(task: Ref<PipelineTask | null>, details: UseTaskD
     analysisInfo,
     isGranting,
     permError,
-    cancelConfirm,
+    cancelConfirm: cancel.armed,
+    completeConfirm: complete.armed,
     slashCommands: TASK_SLASH_COMMANDS,
-    onCancelClick,
+    onCancelClick: cancel.click,
+    onCompleteClick: complete.click,
     onResolve,
     onResolveAll,
     onGrantPermission,

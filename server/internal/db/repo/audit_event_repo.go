@@ -26,6 +26,7 @@ const (
 	AuditActionPlanApproved       = "plan_approved"
 	AuditActionPlanRejected       = "plan_rejected"
 	AuditActionSpecApproved       = "spec_approved"
+	AuditActionTaskCompleted      = "task_completed"
 )
 
 // Audit sources: the channel an approval arrived on.
