@@ -15,6 +15,8 @@ const emit = defineEmits<{ change: [page: WorkspacePage], refuse: [reason: strin
 // DOM order is reading order — what the single-column layout below md shows and what a screen reader announces; from md up tiles are placed explicitly, so it stops mattering.
 const ordered = computed(() => readingOrder(props.page.tiles).map(o => ({ ...o, widget: widgetOf(o.tile) })))
 const rows = computed(() => rowsUsed(props.page.tiles))
+// Up to this many rows fill the visible height; rows past it keep the same height and scroll.
+const FIT_ROWS = 9
 
 const GAP = 12 // matches .workspace-grid gap
 const gridEl = ref<HTMLElement | null>(null)
@@ -140,63 +142,65 @@ function swapOptions(index: number) {
 </script>
 
 <template>
-  <div ref="gridEl" data-testid="workspace-grid" class="workspace-grid" :style="{ '--rows': rows }">
-    <div
-      v-for="{ tile, index, widget } in ordered"
-      :key="tile.widget"
-      :data-testid="`workspace-tile-${tile.widget}`"
-      class="workspace-tile"
-      :class="{ 'workspace-tile--editing': editing }"
-      :style="placement(tile)"
-      :tabindex="editing ? 0 : undefined"
-      :aria-label="editing ? tileAriaLabel(tile) : undefined"
-      @keydown="onKey($event, index)"
-      @pointerdown="startDrag($event, index, 'move')"
-      @pointermove="moveDrag"
-      @pointerup="endDrag"
-      @pointercancel="drag = null"
-    >
-      <div v-if="editing" class="workspace-chrome">
-        <AppSelect
-          model-value=""
-          :options="swapOptions(index)"
-          :data-testid="`workspace-swap-${tile.widget}`"
-          :aria-label="`Swap ${widgetTitle(tile)} for`"
-          size="compact"
-          placeholder="⇄ Swap…"
-          @update:model-value="apply(swapTile(page, index, $event))"
-        />
+  <div class="workspace-viewport">
+    <div ref="gridEl" data-testid="workspace-grid" class="workspace-grid" :style="{ '--rows': rows, '--fit-rows': Math.min(rows, FIT_ROWS) }">
+      <div
+        v-for="{ tile, index, widget } in ordered"
+        :key="tile.widget"
+        :data-testid="`workspace-tile-${tile.widget}`"
+        class="workspace-tile"
+        :class="{ 'workspace-tile--editing': editing }"
+        :style="placement(tile)"
+        :tabindex="editing ? 0 : undefined"
+        :aria-label="editing ? tileAriaLabel(tile) : undefined"
+        @keydown="onKey($event, index)"
+        @pointerdown="startDrag($event, index, 'move')"
+        @pointermove="moveDrag"
+        @pointerup="endDrag"
+        @pointercancel="drag = null"
+      >
+        <div v-if="editing" class="workspace-chrome">
+          <AppSelect
+            model-value=""
+            :options="swapOptions(index)"
+            :data-testid="`workspace-swap-${tile.widget}`"
+            :aria-label="`Swap ${widgetTitle(tile)} for`"
+            size="compact"
+            placeholder="⇄ Swap…"
+            @update:model-value="apply(swapTile(page, index, $event))"
+          />
+          <button
+            type="button"
+            :data-testid="`workspace-remove-${tile.widget}`"
+            :aria-label="`Remove ${widgetTitle(tile)}`"
+            class="rounded-md border border-line-strong bg-card px-2 text-[12px]"
+            @click="emit('change', removeTile(page, index))"
+          >
+            ✕
+          </button>
+        </div>
+        <component :is="widget?.component" v-if="widget" />
+        <div v-else data-testid="workspace-unknown" class="h-full rounded-xl border border-dashed border-line p-4 text-[12px] text-fg-mute">
+          {{ tile.widget }} is not available — the module that provides it may be inactive.
+        </div>
         <button
+          v-if="editing"
           type="button"
-          :data-testid="`workspace-remove-${tile.widget}`"
-          :aria-label="`Remove ${widgetTitle(tile)}`"
-          class="rounded-md border border-line-strong bg-card px-2 text-[12px]"
-          @click="emit('change', removeTile(page, index))"
-        >
-          ✕
-        </button>
+          data-resize
+          :data-testid="`workspace-resize-${tile.widget}`"
+          :aria-label="`Resize ${widgetTitle(tile)} (Shift+arrows)`"
+          class="workspace-resize"
+          @pointerdown="startDrag($event, index, 'resize')"
+        />
       </div>
-      <component :is="widget?.component" v-if="widget" />
-      <div v-else data-testid="workspace-unknown" class="h-full rounded-xl border border-dashed border-line p-4 text-[12px] text-fg-mute">
-        {{ tile.widget }} is not available — the module that provides it may be inactive.
-      </div>
-      <button
-        v-if="editing"
-        type="button"
-        data-resize
-        :data-testid="`workspace-resize-${tile.widget}`"
-        :aria-label="`Resize ${widgetTitle(tile)} (Shift+arrows)`"
-        class="workspace-resize"
-        @pointerdown="startDrag($event, index, 'resize')"
+      <div
+        v-if="drag"
+        data-testid="workspace-ghost"
+        class="workspace-ghost"
+        :class="{ 'workspace-ghost--invalid': ghostInvalid }"
+        :style="placement(drag.target)"
       />
     </div>
-    <div
-      v-if="drag"
-      data-testid="workspace-ghost"
-      class="workspace-ghost"
-      :class="{ 'workspace-ghost--invalid': ghostInvalid }"
-      :style="placement(drag.target)"
-    />
   </div>
 </template>
 
@@ -212,10 +216,11 @@ function swapOptions(index: number) {
 .workspace-ghost { pointer-events: none; border: 2px dashed var(--color-accent); border-radius: 12px; background: color-mix(in oklch, var(--color-accent) 10%, transparent); }
 .workspace-ghost--invalid { border-color: var(--color-danger); background: color-mix(in oklch, var(--color-danger) 10%, transparent); }
 @media (min-width: 768px) {
+  .workspace-viewport { container-type: size; overflow-y: auto; padding: 3px; }
   .workspace-grid {
-    height: 100%;
+    height: calc(var(--rows) * max(56px, (100cqh - (var(--fit-rows) - 1) * 12px) / var(--fit-rows)) + (var(--rows) - 1) * 12px);
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--rows), minmax(56px, 1fr));
+    grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
   }
   .workspace-tile {
     min-height: 0;

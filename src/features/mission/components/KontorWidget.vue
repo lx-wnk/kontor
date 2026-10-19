@@ -23,6 +23,7 @@ const overlay = ref<HTMLElement | null>(null)
 const open = ref(false)
 const box = ref<Record<string, string>>({})
 let frameId: number | null = null
+const VIEW_MARGIN = 8
 
 function cancelPendingFrame() {
   if (frameId !== null) {
@@ -32,16 +33,20 @@ function cancelPendingFrame() {
 }
 
 // Grows out of its own cell as an overlay, up to 64% of the window: the grid underneath does not re-flow.
+// The cell can sit outside the window (the hub opens Kontor while the grid is scrolled), so the anchor is clamped into view.
 function place(heightOverride?: number) {
   const r = cell.value!.getBoundingClientRect()
   const vh = window.innerHeight
-  const up = r.top > vh - r.bottom
-  const height = heightOverride ?? Math.min(vh * 0.64, (up ? r.bottom : vh - r.top) - 16)
+  const top = Math.min(Math.max(r.top, VIEW_MARGIN), vh - VIEW_MARGIN)
+  const bottom = Math.min(Math.max(r.bottom, VIEW_MARGIN), vh - VIEW_MARGIN)
+  const up = top > vh - bottom
+  const room = (up ? bottom : vh - top) - 2 * VIEW_MARGIN
+  const height = Math.min(heightOverride ?? vh * 0.64, room)
   box.value = {
     left: `${r.left}px`,
     width: `${r.width}px`,
     height: `${height}px`,
-    ...(up ? { bottom: `${vh - r.bottom}px` } : { top: `${r.top}px` }),
+    ...(up ? { bottom: `${vh - bottom}px` } : { top: `${top}px` }),
   }
 }
 

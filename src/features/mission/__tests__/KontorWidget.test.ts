@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, nextTick, ref } from 'vue'
 
 const session = {
@@ -33,6 +33,9 @@ beforeEach(() => {
   session.overlayOpen.value = false
   agents.value = [{ pid: 42, status: 'active', working: true, lastOutput: 'PR #467 has four red checks.' }]
 })
+
+// A failed assertion skips a test's own restore; the window mocks must not leak into the next test.
+afterEach(() => vi.restoreAllMocks())
 
 describe('kontorWidget', () => {
   it('shows state and the last output collapsed', () => {
@@ -121,6 +124,57 @@ describe('kontorWidget', () => {
     raf.cb?.(0)
     await nextTick()
     expect(overlay.style.height).toBe('484px')
+
+    rafSpy.mockRestore()
+    innerHeightSpy.mockRestore()
+    w.unmount()
+  })
+
+  // The hub opens Kontor remotely while its own cell sits below the fold of a scrolled grid.
+  it('keeps the overlay inside the window when its cell is out of view', async () => {
+    const w = mount(KontorWidget, { attachTo: document.body })
+    const cellEl = w.get('[data-testid="kontor-collapsed"]').element as HTMLElement
+    const rect = { top: 1036, bottom: 1076, left: 10, right: 390, width: 380, height: 40, x: 10, y: 1036, toJSON: () => {} } as DOMRect
+    vi.spyOn(cellEl, 'getBoundingClientRect').mockReturnValue(rect)
+    const innerHeightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    const raf: { cb: FrameRequestCallback | null } = { cb: null }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      raf.cb = cb
+      return 0
+    })
+
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    raf.cb?.(0)
+    await nextTick()
+    const overlay = document.querySelector('[data-testid="kontor-expanded"]') as HTMLElement
+    const bottom = Number.parseFloat(overlay.style.bottom)
+    const height = Number.parseFloat(overlay.style.height)
+    expect(bottom).toBeGreaterThanOrEqual(0)
+    expect(900 - bottom - height).toBeGreaterThanOrEqual(0)
+
+    rafSpy.mockRestore()
+    innerHeightSpy.mockRestore()
+    w.unmount()
+  })
+
+  it('opens downward from the top edge when its cell is scrolled above the window', async () => {
+    const w = mount(KontorWidget, { attachTo: document.body })
+    const cellEl = w.get('[data-testid="kontor-collapsed"]').element as HTMLElement
+    const rect = { top: -200, bottom: -160, left: 10, right: 390, width: 380, height: 40, x: 10, y: -200, toJSON: () => {} } as DOMRect
+    vi.spyOn(cellEl, 'getBoundingClientRect').mockReturnValue(rect)
+    const innerHeightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    const raf: { cb: FrameRequestCallback | null } = { cb: null }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      raf.cb = cb
+      return 0
+    })
+
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    raf.cb?.(0)
+    await nextTick()
+    const overlay = document.querySelector('[data-testid="kontor-expanded"]') as HTMLElement
+    expect(overlay.style.top).toBe('8px')
+    expect(8 + Number.parseFloat(overlay.style.height)).toBeLessThanOrEqual(892)
 
     rafSpy.mockRestore()
     innerHeightSpy.mockRestore()

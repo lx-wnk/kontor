@@ -149,7 +149,8 @@ const message = computed(() => {
               target="_blank"
               rel="noopener noreferrer"
               :data-testid="`cockpit-github-repo-${pr.number}`"
-              class="shrink-0 text-fg-mute hover:text-accent"
+              :title="`${pr.repo}#${pr.number}`"
+              class="min-w-0 truncate text-fg-mute hover:text-accent"
             >{{ pr.repo }}#{{ pr.number }}</a>
             <span
               v-if="pr.checks"
