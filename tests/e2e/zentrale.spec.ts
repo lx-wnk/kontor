@@ -427,3 +427,18 @@ test('below md the stacked tiles keep their content height and the hub stays vis
   for (let i = 1; i < tiles.length; i++)
     expect(tiles[i].top, `${tiles[i].widget} starts below ${tiles[i - 1].widget}'s content`).toBeGreaterThanOrEqual(tiles[i - 1].contentBottom - 0.5)
 })
+
+test('the first nine rows fill the visible height and later rows scroll below them', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const grid = page.getByTestId('workspace-grid')
+  await expect(grid).toBeVisible()
+  const visible = await grid.locator('..').evaluate(el => el.clientHeight)
+  const height = (await grid.boundingBox())!.height
+
+  // Default layout: 12 rows, so the grid is 12/9 of the visible height (gaps included).
+  expect(height).toBeCloseTo((visible + 12) * 12 / 9 - 12, 0)
+  const agents = (await page.getByTestId('workspace-tile-agents').boundingBox())!
+  const viewport = (await grid.locator('..').boundingBox())!
+  expect(agents.y + agents.height).toBeLessThanOrEqual(viewport.y + viewport.height)
+})

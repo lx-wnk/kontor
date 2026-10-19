@@ -23,7 +23,8 @@ The layout is designed for a 1400×900 point window. A smaller window zooms the 
 (WKWebView `pageZoom`, the same as Cmd-minus in a browser, so layout, `vh` units and clicks stay
 consistent), down to 65%. The content area cannot shrink below the size that 65% still fits
 (910×585 points), so nothing is cut off; a larger window keeps 100%. The constants live in
-`desktop/window_darwin.go`.
+`desktop/window_darwin.go`. Inside the page, a workspace grid fits its first nine rows into the
+visible height; rows past nine scroll.
 
 macOS remembers the window's size and position between launches (`setFrameAutosaveName`, stored as
 `NSWindow Frame KontorMainWindow` in the `com.lxwnk.kontor` defaults) and keeps a restored window on
