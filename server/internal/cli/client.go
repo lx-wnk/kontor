@@ -60,6 +60,8 @@ func (c *Client) do(method, path string, reqBody, out any) error {
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	// api.RequireSameOriginForMutations rejects a mutation without Origin; the CLI is its own server's client.
+	req.Header.Set("Origin", c.host)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		// Provide a helpful message for connection refused.
