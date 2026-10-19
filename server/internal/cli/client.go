@@ -8,21 +8,29 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 // Client is a simple REST client for the dashboard API.
 type Client struct {
-	host  string
-	token string
-	http  *http.Client
+	host   string
+	origin string
+	token  string
+	http   *http.Client
 }
 
 func newClient(cfg CLIConfig) *Client {
+	host := strings.TrimRight(cfg.Host, "/")
+	origin := host
+	if u, err := url.Parse(host); err == nil && u.Host != "" {
+		origin = u.Scheme + "://" + u.Host
+	}
 	return &Client{
-		host:  strings.TrimRight(cfg.Host, "/"),
-		token: cfg.Token,
-		http:  &http.Client{},
+		host:   host,
+		origin: origin,
+		token:  cfg.Token,
+		http:   &http.Client{},
 	}
 }
 
@@ -61,7 +69,7 @@ func (c *Client) do(method, path string, reqBody, out any) error {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 	// api.RequireSameOriginForMutations rejects a mutation without Origin; the CLI is its own server's client.
-	req.Header.Set("Origin", c.host)
+	req.Header.Set("Origin", c.origin)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		// Provide a helpful message for connection refused.
