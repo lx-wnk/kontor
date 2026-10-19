@@ -159,4 +159,14 @@ describe('rankNextThings', () => {
     )
     expect(out.filter(n => n.kind === 'plan')).toHaveLength(0)
   })
+
+  it('puts a session held by a terminal picker after questions and before capability decisions', () => {
+    const decision: PendingCapabilityDecision = { id: 'd1', capability: 'net.fetch', value: 'x', context: 'c', reason: 'r', requestedAt: '2026-09-22T10:00:00Z' }
+    const ranked = rankNextThings([], [], [
+      agent(7, { awaitingTerminalDialog: true, terminalAttachable: true }),
+      agent(8, { pendingQuestion: colourQuestion }),
+    ], [decision])
+    expect(ranked.map(n => n.kind)).toEqual(['question', 'dialog', 'capability'])
+    expect(ranked[1]).toMatchObject({ kind: 'dialog', pid: 7, terminalAttachable: true, why: WHY.dialog })
+  })
 })

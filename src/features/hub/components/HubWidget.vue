@@ -104,7 +104,7 @@ const LENS_TITLE: Record<typeof HEALTH_LENSES[number], string> = {
 // Only the blocking kinds: needsAttention() is also true for every non-working agent ('yourTurn').
 function blocksOnOperator(agent: Agent): boolean {
   const kind = attentionFor(agent, null)?.kind
-  return kind === 'question' || kind === 'permission'
+  return kind === 'question' || kind === 'permission' || kind === 'dialog'
 }
 
 const live = computed(() => agents.value.filter(a => a.status !== 'finished').sort((a, b) => a.pid - b.pid))

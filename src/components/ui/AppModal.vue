@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { lockBodyScroll } from './scrollLock'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -33,15 +34,12 @@ const panelStyle = computed(() =>
 
 const modalPanelRef = ref<HTMLElement | null>(null)
 const previouslyFocused = ref<HTMLElement | null>(null)
+let releaseScroll: (() => void) | null = null
 
-// Lock body scroll when open to prevent background movement making modal appear to jump.
-// Compensate scrollbar width so layout doesn't shift on systems with classic scrollbars.
+// Nested modals share one body scroll lock; the last to close releases it.
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-    document.body.style.overflow = 'hidden'
-    if (scrollbarWidth > 0)
-      document.body.style.paddingRight = `${scrollbarWidth}px`
+    releaseScroll ??= lockBodyScroll()
     // Capture currently focused element so it can be restored on close
     previouslyFocused.value = document.activeElement as HTMLElement | null
     // Focus the modal panel so keyboard events are captured immediately
@@ -51,15 +49,14 @@ watch(() => props.open, (isOpen) => {
     })
   }
   else {
-    document.body.style.overflow = ''
-    document.body.style.paddingRight = ''
+    releaseScroll?.()
+    releaseScroll = null
     restoreFocus()
   }
 }, { immediate: true })
 
 onUnmounted(() => {
-  document.body.style.overflow = ''
-  document.body.style.paddingRight = ''
+  releaseScroll?.()
   restoreFocus()
 })
 

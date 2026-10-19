@@ -54,6 +54,9 @@ type SlashCommand struct {
 	// "[base-branch] [--apply-fixes]" — the argument template Claude's own slash
 	// menu shows. Empty for built-ins, which have no file to read it from.
 	ArgumentHint string `json:"argumentHint,omitempty"`
+	// Interactive marks a built-in that, sent without arguments, opens a picker
+	// on the session's terminal instead of writing to the transcript.
+	Interactive bool `json:"interactive,omitempty"`
 }
 
 // CommandDetail is a slash command with its on-disk body, for the Config
@@ -67,6 +70,7 @@ type CommandDetail struct {
 	// The Config explorer does not render it — nothing in the dashboard UI
 	// reads it from here.
 	ArgumentHint string `json:"argumentHint,omitempty"`
+	Interactive  bool   `json:"interactive,omitempty"`
 	Body         string `json:"body"`
 	// Path is the absolute on-disk path of the command file. Empty for builtins.
 	Path string `json:"path,omitempty"`
@@ -112,31 +116,31 @@ const maxCommandBodyBytes = 1 * 1024 * 1024 // 1 MB
 // /fork had been added, and /pr-comments and /vim had been removed since the
 // list was last curated at 2.1.161.
 var builtinCommands = []SlashCommand{
-	{Name: "/add-dir", Description: "Add a working directory", Source: "builtin"},
+	{Name: "/add-dir", Description: "Add a working directory", Source: "builtin", Interactive: true},
 	{Name: "/agents", Description: "Manage agents", Source: "builtin"},
 	{Name: "/bug", Description: "Report a bug", Source: "builtin"},
 	{Name: "/clear", Description: "Clear conversation history", Source: "builtin"},
 	{Name: "/code-review", Description: "Review the current diff", Source: "builtin"},
 	{Name: "/compact", Description: "Compact context window", Source: "builtin"},
-	{Name: "/config", Description: "Open settings", Source: "builtin"},
+	{Name: "/config", Description: "Open settings", Source: "builtin", Interactive: true},
 	{Name: "/cost", Description: "Show token cost of the session", Source: "builtin"},
 	{Name: "/doctor", Description: "Diagnose Claude Code health", Source: "builtin"},
-	{Name: "/export", Description: "Export the conversation", Source: "builtin"},
+	{Name: "/export", Description: "Export the conversation", Source: "builtin", Interactive: true},
 	{Name: "/fork", Description: "Fork the session into a parallel conversation", Source: "builtin"},
 	{Name: "/help", Description: "Show available commands", Source: "builtin"},
 	{Name: "/init", Description: "Initialize a CLAUDE.md", Source: "builtin"},
-	{Name: "/login", Description: "Log in to an account", Source: "builtin"},
+	{Name: "/login", Description: "Log in to an account", Source: "builtin", Interactive: true},
 	{Name: "/logout", Description: "Log out", Source: "builtin"},
-	{Name: "/mcp", Description: "Manage MCP servers", Source: "builtin"},
-	{Name: "/memory", Description: "Edit memory files", Source: "builtin"},
-	{Name: "/model", Description: "Switch model", Source: "builtin"},
+	{Name: "/mcp", Description: "Manage MCP servers", Source: "builtin", Interactive: true},
+	{Name: "/memory", Description: "Edit memory files", Source: "builtin", Interactive: true},
+	{Name: "/model", Description: "Switch model", Source: "builtin", Interactive: true},
 	{Name: "/release-notes", Description: "Show release notes", Source: "builtin"},
-	{Name: "/resume", Description: "Resume a previous conversation", Source: "builtin"},
+	{Name: "/resume", Description: "Resume a previous conversation", Source: "builtin", Interactive: true},
 	{Name: "/review", Description: "Review a pull request", Source: "builtin"},
 	{Name: "/run", Description: "Launch and drive the project's app", Source: "builtin"},
 	{Name: "/security-review", Description: "Security review of pending changes on the current branch", Source: "builtin"},
 	{Name: "/simplify", Description: "Simplify the changed code", Source: "builtin"},
-	{Name: "/status", Description: "Show session status", Source: "builtin"},
+	{Name: "/status", Description: "Show session status", Source: "builtin", Interactive: true},
 	{Name: "/terminal-setup", Description: "Configure terminal key bindings", Source: "builtin"},
 	{Name: "/verify", Description: "Verify a change does what it should", Source: "builtin"},
 }
@@ -171,7 +175,7 @@ func (s Scope) Commands() []SlashCommand {
 }
 
 func (d CommandDetail) slashCommand() SlashCommand {
-	return SlashCommand{Name: d.Name, Description: d.Description, Source: d.Source, ArgumentHint: d.ArgumentHint}
+	return SlashCommand{Name: d.Name, Description: d.Description, Source: d.Source, ArgumentHint: d.ArgumentHint, Interactive: d.Interactive}
 }
 
 // CommandDetails returns the same commands as Commands, each with its on-disk
@@ -187,7 +191,7 @@ func (s Scope) commandDetails(withBody bool) []CommandDetail {
 
 	out := make([]CommandDetail, 0, len(builtinCommands))
 	for _, b := range builtinCommands {
-		out = append(out, CommandDetail{Name: b.Name, Description: b.Description, Source: b.Source})
+		out = append(out, CommandDetail{Name: b.Name, Description: b.Description, Source: b.Source, Interactive: b.Interactive})
 	}
 
 	collect := func(dir, source string) {

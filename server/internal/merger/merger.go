@@ -52,9 +52,10 @@ var readDiscoveryFileFn = os.ReadFile
 // discoveryState is the combined result of reading an agent's two channel
 // discovery files exactly once each.
 type discoveryState struct {
-	channelAvailable bool
-	liveInjectable   bool
-	recentOutput     bool
+	channelAvailable   bool
+	liveInjectable     bool
+	terminalAttachable bool
+	recentOutput       bool
 }
 
 // readChannelDiscovery reads {pid}.json (channel bridge) and {pid}.pty.json
@@ -104,10 +105,12 @@ func readChannelDiscovery(home string, pid int) discoveryState {
 	if data, err := readDiscoveryFileFn(channelconfig.DiscoveryPtyFile(home, pid)); err == nil {
 		s.channelAvailable = true
 		var pty struct {
+			Port         int    `json:"port"`
 			PtyInject    bool   `json:"ptyInject"`
 			LastOutputAt string `json:"lastOutputAt"`
 		}
 		if json.Unmarshal(data, &pty) == nil {
+			s.terminalAttachable = pty.Port != 0
 			if pty.PtyInject {
 				s.liveInjectable = true
 			}
@@ -457,9 +460,12 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 	discovery := readAgentChannelState(proc.PID)
 	var pendingQuestion *sdk.DetectedQuestion
 	var pendingConfirm *sdk.DetectedConfirm
+	var awaitingDialog bool
 	if discovery.liveInjectable && m.screenProbe != nil {
 		if screen := m.screenProbe(proc.PID); screen != nil {
 			pendingQuestion, pendingConfirm = screen.Question, screen.Confirm
+			// The terminal permission prompt draws the same footer as a picker.
+			awaitingDialog = screen.Dialog && !session.HasUnresolvedToolUse
 		}
 	}
 	health := ComputeHealthScore(session, c.Total, c.Unknown, baselineCost)
@@ -482,6 +488,8 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 		PermissionsBypassed:       parser.PermissionsBypassedFromArgs(proc.Command),
 		PendingQuestion:           pendingQuestion,
 		PendingConfirm:            pendingConfirm,
+		AwaitingTerminalDialog:    awaitingDialog,
+		TerminalAttachable:        discovery.terminalAttachable,
 		Uptime:                    proc.Uptime,
 		LastActivity:              session.LastActivity.Format(time.RFC3339),
 		CurrentAction:             strPtr(session.CurrentAction),

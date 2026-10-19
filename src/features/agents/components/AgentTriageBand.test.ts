@@ -870,3 +870,11 @@ describe('agentTriageBand denied-by-default requests', () => {
     wrapper.unmount()
   })
 })
+
+describe('agentTriageBand terminal dialog', () => {
+  it('surfaces a session held by a picker in its terminal and counts it', () => {
+    const wrapper = mountBand(makeAgent({ awaitingTerminalDialog: true }))
+    expect(wrapper.text()).toContain('A dialog is open in its terminal')
+    expect(wrapper.text()).toContain('1 terminal dialog')
+  })
+})

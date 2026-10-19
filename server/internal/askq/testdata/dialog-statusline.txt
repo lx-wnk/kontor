@@ -1,0 +1,3 @@
+❯ 
+────────────────────────────────────────
+  [main] ~/repo  press esc to exit vim mode

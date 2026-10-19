@@ -7,6 +7,9 @@
 // of src/utils/__tests__/fixtures/*.txt kept byte-identical by hand; when
 // changing detection logic or a fixture here, mirror the change in
 // src/utils/askQuestionScreen.ts (and its test fixtures), and vice versa.
+//
+// Exception: DetectDialog and the testdata/dialog-*.txt fixtures are server-only;
+// the client reads the result from Agent.awaitingTerminalDialog.
 package askq
 
 import (
@@ -350,16 +353,39 @@ func DetectConfirmScreen(rows []string) *sdk.DetectedConfirm {
 	}
 }
 
-// DetectScreen runs both detectors over one set of rows and returns whichever
-// AskUserQuestion screen is open, or nil when neither is. Callers on the scan
-// hot path should use this rather than calling the detectors separately, so a
-// single capture serves both.
+// dialogFooterRE matches the Esc hint forms the CLI (2.1.303) draws under a picker; "double tap/press esc" prompt hints stay out.
+var dialogFooterRE = regexp.MustCompile(`(?i)(^|[·(,]\s*(or\s+)?|(^|[.!]\s+)press\s+)esc to (cancel|close|clear|go back|exit)\b`)
+
+// DetectDialog reports whether the last non-blank row, joined with the one above it for a footer that wrapped, is a picker footer.
+func DetectDialog(rows []string) bool {
+	var tail []string
+	for i := len(rows) - 1; i >= 0 && len(tail) < 2; i-- {
+		if t := strings.TrimSpace(rows[i]); t != "" {
+			tail = append([]string{t}, tail...)
+		}
+	}
+	if len(tail) == 0 {
+		return false
+	}
+	if dialogFooterRE.MatchString(tail[len(tail)-1]) {
+		return true
+	}
+	return len(tail) == 2 && strings.HasSuffix(tail[0], " to") && dialogFooterRE.MatchString(strings.Join(tail, " "))
+}
+
+// DetectScreen runs every detector over one set of rows and returns whichever
+// screen is open, or nil when none is. Callers on the scan hot path should use
+// this rather than calling the detectors separately, so a single capture
+// serves all. AskUserQuestion runs first: it draws the same footer as a picker.
 func DetectScreen(rows []string) *sdk.PendingScreen {
 	if q := DetectQuestion(rows); q != nil {
 		return &sdk.PendingScreen{Question: q}
 	}
 	if c := DetectConfirmScreen(rows); c != nil {
 		return &sdk.PendingScreen{Confirm: c}
+	}
+	if DetectDialog(rows) {
+		return &sdk.PendingScreen{Dialog: true}
 	}
 	return nil
 }

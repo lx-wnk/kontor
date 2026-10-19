@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { KontorStatus } from '../composables/useKontorSession'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import AppModal from '@/components/ui/AppModal.vue'
 import { useViewState } from '@/composables/useViewState'
-import { AgentSessionPane, AgentTerminal } from '@/features/agents'
+import { AgentSessionPane, AgentTerminalModal } from '@/features/agents'
 import { useKontorAgent, useKontorSession } from '../composables/useKontorSession'
 import { readInput, SLASH_COMMAND_REFUSAL } from '../composables/useReading'
 
@@ -26,7 +25,7 @@ const reading = computed(() => readInput(text.value, running.value))
 const agent = useKontorAgent()
 const paneRef = ref<InstanceType<typeof AgentSessionPane> | null>(null)
 // /login opens an interactive picker and a browser flow the chat transcript never shows; only the terminal can drive it.
-const loginExpired = computed(() => agent.value?.errorState === 'auth_failed')
+const offerLogin = computed(() => agent.value?.errorState === 'auth_failed' && agent.value.terminalAttachable === true)
 const showTerminal = ref(false)
 watch(() => agent.value?.pid, () => {
   showTerminal.value = false
@@ -103,7 +102,7 @@ async function renewSession() {
       <AgentSessionPane ref="paneRef" :key="agent.pid" :agent="agent" title="Kontor" class="absolute inset-0">
         <template #actions>
           <button
-            v-if="loginExpired"
+            v-if="offerLogin"
             type="button"
             data-testid="kontor-login"
             title="Login expired. Opens this session's terminal, where /login can finish"
@@ -135,24 +134,7 @@ async function renewSession() {
         </template>
       </AgentSessionPane>
 
-      <AppModal :open="showTerminal" :z-index="1100" labelled-by="kontor-terminal-title" @close="showTerminal = false">
-        <div class="bg-raised px-4 py-2.5 flex justify-between items-center flex-shrink-0">
-          <span id="kontor-terminal-title" class="font-semibold text-sm text-fg">
-            Terminal — Kontor
-          </span>
-          <button
-            type="button"
-            aria-label="Close terminal"
-            class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-raised hover:text-fg"
-            @click="showTerminal = false"
-          >
-            ✕
-          </button>
-        </div>
-        <div class="flex-1 min-h-0">
-          <AgentTerminal v-if="showTerminal" :key="agent.pid" :pid="agent.pid" />
-        </div>
-      </AppModal>
+      <AgentTerminalModal :open="showTerminal" :pid="agent.pid" title="Kontor" @close="showTerminal = false" />
     </template>
 
     <div v-else class="flex min-h-0 flex-1 flex-col gap-3 p-4">

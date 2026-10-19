@@ -86,7 +86,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Dashboard** — real-time agent roster over SSE (list, card, kanban) with tokens, cost, status and uptime; a needs-you band that approves or denies permission prompts in bulk; chat-style transcripts with tool groups and subagent badges; `Cmd+K` spotlight search.
 
-**Live sessions** — agents spawned from the dashboard run interactively via tmux or a built-in pty broker; the agent modal has a real terminal tab and answers `AskUserQuestion` prompts inline.
+**Live sessions** — agents spawned from the dashboard run interactively via tmux or a built-in pty broker; the agent modal has a real terminal tab and answers `AskUserQuestion` prompts inline. Commands that open a terminal picker (`/login`, `/model`, `/mcp`, …) open the terminal for you, and a picker left open is flagged as waiting in the terminal. The dashboard terminal attaches to pty-broker sessions only; for a tmux session, attach to its pane.
 
 **Pipeline & schedules** — tasks move through backlog, optional plan review, implementation, self-review and finalization, each stage a `claude` process in its own git worktree behind permission gates; per-stage engine, model and reasoning effort. A plan-usage gate blocks spawns when Claude's five-hour or seven-day rate-limit window exceeds a configurable threshold, resuming automatically after the window resets. Schedules fire recurring tasks from a cron expression (written in plain language, translated once).
 

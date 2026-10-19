@@ -385,14 +385,15 @@ export interface DetectedConfirm {
   options: DetectedOption[]
 }
 /**
- * PendingScreen is whichever interactive AskUserQuestion screen is currently
- * open on a session's terminal. At most one field is non-nil; both are nil when
- * no such screen is open. Probing for both in one round-trip keeps the scan hot
- * path to a single capture per tick.
+ * PendingScreen is whichever interactive screen is currently open on a
+ * session's terminal. At most one field is set; all are empty when no such
+ * screen is open. Probing for all in one round-trip keeps the scan hot path to
+ * a single capture per tick.
  */
 export interface PendingScreen {
   question?: DetectedQuestion
   confirm?: DetectedConfirm
+  dialog?: boolean // any other CLI picker (/login, /model, …)
 }
 export const SpawnerSourceTask = 'task'
 export const SpawnerSourceEnv = 'env'
@@ -497,6 +498,14 @@ export interface Agent {
    * on injectable sessions.
    */
   pendingConfirm?: DetectedConfirm
+  /**
+   * AwaitingTerminalDialog: a CLI picker is open on the live terminal. Unset while any tool call lacks a result, since the permission prompt draws the same footer.
+   */
+  awaitingTerminalDialog?: boolean
+  /**
+   * TerminalAttachable: the session has a pty broker the dashboard terminal can attach to (tmux sessions have none).
+   */
+  terminalAttachable?: boolean
   lastOutput?: string
   convergenceAlert: boolean
   convergenceToolName?: string

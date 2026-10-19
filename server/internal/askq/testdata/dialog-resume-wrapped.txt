@@ -1,0 +1,4 @@
+     Readme aktualisieren und Screenshots
+     2 weeks ago · fix/retry-budget-followups · 11.5MB
+     Ctrl+A to show all projects · Ctrl+B to only show current branch · Ctrl+W to show all worktrees · Space to
+     preview · Ctrl+R to rename · Type to search · Esc to cancel

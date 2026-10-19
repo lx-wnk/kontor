@@ -8,6 +8,8 @@ export interface SlashCommandDef {
   description: string
   usage?: string
   requiresTask?: boolean
+  /** Opens a picker on the session's terminal when sent without arguments. */
+  interactive?: boolean
 }
 
 export interface CommandResult {
@@ -194,6 +196,7 @@ interface DynamicCommand {
   source: string
   /** `argument-hint:` frontmatter, e.g. "[base-branch] [--apply-fixes]". */
   argumentHint?: string
+  interactive?: boolean
 }
 
 interface DynamicCommandsResponse {
@@ -213,6 +216,11 @@ export interface DynamicCommandScope {
   sessionId?: string
   spawnerId?: string
   cwd?: string
+}
+
+export function isInteractiveCommand(text: string, commands: SlashCommandDef[]): boolean {
+  const name = text.trim()
+  return commands.some(c => c.interactive && c.name === name)
 }
 
 /**
@@ -289,6 +297,7 @@ export async function fetchDynamicCommands(scope: DynamicCommandScope): Promise<
         name: c.name,
         description: c.description,
         usage: c.argumentHint || undefined,
+        interactive: c.interactive || undefined,
       })),
       builtinsMayBeStale: !!data.builtinsMayBeStale,
       engineVersion: data.engineVersion,

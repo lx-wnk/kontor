@@ -1,0 +1,4 @@
+     Copy on select                              true
+     Auto-scroll                                 true
+     ↓ 20 more
+   Type to filter · Enter/↓ to select · ↑ to tabs · Esc to clear

@@ -13,7 +13,7 @@ import { taskAttentionCause } from '@/utils/taskAttentionCause'
  * blocked-ness is what makes the answer explainable in one sentence, and an
  * order nobody can explain is one people stop trusting.
  */
-export type NextKind = 'permission' | 'question' | 'capability' | 'plan'
+export type NextKind = 'permission' | 'question' | 'dialog' | 'capability' | 'plan'
 
 export interface NextThing {
   kind: NextKind
@@ -24,8 +24,10 @@ export interface NextThing {
   stage: string
   /** The request to resolve, for the permission kind. */
   request?: PermissionRequest
-  /** The agent to answer, for the question kind. */
+  /** The agent to answer, for the question and dialog kinds. */
   pid?: number
+  /** For the dialog kind: whether the dashboard terminal can attach (pty broker, not tmux). */
+  terminalAttachable?: boolean
   /** Whichever screen that agent is holding open — one of the two, never both. */
   question?: DetectedQuestion
   confirm?: DetectedConfirm
@@ -37,11 +39,12 @@ export interface NextThing {
 }
 
 /** Lower sorts first. Exported so a new kind has to state its place. */
-export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, capability: 2, plan: 3 }
+export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, dialog: 2, capability: 3, plan: 4 }
 
 export const WHY: Record<NextKind, string> = {
   permission: 'First because an agent is stopped until you answer.',
   question: 'An agent asked you something and cannot go on until you reply.',
+  dialog: 'A session holds a picker open in its terminal and waits until you answer it there.',
   capability: 'A run is paused until you allow or deny this capability.',
   plan: 'Waiting on your approval — nothing is running while it waits.',
 }
@@ -90,6 +93,22 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
       confirm: agent.pendingConfirm ?? undefined,
       title: agent.pendingQuestion?.question ?? 'Ready to submit?',
       why: WHY.question,
+    })
+  }
+
+  for (const agent of agents) {
+    if (!agent.awaitingTerminalDialog)
+      continue
+    out.push({
+      kind: 'dialog',
+      taskId: agent.pipelineTaskId ?? '',
+      taskTitle: agent.projectName,
+      projectName: agent.projectName,
+      stage: '',
+      pid: agent.pid,
+      terminalAttachable: agent.terminalAttachable ?? false,
+      title: 'A dialog is open in this session\'s terminal',
+      why: WHY.dialog,
     })
   }
 

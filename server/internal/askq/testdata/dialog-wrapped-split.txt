@@ -1,0 +1,2 @@
+     Ctrl+A to show all projects · Space to preview · Ctrl+R to rename · Type to search · Esc to
+     cancel

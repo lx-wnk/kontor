@@ -1,0 +1,3 @@
+❯ draft text that ends with Esc to cancel
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

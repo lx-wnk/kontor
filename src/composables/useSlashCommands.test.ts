@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dispatchSlashCommand, dynamicCommandCacheSize, fetchDynamicCommands, parseSlashCommand } from './useSlashCommands'
+import { dispatchSlashCommand, dynamicCommandCacheSize, fetchDynamicCommands, isInteractiveCommand, parseSlashCommand } from './useSlashCommands'
 
 describe('parseSlashCommand', () => {
   it('returns null for non-slash input', () => {
@@ -288,5 +288,26 @@ describe('/grant resolves through the route the server actually registers', () =
     expect(res.message).toContain('Bash')
     expect(posts).toHaveLength(0)
     vi.unstubAllGlobals()
+  })
+})
+
+describe('isInteractiveCommand', () => {
+  it('keeps the server flag and matches only the bare command', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        commands: [
+          { name: '/model', description: 'Switch model', source: 'builtin', interactive: true },
+          { name: '/compact', description: 'Compact', source: 'builtin' },
+        ],
+      }),
+    }))
+    const { commands } = await fetchDynamicCommands({ sessionId: 'sess-interactive' })
+    vi.unstubAllGlobals()
+
+    expect(isInteractiveCommand(' /model ', commands)).toBe(true)
+    expect(isInteractiveCommand('/model opus', commands)).toBe(false)
+    expect(isInteractiveCommand('/compact', commands)).toBe(false)
+    expect(isInteractiveCommand('/login', commands)).toBe(false)
   })
 })
