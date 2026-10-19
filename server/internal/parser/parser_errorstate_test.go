@@ -87,3 +87,14 @@ func TestErrorState_APIError429RateLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ErrorStateRateLimited, d.ErrorState)
 }
+
+// The CLI's own synthetic auth error carries no apiErrorStatus and a text the
+// keyword fallback does not match; only the structured error field names it.
+func TestErrorState_SyntheticLoginExpired(t *testing.T) {
+	line := `{"type":"assistant","error":"authentication_failed","isApiErrorMessage":true,` +
+		`"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Login expired · Please run /login"}]}}`
+	path := writeErrorStateSession(t, line)
+	d, err := parser.ParseSessionFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ErrorStateAuthFailed, d.ErrorState)
+}
