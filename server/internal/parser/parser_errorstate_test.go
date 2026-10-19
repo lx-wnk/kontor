@@ -87,3 +87,45 @@ func TestErrorState_APIError429RateLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, sdk.ErrorStateRateLimited, d.ErrorState)
 }
+
+// The CLI's own synthetic auth error carries no apiErrorStatus and a text the
+// keyword fallback does not match; only the structured error field names it.
+func TestErrorState_SyntheticLoginExpired(t *testing.T) {
+	line := `{"type":"assistant","error":"authentication_failed","isApiErrorMessage":true,` +
+		`"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Login expired · Please run /login"}]}}`
+	path := writeErrorStateSession(t, line)
+	d, err := parser.ParseSessionFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ErrorStateAuthFailed, d.ErrorState)
+}
+
+// The last assistant entry decides: a normal reply after /login clears the
+// auth error, or the dashboard keeps asking for a login that already happened.
+func TestErrorState_ClearedByLaterReply(t *testing.T) {
+	failed := `{"type":"assistant","error":"authentication_failed","isApiErrorMessage":true,` +
+		`"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Login expired · Please run /login"}]}}`
+	path := writeErrorStateSession(t, failed+"\n"+
+		`{"type":"user","message":{"role":"user","content":"go on"}}`+"\n"+
+		buildAPIErrorEntry(t, "Done.", false, 0))
+	d, err := parser.ParseSessionFile(path)
+	require.NoError(t, err)
+	assert.Empty(t, d.ErrorState)
+}
+
+func TestErrorState_OAuthRefreshFailure(t *testing.T) {
+	line := `{"type":"assistant","error":"authentication_failed","isApiErrorMessage":true,` +
+		`"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Failed to authenticate: OAuth session expired and could not be refreshed"}]}}`
+	path := writeErrorStateSession(t, line)
+	d, err := parser.ParseSessionFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ErrorStateAuthFailed, d.ErrorState)
+}
+
+func TestErrorState_OrgNotAllowed(t *testing.T) {
+	line := `{"type":"assistant","error":"oauth_org_not_allowed","isApiErrorMessage":true,` +
+		`"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Your organization does not allow this login"}]}}`
+	path := writeErrorStateSession(t, line)
+	d, err := parser.ParseSessionFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, sdk.ErrorStateAuthFailed, d.ErrorState)
+}
