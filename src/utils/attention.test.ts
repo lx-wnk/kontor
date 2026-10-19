@@ -415,4 +415,12 @@ describe('grantable is opt-in', () => {
     expect(att?.kind).toBe('stalled')
     expect(att?.grantable).toBe(false)
   })
+
+  it('reports an open CLI picker as waiting in the terminal, below an answerable question', () => {
+    const dialog = attentionFor(makeAgent({ awaitingTerminalDialog: true }), ACTIVE_SECS)
+    expect(dialog).toEqual({ kind: 'dialog', label: 'Waiting in terminal', tone: 'warning', weight: 0, grantable: false })
+
+    const errored = attentionFor(makeAgent({ awaitingTerminalDialog: true, errorState: 'auth_failed' }), ACTIVE_SECS)
+    expect(errored?.kind).toBe('dialog')
+  })
 })

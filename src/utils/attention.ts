@@ -2,7 +2,7 @@ import type { Agent } from '../types'
 import { isAwaitingInput, isStalled, STALLED_THRESHOLD_SECONDS } from './format'
 
 export interface Attention {
-  kind: 'question' | 'permission' | 'error' | 'stalled' | 'yourTurn'
+  kind: 'question' | 'permission' | 'dialog' | 'error' | 'stalled' | 'yourTurn'
   label: string
   tone: 'warning' | 'danger' | 'neutral'
   weight: number
@@ -53,6 +53,10 @@ export function attentionFor(agent: Agent, secondsSinceActivity: number | null):
       && agent.terminalPermissionToolUseId === agent.pendingToolUse?.id
     return { kind: 'permission', label: 'Answer in terminal', tone: 'warning', weight: 0, grantable: named }
   }
+  // A CLI picker (/login, /model, …) holds the session until someone answers it
+  // in the terminal. Ranked above an error: /login is how an expired login gets fixed.
+  if (agent.awaitingTerminalDialog)
+    return { kind: 'dialog', label: 'Waiting in terminal', tone: 'warning', weight: 0, grantable: false }
   if (agent.errorState)
     return { kind: 'error', label: 'Run failed', tone: 'danger', weight: 1, grantable: false }
   // An unresolved tool_use is the only signal a plain JSONL gives for "blocked on
