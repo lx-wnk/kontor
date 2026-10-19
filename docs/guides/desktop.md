@@ -17,6 +17,18 @@ survive rebuilds ([code-signing.md](../code-signing.md)). Opened from Finder, th
 shell `CLAUDE_CONFIG_DIR`; set `claude.configDir` in Settings to point it at a non-default Claude
 config directory (applies after a restart).
 
+## Window size and scaling
+
+The layout is designed for a 1400×900 point window. A smaller window zooms the whole page out to fit
+(WKWebView `pageZoom`, the same as Cmd-minus in a browser, so layout, `vh` units and clicks stay
+consistent), down to 65%. The content area cannot shrink below the size that 65% still fits
+(910×585 points), so nothing is cut off; a larger window keeps 100%. The constants live in
+`desktop/window_darwin.go`.
+
+macOS remembers the window's size and position between launches (`setFrameAutosaveName`, stored as
+`NSWindow Frame KontorMainWindow` in the `com.lxwnk.kontor` defaults) and keeps a restored window on
+the attached screens. `defaults delete com.lxwnk.kontor "NSWindow Frame KontorMainWindow"` resets it.
+
 ## Manual smoke checklist
 
 Real Mac:
@@ -24,3 +36,4 @@ Real Mac:
 1. The webview loads the dashboard (not a blank page) — it fetches the SPA and `/api/*` from `http://127.0.0.1:13120`, so the redirect landed on the loopback origin.
 2. A mutating action (spawn an agent, create a task, answer a question) succeeds with no `403`.
 3. No App Transport Security block appears in Console.app.
+4. Shrinking the window scales the page down without cutting anything off; quitting and reopening restores the last size and position.

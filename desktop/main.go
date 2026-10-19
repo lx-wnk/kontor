@@ -85,8 +85,13 @@ func main() {
 
 	err = wails.Run(&options.App{
 		Title:  "Agent Dashboard",
-		Width:  1400,
-		Height: 900,
+		Width:  designWidth,
+		Height: designHeight,
+		// Shown by setUpMainWindow once the saved frame is applied.
+		StartHidden: true,
+		OnStartup: func(_ context.Context) {
+			setUpMainWindow()
+		},
 		AssetServer: &assetserver.Options{
 			Handler: bootstrapHandler("http://" + frontendAddr(instance.Addr()) + "/?shell=desktop"),
 		},
