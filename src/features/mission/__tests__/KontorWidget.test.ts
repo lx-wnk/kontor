@@ -127,6 +127,33 @@ describe('kontorWidget', () => {
     w.unmount()
   })
 
+  // The hub opens Kontor remotely while its own cell sits below the fold of a scrolled grid.
+  it('keeps the overlay inside the window when its cell is out of view', async () => {
+    const w = mount(KontorWidget, { attachTo: document.body })
+    const cellEl = w.get('[data-testid="kontor-collapsed"]').element as HTMLElement
+    const rect = { top: 1036, bottom: 1076, left: 10, right: 390, width: 380, height: 40, x: 10, y: 1036, toJSON: () => {} } as DOMRect
+    vi.spyOn(cellEl, 'getBoundingClientRect').mockReturnValue(rect)
+    const innerHeightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    const raf: { cb: FrameRequestCallback | null } = { cb: null }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      raf.cb = cb
+      return 0
+    })
+
+    await w.get('[data-testid="kontor-collapsed"]').trigger('click')
+    raf.cb?.(0)
+    await nextTick()
+    const overlay = document.querySelector('[data-testid="kontor-expanded"]') as HTMLElement
+    const bottom = Number.parseFloat(overlay.style.bottom)
+    const height = Number.parseFloat(overlay.style.height)
+    expect(bottom).toBeGreaterThanOrEqual(0)
+    expect(900 - bottom - height).toBeGreaterThanOrEqual(0)
+
+    rafSpy.mockRestore()
+    innerHeightSpy.mockRestore()
+    w.unmount()
+  })
+
   it('re-places on window resize while open, capped to 64% of the new height', async () => {
     const w = mount(KontorWidget, { attachTo: document.body })
     const cellEl = w.get('[data-testid="kontor-collapsed"]').element as HTMLElement
