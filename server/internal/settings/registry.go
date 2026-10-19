@@ -174,6 +174,9 @@ var definitions = func() map[string]Definition {
 		{Key: "github.token", Type: TypeString, Secret: true, Apply: ApplyRestart, Category: "github"},
 		{Key: "github.repos", Type: TypeString, Default: "", Apply: ApplyRestart, Category: "github"},
 		{Key: "github.baseURL", Type: TypeString, Default: "https://api.github.com", Apply: ApplyRestart, Category: "github"},
+		{Key: "usageGate.fiveHourPct", Type: TypeInt, Default: "90", Apply: ApplyLive, Category: "usageGate", validate: nonNegativeInt("usageGate.fiveHourPct")},
+		{Key: "usageGate.sevenDayPct", Type: TypeInt, Default: "95", Apply: ApplyLive, Category: "usageGate", validate: nonNegativeInt("usageGate.sevenDayPct")},
+		{Key: "usageGate.staleMinutes", Type: TypeInt, Default: "15", Apply: ApplyLive, Category: "usageGate", validate: positiveInt("usageGate.staleMinutes")},
 	}
 	m := make(map[string]Definition, len(list))
 	for _, d := range list {

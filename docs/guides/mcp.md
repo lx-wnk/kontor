@@ -30,9 +30,9 @@ Scopes are hierarchical — a higher scope implies all lower ones.
 | `github:merge` | Merge a GitHub pull request (implies `github:read`; does **not** imply `github:write`) |
 | `keys:manage` | Full access including API key management |
 
-## Tools (51)
+## Tools (52)
 
-**`tasks:read`** — `list_tasks`, `get_task`, `list_stage_runs`, `list_audit`, `list_permission_requests`, `list_projects`, `list_spawners`, `list_schedules`
+**`tasks:read`** — `list_tasks`, `get_task`, `list_stage_runs`, `list_audit`, `list_permission_requests`, `list_projects`, `list_spawners`, `list_schedules`, `get_refine_draft`
 
 **`tasks:write`** — `create_task`, `update_task`, `delete_task`, `manage_task`, `add_dependency`, `remove_dependency`, `create_project`, `manage_schedule`
 

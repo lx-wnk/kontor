@@ -16,6 +16,10 @@ type RunApplications struct {
 	Allow          []string
 	Deny           []string
 	CatalogueTools map[string]bool
+	// ArgDeny holds the presets' `tool(param:value)` rules. Claude Code honours
+	// those only as --disallowedTools values, so they stay out of Deny, which
+	// also feeds settings.json.
+	ArgDeny []string
 }
 
 type MissingSecretError struct{ Server, EnvName string }
@@ -79,6 +83,11 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplicatio
 			return RunApplications{}, err
 		}
 		out.Servers[app.ServerName] = merged
+		argDeny, err := presetArgDeny(app)
+		if err != nil {
+			return RunApplications{}, err
+		}
+		out.ArgDeny = append(out.ArgDeny, argDeny...)
 
 		for _, tool := range app.Catalogue {
 			name := CapabilityName(app.ServerName, tool.Name)
@@ -96,6 +105,20 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplicatio
 		}
 	}
 	return out, nil
+}
+
+// presetArgDeny renders the argument rules of the preset matching app's server
+// entry, named by the server name the spawned agent sees.
+func presetArgDeny(app *ent.MCPApplication) ([]string, error) {
+	entry, err := ParseEntry(app.Entry)
+	if err != nil {
+		return nil, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
+	}
+	preset, ok := FindPreset(entry)
+	if !ok {
+		return nil, nil
+	}
+	return preset.ArgDenyRules(app.ServerName), nil
 }
 
 func (r Resolver) decide(ctx context.Context, capName string, contexts []capability.Context) (capability.Decision, error) {

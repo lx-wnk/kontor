@@ -496,3 +496,46 @@ func TestDetectConfirmScreen_RejectsNonAdjacentPair(t *testing.T) {
 		t.Fatalf("matched a non-adjacent pair: %+v", c)
 	}
 }
+
+func TestDetectDialog(t *testing.T) {
+	cases := []struct {
+		fixture string
+		want    bool
+	}{
+		{"dialog-login.txt", true},
+		{"dialog-model.txt", true},
+		{"dialog-hooks.txt", true},
+		{"dialog-config.txt", true},
+		{"dialog-resume-wrapped.txt", true},
+		{"dialog-subview.txt", true},
+		{"dialog-trailing-hint.txt", true},
+		{"dialog-wrapped-split.txt", true},
+		{"dialog-idle.txt", false},
+		{"dialog-statusline.txt", false},
+		{"dialog-press-esc.txt", true},
+		{"dialog-paren.txt", true},
+		{"dialog-or-esc.txt", true},
+		{"dialog-idle-hint.txt", false},
+		{"dialog-double-press.txt", false},
+		{"dialog-draft.txt", false},
+		{"askq-nonmodal.txt", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.fixture, func(t *testing.T) {
+			if got := DetectDialog(loadFixture(t, tc.fixture)); got != tc.want {
+				t.Errorf("DetectDialog(%s) = %v, want %v", tc.fixture, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDetectScreenPrefersQuestionOverDialog(t *testing.T) {
+	screen := DetectScreen(loadFixture(t, "askq-v2_1_205.txt"))
+	if screen == nil || screen.Question == nil || screen.Dialog {
+		t.Fatalf("an AskUserQuestion modal must be reported as a question, got %+v", screen)
+	}
+	screen = DetectScreen(loadFixture(t, "dialog-login.txt"))
+	if screen == nil || !screen.Dialog || screen.Question != nil {
+		t.Fatalf("a CLI picker must be reported as a dialog, got %+v", screen)
+	}
+}

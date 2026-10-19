@@ -3,7 +3,7 @@ import type { UseTerminalSocket } from '@/composables/useTerminalSocket'
 import type { DetectedConfirm, DetectedQuestion } from '@/utils/askQuestionScreen'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import QuestionOverlay from '@/components/QuestionOverlay.vue'
 import { useTerminalSocket } from '@/composables/useTerminalSocket'
 import { detectScreen, screenSignature } from '@/utils/askQuestionScreen'
@@ -81,6 +81,8 @@ onMounted(() => {
   term.loadAddon(fit)
   term.open(container)
   fit.fit()
+  // After the hosting modal focused its panel: keys must reach the picker, and xterm keeps Esc from closing the modal.
+  void nextTick(() => term?.focus())
 
   socket = useTerminalSocket(props.pid, {
     onData: bytes => term?.write(bytes),

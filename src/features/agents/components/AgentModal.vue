@@ -14,7 +14,7 @@ const emit = defineEmits<{ close: [], navigate: [taskId: string] }>()
 <template>
   <AppModal :open="!!agent" :z-index="1000" :labelled-by="agent ? `agent-modal-title-${agent.pid}` : undefined" @close="emit('close')">
     <template v-if="agent">
-      <AgentSessionPane :agent="agent" autofocus @navigate="emit('navigate', $event)">
+      <AgentSessionPane :key="agent.pid" :agent="agent" autofocus @navigate="emit('navigate', $event)">
         <template #actions>
           <button type="button" aria-label="Close" class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-fg" @click="emit('close')">
             ✕

@@ -1,3 +1,5 @@
+//go:build entgen
+
 package entgen
 
 import (
@@ -12,7 +14,9 @@ import (
 // in environments where `go run` / `task generate` are unavailable. It does NOT
 // import package ent, so the stale generated runtime is never linked.
 //
-// Run: go test ./server/internal/db/entgen/ -run TestRegenerateEnt -count=1
+// Build-tagged so a plain `go test ./...` never compiles it, let alone runs it.
+//
+// Run: go test -tags entgen ./server/internal/db/entgen/ -count=1
 func TestRegenerateEnt(t *testing.T) {
 	cfg := &gen.Config{
 		Target:  "../ent",

@@ -17,6 +17,7 @@ const LOADERS: Record<WidgetId, () => Promise<Component>> = {
   'github': () => import('@/features/cockpit').then(m => m.GitHubPanel),
   'memory': () => import('@/features/cockpit').then(m => m.MemoryPanel),
   'cost-today': () => import('@/features/analytics').then(m => m.CostTodayWidget),
+  'plan-usage': () => import('@/features/analytics').then(m => m.PlanUsageWidget),
 }
 
 // Read by App.vue's pageHasHub: a chunk that 404s (e.g. the server was rebuilt

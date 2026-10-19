@@ -272,7 +272,9 @@ On an isolated instance — never the production database — with iCloud, Gmail
 - a draft created by an agent appears in the account's `\Drafts` folder;
 - an approved mail arrives;
 - the sent copy is in `\Sent`;
-- a new matching mail creates exactly one task.
+- ~~a new matching mail creates exactly one task.~~ **DEFERRED to slice 2** (mail trigger)
+
+Slice 1 acceptance status (2026-10-02): tools/list confirmed (40 tools, three accounts), preset deny-list verified against live fixture (16 denied, no gaps), `TestPresetDenyGlobal_AllNamesExistInLiveFixture` added. Items 1–3 and saveToSent per-provider decision PENDING — require operator to enter account credentials on the isolated instance (steps 6–8 of the acceptance plan).
 
 ---
 
@@ -280,13 +282,13 @@ On an isolated instance — never the production database — with iCloud, Gmail
 
 Each is settled against the chosen server before anything is built, because a design choice above depends on it.
 
-| Question | Depends on it | Cheapest check | Answer (probe 2026-09-16, `imap-mcp-server@2.0.0`, no accounts) |
-| --- | --- | --- | --- |
-| Can the server send an existing draft? | §3.6. Fallback: read the draft's fields, call the send tool with them, delete the draft — which may drop attachments | `tools/list` | **No.** 40 tools; `imap_save_draft` stores a draft, `imap_send_email` sends new content, nothing sends a draft by id. Slice 3 takes the fallback: read the draft (`imap_get_email`), send its fields with `imap_send_email`, then delete the draft. Attachments need `imap_download_attachment` and re-attaching — to be designed in the slice 3 plan |
-| Does it expose UIDs and `UIDVALIDITY`? | §3.5 cursor | one search call | **Yes, from code.** Message tools address mail by `uid`; `imap_folder_status` returns `uidValidity` and `uidNext` (`dist/setup.js:742-750`). Live values still to be seen |
-| Does it accept credentials for several accounts from the environment? | §3.3 | start it with two env-managed accounts | **Yes, from code** — the published build reads `IMAP_MCP_ACCOUNT_<ACCOUNT NAME>_…` (`dist/index.js`). Live test with two accounts still needs the human's credentials |
-| Does `tools/list` answer without credentials? | §3.4 catalogue before secrets are set | start it with none | **Yes, live** — full list with no accounts configured |
-| Does it save a copy to `\Sent` after SMTP sending, or must the client append one? | §7.5 | send one mail per account and list `\Sent` | **The server appends itself, from code** — `appendToSentFolder` resolves the folder by configured name, then SPECIAL-USE `\Sent`, then localized names; per-account `saveToSent`. `HYPOTHESIS`: Gmail then keeps two copies unless `saveToSent` is off — check with a real send |
+| Question | Depends on it | Cheapest check | Answer (probe 2026-09-16, `imap-mcp-server@2.0.0`, no accounts) | Answer (live probe 2026-10-02, iCloud + Gmail + OVH) |
+| --- | --- | --- | --- | --- |
+| Can the server send an existing draft? | §3.6. Fallback: read the draft's fields, call the send tool with them, delete the draft — which may drop attachments | `tools/list` | **No.** 40 tools; `imap_save_draft` stores a draft, `imap_send_email` sends new content, nothing sends a draft by id. Slice 3 takes the fallback: read the draft (`imap_get_email`), send its fields with `imap_send_email`, then delete the draft. Attachments need `imap_download_attachment` and re-attaching — to be designed in the slice 3 plan | **Confirmed.** 40 tools on the live catalogue refresh (with three accounts in env), same count and same names as the no-account probe. No send-by-draft-id tool. |
+| Does it expose UIDs and `UIDVALIDITY`? | §3.5 cursor | one search call | **Yes, from code.** Message tools address mail by `uid`; `imap_folder_status` returns `uidValidity` and `uidNext` (`dist/setup.js:742-750`). Live values still to be seen | PENDING — live UID stability check requires account credentials (§7.5 probe steps 6–8) |
+| Does it accept credentials for several accounts from the environment? | §3.3 | start it with two env-managed accounts | **Yes, from code** — the published build reads `IMAP_MCP_ACCOUNT_<ACCOUNT NAME>_…` (`dist/index.js`). Live test with two accounts still needs the human's credentials | **VERIFIED live.** Catalogue refresh on isolated instance with three env-managed accounts (iCloud, Gmail, OVH) returned 40 tools; `tools/list` answered with all three accounts configured. Evidence: `docs/local/agenticOs/evidence/4.3-slice1/02-tools-list.json` |
+| Does `tools/list` answer without credentials? | §3.4 catalogue before secrets are set | start it with none | **Yes, live** — full list with no accounts configured | **Confirmed.** Same 40 tools with and without accounts — catalogue is credential-independent. Fixture committed as `server/internal/mcpapps/testdata/imap-mcp-server-2.0.0-tools.txt` |
+| Does it save a copy to `\Sent` after SMTP sending, or must the client append one? | §7.5 | send one mail per account and list `\Sent` | **The server appends itself, from code** — `appendToSentFolder` resolves the folder by configured name, then SPECIAL-USE `\Sent`, then localized names; per-account `saveToSent`. `HYPOTHESIS`: Gmail then keeps two copies unless `saveToSent` is off — check with a real send | PENDING — live send probe per account requires credentials (§7.5 probe step 8) |
 
 ---
 

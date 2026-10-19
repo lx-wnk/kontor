@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1182,10 +1183,15 @@ func TestSendMessageToChannel_TmuxTakesPrecedenceOverPty(t *testing.T) {
 	// Intercept tmux — succeed immediately.
 	var tmuxCalled bool
 	origRunner := tmuxRunner
+	origStdinRunner := tmuxStdinRunner
 	origLook := tmuxLookPath
-	t.Cleanup(func() { tmuxRunner = origRunner; tmuxLookPath = origLook })
+	t.Cleanup(func() { tmuxRunner = origRunner; tmuxStdinRunner = origStdinRunner; tmuxLookPath = origLook })
 	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
 	tmuxRunner = func(_ context.Context, _ ...string) error {
+		tmuxCalled = true
+		return nil
+	}
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, _ ...string) error {
 		tmuxCalled = true
 		return nil
 	}

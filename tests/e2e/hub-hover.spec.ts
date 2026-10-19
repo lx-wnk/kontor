@@ -34,8 +34,8 @@ interface Ring { x: number, y: number, inner: number, outer: number }
 
 // Highest alpha (0–255) among canvas pixels painted in the --accent colour, optionally only within a
 // ring around a stage point (CSS px). Links are the only accent strokes at the notes level: a plain
-// cross link is 0.7px at 0.6 alpha, a hovered one 1.4px at 0.95. A 1.4px stroke covers at least 70%
-// of some pixel even when it runs level with the pixel grid, so only the hovered state passes 0.6.
+// cross link is 1.4px at 0.7 alpha, a hovered one 2.8px at 0.95. Both cover whole pixels, so an
+// unhovered link peaks near 0.7 and only the hovered state passes 0.8.
 function maxAccentAlpha(page: Page, ring?: Ring): Promise<number> {
   return page.evaluate((ring) => {
     const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="hub-stage"] canvas')!
@@ -90,10 +90,10 @@ test('hovering a note dot at the notes level highlights its cross-project link',
   const nearSource: Ring = { x: box.width / 2, y: box.height / 2, inner: 16, outer: 160 }
   await page.mouse.move(box.x + 4, box.y + box.height - 4)
   await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the source note\'s link leaves its dot' }).toBeGreaterThan(0)
-  expect(await maxAccentAlpha(page), 'unhovered links stay below the hover alpha').toBeLessThan(0.6 * 255)
+  expect(await maxAccentAlpha(page), 'unhovered links stay below the hover alpha').toBeLessThan(0.8 * 255)
 
   const onStage = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="hub-stage"]'), [cx, cy])
   expect(onStage, 'the centred note is not covered by an overlay').toBe(true)
   await page.mouse.move(cx, cy)
-  await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the hovered note\'s own link outshines any unhovered one' }).toBeGreaterThan(0.6 * 255)
+  await expect.poll(() => maxAccentAlpha(page, nearSource), { message: 'the hovered note\'s own link outshines any unhovered one' }).toBeGreaterThan(0.8 * 255)
 })

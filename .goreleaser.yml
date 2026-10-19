@@ -3,6 +3,10 @@
 #
 # The `before` hooks build the Vue SPA into server/frontend/dist BEFORE the Go build,
 # so go:embed (server/frontend/embed.go) bakes the real frontend into each binary.
+#
+# They also generate the third-party notices into bin/notices/ (gitignored), not dist/:
+# `--clean` empties dist/ BEFORE the hooks run, but the "ensuring distribution
+# directory" step that follows the hooks fails on a non-empty dist/.
 version: 2
 
 project_name: kontor
@@ -10,6 +14,7 @@ project_name: kontor
 before:
   hooks:
     - pnpm install --frozen-lockfile
+    - bash scripts/gen-licenses.sh bin/notices/THIRD_PARTY_LICENSES.md
     - pnpm build
 
 builds:
@@ -39,7 +44,8 @@ archives:
       - LICENSE
       - README.md
       - PRIVACY.md
-      - THIRD_PARTY_LICENSES.md
+      - src: bin/notices/THIRD_PARTY_LICENSES.md
+        strip_parent: true
 
 checksum:
   name_template: checksums.txt
@@ -79,6 +85,8 @@ homebrew_casks:
 dockers_v2:
   - id: kontor
     dockerfile: Dockerfile.goreleaser
+    extra_files:
+      - bin/notices/THIRD_PARTY_LICENSES.md
     images:
       - ghcr.io/lx-wnk/kontor
     tags:

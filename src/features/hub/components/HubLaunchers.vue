@@ -5,7 +5,8 @@ import { useTimeoutFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 import { launcherPoint } from '../hubLaunchers'
 
-const props = defineProps<{ launchers: Launcher[], cam: Camera, k0: number, docked: boolean, agentRingPx: number }>()
+// angles: ring rotated off the needs-you queue; omitted means the default slots.
+const props = defineProps<{ launchers: Launcher[], cam: Camera, k0: number, docked: boolean, agentRingPx: number, angles?: number[] }>()
 defineEmits<{ launch: [launcher: Launcher] }>()
 
 // Eased only across a dock switch: a standing transition would trail every pan and zoom frame.
@@ -19,7 +20,7 @@ watch(() => props.docked, () => {
 })
 
 function at(i: number) {
-  const [x, y] = launcherPoint(i, props.docked, props.cam, props.k0, props.agentRingPx)
+  const [x, y] = launcherPoint(i, props.docked, props.cam, props.k0, props.agentRingPx, props.angles?.[i])
   return { transform: `translate(${x}px, ${y}px)` }
 }
 </script>

@@ -10,6 +10,7 @@ const TERMINAL_STATES = new Set(['awaiting_user', 'done', 'failed', 'cancelled',
 export function usePlanReview(taskId: () => string | null) {
   const gateState = ref<string>('unknown')
   const approvedPlan = ref<Record<string, unknown> | null>(null)
+  const planReady = ref(false)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -34,12 +35,17 @@ export function usePlanReview(taskId: () => string | null) {
         error.value = `Failed to load plan status: ${res.status}`
         return
       }
-      const data = await res.json() as { gate_state: string, approved_plan?: Record<string, unknown> | null }
+      const data = await res.json() as {
+        gate_state: string
+        approved_plan?: Record<string, unknown> | null
+        plan_ready?: boolean
+      }
       // Discard a response that resolved after the panel switched to another task.
       if (taskId() !== id)
         return
       gateState.value = data.gate_state
       approvedPlan.value = data.approved_plan ?? null
+      planReady.value = data.plan_ready ?? false
     }
     catch (err) {
       error.value = String(err)
@@ -66,6 +72,7 @@ export function usePlanReview(taskId: () => string | null) {
     stopPolling()
     gateState.value = 'unknown'
     approvedPlan.value = null
+    planReady.value = false
     error.value = null
     await fetchStatus()
     if (!TERMINAL_STATES.has(gateState.value))
@@ -123,6 +130,7 @@ export function usePlanReview(taskId: () => string | null) {
   return {
     gateState,
     approvedPlan,
+    planReady,
     loading,
     error,
     fetchStatus,

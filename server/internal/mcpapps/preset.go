@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"sort"
@@ -13,6 +14,12 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
+
+// ErrPresetUnconfirmed is returned by ApplyDefaultDenies (and ApplyPresetDenies)
+// when the preset's deny list has not been verified against a live tool catalogue.
+// Set confirmed:true in the preset JSON after running the live probe and
+// cross-referencing every denyGlobal entry against tools/list.
+var ErrPresetUnconfirmed = errors.New("mcpapps: preset not confirmed against live tool catalogue")
 
 //go:embed presets/*.json
 var presetFiles embed.FS
@@ -25,11 +32,21 @@ type PresetSetup struct {
 	Readiness string   `json:"readiness"`
 }
 
+// ArgDeny denies one tool only when a top-level scalar parameter matches one of
+// Values. Claude Code matches exactly and case-sensitively; `*` is a wildcard.
+type ArgDeny struct {
+	Tool   string   `json:"tool"`
+	Param  string   `json:"param"`
+	Values []string `json:"values"`
+}
+
 type Preset struct {
 	Server          string       `json:"server"`
 	Version         string       `json:"version"`
-	Match           string       `json:"match"` // substring of the entry's command line
+	Match           string       `json:"match"`     // substring of the entry's command line
+	Confirmed       bool         `json:"confirmed"` // true once denyGlobal is verified against a live tool catalogue
 	DenyGlobal      []string     `json:"denyGlobal"`
+	DenyArgs        []ArgDeny    `json:"denyArgs,omitempty"`
 	Setup           *PresetSetup `json:"setup,omitempty"`
 	SecretTemplates []string     `json:"secretTemplates,omitempty"`
 }
@@ -43,7 +60,42 @@ func LoadPreset(name string) (Preset, error) {
 	if err := json.Unmarshal(data, &p); err != nil {
 		return Preset{}, fmt.Errorf("mcpapps: preset %q: %w", name, err)
 	}
+	if err := p.ValidateDenyArgs(); err != nil {
+		return Preset{}, fmt.Errorf("mcpapps: preset %q: %w", name, err)
+	}
 	return p, nil
+}
+
+// argRuleSyntax cannot appear in a tool, param or value: it would end or split
+// the `tool(param:value)` rule early.
+const argRuleSyntax = "():"
+
+// ValidateDenyArgs rejects a denyArgs entry that would render a malformed rule.
+func (p Preset) ValidateDenyArgs() error {
+	for i, d := range p.DenyArgs {
+		if d.Tool == "" || d.Param == "" || len(d.Values) == 0 {
+			return fmt.Errorf("denyArgs[%d]: tool, param and values are all required", i)
+		}
+		for _, field := range append([]string{d.Tool, d.Param}, d.Values...) {
+			if field == "" || strings.ContainsAny(field, argRuleSyntax) {
+				return fmt.Errorf("denyArgs[%d]: %q must be non-empty and free of %q", i, field, argRuleSyntax)
+			}
+		}
+	}
+	return nil
+}
+
+// ArgDenyRules renders DenyArgs as `mcp__<server>__<tool>(<param>:<value>)`
+// rules in declaration order, for --disallowedTools. Claude Code ignores such
+// rules in settings.json.
+func (p Preset) ArgDenyRules(serverName string) []string {
+	var rules []string
+	for _, d := range p.DenyArgs {
+		for _, v := range d.Values {
+			rules = append(rules, CapabilityName(serverName, d.Tool)+"("+d.Param+":"+v+")")
+		}
+	}
+	return rules
 }
 
 // allPresets loads every embedded preset once, sorted by Match length
@@ -71,6 +123,9 @@ func loadAllPresets() []Preset {
 	return presets
 }
 
+// PresetFinder resolves the preset that applies to a server entry.
+type PresetFinder func(ServerEntry) (Preset, bool)
+
 // FindPreset returns the preset whose Match occurs in the entry's command line
 // (Command and Args joined by a space), longest Match first so a specific
 // package beats a generic one.
@@ -93,24 +148,25 @@ type DenyResult struct {
 	Existing []string `json:"existing"`
 }
 
-// ApplyDefaultDenies writes a global deny for every tool the application's
-// preset names. It is idempotent and applies to tools the catalogue does not
-// list yet, so the window between adding a server and refreshing its tools is
-// closed. An application whose entry matches no preset is a no-op.
-func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
-	res := DenyResult{Created: []string{}, Existing: []string{}}
-	if IsEmptyEntry(app.Entry) {
-		return res, nil
+// CheckConfirmed returns ErrPresetUnconfirmed when p's deny list has not been
+// verified against a live tool catalogue. It is pure, so a caller can refuse
+// before persisting anything the denies depend on.
+func (p Preset) CheckConfirmed() error {
+	if !p.Confirmed {
+		return fmt.Errorf("mcpapps: preset %q: %w", p.Server, ErrPresetUnconfirmed)
 	}
-	entry, err := ParseEntry(app.Entry)
-	if err != nil {
-		return DenyResult{}, fmt.Errorf("mcpapps.ApplyDefaultDenies: %w", err)
+	return nil
+}
+
+// ApplyPresetDenies writes a global deny for every tool p names. It is
+// idempotent and returns ErrPresetUnconfirmed when p.Confirmed is false.
+// Callers that already have a Preset value (e.g. tests) call this directly;
+// ApplyDefaultDenies is the convenience wrapper that resolves the preset first.
+func ApplyPresetDenies(ctx context.Context, grants repo.GrantRepo, p Preset, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
+	if err := p.CheckConfirmed(); err != nil {
+		return DenyResult{}, fmt.Errorf("mcpapps.ApplyPresetDenies: %w", err)
 	}
-	p, ok := FindPreset(entry)
-	if !ok {
-		return res, nil
-	}
-	res.Preset = p.Server
+	res := DenyResult{Preset: p.Server, Created: []string{}, Existing: []string{}}
 	for _, tool := range p.DenyGlobal {
 		name := CapabilityName(app.ServerName, tool)
 		created, err := EnsureGrant(ctx, grants, repo.CreateGrantInput{
@@ -121,7 +177,7 @@ func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCP
 			Reason:         "preset " + p.Server,
 		})
 		if err != nil {
-			return DenyResult{}, fmt.Errorf("mcpapps.ApplyDefaultDenies: %w", err)
+			return DenyResult{}, fmt.Errorf("mcpapps.ApplyPresetDenies: %w", err)
 		}
 		if created {
 			res.Created = append(res.Created, name)
@@ -130,4 +186,33 @@ func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCP
 		}
 	}
 	return res, nil
+}
+
+// ApplyDefaultDenies writes a global deny for every tool the application's
+// preset names. It is idempotent and applies to tools the catalogue does not
+// list yet, so the window between adding a server and refreshing its tools is
+// closed. An application whose entry matches no preset is a no-op.
+// Returns ErrPresetUnconfirmed when the matching preset has not been verified
+// against a live tool catalogue — set confirmed:true in the preset JSON after
+// running the probe.
+func ApplyDefaultDenies(ctx context.Context, grants repo.GrantRepo, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
+	return ApplyDefaultDeniesWith(ctx, grants, FindPreset, app, grantedBy)
+}
+
+// ApplyDefaultDeniesWith is ApplyDefaultDenies with the preset lookup supplied
+// by the caller, so the lookup a caller preflights with is the one it applies.
+func ApplyDefaultDeniesWith(ctx context.Context, grants repo.GrantRepo, find PresetFinder, app *ent.MCPApplication, grantedBy string) (DenyResult, error) {
+	empty := DenyResult{Created: []string{}, Existing: []string{}}
+	if IsEmptyEntry(app.Entry) {
+		return empty, nil
+	}
+	entry, err := ParseEntry(app.Entry)
+	if err != nil {
+		return DenyResult{}, fmt.Errorf("mcpapps.ApplyDefaultDenies: %w", err)
+	}
+	p, ok := find(entry)
+	if !ok {
+		return empty, nil
+	}
+	return ApplyPresetDenies(ctx, grants, p, app, grantedBy)
 }

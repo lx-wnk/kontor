@@ -38,8 +38,8 @@ sibling packages that reference a changed exported type, and `go build` skips te
 
 ### Repository Traps
 
-- `task test` and `go test ./...` regenerate `server/internal/db/ent/`. Run `git checkout -- server/internal/db/ent/` before committing unless the regeneration is the change.
 - `pnpm build` (vite `outDir: server/frontend/dist`) wipes `server/frontend/dist/.gitkeep`, which `//go:embed all:dist` in `server/frontend/embed.go` needs to compile without a frontend build. Restore it with `git checkout HEAD -- server/frontend/dist/.gitkeep` before committing.
+- Ent regeneration is opt-in via build tag: `go test -tags entgen ./server/internal/db/entgen/ -count=1` from repo root. `task test` and `go test ./...` no longer run it, which prevents accidental dirtying of the worktree.
 - Feature branches and Dependabot target `main` — `main` is the trunk.
 - Never `gh pr merge --delete-branch`: worktrees under `dashboard-worktrees/` keep branches checked out, and the flag has already closed a PR unmerged.
 

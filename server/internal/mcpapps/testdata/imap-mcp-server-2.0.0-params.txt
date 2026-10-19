@@ -1,0 +1,6 @@
+imap_move_email accountId
+imap_move_email accountName
+imap_move_email createDestinationIfMissing
+imap_move_email folder
+imap_move_email targetFolder
+imap_move_email uid

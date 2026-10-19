@@ -322,3 +322,30 @@ func TestStageRunRepo_SumCompletedTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2000), sum)
 }
+
+func TestStageRunRepo_Update_WaitReasonFollowsStatusWrites(t *testing.T) {
+	client := openDB(t)
+	ctx := context.Background()
+	tr := repo.NewTaskRepo(client)
+	sr := repo.NewStageRunRepo(client)
+
+	taskID := createTask(t, tr, "sr-wait-reason")
+	run, err := sr.Create(ctx, repo.CreateStageRunInput{TaskID: taskID, Stage: "plan_review", Iteration: 1})
+	require.NoError(t, err)
+
+	awaiting, reason := "awaiting_user", "Plan review: awaiting user approval"
+	run, err = sr.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &awaiting, WaitReason: &reason})
+	require.NoError(t, err)
+	require.NotNil(t, run.WaitReason)
+	require.Equal(t, reason, *run.WaitReason)
+
+	tokens := 7
+	run, err = sr.Update(ctx, run.ID, repo.UpdateStageRunInput{TokensUsed: &tokens})
+	require.NoError(t, err)
+	require.NotNil(t, run.WaitReason, "a write that leaves the status alone must keep the reason")
+
+	done := "done"
+	run, err = sr.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &done})
+	require.NoError(t, err)
+	require.Nil(t, run.WaitReason, "a status write without a reason must clear the previous one")
+}

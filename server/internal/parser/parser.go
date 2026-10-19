@@ -33,10 +33,22 @@ var (
 )
 
 // classifyAPIError maps a real API error (gated by isApiErrorMessage) to an
-// ErrorState. Status takes precedence; keyword regexes are the fallback when
-// status is absent (0). Gating on isApiErrorMessage prevents benign assistant
-// prose that mentions "authentication" or "rate limit" from being misclassified.
-func classifyAPIError(status int, text string) sdk.ErrorState {
+// ErrorState. The CLI's error kind wins, then status; keyword regexes are the
+// fallback when status is absent (0). Gating on isApiErrorMessage prevents benign
+// assistant prose that mentions "authentication" or "rate limit" from being misclassified.
+func classifyAPIError(status int, errorKind, text string) sdk.ErrorState {
+	// Kinds from the Agent SDK's SDKAssistantMessageError union.
+	switch errorKind {
+	case "authentication_failed", "oauth_org_not_allowed":
+		return sdk.ErrorStateAuthFailed
+	case "billing_error":
+		return sdk.ErrorStateQuotaExhausted
+	case "rate_limit":
+		if quotaRE.MatchString(text) {
+			return sdk.ErrorStateQuotaExhausted
+		}
+		return sdk.ErrorStateRateLimited
+	}
 	switch status {
 	case 401, 403:
 		return sdk.ErrorStateAuthFailed
@@ -234,6 +246,7 @@ type jsonlMessage struct {
 	Message           json.RawMessage `json:"message"`
 	IsAPIErrorMessage bool            `json:"isApiErrorMessage"` // true only on real Claude API error responses
 	APIErrorStatus    int             `json:"apiErrorStatus"`    // HTTP status from the API error (401, 429, …)
+	Error             string          `json:"error"`             // CLI error kind, e.g. "authentication_failed" on the synthetic "Login expired" entry
 }
 
 // isCompactBoundaryType reports whether a (type, subtype) pair is the
@@ -245,6 +258,18 @@ type jsonlMessage struct {
 // full scan. See CI-4 design.
 func isCompactBoundaryType(typ, subtype string) bool {
 	return typ == "system" && subtype == "compact_boundary"
+}
+
+// Anthropic stop_reason values after which the agent still owes the next step.
+const (
+	stopReasonToolUse   = "tool_use"
+	stopReasonPauseTurn = "pause_turn"
+)
+
+// stopReasonContinuesTurn is an allowlist: every other value (end_turn, refusal,
+// max_tokens, empty, any future reason) closes the turn.
+func stopReasonContinuesTurn(stopReason string) bool {
+	return stopReason == stopReasonToolUse || stopReason == stopReasonPauseTurn
 }
 
 // usageCounters mirrors the per-message Anthropic `usage` object. It is the
@@ -259,10 +284,11 @@ type usageCounters struct {
 }
 
 type msgContent struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	Model   string          `json:"model"`
-	Usage   *usageCounters  `json:"usage"`
+	Role       string          `json:"role"`
+	Content    json.RawMessage `json:"content"`
+	Model      string          `json:"model"`
+	Usage      *usageCounters  `json:"usage"`
+	StopReason string          `json:"stop_reason"` // Anthropic stop_reason; "" while streaming
 }
 
 // addUsage accumulates a per-message usage object into a sdk.TokenUsage total.
@@ -323,6 +349,16 @@ func toolArgument(raw json.RawMessage) string {
 // The client renders the count as its own element instead.
 func toolDetail(raw json.RawMessage) (string, int) {
 	return sanitize.ForDisplayCapped(toolArgument(raw), toolDetailMaxLen)
+}
+
+// hasRunInBackground returns true when a tool_use input block contains
+// "run_in_background":true — marking a background task whose result the
+// agent is not blocked on.
+func hasRunInBackground(raw json.RawMessage) bool {
+	var probe struct {
+		RunInBackground bool `json:"run_in_background"`
+	}
+	return json.Unmarshal(raw, &probe) == nil && probe.RunInBackground
 }
 
 // patternDisplayMaxLen bounds the human-facing twin of a grant pattern. Longer
@@ -535,28 +571,30 @@ func tokenUsageForFile(path string) (fullScanUsage, error) {
 
 // SessionData is the parsed output of a Claude Code JSONL session log.
 type SessionData struct {
-	SessionID           string
-	Path                string
-	ProjectPath         string
-	Entrypoint          sdk.Entrypoint
-	LastActivity        time.Time
-	CurrentAction       string
-	LastTools           []sdk.RecentTool
-	RecentNotes         []NoteTouch
-	SessionTitle        string
-	Tasks               []sdk.TaskInfo
-	TokenUsage          sdk.TokenUsage
-	Model               string
-	ConversationTurns   int
-	ToolCounts          map[string]int
-	LastOutput          string
-	ConvergenceAlert    bool
-	ConvergenceToolName string
-	ErrorState          sdk.ErrorState
-	Meta                *sdk.SessionMeta
-	LastBtw             *sdk.BtwMessage
-	PendingToolUse      *sdk.PendingToolUse
-	TurnOpen            bool
+	SessionID            string
+	Path                 string
+	ProjectPath          string
+	Entrypoint           sdk.Entrypoint
+	LastActivity         time.Time
+	CurrentAction        string
+	LastTools            []sdk.RecentTool
+	RecentNotes          []NoteTouch
+	SessionTitle         string
+	Tasks                []sdk.TaskInfo
+	TokenUsage           sdk.TokenUsage
+	Model                string
+	ConversationTurns    int
+	ToolCounts           map[string]int
+	LastOutput           string
+	ConvergenceAlert     bool
+	ConvergenceToolName  string
+	ErrorState           sdk.ErrorState
+	Meta                 *sdk.SessionMeta
+	LastBtw              *sdk.BtwMessage
+	PendingToolUse       *sdk.PendingToolUse
+	HasUnresolvedToolUse bool // any tool call in the tail without a result, not only the last
+	TurnOpen             bool
+	HasPendingBackground bool // a run_in_background tool_use with no matching tool_result
 }
 
 // sessionFileCandidate holds mtime + inode info gathered via os.Stat (cheap).
@@ -846,6 +884,9 @@ func ParseSessionFile(path string) (*SessionData, error) {
 
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(content)))
 	var lastEntryType string
+	var lastAssistantStopReason string
+	// Track tool_use blocks with run_in_background:true that have no tool_result.
+	backgroundToolUseIDs := make(map[string]bool)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -876,6 +917,7 @@ func ParseSessionFile(path string) (*SessionData, error) {
 					for _, b := range blocks {
 						if b.Type == "tool_result" && b.ToolUseID != "" {
 							resolvedToolUseIDs[b.ToolUseID] = true
+							delete(backgroundToolUseIDs, b.ToolUseID)
 						}
 					}
 				}
@@ -893,9 +935,15 @@ func ParseSessionFile(path string) (*SessionData, error) {
 
 		if msg.Role == "assistant" {
 			data.ConversationTurns++
+			// The last assistant entry decides: a reply after an error means the session recovered.
+			if !entry.IsAPIErrorMessage {
+				data.ErrorState = ""
+			}
 			if msg.Model != "" {
 				data.Model = msg.Model
 			}
+			// Track stop_reason for TurnOpen derivation.
+			lastAssistantStopReason = msg.StopReason
 			// Token usage is NOT accumulated here. It comes exclusively from the
 			// whole-file scan below so the tail's 32 KB limit can never undercount.
 			if ts, parseErr := time.Parse(time.RFC3339Nano, entry.Timestamp); parseErr == nil {
@@ -918,6 +966,10 @@ func ParseSessionFile(path string) (*SessionData, error) {
 						data.CurrentAction = b.Name
 						if b.ID != "" {
 							toolUseOrder = append(toolUseOrder, trackedToolUse{id: b.ID, name: b.Name, input: b.Input})
+							// Detect run_in_background tool calls.
+							if hasRunInBackground(b.Input) {
+								backgroundToolUseIDs[b.ID] = true
+							}
 						}
 						if b.Name == "TodoWrite" {
 							var inp todoInput
@@ -938,7 +990,7 @@ func ParseSessionFile(path string) (*SessionData, error) {
 							btwText = scrubSecrets(b.Text)
 							data.LastOutput = btwText
 							if entry.IsAPIErrorMessage {
-								if es := classifyAPIError(entry.APIErrorStatus, b.Text); es != "" {
+								if es := classifyAPIError(entry.APIErrorStatus, entry.Error, b.Text); es != "" {
 									data.ErrorState = es
 								}
 							}
@@ -972,9 +1024,18 @@ func ParseSessionFile(path string) (*SessionData, error) {
 		}
 	}
 
-	// TurnOpen: the agent owes the next step when the trailing entry is a user
-	// message (prompt or tool_result), or a tool_use is still unresolved.
-	data.TurnOpen = lastEntryType == "user" || data.PendingToolUse != nil
+	for _, tu := range toolUseOrder {
+		if !resolvedToolUseIDs[tu.id] {
+			data.HasUnresolvedToolUse = true
+			break
+		}
+	}
+
+	// TurnOpen: the trailing entry is a user message, a tool_use is unresolved, or the
+	// last assistant message stopped for tool_use/pause_turn.
+	data.TurnOpen = lastEntryType == "user" || data.PendingToolUse != nil ||
+		(lastEntryType == "assistant" && stopReasonContinuesTurn(lastAssistantStopReason))
+	data.HasPendingBackground = len(backgroundToolUseIDs) > 0
 
 	if err := scanner.Err(); err != nil {
 		slog.Warn("parser: session scan error — partial data returned", "err", err)

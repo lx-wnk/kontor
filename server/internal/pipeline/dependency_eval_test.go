@@ -125,3 +125,79 @@ func TestEvaluateTaskDeps(t *testing.T) {
 		}
 	})
 }
+
+func TestEvaluateTaskDepsDetail(t *testing.T) {
+	stages := map[string]string{
+		"up-done":    "done",
+		"up-running": "implementation",
+		"up-cancel":  "cancelled",
+	}
+	resolveInfo := func(_ context.Context, id string) (string, string, error) {
+		s, ok := stages[id]
+		if !ok {
+			return "", "", errors.New("unknown task")
+		}
+		return s, id, nil // slug == id for test simplicity
+	}
+
+	t.Run("unsatisfiable entry has Unsatisfiable=true, blocked entry has Unsatisfiable=false", func(t *testing.T) {
+		f := &fakeDepRepo{upstream: map[string][]*ent.TaskDependency{
+			"t": {
+				{DependsOnID: "up-running", RequiredStage: "done", OnCancelAction: "on_hold"},
+				{DependsOnID: "up-cancel", RequiredStage: "done", OnCancelAction: "on_hold"},
+			},
+		}}
+		_, blocked, unsat, ups, err := EvaluateTaskDepsDetail(context.Background(), "t", f, resolveInfo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !blocked || !unsat {
+			t.Fatalf("want blocked+unsat, got blocked=%v unsat=%v", blocked, unsat)
+		}
+		if len(ups) != 2 {
+			t.Fatalf("want 2 blocking upstreams, got %d", len(ups))
+		}
+		var sawBlocked, sawUnsat bool
+		for _, u := range ups {
+			if u.Unsatisfiable {
+				sawUnsat = true
+				if u.Slug != "up-cancel" {
+					t.Errorf("unsatisfiable entry: want slug up-cancel, got %s", u.Slug)
+				}
+				if u.Stage != "cancelled" {
+					t.Errorf("unsatisfiable entry: want stage cancelled, got %s", u.Stage)
+				}
+			} else {
+				sawBlocked = true
+				if u.Slug != "up-running" {
+					t.Errorf("blocked entry: want slug up-running, got %s", u.Slug)
+				}
+				if u.Stage != "implementation" {
+					t.Errorf("blocked entry: want stage implementation, got %s", u.Stage)
+				}
+			}
+		}
+		if !sawBlocked {
+			t.Error("expected an entry with Unsatisfiable=false")
+		}
+		if !sawUnsat {
+			t.Error("expected an entry with Unsatisfiable=true")
+		}
+	})
+
+	t.Run("resolve error sets blocked=true but leaves upstreams empty", func(t *testing.T) {
+		f := &fakeDepRepo{upstream: map[string][]*ent.TaskDependency{
+			"t": {{DependsOnID: "missing", RequiredStage: "done", OnCancelAction: "on_hold"}},
+		}}
+		_, blocked, _, ups, err := EvaluateTaskDepsDetail(context.Background(), "t", f, resolveInfo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !blocked {
+			t.Fatal("want blocked=true when resolve fails")
+		}
+		if len(ups) != 0 {
+			t.Fatalf("want empty upstreams on resolve error, got %d", len(ups))
+		}
+	})
+}

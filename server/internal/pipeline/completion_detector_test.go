@@ -452,3 +452,97 @@ func TestDetectCompletion_EnvelopeMiss_CarriesFeedback(t *testing.T) {
 	require.Equal(t, "I finished the work but forgot the envelope", res.Output["agentMessage"],
 		"the agent's own text must survive into the feedback, else the retry is blind")
 }
+
+func validPlan() map[string]any {
+	return map[string]any{
+		"summary":      "Guard approve on the submitted marker",
+		"steps":        []any{"extend ValidateStageOutput", "carry transcript plan into the run"},
+		"filesTouched": []any{"server/internal/pipeline/transitions.go"},
+		"testApproach": "table tests plus a finalize integration test",
+	}
+}
+
+func TestValidateStageOutput_PlanReview_RejectsNonConformingPlan(t *testing.T) {
+	with := func(key string, val any) map[string]any {
+		o := validPlan()
+		o[key] = val
+		return o
+	}
+	without := func(key string) map[string]any {
+		o := validPlan()
+		delete(o, key)
+		return o
+	}
+	cases := []struct {
+		name string
+		out  map[string]any
+		want []string
+	}{
+		{"unrelated keys", map[string]any{"foo": "bar"}, []string{"summary", "steps", "filesTouched", "testApproach"}},
+		{"no keys", map[string]any{}, []string{"summary", "steps", "filesTouched", "testApproach"}},
+		{"nil map", nil, []string{"summary", "steps", "filesTouched", "testApproach"}},
+		{"missing summary", without("summary"), []string{"summary"}},
+		{"missing steps", without("steps"), []string{"steps"}},
+		{"missing filesTouched", without("filesTouched"), []string{"filesTouched"}},
+		{"missing testApproach", without("testApproach"), []string{"testApproach"}},
+		{"blank summary", with("summary", "  \n"), []string{"summary"}},
+		{"summary wrong type", with("summary", 7), []string{"summary"}},
+		{"empty steps", with("steps", []any{}), []string{"steps"}},
+		{"steps wrong type", with("steps", "do it"), []string{"steps"}},
+		{"steps with non-string entry", with("steps", []any{"ok", 3}), []string{"steps"}},
+		{"steps with blank entry", with("steps", []any{"ok", " "}), []string{"steps"}},
+		{"filesTouched wrong type", with("filesTouched", "a.go"), []string{"filesTouched"}},
+		{"filesTouched with non-string entry", with("filesTouched", []any{map[string]any{}}), []string{"filesTouched"}},
+		{"blank testApproach", with("testApproach", ""), []string{"testApproach"}},
+		{"testApproach wrong type", with("testApproach", []any{"unit"}), []string{"testApproach"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			v := pipeline.ValidateStageOutput("plan_review", c.out)
+			require.False(t, v.OK)
+			for _, field := range c.want {
+				require.Contains(t, v.Error, field)
+			}
+			if len(c.want) == 1 {
+				for _, other := range []string{"summary", "steps", "filesTouched", "testApproach"} {
+					if other != c.want[0] {
+						require.NotContains(t, v.Error, other, "only the offending field is named")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestValidateStageOutput_PlanReview_AcceptsRealisticPlan(t *testing.T) {
+	require.True(t, pipeline.ValidateStageOutput("plan_review", validPlan()).OK)
+}
+
+func TestValidateStageOutput_PlanReview_AcceptsEmptyFilesTouchedAndExtraKeys(t *testing.T) {
+	o := validPlan()
+	o["filesTouched"] = []any{}
+	o["notes"] = "extra keys are tolerated, as in every other stage schema"
+	require.True(t, pipeline.ValidateStageOutput("plan_review", o).OK)
+}
+
+func TestValidateStageOutput_OtherStagesAcceptEmptyObject(t *testing.T) {
+	for _, stage := range []string{"implementation", "ready"} {
+		require.True(t, pipeline.ValidateStageOutput(stage, map[string]any{}).OK, stage)
+	}
+}
+
+func TestDetectCompletion_PlanReviewEmptyFence_RetryableSchemaFailure(t *testing.T) {
+	now := time.Now()
+	sid := "sid-empty-plan"
+	sr := stageRun("plan_review", ptr(0), &sid, &now)
+
+	res, err := pipeline.DetectCompletion(sr, "/tmp", pipeline.CompletionDeps{
+		IsPidAlive: func(int) bool { return false },
+		ReadOutput: func(string, string) (pipeline.StageOutputRead, error) {
+			return pipeline.StageOutputRead{Output: map[string]any{}, RawText: "```json\n{}\n```"}, nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "failed", res.Kind)
+	require.True(t, res.Retryable, "an empty plan takes the schema-rejection feedback path")
+}

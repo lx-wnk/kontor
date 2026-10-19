@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import type { Agent } from '@/types'
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, ref } from 'vue'
 import MachineBadge from '@/components/MachineBadge.vue'
 import PromptInput from '@/components/PromptInput.vue'
 import ProviderBadge from '@/components/ProviderBadge.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppCard from '@/components/ui/AppCard.vue'
-import AppModal from '@/components/ui/AppModal.vue'
 import { useNow } from '@/composables/useNow'
 import { toast } from '@/composables/useToast'
+import AgentTerminalModal from '@/features/agents/components/AgentTerminalModal.vue'
 import MetricsPopover from '@/features/agents/components/MetricsPopover.vue'
 import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity'
 import { formatCost, formatDuration, formatTokens, formatUptime, isAwaitingInput, isStalled, secondsSince, shortModel, totalTokenCount } from '@/utils/format'
@@ -100,7 +100,6 @@ async function toggleArmed() {
 }
 
 const showTerminal = ref(false)
-const AgentTerminal = defineAsyncComponent(() => import('./AgentTerminal.vue'))
 </script>
 
 <template>
@@ -179,7 +178,7 @@ const AgentTerminal = defineAsyncComponent(() => import('./AgentTerminal.vue'))
             <MetricsPopover v-if="showMetrics" :agent="agent" @click.stop />
           </span>
           <button
-            v-if="agent.liveInjectable"
+            v-if="agent.terminalAttachable"
             type="button"
             class="inline-flex items-center justify-center min-w-6 min-h-6 text-fg-mute hover:text-fg-soft text-[11px] leading-none focus-visible:outline-2 focus-visible:outline-ring rounded"
             aria-label="Open terminal"
@@ -281,31 +280,9 @@ const AgentTerminal = defineAsyncComponent(() => import('./AgentTerminal.vue'))
       @keydown.enter.stop
       @keydown.space.stop
     >
-      <PromptInput :agent="agent" variant="compact" />
+      <PromptInput :agent="agent" variant="compact" @interactive-command="showTerminal = agent.terminalAttachable === true" />
     </div>
 
-    <AppModal
-      :open="showTerminal"
-      :z-index="1100"
-      :labelled-by="`agent-terminal-title-${agent.pid}`"
-      @close="showTerminal = false"
-    >
-      <div class="bg-raised px-4 py-2.5 flex justify-between items-center flex-shrink-0" @click.stop>
-        <span :id="`agent-terminal-title-${agent.pid}`" class="font-semibold text-sm text-fg">
-          Terminal — {{ projectLabel }}
-        </span>
-        <button
-          type="button"
-          aria-label="Close terminal"
-          class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-raised hover:text-fg"
-          @click.stop="showTerminal = false"
-        >
-          ✕
-        </button>
-      </div>
-      <div data-testid="agent-terminal-modal" class="flex-1 min-h-0" @click.stop>
-        <AgentTerminal v-if="showTerminal" :key="agent.pid" :pid="agent.pid" />
-      </div>
-    </AppModal>
+    <AgentTerminalModal :open="showTerminal" :pid="agent.pid" :title="projectLabel" @close="showTerminal = false" />
   </AppCard>
 </template>

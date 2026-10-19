@@ -1,0 +1,4 @@
+   ↓ 10. Opus 4.8               Best for everyday, complex tasks
+      … +3 models
+   ◐ Medium effort (default) ←/→ to adjust
+   Enter to set as default · s to use this session only · Esc to cancel

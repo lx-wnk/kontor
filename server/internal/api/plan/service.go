@@ -3,9 +3,9 @@ package plan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -45,9 +45,11 @@ type StatusDeps struct {
 	StageRuns repo.StageRunRepo
 }
 
-// PlanStatusResult carries the gate state and latest plan output.
+// PlanStatusResult carries the gate state and latest plan output. PlanReady is
+// true exactly when ApprovePlan would accept the gate.
 type PlanStatusResult struct {
 	GateState    string         `json:"gate_state"`
+	PlanReady    bool           `json:"plan_ready"`
 	ApprovedPlan map[string]any `json:"approved_plan,omitempty"`
 }
 
@@ -61,18 +63,91 @@ const (
 	localDefaultPlanIterationCap = 3
 )
 
-// ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
-// and advances the task to implementation. Mirrors refine.Confirm.
-func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
-	var stageRunID string
+// ErrPlanNotReady is returned when approve/reject is attempted while the latest
+// plan_review run is missing or not awaiting_user, or when approve finds no
+// submitted plan in its output.
+var ErrPlanNotReady = errors.New("plan_review is not ready")
 
-	// Fetch current plan output to freeze it.
-	var planOutput map[string]any
-	if d.StageRuns != nil {
-		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
-			planOutput = sr.Output
-		}
+// latestPlanReviewRun returns the task's latest plan_review run, or
+// ErrPlanNotReady when there is none.
+func latestPlanReviewRun(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	if runs == nil {
+		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
 	}
+	sr, err := runs.GetLatestByTaskAndStage(ctx, taskID, "plan_review")
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
+		}
+		return nil, fmt.Errorf("latestPlanReviewRun: %w", err)
+	}
+	if sr == nil {
+		return nil, fmt.Errorf("%w: no plan_review run", ErrPlanNotReady)
+	}
+	return sr, nil
+}
+
+// awaitingError is nil only when the run is awaiting_user, whatever its output holds.
+func awaitingError(sr *ent.StageRun) error {
+	if sr.Status != "awaiting_user" {
+		return fmt.Errorf("%w: plan_review is %s, not awaiting_user", ErrPlanNotReady, sr.Status)
+	}
+	return nil
+}
+
+// readyPlanError is the single rule for "this plan can be approved": awaiting_user
+// plus the agent-submitted marker plus content beyond it. Orchestrator notes in
+// the same field (validation_error, synthetic_session_file) carry no
+// marker and are never a plan. Nil means ready.
+func readyPlanError(sr *ent.StageRun) error {
+	if err := awaitingError(sr); err != nil {
+		return err
+	}
+	if submitted, _ := sr.Output[pipeline.StageOutputSubmittedKey].(bool); !submitted {
+		return fmt.Errorf("%w: plan output was not submitted by the agent", ErrPlanNotReady)
+	}
+	if len(pipeline.StageResult(sr.Output)) == 0 {
+		return fmt.Errorf("%w: plan output is empty", ErrPlanNotReady)
+	}
+	return nil
+}
+
+// requireAwaitingPlanReview returns the latest plan_review run only when it is
+// awaiting_user, whatever its output holds.
+func requireAwaitingPlanReview(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	sr, err := latestPlanReviewRun(ctx, runs, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if err := awaitingError(sr); err != nil {
+		return nil, err
+	}
+	return sr, nil
+}
+
+// requireReadyPlan returns the latest plan_review run only when readyPlanError
+// accepts it.
+func requireReadyPlan(ctx context.Context, runs repo.StageRunRepo, taskID string) (*ent.StageRun, error) {
+	sr, err := latestPlanReviewRun(ctx, runs, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if err := readyPlanError(sr); err != nil {
+		return nil, err
+	}
+	return sr, nil
+}
+
+// ApprovePlan freezes the plan onto the task, marks the plan_review stage_run done,
+// and advances the task to implementation. Mirrors refine.Confirm. Returns
+// ErrPlanNotReady unless the plan_review run is awaiting_user with a submitted plan.
+func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, error) {
+	sr, err := requireReadyPlan(ctx, d.StageRuns, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	planOutput := pipeline.StageResult(sr.Output)
 
 	// Build metadata update: freeze plan + clear reject counter.
 	meta := map[string]any{approvedPlanKey: planOutput}
@@ -97,20 +172,15 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 	}
 
 	// Mark the plan_review stage run done.
-	if d.StageRuns != nil {
-		now := time.Now()
-		done := "done"
-		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
-			stageRunID = sr.ID
-			_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
-				Status:  &done,
-				EndedAt: &now,
-			})
-			if d.Revoke != nil {
-				if rerr := d.Revoke(ctx, sr.ID); rerr != nil {
-					slog.Warn("plan: revoking stage-run credentials failed", "stageRun", sr.ID, "err", rerr)
-				}
-			}
+	now := time.Now()
+	done := "done"
+	_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
+		Status:  &done,
+		EndedAt: &now,
+	})
+	if d.Revoke != nil {
+		if rerr := d.Revoke(ctx, sr.ID); rerr != nil {
+			slog.Warn("plan: revoking stage-run credentials failed", "stageRun", sr.ID, "err", rerr)
 		}
 	}
 
@@ -121,10 +191,7 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 	}
 
 	if d.Audit != nil {
-		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor}
-		if stageRunID != "" {
-			meta["stage_run_id"] = stageRunID
-		}
+		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor, "stage_run_id": sr.ID}
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanApproved, "task:"+taskID, meta); err != nil {
 			slog.Warn("plan: audit plan_approved failed", "task", taskID, "err", err)
 		}
@@ -138,8 +205,15 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 }
 
 // RejectPlan records feedback and triggers a new plan_review run up to DefaultPlanIterationCap.
-// Beyond the cap, it stores feedback but does not requeue.
+// Beyond the cap, it stores feedback but does not requeue. Returns ErrPlanNotReady
+// unless the plan_review run is awaiting_user; plan content is not required, so a
+// run that produced no usable plan can still be sent back.
 func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) error {
+	sr, err := requireAwaitingPlanReview(ctx, d.StageRuns, taskID)
+	if err != nil {
+		return err
+	}
+
 	task, err := d.Tasks.GetByID(ctx, taskID)
 	if err != nil {
 		return fmt.Errorf("reject_plan: get task: %w", err)
@@ -184,11 +258,7 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 			"actor":        d.Origin.Actor,
 			"reject_count": count + 1,
 			"requeued":     requeued,
-		}
-		if d.StageRuns != nil {
-			if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && sr != nil {
-				meta["stage_run_id"] = sr.ID
-			}
+			"stage_run_id": sr.ID,
 		}
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanRejected, "task:"+taskID, meta); err != nil {
 			slog.Warn("plan: audit plan_rejected failed", "task", taskID, "err", err)
@@ -214,6 +284,7 @@ func PlanStatus(ctx context.Context, d StatusDeps, taskID string) (PlanStatusRes
 		if fetched, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "plan_review"); err == nil && fetched != nil {
 			sr = fetched
 			result.GateState = sr.Status
+			result.PlanReady = readyPlanError(sr) == nil
 		}
 	}
 
@@ -230,8 +301,7 @@ func PlanStatus(ctx context.Context, d StatusDeps, taskID string) (PlanStatusRes
 
 	// Fall back to the live stage_run output before approval freezes the plan.
 	if result.ApprovedPlan == nil && sr != nil && len(sr.Output) > 0 {
-		result.ApprovedPlan = maps.Clone(sr.Output)
-		delete(result.ApprovedPlan, pipeline.StageOutputSubmittedKey)
+		result.ApprovedPlan = pipeline.StageResult(sr.Output)
 	}
 
 	return result, nil

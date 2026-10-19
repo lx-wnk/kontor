@@ -158,6 +158,10 @@ func Open(path string) (*DBBundle, error) {
 		_ = client.Close()
 		return nil, fmt.Errorf("db: backfill task rank: %w", err)
 	}
+	if err := backfillStageRunWaitReason(sqlDB); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("db: backfill stage_run wait_reason: %w", err)
+	}
 	// migrateDropBareWebFetchGrants must run after ent auto-migrate (which creates
 	// the task_permissions table) and before the server accepts traffic.
 	if err := migrateDropBareWebFetchGrants(sqlDB); err != nil {
@@ -364,6 +368,27 @@ func backfillTaskRank(ctx context.Context, client *ent.Client) error {
 		if _, err := client.Task.UpdateOneID(t.ID).SetRank(seed).Save(ctx); err != nil {
 			return fmt.Errorf("backfill rank for task %q: %w", t.ID, err)
 		}
+	}
+	return nil
+}
+
+// backfillStageRunWaitReason moves the legacy output["wait_reason"] key into the
+// wait_reason column. Only awaiting_user runs keep a reason; the key is dropped
+// from every run. Idempotent: once the key is gone no row matches.
+//
+// Down: UPDATE stage_runs SET output = json_set(COALESCE(output,'{}'), '$.wait_reason', wait_reason) WHERE wait_reason IS NOT NULL;
+// then optionally ALTER TABLE stage_runs DROP COLUMN wait_reason; (SQLite 3.35+).
+// An older binary ignores the extra column.
+func backfillStageRunWaitReason(db *sql.DB) error {
+	res, err := db.Exec(`UPDATE stage_runs
+SET wait_reason = CASE WHEN status = 'awaiting_user' THEN json_extract(output, '$.wait_reason') END,
+    output = json_remove(output, '$.wait_reason')
+WHERE CASE WHEN json_valid(output) THEN json_type(output, '$.wait_reason') = 'text' ELSE 0 END`)
+	if err != nil {
+		return fmt.Errorf("move wait_reason out of output: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n > 0 {
+		slog.Warn("migration: moved stage_run wait_reason out of output", "count", n)
 	}
 	return nil
 }

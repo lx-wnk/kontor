@@ -9,7 +9,7 @@ import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { toScreen } from '../hubCamera'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { labelledLeaves, leafColour, leafShade, sectorColour, shadeMix } from '../hubGeometry'
+import { labelledLeaves, leafColour, sectorColour } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
@@ -172,14 +172,21 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
       </button>
     </template>
     <template v-if="leafNamesShown">
+      <!-- A stroke in the app background colour behind the glyphs, painted before the fill, keeps the
+           name legible over the note dots and rings it sits on top of, in both themes. -->
       <span
         v-for="({ leaf, point }, i) in projectLeafList"
         :key="leaf.key"
         :data-testid="`hub-leaf-${i}`"
         :data-label-key="sectorLabelKey(leaf.label, leaf.weight)"
-        class="-translate-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[9.5px] font-medium"
+        class="-translate-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[11px] font-semibold"
         :class="!showsLeafName(leaf.key) && 'invisible'"
-        :style="{ ...at(...point), color: shadeMix(`var(--sector-${leafColour(leaf)})`, leafShade(leaf.key)) }"
+        :style="{
+          ...at(...point),
+          'color': `color-mix(in srgb, var(--fg) 80%, var(--sector-${leafColour(leaf)}))`,
+          'paint-order': 'stroke fill',
+          '-webkit-text-stroke': '3px var(--app)',
+        }"
       >{{ leaf.label }}</span>
     </template>
 

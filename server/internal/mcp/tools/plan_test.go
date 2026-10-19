@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	planapi "github.com/lx-wnk/kontor/server/internal/api/plan"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	mcp "github.com/lx-wnk/kontor/server/internal/mcp"
+	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +34,9 @@ func seedPlanReviewTaskMCP(t *testing.T, ctx context.Context, taskRepo repo.Task
 	require.NoError(t, err)
 	status := "awaiting_user"
 	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &status})
+	require.NoError(t, err)
+	planOutput := map[string]any{"plan": "test plan content", pipeline.StageOutputSubmittedKey: true}
+	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Output: planOutput})
 	require.NoError(t, err)
 
 	return task.ID
@@ -94,6 +99,40 @@ func TestApprovePlan_MCPTool_AdvancesTask(t *testing.T) {
 	sr, err := srRepo.GetLatestByTaskAndStage(ctx, taskID, "plan_review")
 	require.NoError(t, err)
 	require.Equal(t, "done", sr.Status)
+}
+
+func TestApprovePlan_MCPTool_RunningRun_ReturnsToolError(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+	run, err := srRepo.GetLatestByTaskAndStage(ctx, taskID, "plan_review")
+	require.NoError(t, err)
+	running := "running"
+	_, err = srRepo.Update(ctx, run.ID, repo.UpdateStageRunInput{Status: &running, OutputClear: true})
+	require.NoError(t, err)
+
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(context.Context, string) error { return nil },
+	})
+
+	_, err = registry["approve_plan"].Handler(ctx, map[string]any{"task_id": taskID})
+	require.Error(t, err)
+	require.ErrorContains(t, err, planapi.ErrPlanNotReady.Error())
+
+	task, err := taskRepo.GetByID(ctx, taskID)
+	require.NoError(t, err)
+	require.Equal(t, "plan_review", task.CurrentStage)
 }
 
 func TestRejectPlan_MCPTool_StoresFeedback(t *testing.T) {
@@ -167,6 +206,7 @@ func TestGetPlanStatus_MCPTool_ReturnsGateState(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
 	require.Equal(t, "awaiting_user", payload["gate_state"])
+	require.Equal(t, true, payload["plan_ready"])
 }
 
 func TestApprovePlan_BroadcastsTaskUpdated(t *testing.T) {

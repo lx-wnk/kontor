@@ -199,3 +199,33 @@ describe('promptInput argument hints', () => {
     expect(w.find('[data-testid="command-usage"]').text()).toBe('[env] [--dry-run]')
   })
 })
+
+describe('promptInput interactive commands', () => {
+  async function sendModel(messageOk: boolean) {
+    commandsResponse = { commands: [{ name: '/model', description: 'Switch model', source: 'builtin', interactive: true }] }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url.startsWith('/api/slash-commands'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(commandsResponse) })
+      if (url.endsWith('/message'))
+        return Promise.resolve({ ok: messageOk, status: messageOk ? 200 : 500, json: () => Promise.resolve(messageOk ? { text: '/model' } : { error: 'down' }) })
+      throw new Error(`unexpected fetch ${url}`)
+    }))
+    const w = await mountWithQuery('/model')
+    const input = w.find('input[role="combobox"]')
+    await input.trigger('keydown', { key: 'Escape' })
+    await input.setValue('/model')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    return w
+  }
+
+  it('reports an interactive command once the session received it', async () => {
+    const w = await sendModel(true)
+    expect(w.emitted('interactiveCommand')).toHaveLength(1)
+  })
+
+  it('stays quiet when delivery failed', async () => {
+    const w = await sendModel(false)
+    expect(w.emitted('interactiveCommand')).toBeUndefined()
+  })
+})

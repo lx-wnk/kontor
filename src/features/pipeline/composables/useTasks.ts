@@ -42,6 +42,22 @@ export function byActivityDesc(a: PipelineTask, b: PipelineTask): number {
   return (new Date(b.updatedAt).getTime() || 0) - (new Date(a.updatedAt).getTime() || 0)
 }
 
+/** Throttle window for live-work activity sort: 30 seconds. */
+export const LIVE_WORK_RESORT_MS = 30_000
+
+/**
+ * Build a comparator that sorts tasks descending by a caller-supplied activity
+ * timestamp (most recent first), with byRank as stable tie-break.
+ */
+export function byLatestActivity(
+  activityOf: (t: PipelineTask) => number,
+): (a: PipelineTask, b: PipelineTask) => number {
+  return (a, b) => {
+    const diff = activityOf(b) - activityOf(a)
+    return diff !== 0 ? diff : byRank(a, b)
+  }
+}
+
 /**
  * Reposition a task between two neighbors via drag-and-drop. Applies the
  * server-computed midpoint optimistically (so the card stays put on drop) and

@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -44,7 +45,6 @@ func (h *Handler) Mount(r chi.Router) {
 // POST /api/plan/{taskId}/approve
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "taskId")
-	origin := originFromHTTP(r.Context())
 	task, err := ApprovePlan(r.Context(), ApproveDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
@@ -52,10 +52,10 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		Advance:   h.deps.Advance,
 		Revoke:    h.deps.Revoke,
 		Audit:     h.deps.Audit,
-		Origin:    origin,
+		Origin:    originFromHTTP(r.Context()),
 	}, taskID)
 	if err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), statusFor(err))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -74,16 +74,15 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	origin := originFromHTTP(r.Context())
 	if err := RejectPlan(r.Context(), RejectDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
 		StageRuns: h.deps.StageRuns,
 		Requeue:   h.deps.Requeue,
 		Audit:     h.deps.Audit,
-		Origin:    origin,
+		Origin:    originFromHTTP(r.Context()),
 	}, taskID, body.Feedback); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), statusFor(err))
 		return
 	}
 
@@ -113,6 +112,15 @@ func originFromHTTP(ctx context.Context) repo.AuditOrigin {
 		return repo.AuditOrigin{Source: "ui"}
 	}
 	return repo.AuditOrigin{Source: "ui", Actor: p.Login, UserID: &p.Sub}
+}
+
+// statusFor maps a service error to its HTTP status: ErrPlanNotReady is a 409,
+// everything else a 500.
+func statusFor(err error) int {
+	if errors.Is(err, ErrPlanNotReady) {
+		return http.StatusConflict
+	}
+	return http.StatusInternalServerError
 }
 
 func jsonError(w http.ResponseWriter, msg string, status int) {

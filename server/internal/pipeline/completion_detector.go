@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/proc"
@@ -15,6 +16,14 @@ const agentMessageMaxChars = 2000
 // set_stage_output endpoint, so orchestrator bookkeeping in the same field is
 // never mistaken for a submitted stage result.
 const StageOutputSubmittedKey = "stage_output_submitted"
+
+// StageResult returns a copy of a stage_run.output without the marker the
+// set_stage_output endpoint writes beside the agent's result.
+func StageResult(output map[string]any) map[string]any {
+	result := maps.Clone(output)
+	delete(result, StageOutputSubmittedKey)
+	return result
+}
 
 // isRateLimitError returns true when the API error represents a rate or usage limit.
 // Matches by HTTP status (429/529/503) or by the structured error kind field.
@@ -41,6 +50,8 @@ func ValidateStageOutput(stage string, output map[string]any) ValidationResult {
 		return validateFinalization(output)
 	case StageJob:
 		return validateJob(output)
+	case "plan_review":
+		return validatePlanReview(output)
 	default:
 		return ValidationResult{OK: true}
 	}
@@ -87,6 +98,48 @@ func validateJob(o map[string]any) ValidationResult {
 		return missing("result (string)")
 	}
 	return ValidationResult{OK: true}
+}
+
+// validatePlanReview enforces the shape PlanReviewPrompt asks for:
+// {"summary": string, "steps": string[], "filesTouched": string[], "testApproach": string}.
+// Extra keys are tolerated, like in every other stage schema. filesTouched may
+// be empty: a plan can legitimately touch no file.
+func validatePlanReview(o map[string]any) ValidationResult {
+	var invalid []string
+	if !isNonBlankString(o["summary"]) {
+		invalid = append(invalid, "summary (non-empty string)")
+	}
+	if !isStringArray(o["steps"], true) {
+		invalid = append(invalid, "steps (non-empty array of non-empty strings)")
+	}
+	if !isStringArray(o["filesTouched"], false) {
+		invalid = append(invalid, "filesTouched (array of non-empty strings)")
+	}
+	if !isNonBlankString(o["testApproach"]) {
+		invalid = append(invalid, "testApproach (non-empty string)")
+	}
+	if len(invalid) > 0 {
+		return ValidationResult{OK: false, Error: "plan output has missing or invalid fields: " + strings.Join(invalid, ", ")}
+	}
+	return ValidationResult{OK: true}
+}
+
+func isNonBlankString(v any) bool {
+	s, ok := v.(string)
+	return ok && strings.TrimSpace(s) != ""
+}
+
+func isStringArray(v any, nonEmpty bool) bool {
+	items, ok := v.([]any)
+	if !ok || (nonEmpty && len(items) == 0) {
+		return false
+	}
+	for _, item := range items {
+		if !isNonBlankString(item) {
+			return false
+		}
+	}
+	return true
 }
 
 type CompletionResult struct {

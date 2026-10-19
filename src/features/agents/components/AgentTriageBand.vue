@@ -97,7 +97,7 @@ const visibleAgentCards = computed(() =>
     // Orchestrated agent whose task is already represented in permissionItems — skip
     if (agent.pipelineTaskId && orchestratedTaskIds.value.has(agent.pipelineTaskId) && att.kind === 'permission')
       return false
-    return att.kind === 'error' || att.kind === 'stalled' || att.kind === 'permission'
+    return att.kind === 'error' || att.kind === 'stalled' || att.kind === 'permission' || att.kind === 'dialog'
   }),
 )
 
@@ -121,6 +121,7 @@ const breakdown = computed(() => {
   const PARTS: [string, string, string][] = [
     ['question', 'question', 'questions'],
     ['permission', 'permission request', 'permission requests'],
+    ['dialog', 'terminal dialog', 'terminal dialogs'],
     ['capability', 'capability ask', 'capability asks'],
     ['error', 'failed run', 'failed runs'],
     ['stalled', 'stalled', 'stalled'],
@@ -150,6 +151,8 @@ function blockedDetail(agent: Agent): string {
       const activity = formatRelativeActivity(entry.secs)
       return agent.pendingToolUse ? `${agent.pendingToolUse.tool} — running but silent, last output ${activity}` : `Running but silent — last output ${activity}`
     }
+    case 'dialog':
+      return 'A dialog is open in its terminal — open the session to answer it'
     case 'error':
       return agent.errorState ? formatErrorState(agent.errorState) : (agent.currentAction || 'Run failed')
     case 'permission': {

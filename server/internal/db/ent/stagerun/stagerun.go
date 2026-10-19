@@ -48,6 +48,8 @@ const (
 	FieldNextRetryAt = "next_retry_at"
 	// FieldPendingUserPrompt holds the string denoting the pending_user_prompt field in the database.
 	FieldPendingUserPrompt = "pending_user_prompt"
+	// FieldWaitReason holds the string denoting the wait_reason field in the database.
+	FieldWaitReason = "wait_reason"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeTask holds the string denoting the task edge name in mutations.
@@ -92,6 +94,7 @@ var Columns = []string{
 	FieldRateLimitRetryCount,
 	FieldNextRetryAt,
 	FieldPendingUserPrompt,
+	FieldWaitReason,
 	FieldCreatedAt,
 }
 
@@ -208,6 +211,11 @@ func ByNextRetryAt(opts ...sql.OrderTermOption) OrderOption {
 // ByPendingUserPrompt orders the results by the pending_user_prompt field.
 func ByPendingUserPrompt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPendingUserPrompt, opts...).ToFunc()
+}
+
+// ByWaitReason orders the results by the wait_reason field.
+func ByWaitReason(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldWaitReason, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

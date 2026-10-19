@@ -3,7 +3,7 @@ import type { DynamicCommandSet } from '../composables/useSlashCommands'
 import type { Agent, OutputMessage } from '../types'
 import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useAgentPrompt } from '@/features/agents/composables/useAgentPrompt'
-import { emptyCommandSet, fetchDynamicCommands, SLASH_COMMAND_DEFS } from '../composables/useSlashCommands'
+import { emptyCommandSet, fetchDynamicCommands, isInteractiveCommand, SLASH_COMMAND_DEFS } from '../composables/useSlashCommands'
 import TemplatePicker from './TemplatePicker.vue'
 
 const props = withDefaults(defineProps<{
@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
   approveHandler: null,
 })
 
-const emit = defineEmits<{ messageSent: [msg: OutputMessage] }>()
+const emit = defineEmits<{ messageSent: [msg: OutputMessage], interactiveCommand: [] }>()
 
 // UX-10: unique ID per component instance so multiple PromptInput cards don't share the same DOM id
 const hintId = useId()
@@ -25,16 +25,31 @@ const listboxId = useId()
 // Absolute paths of uploaded images, injected into the sent prompt as
 // "@<path>" tokens by useAgentPrompt (full variant only).
 const attachments = ref<string[]>([])
+const commandSet = ref<DynamicCommandSet>(emptyCommandSet())
+// The sent echo fires before delivery; the terminal opens only once the command reached the session.
+let awaitingInteractiveDelivery = false
 
-const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume } = useAgentPrompt(
+const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume, trackedMessages } = useAgentPrompt(
   () => props.agent,
-  msg => emit('messageSent', msg),
+  (msg) => {
+    emit('messageSent', msg)
+    if (msg.role === 'human')
+      awaitingInteractiveDelivery = isInteractiveCommand(msg.content, commandSet.value.commands)
+  },
   {
     get taskId() { return props.agent?.pipelineTaskId },
     get cwd() { return props.agent?.cwd },
   },
   attachments,
 )
+
+watch(sendStatus, (status) => {
+  if (status === null)
+    return
+  if (status === 'sent' && awaitingInteractiveDelivery)
+    emit('interactiveCommand')
+  awaitingInteractiveDelivery = false
+})
 
 const isUploading = ref(false)
 const uploadError = ref('')
@@ -99,7 +114,6 @@ function attachmentName(path: string): string {
 const inputEl = ref<HTMLInputElement | HTMLTextAreaElement | null>(null)
 const fileInputEl = ref<HTMLInputElement | null>(null)
 const selectedIndex = ref(0)
-const commandSet = ref<DynamicCommandSet>(emptyCommandSet())
 
 const hasPendingApproval = computed(() =>
   !!props.approveHandler
@@ -277,7 +291,7 @@ function onConfirmStripKeydown(e: KeyboardEvent) {
   }
 }
 
-defineExpose({ focus, prefill })
+defineExpose({ focus, prefill, trackedMessages })
 </script>
 
 <template>

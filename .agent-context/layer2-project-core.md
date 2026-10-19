@@ -11,7 +11,7 @@
 - Server MUST bind to `127.0.0.1` — never `0.0.0.0` (reads sensitive Claude session data)
 - Subagents discovered from `~/.claude/projects/{encoded_path}/{sessionId}/subagents/*.jsonl`
 - Agent status thresholds: `activeThreshold` (30s) and `waitingThreshold` (5min) in `server/internal/merger/merger.go` (`CalculateStatus`); idle is the default case beyond `waitingThreshold` (no const)
-- **Keep project docs current with code.** Whenever a change adds, removes, or alters a user-facing feature, dependency, command, config, or workflow, update the affected docs in the SAME change — at minimum `README.md`, `CHANGELOG.md` (Keep a Changelog headings), and `CONTRIBUTING.md`, plus any other touched file (`docs/`, `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY_LICENSES.md`). Stale docs are a defect, not a follow-up. Verify every doc claim against actual code before writing it. Append to the existing `### Added` / `### Changed` / `### Fixed` subsections under `[Unreleased]` — never create a second `### Heading` in the same release section; `task changelog:check` (`scripts/check-changelog-headings.sh`) enforces this as a local gate and in CI.
+- **Keep project docs current with code.** Whenever a change adds, removes, or alters a user-facing feature, dependency, command, config, or workflow, update the affected docs in the SAME change — at minimum `README.md`, `CHANGELOG.md` (Keep a Changelog headings), and `CONTRIBUTING.md`, plus any other touched file (`docs/`, `PRIVACY.md`, `SECURITY.md`); third-party notices are generated at release time by `scripts/gen-licenses.sh`, never committed. Stale docs are a defect, not a follow-up. Verify every doc claim against actual code before writing it. Append to the existing `### Added` / `### Changed` / `### Fixed` subsections under `[Unreleased]` — never create a second `### Heading` in the same release section; `task changelog:check` (`scripts/check-changelog-headings.sh`) enforces this as a local gate and in CI.
 
 ## Single Source of Truth (SSOT)
 
@@ -46,6 +46,7 @@
 | Hub camera thresholds | `src/features/hub/hubCamera.ts` | `LEVEL_TOPICS`, `LEVEL_NOTES`, `MIN_REL`, `MAX_REL`, `levelOf`, `launchersDocked` |
 | Hub graph notices | `src/features/hub/hubGraphNotices.ts` | `GRAPH_NOTICES`, `LIST_GRAPH_NOTICES` |
 | Hub launcher cap | `src/features/hub/hubLaunchers.ts` | `MAX_LAUNCHERS` |
+| Hub overlay boxes the launcher ring avoids | `src/features/hub/hubLaunchers.ts` | `QUEUE_*`, `queueWorstCaseBox`, `CONTROLS_*`, `controlsBox`, `cornerBoxes` and its corner constants |
 | Hub sector hierarchy + note kind | `src/features/hub/hubGeometry.ts` | `planSectors`, `Leaf`, `noteKind`, `NOTE_KIND`, `SESSIONS_KIND`, `leafShade`, `shadeMix` |
 | Hub link bundling | `src/features/hub/hubLinks.ts` | `bundlePoints`, `aggregateLinks`, `LINK_BUNDLE_BETA` |
 | Obsidian graph response type (client, hand-kept parity with `server/internal/api/obsidian/handler.go`) | `src/features/hub/graphApi.ts` | `GraphResponse` — tuples `[path, mtimeMs]` or `[path, mtimeMs, type]` when type present |

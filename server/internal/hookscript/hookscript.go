@@ -19,6 +19,9 @@ import (
 //go:embed kontor-permission.sh
 var script []byte
 
+//go:embed kontor-statusline.sh
+var statuslineScript []byte
+
 // Dir is where the script is materialised, relative to the Claude config dir.
 const Dir = "kontor-hooks"
 
@@ -36,6 +39,9 @@ const (
 // entries `hooks install` owns.
 const Name = "kontor-permission.sh"
 
+// StatuslineName is the statusline wrapper script's filename.
+const StatuslineName = "kontor-statusline.sh"
+
 // Install writes the script under configDir and returns its absolute path.
 // Rewriting on every install is deliberate: it is how an upgraded binary
 // replaces a script shipped by an older one.
@@ -46,6 +52,20 @@ func Install(configDir string) (string, error) {
 	}
 	path := filepath.Join(dir, Name)
 	if err := writeExecutable(path, script); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// InstallStatusline writes the statusline wrapper script under configDir and
+// returns its absolute path. Same atomic-write strategy as Install.
+func InstallStatusline(configDir string) (string, error) {
+	dir := filepath.Join(configDir, Dir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("create %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, StatuslineName)
+	if err := writeExecutable(path, statuslineScript); err != nil {
 		return "", err
 	}
 	return path, nil

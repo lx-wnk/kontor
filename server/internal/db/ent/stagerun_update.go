@@ -341,6 +341,26 @@ func (_u *StageRunUpdate) ClearPendingUserPrompt() *StageRunUpdate {
 	return _u
 }
 
+// SetWaitReason sets the "wait_reason" field.
+func (_u *StageRunUpdate) SetWaitReason(v string) *StageRunUpdate {
+	_u.mutation.SetWaitReason(v)
+	return _u
+}
+
+// SetNillableWaitReason sets the "wait_reason" field if the given value is not nil.
+func (_u *StageRunUpdate) SetNillableWaitReason(v *string) *StageRunUpdate {
+	if v != nil {
+		_u.SetWaitReason(*v)
+	}
+	return _u
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (_u *StageRunUpdate) ClearWaitReason() *StageRunUpdate {
+	_u.mutation.ClearWaitReason()
+	return _u
+}
+
 // AddPermissionRequestIDs adds the "permission_requests" edge to the PermissionRequest entity by IDs.
 func (_u *StageRunUpdate) AddPermissionRequestIDs(ids ...string) *StageRunUpdate {
 	_u.mutation.AddPermissionRequestIDs(ids...)
@@ -521,6 +541,12 @@ func (_u *StageRunUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.PendingUserPromptCleared() {
 		_spec.ClearField(stagerun.FieldPendingUserPrompt, field.TypeString)
+	}
+	if value, ok := _u.mutation.WaitReason(); ok {
+		_spec.SetField(stagerun.FieldWaitReason, field.TypeString, value)
+	}
+	if _u.mutation.WaitReasonCleared() {
+		_spec.ClearField(stagerun.FieldWaitReason, field.TypeString)
 	}
 	if _u.mutation.PermissionRequestsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -899,6 +925,26 @@ func (_u *StageRunUpdateOne) ClearPendingUserPrompt() *StageRunUpdateOne {
 	return _u
 }
 
+// SetWaitReason sets the "wait_reason" field.
+func (_u *StageRunUpdateOne) SetWaitReason(v string) *StageRunUpdateOne {
+	_u.mutation.SetWaitReason(v)
+	return _u
+}
+
+// SetNillableWaitReason sets the "wait_reason" field if the given value is not nil.
+func (_u *StageRunUpdateOne) SetNillableWaitReason(v *string) *StageRunUpdateOne {
+	if v != nil {
+		_u.SetWaitReason(*v)
+	}
+	return _u
+}
+
+// ClearWaitReason clears the value of the "wait_reason" field.
+func (_u *StageRunUpdateOne) ClearWaitReason() *StageRunUpdateOne {
+	_u.mutation.ClearWaitReason()
+	return _u
+}
+
 // AddPermissionRequestIDs adds the "permission_requests" edge to the PermissionRequest entity by IDs.
 func (_u *StageRunUpdateOne) AddPermissionRequestIDs(ids ...string) *StageRunUpdateOne {
 	_u.mutation.AddPermissionRequestIDs(ids...)
@@ -1109,6 +1155,12 @@ func (_u *StageRunUpdateOne) sqlSave(ctx context.Context) (_node *StageRun, err 
 	}
 	if _u.mutation.PendingUserPromptCleared() {
 		_spec.ClearField(stagerun.FieldPendingUserPrompt, field.TypeString)
+	}
+	if value, ok := _u.mutation.WaitReason(); ok {
+		_spec.SetField(stagerun.FieldWaitReason, field.TypeString, value)
+	}
+	if _u.mutation.WaitReasonCleared() {
+		_spec.ClearField(stagerun.FieldWaitReason, field.TypeString)
 	}
 	if _u.mutation.PermissionRequestsCleared() {
 		edge := &sqlgraph.EdgeSpec{

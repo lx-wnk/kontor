@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -580,9 +582,6 @@ func TestSpawnStageAgent_TaskAPITokenReachesWrittenConfig(t *testing.T) {
 	result, err := pipeline.SpawnStageAgent(opts)
 	require.NoError(t, err)
 	t.Cleanup(result.Cleanup)
-	if p, perr := os.FindProcess(result.PID); perr == nil {
-		_, _ = p.Wait() // reap the child so it doesn't linger as a zombie
-	}
 
 	after, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -740,4 +739,60 @@ func TestSpawnStageAgent_MalformedUserConfigStillSpawns(t *testing.T) {
 	_, servers := spawnRecording(t, "{ not json at all", pipeline.SpawnAgentOptions{})
 	require.Contains(t, servers, "kontor-channel",
 		"a ~/.claude.json the dashboard does not own must never break a spawn")
+}
+
+// ---------------------------------------------------------------------------
+// Zombie reaping — every spawned child must be waited on.
+// ---------------------------------------------------------------------------
+
+func TestSpawnStageAgentReapsChild(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		opts := pipeline.SpawnAgentOptions{
+			Task:     &ent.Task{ID: "t-reap-ok", Cwd: t.TempDir(), Autonomy: "full"},
+			StageRun: &ent.StageRun{ID: "r-reap-ok"},
+			Spawner:  &ent.Spawner{Command: "/usr/bin/true"},
+		}
+		result, err := pipeline.SpawnStageAgent(opts)
+		require.NoError(t, err)
+		t.Cleanup(result.Cleanup)
+		pid := result.PID
+		require.Eventually(t, func() bool {
+			return syscall.Kill(pid, 0) != nil
+		}, 5*time.Second, 50*time.Millisecond,
+			"child (pid %d) must be reaped after successful exit", pid)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		opts := pipeline.SpawnAgentOptions{
+			Task:     &ent.Task{ID: "t-reap-fail", Cwd: t.TempDir(), Autonomy: "full"},
+			StageRun: &ent.StageRun{ID: "r-reap-fail"},
+			Spawner:  &ent.Spawner{Command: "/usr/bin/false"},
+		}
+		result, err := pipeline.SpawnStageAgent(opts)
+		require.NoError(t, err)
+		t.Cleanup(result.Cleanup)
+		pid := result.PID
+		require.Eventually(t, func() bool {
+			return syscall.Kill(pid, 0) != nil
+		}, 5*time.Second, 50*time.Millisecond,
+			"child (pid %d) must be reaped after failed exit", pid)
+	})
+
+	t.Run("kill", func(t *testing.T) {
+		opts := pipeline.SpawnAgentOptions{
+			Task:     &ent.Task{ID: "t-reap-kill", Cwd: t.TempDir(), Autonomy: "full"},
+			StageRun: &ent.StageRun{ID: "r-reap-kill"},
+			Spawner:  &ent.Spawner{Command: "/bin/sleep", Args: []string{"30"}},
+		}
+		result, err := pipeline.SpawnStageAgent(opts)
+		require.NoError(t, err)
+		t.Cleanup(result.Cleanup)
+		pid := result.PID
+		// Kill the process group (negative pid).
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
+		require.Eventually(t, func() bool {
+			return syscall.Kill(pid, 0) != nil
+		}, 5*time.Second, 50*time.Millisecond,
+			"child (pid %d) must be reaped after SIGTERM kill", pid)
+	})
 }

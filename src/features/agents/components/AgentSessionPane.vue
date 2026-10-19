@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage, SubAgent } from '@/types'
 import { computed, nextTick, ref, watch } from 'vue'
 import CrossLinkBanner from '@/components/CrossLinkBanner.vue'
@@ -14,6 +15,7 @@ import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity
 import { formatCost, formatTokens, formatUptime, shortModel, totalTokenCount } from '@/utils/format'
 import { agentDisplayStatus } from '@/utils/statusColors'
 import AgentChatStream from './AgentChatStream.vue'
+import AgentTerminalModal from './AgentTerminalModal.vue'
 import MetricsPopover from './MetricsPopover.vue'
 import SubAgentList from './SubAgentList.vue'
 
@@ -31,6 +33,20 @@ const localMessages = ref<OutputMessage[]>([])
 const promptInputRef = ref<InstanceType<typeof PromptInput> | null>(null)
 const chatStreamRef = ref<InstanceType<typeof AgentChatStream> | null>(null)
 const showMetrics = ref(false)
+const showTerminal = ref(false)
+
+const dialogNotice = computed(() => {
+  if (!props.agent.awaitingTerminalDialog)
+    return ''
+  return props.agent.terminalAttachable
+    ? 'A dialog is open in this session\'s terminal. Nothing sent from here can answer it.'
+    : 'A dialog is open in this session\'s tmux pane. Attach to the pane to answer it.'
+})
+
+function onInteractiveCommand() {
+  if (props.agent.terminalAttachable)
+    showTerminal.value = true
+}
 
 const hasContext = computed(() => {
   const a = props.agent
@@ -57,6 +73,10 @@ const approveHandler = computed(() =>
   props.agent.pipelineTaskId && props.agent.pendingPermissions?.length
     ? handleApprove
     : null,
+)
+
+const activeTrackedMessages = computed<TrackedMessage[]>(
+  () => promptInputRef.value?.trackedMessages ?? [],
 )
 
 function onMessageSent(msg: OutputMessage) {
@@ -157,9 +177,26 @@ defineExpose({ prefill: (t: string) => promptInputRef.value?.prefill(t) })
         ref="chatStreamRef"
         :agent="agent"
         :local-messages="localMessages"
+        :tracked-messages="activeTrackedMessages"
         class="flex-1 min-h-0 overflow-y-auto p-4"
       />
-      <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" />
+      <!-- Live region stays mounted so a screen reader announces the text when it appears. -->
+      <div
+        :class="agent.awaitingTerminalDialog ? 'flex flex-shrink-0 items-center gap-3 border-t border-warning-line px-4 py-2 text-[12px] text-warning-text' : 'sr-only'"
+      >
+        <span role="status" data-testid="terminal-dialog-notice">{{ dialogNotice }}</span>
+        <button
+          v-if="agent.awaitingTerminalDialog && agent.terminalAttachable"
+          type="button"
+          data-testid="terminal-dialog-open"
+          class="ml-auto h-7 rounded-md border border-warning-line px-2.5"
+          @click="showTerminal = true"
+        >
+          Open terminal
+        </button>
+      </div>
+      <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" @interactive-command="onInteractiveCommand" />
     </template>
+    <AgentTerminalModal :open="showTerminal" :pid="agent.pid" :title="title ?? agent.projectName" @close="showTerminal = false" />
   </div>
 </template>

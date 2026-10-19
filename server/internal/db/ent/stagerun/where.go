@@ -145,6 +145,11 @@ func PendingUserPrompt(v string) predicate.StageRun {
 	return predicate.StageRun(sql.FieldEQ(FieldPendingUserPrompt, v))
 }
 
+// WaitReason applies equality check predicate on the "wait_reason" field. It's identical to WaitReasonEQ.
+func WaitReason(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldEQ(FieldWaitReason, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.StageRun {
 	return predicate.StageRun(sql.FieldEQ(FieldCreatedAt, v))
@@ -1028,6 +1033,81 @@ func PendingUserPromptEqualFold(v string) predicate.StageRun {
 // PendingUserPromptContainsFold applies the ContainsFold predicate on the "pending_user_prompt" field.
 func PendingUserPromptContainsFold(v string) predicate.StageRun {
 	return predicate.StageRun(sql.FieldContainsFold(FieldPendingUserPrompt, v))
+}
+
+// WaitReasonEQ applies the EQ predicate on the "wait_reason" field.
+func WaitReasonEQ(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldEQ(FieldWaitReason, v))
+}
+
+// WaitReasonNEQ applies the NEQ predicate on the "wait_reason" field.
+func WaitReasonNEQ(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldNEQ(FieldWaitReason, v))
+}
+
+// WaitReasonIn applies the In predicate on the "wait_reason" field.
+func WaitReasonIn(vs ...string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldIn(FieldWaitReason, vs...))
+}
+
+// WaitReasonNotIn applies the NotIn predicate on the "wait_reason" field.
+func WaitReasonNotIn(vs ...string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldNotIn(FieldWaitReason, vs...))
+}
+
+// WaitReasonGT applies the GT predicate on the "wait_reason" field.
+func WaitReasonGT(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldGT(FieldWaitReason, v))
+}
+
+// WaitReasonGTE applies the GTE predicate on the "wait_reason" field.
+func WaitReasonGTE(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldGTE(FieldWaitReason, v))
+}
+
+// WaitReasonLT applies the LT predicate on the "wait_reason" field.
+func WaitReasonLT(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldLT(FieldWaitReason, v))
+}
+
+// WaitReasonLTE applies the LTE predicate on the "wait_reason" field.
+func WaitReasonLTE(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldLTE(FieldWaitReason, v))
+}
+
+// WaitReasonContains applies the Contains predicate on the "wait_reason" field.
+func WaitReasonContains(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldContains(FieldWaitReason, v))
+}
+
+// WaitReasonHasPrefix applies the HasPrefix predicate on the "wait_reason" field.
+func WaitReasonHasPrefix(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldHasPrefix(FieldWaitReason, v))
+}
+
+// WaitReasonHasSuffix applies the HasSuffix predicate on the "wait_reason" field.
+func WaitReasonHasSuffix(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldHasSuffix(FieldWaitReason, v))
+}
+
+// WaitReasonIsNil applies the IsNil predicate on the "wait_reason" field.
+func WaitReasonIsNil() predicate.StageRun {
+	return predicate.StageRun(sql.FieldIsNull(FieldWaitReason))
+}
+
+// WaitReasonNotNil applies the NotNil predicate on the "wait_reason" field.
+func WaitReasonNotNil() predicate.StageRun {
+	return predicate.StageRun(sql.FieldNotNull(FieldWaitReason))
+}
+
+// WaitReasonEqualFold applies the EqualFold predicate on the "wait_reason" field.
+func WaitReasonEqualFold(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldEqualFold(FieldWaitReason, v))
+}
+
+// WaitReasonContainsFold applies the ContainsFold predicate on the "wait_reason" field.
+func WaitReasonContainsFold(v string) predicate.StageRun {
+	return predicate.StageRun(sql.FieldContainsFold(FieldWaitReason, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

@@ -1,0 +1,3 @@
+     SubagentStop  right before a subagent (Agent tool call) concludes its response
+     All events
+   Enter to view · Esc to close

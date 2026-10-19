@@ -3,6 +3,11 @@ package agents
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,40 +22,172 @@ func TestValidTmuxPane(t *testing.T) {
 	require.False(t, validTmuxPane("session:0.1"))
 }
 
-func TestTmuxSendArgs(t *testing.T) {
-	text, enter := tmuxSendArgs("/tmp/tmux-501/default", "%3", "/security-review")
-	require.Equal(t, []string{"-S", "/tmp/tmux-501/default", "send-keys", "-t", "%3", "-l", "--", "/security-review"}, text)
-	require.Equal(t, []string{"-S", "/tmp/tmux-501/default", "send-keys", "-t", "%3", "Enter"}, enter)
-
-	// no socket → no -S
-	text2, enter2 := tmuxSendArgs("", "%1", "hi")
-	require.Equal(t, []string{"send-keys", "-t", "%1", "-l", "--", "hi"}, text2)
-	require.Equal(t, []string{"send-keys", "-t", "%1", "Enter"}, enter2)
-}
-
-func TestSendKeysToTmux_RunsTextThenEnter(t *testing.T) {
+func TestTmuxBracketedPaste_SendsLoadBufferThenPasteBuffer(t *testing.T) {
 	var calls [][]string
-	origRun, origLook := tmuxRunner, tmuxLookPath
-	t.Cleanup(func() { tmuxRunner = origRun; tmuxLookPath = origLook })
+	var stdinCalls []string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
 	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
 	tmuxRunner = func(_ context.Context, args ...string) error {
 		calls = append(calls, args)
 		return nil
 	}
+	tmuxStdinRunner = func(_ context.Context, stdin io.Reader, args ...string) error {
+		data, _ := io.ReadAll(stdin)
+		stdinCalls = append(stdinCalls, string(data))
+		calls = append(calls, args)
+		return nil
+	}
 
-	err := sendKeysToTmux(context.Background(), "", "%5", "run it")
+	err := sendKeysToTmux(context.Background(), "", "%5", "hello world")
 	require.NoError(t, err)
-	require.Len(t, calls, 2)
-	require.Equal(t, "-l", calls[0][3]) // literal text send
-	require.Equal(t, "run it", calls[0][len(calls[0])-1])
-	require.Equal(t, "Enter", calls[1][len(calls[1])-1]) // separate Enter
+	require.Len(t, calls, 3)
+
+	// Call 1: load-buffer with message on stdin (NOT send-keys -l)
+	require.Contains(t, calls[0], "load-buffer")
+	buf := bufferArg(t, calls[0])
+	require.True(t, strings.HasPrefix(buf, "kontor-%5-"), "buffer %q", buf)
+	require.Contains(t, calls[0], "-")
+	require.Len(t, stdinCalls, 1)
+	require.Equal(t, "hello world", stdinCalls[0])
+
+	// Call 2: paste-buffer with bracketed paste (-p) and delete (-d)
+	require.Contains(t, calls[1], "paste-buffer")
+	require.Contains(t, calls[1], "-p")
+	require.Contains(t, calls[1], "-d")
+	require.Equal(t, buf, bufferArg(t, calls[1]), "paste must read the buffer this call loaded")
+
+	// Call 3: send-keys Enter
+	require.Equal(t, "Enter", calls[2][len(calls[2])-1])
+}
+
+func bufferArg(t *testing.T, args []string) string {
+	t.Helper()
+	i := slices.Index(args, "-b")
+	require.GreaterOrEqual(t, i, 0, "no -b in %v", args)
+	require.Less(t, i+1, len(args), "-b without a name in %v", args)
+	return args[i+1]
+}
+
+func TestSendKeysToTmux_ConcurrentSendsToOnePaneUseDistinctBuffers(t *testing.T) {
+	var buffers []string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxRunner = func(_ context.Context, _ ...string) error { return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, args ...string) error {
+		buffers = append(buffers, bufferArg(t, args))
+		return nil
+	}
+
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "first"))
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "second"))
+	require.Len(t, buffers, 2)
+	require.NotEqual(t, buffers[0], buffers[1])
+}
+
+func stubTmuxCalls(t *testing.T, run func(ctx context.Context, args []string) error) {
+	t.Helper()
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, args ...string) error { return run(context.Background(), args) }
+	tmuxRunner = func(ctx context.Context, args ...string) error { return run(ctx, args) }
+}
+
+func TestSendKeysToTmux_PasteFailureDeletesTheLoadedBuffer(t *testing.T) {
+	var calls [][]string
+	stubTmuxCalls(t, func(_ context.Context, args []string) error {
+		calls = append(calls, args)
+		if slices.Contains(args, "paste-buffer") {
+			return errors.New("no such pane")
+		}
+		return nil
+	})
+
+	err := sendKeysToTmux(context.Background(), "/tmp/tmux.sock", "%5", "yes")
+	require.ErrorContains(t, err, "tmux paste-buffer")
+	require.Len(t, calls, 3, "load, paste, then cleanup; no Enter after a failed paste")
+
+	del := calls[2]
+	require.Equal(t, []string{"-S", "/tmp/tmux.sock", "delete-buffer", "-b", bufferArg(t, calls[0])}, del)
+}
+
+func TestSendKeysToTmux_CancelledContextStillDeletesTheLoadedBuffer(t *testing.T) {
+	var deleteCtxErr error
+	deleted := false
+	stubTmuxCalls(t, func(ctx context.Context, args []string) error {
+		if slices.Contains(args, "delete-buffer") {
+			deleted = true
+			deleteCtxErr = ctx.Err()
+			return nil
+		}
+		return ctx.Err()
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.Error(t, sendKeysToTmux(ctx, "", "%5", "yes"))
+	require.True(t, deleted, "buffer must be deleted even though the caller's context is gone")
+	require.NoError(t, deleteCtxErr, "cleanup must not run on the cancelled caller context")
+}
+
+func TestSendKeysToTmux_SuccessfulPasteLeavesDeletionToPasteBuffer(t *testing.T) {
+	var calls [][]string
+	stubTmuxCalls(t, func(_ context.Context, args []string) error {
+		calls = append(calls, args)
+		return nil
+	})
+
+	require.NoError(t, sendKeysToTmux(context.Background(), "", "%5", "yes"))
+	for _, c := range calls {
+		require.NotContains(t, c, "delete-buffer")
+	}
+}
+
+func TestSendKeysToTmux_MultiLinePreservesNewlines(t *testing.T) {
+	var stdinData string
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
+	tmuxLookPath = func() (string, error) { return "/usr/bin/tmux", nil }
+	tmuxRunner = func(_ context.Context, _ ...string) error { return nil }
+	tmuxStdinRunner = func(_ context.Context, stdin io.Reader, _ ...string) error {
+		data, _ := io.ReadAll(stdin)
+		stdinData = string(data)
+		return nil
+	}
+
+	err := sendKeysToTmux(context.Background(), "", "%1", "line1\nline2")
+	require.NoError(t, err)
+	require.Equal(t, "line1\nline2", stdinData, "newlines must be preserved in stdin")
 }
 
 func TestSendKeysToTmux_TmuxMissing(t *testing.T) {
 	ran := false
-	origRun, origLook := tmuxRunner, tmuxLookPath
-	t.Cleanup(func() { tmuxRunner = origRun; tmuxLookPath = origLook })
+	origRun, origStdin, origLook := tmuxRunner, tmuxStdinRunner, tmuxLookPath
+	t.Cleanup(func() {
+		tmuxRunner = origRun
+		tmuxStdinRunner = origStdin
+		tmuxLookPath = origLook
+	})
 	tmuxRunner = func(_ context.Context, _ ...string) error { ran = true; return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, _ ...string) error { ran = true; return nil }
 	tmuxLookPath = func() (string, error) { return "", errors.New("not found") }
 
 	err := sendKeysToTmux(context.Background(), "", "%2", "x")
@@ -61,11 +198,36 @@ func TestSendKeysToTmux_TmuxMissing(t *testing.T) {
 
 func TestSendKeysToTmux_RejectsBadPane(t *testing.T) {
 	called := false
-	orig := tmuxRunner
-	t.Cleanup(func() { tmuxRunner = orig })
+	origRun, origStdin := tmuxRunner, tmuxStdinRunner
+	t.Cleanup(func() { tmuxRunner = origRun; tmuxStdinRunner = origStdin })
 	tmuxRunner = func(_ context.Context, _ ...string) error { called = true; return nil }
+	tmuxStdinRunner = func(_ context.Context, _ io.Reader, _ ...string) error { called = true; return nil }
 
 	err := sendKeysToTmux(context.Background(), "", "$(evil)", "x")
 	require.Error(t, err)
 	require.False(t, called, "must not exec tmux for an invalid pane")
+}
+
+func postMessage(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/agents/123/message", strings.NewReader(body))
+	req.SetPathValue("pid", "123")
+	rec := httptest.NewRecorder()
+	NewSpawnHandler(nil).Message(rec, req)
+	return rec
+}
+
+func TestMessage_OversizedBodyIs413(t *testing.T) {
+	rec := postMessage(t, `{"message":"`+strings.Repeat("a", 64*1024)+`"}`)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.JSONEq(t, `{"error":"message exceeds 64 KB limit"}`, rec.Body.String())
+}
+
+func TestMessage_MalformedBodyIs400(t *testing.T) {
+	rec := postMessage(t, `{"message":`)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"missing message"}`, rec.Body.String())
 }
