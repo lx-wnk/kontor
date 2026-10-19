@@ -18,7 +18,7 @@ const session = {
   }),
 }
 const activeView = ref('zentrale')
-const agents = ref<Array<{ pid: number }>>([])
+const agents = ref<Array<{ pid: number, errorState?: string }>>([])
 const paneprefillMock = vi.fn()
 
 vi.mock('../composables/useKontorSession', () => ({
@@ -33,6 +33,10 @@ vi.mock('@/features/agents', () => ({
     setup(_props: unknown, { expose }: { expose: (exposed: Record<string, unknown>) => void }) {
       expose({ prefill: paneprefillMock })
     },
+  },
+  AgentTerminal: {
+    props: ['pid'],
+    template: '<div data-testid="stub-terminal" :data-pid="pid" />',
   },
 }))
 vi.mock('@/composables/useViewState', async (importOriginal) => {
@@ -236,6 +240,23 @@ describe('kontorTile', () => {
 
     expect(paneprefillMock).toHaveBeenCalledWith('[[notes/a]] ')
     expect(w.find('[data-testid="kontor-input"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('offers the terminal to log in again only while the session reports an expired login', async () => {
+    session.pid.value = 42
+    session.status.value = 'running'
+    agents.value = [{ pid: 42 }]
+    const w = mount(KontorTile, { global: { stubs: { teleport: true } } })
+    await flushPromises()
+    expect(w.find('[data-testid="kontor-login"]').exists()).toBe(false)
+
+    agents.value = [{ pid: 42, errorState: 'auth_failed' }]
+    await flushPromises()
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
+    await w.get('[data-testid="kontor-login"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="stub-terminal"]').attributes('data-pid')).toBe('42')
     w.unmount()
   })
 })

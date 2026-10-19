@@ -33,10 +33,13 @@ var (
 )
 
 // classifyAPIError maps a real API error (gated by isApiErrorMessage) to an
-// ErrorState. Status takes precedence; keyword regexes are the fallback when
-// status is absent (0). Gating on isApiErrorMessage prevents benign assistant
-// prose that mentions "authentication" or "rate limit" from being misclassified.
-func classifyAPIError(status int, text string) sdk.ErrorState {
+// ErrorState. The CLI's error kind wins, then status; keyword regexes are the
+// fallback when status is absent (0). Gating on isApiErrorMessage prevents benign
+// assistant prose that mentions "authentication" or "rate limit" from being misclassified.
+func classifyAPIError(status int, errorKind, text string) sdk.ErrorState {
+	if errorKind == "authentication_failed" {
+		return sdk.ErrorStateAuthFailed
+	}
 	switch status {
 	case 401, 403:
 		return sdk.ErrorStateAuthFailed
@@ -234,6 +237,7 @@ type jsonlMessage struct {
 	Message           json.RawMessage `json:"message"`
 	IsAPIErrorMessage bool            `json:"isApiErrorMessage"` // true only on real Claude API error responses
 	APIErrorStatus    int             `json:"apiErrorStatus"`    // HTTP status from the API error (401, 429, …)
+	Error             string          `json:"error"`             // CLI error kind, e.g. "authentication_failed" on the synthetic "Login expired" entry
 }
 
 // isCompactBoundaryType reports whether a (type, subtype) pair is the
@@ -972,7 +976,7 @@ func ParseSessionFile(path string) (*SessionData, error) {
 							btwText = scrubSecrets(b.Text)
 							data.LastOutput = btwText
 							if entry.IsAPIErrorMessage {
-								if es := classifyAPIError(entry.APIErrorStatus, b.Text); es != "" {
+								if es := classifyAPIError(entry.APIErrorStatus, entry.Error, b.Text); es != "" {
 									data.ErrorState = es
 								}
 							}
