@@ -280,4 +280,14 @@ describe('kontorTile', () => {
     expect(w.find('[data-testid="kontor-login"]').exists()).toBe(false)
     w.unmount()
   })
+
+  it('offers no login terminal when the session has none to attach to', async () => {
+    session.pid.value = 42
+    session.status.value = 'running'
+    agents.value = [{ pid: 42, errorState: 'auth_failed' }]
+    const w = mount(KontorTile, { global: { stubs: { teleport: true } } })
+    await flushPromises()
+    expect(w.find('[data-testid="kontor-login"]').exists()).toBe(false)
+    w.unmount()
+  })
 })

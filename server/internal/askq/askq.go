@@ -353,8 +353,8 @@ func DetectConfirmScreen(rows []string) *sdk.DetectedConfirm {
 	}
 }
 
-// dialogFooterRE matches the key-hint footer every CLI picker draws as its last row; the idle prompt ends with its status line instead.
-var dialogFooterRE = regexp.MustCompile(`(?i)(^|·\s*)esc to (cancel|close|clear|go back|exit)\b`)
+// dialogFooterRE matches the Esc hint forms the CLI (2.1.303) draws under a picker; "double tap/press esc" prompt hints stay out.
+var dialogFooterRE = regexp.MustCompile(`(?i)(^|[·(,]\s*(or\s+)?|(^|[.!]\s+)press\s+)esc to (cancel|close|clear|go back|exit)\b`)
 
 // DetectDialog reports whether the last non-blank row, joined with the one above it for a footer that wrapped, is a picker footer.
 func DetectDialog(rows []string) bool {
