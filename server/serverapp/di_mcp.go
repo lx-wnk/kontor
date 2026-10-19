@@ -116,6 +116,7 @@ func provideMCPHandler(
 		},
 		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
 		Broadcast: broadcast,
+		Audit:     auditRepo,
 	})
 	mcptools.RegisterPlanTools(registry, mcptools.PlanDeps{
 		Turns:     turnsRepo,
@@ -125,12 +126,13 @@ func provideMCPHandler(
 			_, err := orch.ProgressTask(ctx, taskID, nil)
 			return err
 		},
-		Requeue: func(ctx context.Context, taskID, prompt string) error {
-			_, err := orch.RequeueForUser(ctx, taskID, prompt)
-			return err
+		Requeue: func(ctx context.Context, taskID, prompt string) (bool, error) {
+			run, err := orch.RequeueForUser(ctx, taskID, prompt)
+			return run != nil, err
 		},
 		Revoke:    mcp.StageKeyIssuer{Keys: apiKeyRepo}.Revoke,
 		Broadcast: broadcast,
+		Audit:     auditRepo,
 	})
 	mcptools.RegisterScheduleTools(registry, mcptools.ScheduleDeps{
 		Repo:       repo.NewTaskScheduleRepo(client),

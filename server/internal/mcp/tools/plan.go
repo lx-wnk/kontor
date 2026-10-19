@@ -14,9 +14,10 @@ type PlanDeps struct {
 	Tasks     repo.TaskRepo
 	StageRuns repo.StageRunRepo
 	Advance   func(ctx context.Context, taskID string) error
-	Requeue   func(ctx context.Context, taskID, prompt string) error
+	Requeue   func(ctx context.Context, taskID, prompt string) (bool, error)
 	Revoke    func(ctx context.Context, stageRunID string) error
 	Broadcast func(ctx context.Context, eventType, taskID string)
+	Audit     repo.AuditEventRepo
 }
 
 // RegisterPlanTools registers the plan gate MCP tools into the registry.
@@ -48,6 +49,8 @@ func registerApprovePlan(registry mcp.ToolRegistry, d PlanDeps) {
 				StageRuns: d.StageRuns,
 				Advance:   d.Advance,
 				Revoke:    d.Revoke,
+				Audit:     d.Audit,
+				Origin:    originFromMCP(ctx),
 			}, taskID)
 			if err != nil {
 				return nil, mcp.Fail("approve_plan: " + err.Error())
@@ -61,7 +64,7 @@ func registerApprovePlan(registry mcp.ToolRegistry, d PlanDeps) {
 func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 	registry.Register(&mcp.ToolDef{
 		Name:        "reject_plan",
-		Description: "Reject the plan from the plan_review stage with feedback, triggering a new plan_review run (up to the iteration cap).",
+		Description: "Reject the plan from the plan_review stage with feedback, triggering a new plan_review run (up to the iteration cap). Returns status \"requeued\" when a new round started, or \"rejected\" when the feedback was stored without one; both are successes.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -79,18 +82,34 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 			if err != nil {
 				return nil, err
 			}
-			if err := planapi.RejectPlan(ctx, planapi.RejectDeps{
+			requeued, err := planapi.RejectPlan(ctx, planapi.RejectDeps{
 				Turns:     d.Turns,
 				Tasks:     d.Tasks,
 				StageRuns: d.StageRuns,
 				Requeue:   d.Requeue,
-			}, taskID, feedback); err != nil {
+				Audit:     d.Audit,
+				Origin:    originFromMCP(ctx),
+			}, taskID, feedback)
+			if err != nil {
 				return nil, mcp.Fail("reject_plan: " + err.Error())
 			}
 			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
-			return mcp.OK(map[string]any{"status": "requeued"})
+			// "rejected": feedback stored, but no new plan round (iteration cap or orchestrator declined).
+			status := "rejected"
+			if requeued {
+				status = "requeued"
+			}
+			return mcp.OK(map[string]any{"status": status, "requeued": requeued})
 		},
 	})
+}
+
+func originFromMCP(ctx context.Context) repo.AuditOrigin {
+	info := mcp.AuthFromContext(ctx)
+	if info == nil {
+		return repo.AuditOrigin{Source: repo.AuditSourceMCP}
+	}
+	return repo.MCPAuditOrigin(info.KeyID, info.StageRunID, info.ModuleID)
 }
 
 func registerGetPlanStatus(registry mcp.ToolRegistry, d PlanDeps) {

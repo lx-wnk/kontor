@@ -22,6 +22,8 @@ type ConfirmDeps struct {
 	// marked done — its agent is gone by then. Nil disables revocation; a
 	// failure logs and never blocks confirmation.
 	Revoke func(ctx context.Context, stageRunID string) error
+	Audit  repo.AuditEventRepo
+	Origin repo.AuditOrigin
 }
 
 // Confirm freezes the concept from refinement turns onto the task and advances
@@ -72,10 +74,12 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 		return nil, err
 	}
 
+	var stageRunID string
 	if d.StageRuns != nil {
 		now := time.Now()
 		done := "done"
 		if sr, err := d.StageRuns.GetLatestByTaskAndStage(ctx, taskID, "backlog"); err == nil && sr != nil {
+			stageRunID = sr.ID
 			_, _ = d.StageRuns.Update(ctx, sr.ID, repo.UpdateStageRunInput{
 				Status:  &done,
 				EndedAt: &now,
@@ -92,6 +96,15 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 	if d.Tasks != nil {
 		if _, err := d.Tasks.Update(ctx, taskID, update); err != nil {
 			return nil, fmt.Errorf("confirm: apply concept to task: %w", err)
+		}
+	}
+	if d.Audit != nil {
+		meta := d.Origin.Metadata()
+		if stageRunID != "" {
+			meta["stageRunId"] = stageRunID
+		}
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionSpecApproved, "task:"+taskID, meta); err != nil {
+			slog.Warn("refine: audit spec_approved failed", "task", taskID, "stageRun", stageRunID, "err", err)
 		}
 	}
 	if d.Advance != nil {

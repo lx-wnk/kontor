@@ -153,11 +153,11 @@ func TestRejectPlan_MCPTool_StoresFeedback(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue: func(_ context.Context, id, _ string) error {
+		Requeue: func(_ context.Context, id, _ string) (bool, error) {
 			if id == taskID {
 				requeued = true
 			}
-			return nil
+			return true, nil
 		},
 	})
 
@@ -262,7 +262,7 @@ func TestRejectPlan_BroadcastsTaskUpdated(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue:   func(_ context.Context, _, _ string) error { return nil },
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return true, nil },
 		Broadcast: func(_ context.Context, eventType, _ string) {
 			calls++
 			gotEventType = eventType
@@ -277,4 +277,104 @@ func TestRejectPlan_BroadcastsTaskUpdated(t *testing.T) {
 
 	require.Equal(t, 1, calls, "Broadcast must be called exactly once")
 	require.Equal(t, "task_updated", gotEventType)
+}
+
+func TestApprovePlan_MCPTool_RecordsAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-abc", StageRunID: "run-7"})
+
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+		Audit:     auditRepo,
+	})
+
+	_, err = registry["approve_plan"].Handler(ctx, map[string]any{"task_id": taskID})
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "exactly one audit event expected")
+	require.Equal(t, repo.AuditActionPlanApproved, events[0].Action)
+	require.Equal(t, "mcp", events[0].Metadata["source"])
+	require.Equal(t, "agent", events[0].Metadata["actor"], "a stage-run key acts as an agent")
+	require.Equal(t, "key-abc", events[0].Metadata["apiKeyId"])
+	require.Equal(t, "run-7", events[0].Metadata["callerStageRunId"])
+}
+
+func TestRejectPlan_MCPTool_RecordsAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-xyz"})
+
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return true, nil },
+		Audit:     auditRepo,
+	})
+
+	_, err = registry["reject_plan"].Handler(ctx, map[string]any{
+		"task_id":  taskID,
+		"feedback": "needs more detail",
+	})
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	require.Equal(t, repo.AuditActionPlanRejected, events[0].Action)
+	require.Equal(t, "mcp", events[0].Metadata["source"])
+	require.Equal(t, "user", events[0].Metadata["actor"], "a key a person created acts as that person")
+	require.Equal(t, "key-xyz", events[0].Metadata["apiKeyId"])
+}
+
+func TestRejectPlan_MCPTool_ReportsWhenNoNewRoundStarted(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return false, nil },
+	})
+
+	result, err := registry["reject_plan"].Handler(ctx, map[string]any{"task_id": taskID, "feedback": "again"})
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Equal(t, "rejected", payload["status"])
+	require.Equal(t, false, payload["requeued"])
 }

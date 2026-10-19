@@ -23,7 +23,64 @@ const (
 	AuditActionLiveInjectRejected = "live_inject_rejected"
 	AuditActionCapabilityAllow    = "capability_allow"
 	AuditActionCapabilityDeny     = "capability_deny"
+	AuditActionPlanApproved       = "plan_approved"
+	AuditActionPlanRejected       = "plan_rejected"
+	AuditActionSpecApproved       = "spec_approved"
 )
+
+// Audit sources: the channel an approval arrived on.
+const (
+	AuditSourceUI  = "ui"
+	AuditSourceMCP = "mcp"
+)
+
+// Audit actors: the roles the task Audit tab renders (see auditActor in api/tasks).
+const (
+	AuditActorUser  = "user"
+	AuditActorAgent = "agent"
+)
+
+// AuditOrigin identifies who triggered an auditable action and through which channel.
+type AuditOrigin struct {
+	Source           string
+	Actor            string
+	UserID           *string
+	APIKeyID         string
+	CallerStageRunID string
+	ModuleID         string
+}
+
+// UIAuditOrigin is a person acting through the dashboard.
+func UIAuditOrigin(userID string) AuditOrigin {
+	return AuditOrigin{Source: AuditSourceUI, Actor: AuditActorUser, UserID: &userID}
+}
+
+// MCPAuditOrigin is an MCP key; one issued to a stage run or module acts as an agent.
+func MCPAuditOrigin(keyID, stageRunID, moduleID string) AuditOrigin {
+	actor := AuditActorUser
+	if stageRunID != "" || moduleID != "" {
+		actor = AuditActorAgent
+	}
+	return AuditOrigin{Source: AuditSourceMCP, Actor: actor, APIKeyID: keyID, CallerStageRunID: stageRunID, ModuleID: moduleID}
+}
+
+// Metadata is the origin part of an audit event's metadata; empty identifiers are left out.
+func (o AuditOrigin) Metadata() map[string]any {
+	meta := map[string]any{"source": o.Source}
+	if o.Actor != "" {
+		meta["actor"] = o.Actor
+	}
+	if o.APIKeyID != "" {
+		meta["apiKeyId"] = o.APIKeyID
+	}
+	if o.CallerStageRunID != "" {
+		meta["callerStageRunId"] = o.CallerStageRunID
+	}
+	if o.ModuleID != "" {
+		meta["moduleId"] = o.ModuleID
+	}
+	return meta
+}
 
 // AuditEventRepo persists and queries security-relevant audit events.
 type AuditEventRepo interface {

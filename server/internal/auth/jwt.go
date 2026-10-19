@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -40,6 +41,14 @@ const BypassUserID = "local"
 // instead of returning 403/401.
 func BypassPayload() JWTPayload {
 	return JWTPayload{Sub: BypassUserID, Login: BypassUserID}
+}
+
+// PayloadOrBypass returns the request's JWT payload, or BypassPayload when there is none.
+func PayloadOrBypass(ctx context.Context) JWTPayload {
+	if p, ok := PayloadFromContext(ctx); ok {
+		return p
+	}
+	return BypassPayload()
 }
 
 // jwtClaims embeds RegisteredClaims and carries our custom fields.

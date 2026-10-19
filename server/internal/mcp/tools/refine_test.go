@@ -552,6 +552,41 @@ func TestGetRefineDraft_ScopeIsTasksRead(t *testing.T) {
 	require.Equal(t, "tasks:read", mcp.ToolScopeMap["get_refine_draft"])
 }
 
+func TestApproveSpec_MCPTool_RecordsAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
+
+	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-spec-abc"})
+
+	registry := mcp.ToolRegistry{}
+	RegisterRefineTools(registry, RefineDeps{
+		Turns:     turnsRepo,
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+		Audit:     auditRepo,
+	})
+
+	_, err = registry["approve_spec"].Handler(ctx, map[string]any{"task_id": task.ID})
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, task.ID)
+	require.NoError(t, err)
+	require.Len(t, events, 1, "exactly one audit event expected")
+	require.Equal(t, repo.AuditActionSpecApproved, events[0].Action)
+	require.Equal(t, "mcp", events[0].Metadata["source"])
+	require.Equal(t, "user", events[0].Metadata["actor"])
+	require.Equal(t, "key-spec-abc", events[0].Metadata["apiKeyId"])
+}
+
 func TestInjectConcept_BroadcastsTaskUpdated(t *testing.T) {
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)

@@ -943,6 +943,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 				return err
 			},
 			Revoke: mcppkg.StageKeyIssuer{Keys: repo.NewApiKeyRepo(entClient)}.Revoke,
+			Audit:  repo.NewAuditEventRepo(entClient),
 			ResolveSpawner: func(ctx context.Context, taskID string) (*ent.Spawner, services.SpawnerSource, error) {
 				if spawnerResolver == nil {
 					return nil, services.SpawnerSourceDefault, nil
@@ -960,13 +961,14 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 			Turns:     repo.NewRefinementTurnRepo(entClient),
 			Tasks:     repo.NewTaskRepo(entClient),
 			StageRuns: repo.NewStageRunRepo(entClient),
+			Audit:     repo.NewAuditEventRepo(entClient),
 			Advance: func(ctx context.Context, taskID string) error {
 				_, err := orch.ProgressTask(ctx, taskID, nil)
 				return err
 			},
-			Requeue: func(ctx context.Context, taskID, prompt string) error {
-				_, err := orch.RequeueForUser(ctx, taskID, prompt)
-				return err
+			Requeue: func(ctx context.Context, taskID, prompt string) (bool, error) {
+				run, err := orch.RequeueForUser(ctx, taskID, prompt)
+				return run != nil, err
 			},
 			Revoke: mcppkg.StageKeyIssuer{Keys: repo.NewApiKeyRepo(entClient)}.Revoke,
 		})

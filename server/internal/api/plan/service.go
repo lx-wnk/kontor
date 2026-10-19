@@ -23,6 +23,8 @@ type ApproveDeps struct {
 	// marked done — its agent is gone by then. Nil disables revocation; a
 	// failure logs and never blocks the approval.
 	Revoke func(ctx context.Context, stageRunID string) error
+	Audit  repo.AuditEventRepo
+	Origin repo.AuditOrigin
 }
 
 // RejectDeps are the dependencies required by RejectPlan.
@@ -30,8 +32,11 @@ type RejectDeps struct {
 	Turns     repo.RefinementTurnRepo
 	Tasks     repo.TaskRepo
 	StageRuns repo.StageRunRepo
-	// Requeue triggers a new plan_review run carrying the feedback prompt.
-	Requeue func(ctx context.Context, taskID, prompt string) error
+	// Requeue triggers a new plan_review run carrying the feedback prompt and
+	// reports whether one was created; the orchestrator may decline without error.
+	Requeue func(ctx context.Context, taskID, prompt string) (bool, error)
+	Audit   repo.AuditEventRepo
+	Origin  repo.AuditOrigin
 }
 
 // StatusDeps are the dependencies required by PlanStatus.
@@ -186,6 +191,14 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 		}
 	}
 
+	if d.Audit != nil {
+		meta := d.Origin.Metadata()
+		meta["stageRunId"] = sr.ID
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanApproved, "task:"+taskID, meta); err != nil {
+			slog.Warn("plan: audit plan_approved failed", "task", taskID, "stageRun", sr.ID, "err", err)
+		}
+	}
+
 	if d.Advance != nil {
 		_ = d.Advance(ctx, taskID)
 	}
@@ -197,14 +210,15 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 // Beyond the cap, it stores feedback but does not requeue. Returns ErrPlanNotReady
 // unless the plan_review run is awaiting_user; plan content is not required, so a
 // run that produced no usable plan can still be sent back.
-func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) error {
-	if _, err := requireAwaitingPlanReview(ctx, d.StageRuns, taskID); err != nil {
-		return err
+func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) (requeued bool, err error) {
+	sr, err := requireAwaitingPlanReview(ctx, d.StageRuns, taskID)
+	if err != nil {
+		return false, err
 	}
 
 	task, err := d.Tasks.GetByID(ctx, taskID)
 	if err != nil {
-		return fmt.Errorf("reject_plan: get task: %w", err)
+		return false, fmt.Errorf("reject_plan: get task: %w", err)
 	}
 
 	// Read current reject count from metadata.
@@ -232,21 +246,36 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 		Content: feedback,
 		Phase:   strPtr("plan_rejected"),
 	}); err != nil {
-		return fmt.Errorf("reject_plan: store feedback turn: %w", err)
+		return false, fmt.Errorf("reject_plan: store feedback turn: %w", err)
 	}
 
 	if _, err := d.Tasks.Update(ctx, taskID, repo.UpdateTaskInput{Metadata: newMeta}); err != nil {
-		return fmt.Errorf("reject_plan: update task metadata: %w", err)
+		return false, fmt.Errorf("reject_plan: update task metadata: %w", err)
 	}
 
-	// Only requeue when under the cap.
+	var requeueErr error
 	if count < localDefaultPlanIterationCap && d.Requeue != nil {
-		if err := d.Requeue(ctx, taskID, feedback); err != nil {
-			return fmt.Errorf("reject_plan: requeue: %w", err)
+		requeued, requeueErr = d.Requeue(ctx, taskID, feedback)
+	}
+
+	if d.Audit != nil {
+		meta := d.Origin.Metadata()
+		meta["stageRunId"] = sr.ID
+		meta["rejectCount"] = count + 1
+		meta["requeued"] = requeued && requeueErr == nil
+		if requeueErr != nil {
+			meta["requeueError"] = requeueErr.Error()
+		}
+		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanRejected, "task:"+taskID, meta); err != nil {
+			slog.Warn("plan: audit plan_rejected failed", "task", taskID, "stageRun", sr.ID, "err", err)
 		}
 	}
 
-	return nil
+	if requeueErr != nil {
+		return false, fmt.Errorf("reject_plan: requeue: %w", requeueErr)
+	}
+
+	return requeued, nil
 }
 
 // PlanStatus returns the current gate state and latest plan output for a task.

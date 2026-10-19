@@ -181,32 +181,34 @@ func TestRejectPlan_RerunsStageAndStoresFeedback(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue: func(_ context.Context, id, prompt string) error {
+		Requeue: func(_ context.Context, id, prompt string) (bool, error) {
 			if id == taskID {
 				requeued++
 			}
-			return nil
+			return true, nil
 		},
 	}
 
 	// First rejection — within cap.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
+	got, err := plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
 	require.NoError(t, err)
+	require.True(t, got, "within the cap a new round starts")
 	require.Equal(t, 1, requeued, "first rejection must trigger requeue")
 
 	// Second rejection.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 2")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 2")
 	require.NoError(t, err)
 	require.Equal(t, 2, requeued)
 
 	// Third rejection (at cap = 3, this is the third reject so still within cap).
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 3")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 3")
 	require.NoError(t, err)
 	require.Equal(t, 3, requeued)
 
 	// Fourth rejection — beyond cap, must NOT requeue.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
+	got, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
 	require.NoError(t, err, "beyond-cap reject must not error, just skip requeue")
+	require.False(t, got, "beyond the cap no new round starts")
 	require.Equal(t, 3, requeued, "fourth rejection must not requeue (cap exceeded)")
 
 	// Feedback should be stored in task metadata.
@@ -458,11 +460,11 @@ func TestRejectPlan_RunningRun_ReturnsConflict(t *testing.T) {
 	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "running", nil)
 
 	requeued := false
-	err = plan.RejectPlan(ctx, plan.RejectDeps{
+	_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue:   func(context.Context, string, string) error { requeued = true; return nil },
+		Requeue:   func(context.Context, string, string) (bool, error) { requeued = true; return true, nil },
 	}, taskID, "needs more detail")
 
 	require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
@@ -481,7 +483,7 @@ func TestRejectPlan_NoRun_ReturnsConflict(t *testing.T) {
 	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
 	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
 
-	err = plan.RejectPlan(ctx, plan.RejectDeps{
+	_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
@@ -564,11 +566,11 @@ func TestRejectPlan_AwaitingUserWithoutPlanContent_RequeuesWithFeedback(t *testi
 			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
 
 			var requeuedPrompt string
-			err = plan.RejectPlan(ctx, plan.RejectDeps{
+			_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 				Turns:     turnsRepo,
 				Tasks:     taskRepo,
 				StageRuns: srRepo,
-				Requeue:   func(_ context.Context, _, prompt string) error { requeuedPrompt = prompt; return nil },
+				Requeue:   func(_ context.Context, _, prompt string) (bool, error) { requeuedPrompt = prompt; return true, nil },
 			}, taskID, "write the plan again")
 
 			require.NoError(t, err)
@@ -594,11 +596,11 @@ func TestRejectPlan_OutsideAwaitingUser_ReturnsConflict(t *testing.T) {
 			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, status, submittedPlan("plan", "test plan content"))
 
 			requeued := false
-			err = plan.RejectPlan(ctx, plan.RejectDeps{
+			_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
 				Tasks:     taskRepo,
 				StageRuns: srRepo,
-				Requeue:   func(context.Context, string, string) error { requeued = true; return nil },
+				Requeue:   func(context.Context, string, string) (bool, error) { requeued = true; return true, nil },
 			}, taskID, "needs more detail")
 
 			require.True(t, errors.Is(err, plan.ErrPlanNotReady), "got %v", err)
@@ -632,4 +634,113 @@ func TestApprovePlan_SubmittedPlanWithWaitReason_FreezesOnlyThePlan(t *testing.T
 	}, taskID)
 	require.NoError(t, err)
 	require.Equal(t, map[string]any{"summary": "SUBMITTED_PLAN"}, task.Metadata["approvedPlan"], "the wait reason lives in its own column and must not reach the approved plan")
+}
+
+func TestApprovePlan_RecordsPlanApprovedAuditEvent(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+	taskID, runID := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+		Audit:     auditRepo,
+		Origin:    repo.UIAuditOrigin("user-42"),
+	}, taskID)
+	require.NoError(t, err)
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	evt := events[0]
+	require.Equal(t, repo.AuditActionPlanApproved, evt.Action)
+	require.Equal(t, "task:"+taskID, evt.Target)
+	require.Equal(t, "user-42", *evt.UserID)
+	require.Equal(t, map[string]any{"source": "ui", "actor": "user", "stageRunId": runID}, evt.Metadata)
+}
+
+func rejectAndReadAudit(t *testing.T, requeue func(context.Context, string, string) (bool, error), priorRejects int) (map[string]any, string, error) {
+	t.Helper()
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	auditRepo := repo.NewAuditEventRepo(bundle.Client)
+	taskID, runID := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+	if priorRejects > 0 {
+		_, err = taskRepo.Update(ctx, taskID, repo.UpdateTaskInput{Metadata: map[string]any{"planRejectCount": priorRejects}})
+		require.NoError(t, err)
+	}
+
+	_, rejectErr := plan.RejectPlan(ctx, plan.RejectDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   requeue,
+		Audit:     auditRepo,
+		Origin:    repo.MCPAuditOrigin("key-1", "", ""),
+	}, taskID, "needs work")
+
+	events, err := auditRepo.ListForTask(ctx, taskID)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	require.Equal(t, repo.AuditActionPlanRejected, events[0].Action)
+	return events[0].Metadata, runID, rejectErr
+}
+
+func TestRejectPlan_RecordsPlanRejectedAuditEvent(t *testing.T) {
+	meta, runID, err := rejectAndReadAudit(t, func(context.Context, string, string) (bool, error) { return true, nil }, 0)
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"source": "mcp", "actor": "user", "apiKeyId": "key-1",
+		"stageRunId": runID, "rejectCount": float64(1), "requeued": true,
+	}, meta)
+}
+
+func TestRejectPlan_AuditRecordsTheRequeueOutcome(t *testing.T) {
+	failed, _, err := rejectAndReadAudit(t, func(context.Context, string, string) (bool, error) { return false, errors.New("orchestrator down") }, 0)
+	require.ErrorContains(t, err, "orchestrator down")
+	require.Equal(t, false, failed["requeued"])
+	require.Equal(t, "orchestrator down", failed["requeueError"])
+
+	declined, _, err := rejectAndReadAudit(t, func(context.Context, string, string) (bool, error) { return false, nil }, 0)
+	require.NoError(t, err)
+	require.Equal(t, false, declined["requeued"])
+
+	called := false
+	capped, _, err := rejectAndReadAudit(t, func(context.Context, string, string) (bool, error) { called = true; return true, nil }, 3)
+	require.NoError(t, err)
+	require.False(t, called, "no requeue beyond the iteration cap")
+	require.Equal(t, false, capped["requeued"])
+	require.Equal(t, float64(4), capped["rejectCount"])
+}
+
+func TestApprovePlan_NoAuditWhenNilRepo(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	taskID, _ := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+	_, err = plan.ApprovePlan(ctx, plan.ApproveDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Advance:   func(_ context.Context, _ string) error { return nil },
+	}, taskID)
+	require.NoError(t, err)
 }
