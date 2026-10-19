@@ -166,3 +166,42 @@ func TestGetAgents_AwaitingTerminalDialog_SuppressedByPendingToolUse(t *testing.
 	require.NotNil(t, agents[0].PendingToolUse, "fixture must leave a tool call pending")
 	assert.False(t, agents[0].AwaitingTerminalDialog)
 }
+
+// Parallel calls: the last one resolved, an earlier one still on the terminal
+// permission prompt, which draws the same footer as a picker.
+func TestGetAgents_AwaitingTerminalDialog_SuppressedByEarlierParallelToolUse(t *testing.T) {
+	fs := fakespawn.New(t)
+	ag := fs.Spawn(fakespawn.SpawnOpts{LiveInjectable: true})
+	f, err := os.OpenFile(ag.JSONLPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	require.NoError(t, err)
+	_, err = f.WriteString(`{"type":"assistant","timestamp":"2026-10-19T10:00:00.000Z","message":{"role":"assistant","content":[` +
+		`{"type":"tool_use","id":"toolu_a","name":"Bash","input":{"command":"rm x"}},` +
+		`{"type":"tool_use","id":"toolu_b","name":"Read","input":{"file_path":"/x"}}]}}` + "\n" +
+		`{"type":"user","timestamp":"2026-10-19T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_b","content":"ok"}]}}` + "\n")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	m := merger.New(merger.WithScanFn(fs.ScanFn()), merger.WithScreenProbe(dialogProbe(ag.PID)))
+
+	agents, err := m.GetAgents(context.Background(), merger.GetAgentsOpts{})
+	require.NoError(t, err)
+	require.Len(t, agents, 1)
+	require.Nil(t, agents[0].PendingToolUse, "fixture: the last call is resolved")
+	assert.False(t, agents[0].AwaitingTerminalDialog)
+}
+
+// Only a pty broker serves the dashboard terminal; a tmux pane is injectable but not attachable.
+func TestGetAgents_TerminalAttachableOnlyWithPtyBroker(t *testing.T) {
+	fs := fakespawn.New(t)
+	tmux := fs.Spawn(fakespawn.SpawnOpts{LiveInjectable: true})
+	pty := fs.Spawn(fakespawn.SpawnOpts{Pty: true})
+
+	agents, err := merger.New(merger.WithScanFn(fs.ScanFn())).GetAgents(context.Background(), merger.GetAgentsOpts{})
+	require.NoError(t, err)
+	byPID := map[int]sdk.Agent{}
+	for _, a := range agents {
+		byPID[a.PID] = a
+	}
+	assert.False(t, byPID[tmux.PID].TerminalAttachable)
+	assert.True(t, byPID[pty.PID].TerminalAttachable)
+}

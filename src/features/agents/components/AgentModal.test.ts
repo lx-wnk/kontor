@@ -152,10 +152,10 @@ describe('agentModal session context', () => {
     expect(w.findComponent({ name: 'MetricsPopover' }).exists()).toBe(true)
   })
 
-  // The terminal moved to the card; mounting xterm from the modal would defeat that.
-  it('mounts no terminal', () => {
-    const w = mountModal({ ...baseAgent, liveInjectable: true })
-    expect(w.html()).not.toContain('agent-terminal')
+  // xterm mounts only on demand: a picker on screen or an interactive command opens it.
+  it('mounts no terminal up front', () => {
+    const w = mountModal({ ...baseAgent, liveInjectable: true, terminalAttachable: true })
+    expect(w.findComponent({ name: 'AgentTerminalModal' }).props('open')).toBe(false)
   })
 })
 

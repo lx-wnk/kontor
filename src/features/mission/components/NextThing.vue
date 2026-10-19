@@ -6,7 +6,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import ConfirmCard from '@/components/ConfirmCard.vue'
 import QuestionCard from '@/components/QuestionCard.vue'
 import { toast } from '@/composables/useToast'
-import { useCapabilityDecisions } from '@/features/agents'
+import { AgentTerminalModal, useCapabilityDecisions } from '@/features/agents'
 import { resolvePermissionRequest } from '@/features/pipeline'
 import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { capabilityValueLabel, elidedTitle } from '@/utils/capabilityDecision'
@@ -18,6 +18,7 @@ const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
 const busy = ref<PermissionDecision | null>(null)
 const answering = ref(false)
 const capabilityBusy = ref<'allow' | 'deny' | null>(null)
+const showTerminal = ref(false)
 const problem = ref('')
 const { resolve: resolveCapability } = useCapabilityDecisions()
 
@@ -33,7 +34,7 @@ const itemKey = computed(() => {
   if (n.kind === 'capability')
     return `capability:${n.decision?.id ?? ''}`
   if (n.pid !== undefined)
-    return `question:${n.pid}`
+    return `${n.kind}:${n.pid}`
   return `task:${n.taskId}`
 })
 
@@ -45,6 +46,7 @@ const guarding = ref(true)
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(itemKey, () => {
+  showTerminal.value = false
   guarding.value = true
   if (guardTimer)
     clearTimeout(guardTimer)
@@ -229,6 +231,20 @@ async function answer(intent: AnswerIntent) {
           {{ capabilityBusy === 'deny' ? 'Working…' : 'Deny' }}
         </button>
       </div>
+      <div v-else-if="next.kind === 'dialog'" class="flex flex-wrap items-center gap-2 pt-1">
+        <button
+          v-if="next.terminalAttachable"
+          type="button"
+          data-testid="mission-dialog-terminal"
+          class="h-9 rounded-lg bg-accent px-4 text-[13.5px] font-semibold text-accent-contrast"
+          @click="showTerminal = true"
+        >
+          Open terminal
+        </button>
+        <p v-else data-testid="mission-dialog-tmux" class="text-[13px] text-fg-mute">
+          This session runs in a tmux pane. Attach to the pane to answer it.
+        </p>
+      </div>
       <div v-else class="flex gap-2 pt-1">
         <button
           type="button"
@@ -240,6 +256,14 @@ async function answer(intent: AnswerIntent) {
         </button>
       </div>
     </div>
+
+    <AgentTerminalModal
+      v-if="next.kind === 'dialog' && next.pid !== undefined"
+      :open="showTerminal"
+      :pid="next.pid"
+      :title="next.projectName"
+      @close="showTerminal = false"
+    />
   </div>
 
   <p v-else-if="!next" data-testid="mission-calm" class="flex items-center gap-2 text-[12.5px] text-fg-faint">

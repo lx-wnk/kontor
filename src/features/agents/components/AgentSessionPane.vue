@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TrackedMessage } from '@/features/agents/composables/deliveryState'
 import type { Agent, OutputMessage, SubAgent } from '@/types'
-import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import CrossLinkBanner from '@/components/CrossLinkBanner.vue'
 import HookEventList from '@/components/HookEventList.vue'
 import MachineBadge from '@/components/MachineBadge.vue'
@@ -9,13 +9,13 @@ import PromptInput from '@/components/PromptInput.vue'
 import TaskList from '@/components/TaskList.vue'
 import ToolTimeline from '@/components/ToolTimeline.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
-import AppModal from '@/components/ui/AppModal.vue'
 import { usePermissionResolve } from '@/composables/usePermissionResolve'
 import { toast } from '@/composables/useToast'
 import { useAgentIdentity } from '@/features/agents/composables/useAgentIdentity'
 import { formatCost, formatTokens, formatUptime, shortModel, totalTokenCount } from '@/utils/format'
 import { agentDisplayStatus } from '@/utils/statusColors'
 import AgentChatStream from './AgentChatStream.vue'
+import AgentTerminalModal from './AgentTerminalModal.vue'
 import MetricsPopover from './MetricsPopover.vue'
 import SubAgentList from './SubAgentList.vue'
 
@@ -34,11 +34,17 @@ const promptInputRef = ref<InstanceType<typeof PromptInput> | null>(null)
 const chatStreamRef = ref<InstanceType<typeof AgentChatStream> | null>(null)
 const showMetrics = ref(false)
 const showTerminal = ref(false)
-const AgentTerminal = defineAsyncComponent(() => import('./AgentTerminal.vue'))
 
-// Pickers (/login, /model, …) never reach the transcript; only the terminal shows and answers them.
+const dialogNotice = computed(() => {
+  if (!props.agent.awaitingTerminalDialog)
+    return ''
+  return props.agent.terminalAttachable
+    ? 'A dialog is open in this session\'s terminal. Nothing sent from here can answer it.'
+    : 'A dialog is open in this session\'s tmux pane. Attach to the pane to answer it.'
+})
+
 function onInteractiveCommand() {
-  if (props.agent.liveInjectable)
+  if (props.agent.terminalAttachable)
     showTerminal.value = true
 }
 
@@ -80,7 +86,6 @@ function onMessageSent(msg: OutputMessage) {
 
 watch(() => props.agent.sessionId, (sessionId) => {
   openSubagent.value = null
-  showTerminal.value = false
   localMessages.value = []
   if (props.autofocus && sessionId && !props.agent.machine)
     nextTick(() => promptInputRef.value?.focus())
@@ -175,14 +180,13 @@ defineExpose({ prefill: (t: string) => promptInputRef.value?.prefill(t) })
         :tracked-messages="activeTrackedMessages"
         class="flex-1 min-h-0 overflow-y-auto p-4"
       />
+      <!-- Live region stays mounted so a screen reader announces the text when it appears. -->
       <div
-        v-if="agent.awaitingTerminalDialog"
-        data-testid="terminal-dialog-notice"
-        role="status"
-        class="flex flex-shrink-0 items-center gap-3 border-t border-warning-line px-4 py-2 text-[12px] text-warning-text"
+        :class="agent.awaitingTerminalDialog ? 'flex flex-shrink-0 items-center gap-3 border-t border-warning-line px-4 py-2 text-[12px] text-warning-text' : 'sr-only'"
       >
-        <span>A dialog is open in this session's terminal. Nothing sent from here can answer it.</span>
+        <span role="status" data-testid="terminal-dialog-notice">{{ dialogNotice }}</span>
         <button
+          v-if="agent.awaitingTerminalDialog && agent.terminalAttachable"
           type="button"
           data-testid="terminal-dialog-open"
           class="ml-auto h-7 rounded-md border border-warning-line px-2.5"
@@ -193,28 +197,6 @@ defineExpose({ prefill: (t: string) => promptInputRef.value?.prefill(t) })
       </div>
       <PromptInput v-if="!agent.machine" ref="promptInputRef" :agent="agent" variant="full" :approve-handler="approveHandler" @message-sent="onMessageSent" @interactive-command="onInteractiveCommand" />
     </template>
-    <AppModal
-      :open="showTerminal"
-      :z-index="1100"
-      :labelled-by="`agent-pane-terminal-title-${agent.pid}`"
-      @close="showTerminal = false"
-    >
-      <div class="bg-raised px-4 py-2.5 flex justify-between items-center flex-shrink-0">
-        <span :id="`agent-pane-terminal-title-${agent.pid}`" class="font-semibold text-sm text-fg">
-          Terminal — {{ title ?? agent.projectName }}
-        </span>
-        <button
-          type="button"
-          aria-label="Close terminal"
-          class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-raised hover:text-fg"
-          @click="showTerminal = false"
-        >
-          ✕
-        </button>
-      </div>
-      <div class="flex-1 min-h-0">
-        <AgentTerminal v-if="showTerminal" :key="agent.pid" :pid="agent.pid" />
-      </div>
-    </AppModal>
+    <AgentTerminalModal :open="showTerminal" :pid="agent.pid" :title="title ?? agent.projectName" @close="showTerminal = false" />
   </div>
 </template>

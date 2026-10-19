@@ -9,7 +9,10 @@ import NextThing from '../components/NextThing.vue'
 
 vi.mock('@/features/pipeline', () => ({ resolvePermissionRequest: vi.fn() }))
 vi.mock('@/utils/answerQuestion', () => ({ sendQuestionAnswer: vi.fn() }))
-vi.mock('@/features/agents', () => ({ useCapabilityDecisions: vi.fn() }))
+vi.mock('@/features/agents', () => ({
+  useCapabilityDecisions: vi.fn(),
+  AgentTerminalModal: { props: ['open', 'pid'], template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
+}))
 
 const resolveCapability = vi.fn()
 vi.mocked(useCapabilityDecisions).mockReturnValue({ resolvingIds: ref({}), resolve: resolveCapability })
@@ -198,5 +201,17 @@ describe('nextThing decision guard', () => {
     await w.get('[data-testid="mission-capability-allow"]').trigger('click')
     expect(resolveCapability).toHaveBeenCalledWith('d2', 'allow')
     w.unmount()
+  })
+
+  it('opens the session terminal for a picker held there, or says to attach to its tmux pane', async () => {
+    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 'A dialog is open in this session\'s terminal', why: 'w' }
+    const w = mountNext(dialog)
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
+    await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
+    expect(w.get('[data-testid="stub-terminal"]').attributes('data-pid')).toBe('9')
+
+    const tmux = mountNext({ ...dialog, terminalAttachable: false })
+    expect(tmux.find('[data-testid="mission-dialog-terminal"]').exists()).toBe(false)
+    expect(tmux.get('[data-testid="mission-dialog-tmux"]').text()).toContain('tmux pane')
   })
 })

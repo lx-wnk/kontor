@@ -26,13 +26,15 @@ const listboxId = useId()
 // "@<path>" tokens by useAgentPrompt (full variant only).
 const attachments = ref<string[]>([])
 const commandSet = ref<DynamicCommandSet>(emptyCommandSet())
+// The sent echo fires before delivery; the terminal opens only once the command reached the session.
+let awaitingInteractiveDelivery = false
 
 const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume, trackedMessages } = useAgentPrompt(
   () => props.agent,
   (msg) => {
     emit('messageSent', msg)
-    if (msg.role === 'human' && isInteractiveCommand(msg.content, commandSet.value.commands))
-      emit('interactiveCommand')
+    if (msg.role === 'human')
+      awaitingInteractiveDelivery = isInteractiveCommand(msg.content, commandSet.value.commands)
   },
   {
     get taskId() { return props.agent?.pipelineTaskId },
@@ -40,6 +42,14 @@ const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm
   },
   attachments,
 )
+
+watch(sendStatus, (status) => {
+  if (status === null)
+    return
+  if (status === 'sent' && awaitingInteractiveDelivery)
+    emit('interactiveCommand')
+  awaitingInteractiveDelivery = false
+})
 
 const isUploading = ref(false)
 const uploadError = ref('')

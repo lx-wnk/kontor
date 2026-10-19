@@ -393,11 +393,7 @@ export interface DetectedConfirm {
 export interface PendingScreen {
   question?: DetectedQuestion
   confirm?: DetectedConfirm
-  /**
-   * Dialog is any other CLI picker (/login, /model, /mcp, …): only the
-   * terminal can answer it.
-   */
-  dialog?: boolean
+  dialog?: boolean // any other CLI picker (/login, /model, …)
 }
 export const SpawnerSourceTask = 'task'
 export const SpawnerSourceEnv = 'env'
@@ -503,12 +499,13 @@ export interface Agent {
    */
   pendingConfirm?: DetectedConfirm
   /**
-   * AwaitingTerminalDialog means a CLI picker (/login, /model, /mcp, …) is open
-   * on this session's live terminal. Nothing the chat sends can answer it, and
-   * the transcript never shows it. Not set while a tool call is pending, since
-   * the terminal permission prompt draws the same footer.
+   * AwaitingTerminalDialog: a CLI picker is open on the live terminal. Unset while any tool call lacks a result, since the permission prompt draws the same footer.
    */
   awaitingTerminalDialog?: boolean
+  /**
+   * TerminalAttachable: the session has a pty broker the dashboard terminal can attach to (tmux sessions have none).
+   */
+  terminalAttachable?: boolean
   lastOutput?: string
   convergenceAlert: boolean
   convergenceToolName?: string

@@ -579,6 +579,7 @@ type SessionData struct {
 	Meta                 *sdk.SessionMeta
 	LastBtw              *sdk.BtwMessage
 	PendingToolUse       *sdk.PendingToolUse
+	HasUnresolvedToolUse bool // any tool call in the tail without a result, not only the last
 	TurnOpen             bool
 	HasPendingBackground bool // a run_in_background tool_use with no matching tool_result
 }
@@ -1003,6 +1004,13 @@ func ParseSessionFile(path string) (*SessionData, error) {
 				// on every SSE tick buys nothing a human can read.
 				PatternDisplay: patternDisplayOf(pattern),
 			}
+		}
+	}
+
+	for _, tu := range toolUseOrder {
+		if !resolvedToolUseIDs[tu.id] {
+			data.HasUnresolvedToolUse = true
+			break
 		}
 	}
 

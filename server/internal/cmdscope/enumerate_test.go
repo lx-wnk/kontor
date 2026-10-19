@@ -170,10 +170,11 @@ func TestCommands_SymlinkRejected(t *testing.T) {
 func TestCommands_InteractiveBuiltinsReachTheClient(t *testing.T) {
 	scope := Scope{ConfigDir: filepath.Join(t.TempDir(), "missing"), Command: "claude", Supported: true}
 	interactive := map[string]bool{}
-	for _, c := range scope.Commands() {
+	for _, c := range scope.SlashCommands() {
 		interactive[c.Name] = c.Interactive
 	}
 	require.True(t, interactive["/login"], "/login opens a picker")
 	require.True(t, interactive["/model"], "/model opens a picker")
 	require.False(t, interactive["/compact"], "/compact writes to the transcript")
+	require.False(t, interactive["/help"], "the dashboard answers /help itself")
 }

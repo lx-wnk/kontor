@@ -115,9 +115,6 @@ const maxCommandBodyBytes = 1 * 1024 * 1024 // 1 MB
 // from the release notes or from using the CLI. Drift found at 2.1.224:
 // /fork had been added, and /pr-comments and /vim had been removed since the
 // list was last curated at 2.1.161.
-//
-// Interactive was set at 2.1.293 by sending each command to a live session and
-// checking that its last screen row is a picker footer ("… Esc to cancel").
 var builtinCommands = []SlashCommand{
 	{Name: "/add-dir", Description: "Add a working directory", Source: "builtin", Interactive: true},
 	{Name: "/agents", Description: "Manage agents", Source: "builtin"},
@@ -130,7 +127,7 @@ var builtinCommands = []SlashCommand{
 	{Name: "/doctor", Description: "Diagnose Claude Code health", Source: "builtin"},
 	{Name: "/export", Description: "Export the conversation", Source: "builtin", Interactive: true},
 	{Name: "/fork", Description: "Fork the session into a parallel conversation", Source: "builtin"},
-	{Name: "/help", Description: "Show available commands", Source: "builtin", Interactive: true},
+	{Name: "/help", Description: "Show available commands", Source: "builtin"},
 	{Name: "/init", Description: "Initialize a CLAUDE.md", Source: "builtin"},
 	{Name: "/login", Description: "Log in to an account", Source: "builtin", Interactive: true},
 	{Name: "/logout", Description: "Log out", Source: "builtin"},

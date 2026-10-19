@@ -237,3 +237,29 @@ func TestGetScreen_UnauthorizedRejected(t *testing.T) {
 		t.Fatalf("want 401 for missing bearer, got %d", resp.StatusCode)
 	}
 }
+
+func TestGetScreen_ReportsCLIPicker(t *testing.T) {
+	hub := newPtyHub(64 * 1024)
+	hub.Write([]byte("   Select login method:\r\n   ❯ 1. Claude account with subscription\r\n     2. Anthropic Console account\r\n   Esc to cancel\r\n"))
+	tok := newRotatingToken("secret")
+	srv := httptest.NewServer(ptyMux(newPtyWriter(io.Discard), hub, tok))
+	defer srv.Close()
+
+	req, _ := http.NewRequest("GET", srv.URL+"/screen", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+	var screen sdk.PendingScreen
+	if err := json.NewDecoder(resp.Body).Decode(&screen); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !screen.Dialog || screen.Question != nil || screen.Confirm != nil {
+		t.Fatalf("want a dialog only, got %+v", screen)
+	}
+}

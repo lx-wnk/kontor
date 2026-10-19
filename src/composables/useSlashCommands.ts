@@ -212,16 +212,15 @@ interface DynamicCommandsResponse {
  * agent (resolves that session's actual CLAUDE_CONFIG_DIR); spawnerId previews
  * a spawner's set; cwd adds project-local <cwd>/.claude/commands.
  */
-/** Whether sending `text` opens a picker that only the session's terminal can answer. */
-export function isInteractiveCommand(text: string, commands: SlashCommandDef[]): boolean {
-  const name = text.trim()
-  return commands.some(c => c.interactive && c.name === name)
-}
-
 export interface DynamicCommandScope {
   sessionId?: string
   spawnerId?: string
   cwd?: string
+}
+
+export function isInteractiveCommand(text: string, commands: SlashCommandDef[]): boolean {
+  const name = text.trim()
+  return commands.some(c => c.interactive && c.name === name)
 }
 
 /**

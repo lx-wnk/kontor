@@ -20,6 +20,7 @@ function makeAgent(over: Record<string, unknown> = {}) {
     costEstimate: 0,
     uptime: 0,
     liveInjectable: true,
+    terminalAttachable: true,
     tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
     tasks: [],
     subagents: [],
@@ -29,14 +30,13 @@ function makeAgent(over: Record<string, unknown> = {}) {
 }
 
 const stubs = {
-  AppModal: { props: ['open'], template: '<div v-if="open" data-testid="stub-modal"><slot /></div>' },
-  AgentTerminal: { props: ['pid'], template: '<div data-testid="stub-terminal" :data-pid="pid" />' },
+  AgentTerminalModal: { props: ['open', 'pid'], template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
 }
 
 describe('agentSessionPane terminal dialogs', () => {
   it('points at the terminal while a picker is open there, and opens it on request', async () => {
     const w = shallowMount(AgentSessionPane, { props: { agent: makeAgent() }, global: { stubs } })
-    expect(w.find('[data-testid="terminal-dialog-notice"]').exists()).toBe(false)
+    expect(w.get('[data-testid="terminal-dialog-notice"]').text()).toBe('')
 
     await w.setProps({ agent: makeAgent({ awaitingTerminalDialog: true }) })
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
@@ -51,8 +51,10 @@ describe('agentSessionPane terminal dialogs', () => {
     expect(w.get('[data-testid="stub-terminal"]').attributes('data-pid')).toBe('7')
   })
 
-  it('leaves the terminal closed for a session it cannot reach live', async () => {
-    const w = shallowMount(AgentSessionPane, { props: { agent: makeAgent({ liveInjectable: false }) }, global: { stubs } })
+  it('leaves the terminal closed for a tmux session, which has no attachable terminal, and says where to answer', async () => {
+    const w = shallowMount(AgentSessionPane, { props: { agent: makeAgent({ terminalAttachable: false, awaitingTerminalDialog: true }) }, global: { stubs } })
+    expect(w.get('[data-testid="terminal-dialog-notice"]').text()).toContain('tmux pane')
+    expect(w.find('[data-testid="terminal-dialog-open"]').exists()).toBe(false)
     w.findComponent({ name: 'PromptInput' }).vm.$emit('interactiveCommand')
     await flushPromises()
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)

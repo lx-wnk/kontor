@@ -240,9 +240,9 @@ describe('agentCard terminal access', () => {
   // The terminal used to live in the agent modal's bottom drawer. Removing that
   // drawer must not remove the only way to reach a live session's terminal.
   // AppModal teleports to <body>, so the overlay is asserted through the document.
-  it('offers a terminal for a live-injectable agent', async () => {
+  it('offers a terminal for a session with an attachable pty terminal', async () => {
     const w = mount(AgentCard, {
-      props: { agent: { ...baseAgent, liveInjectable: true } },
+      props: { agent: { ...baseAgent, liveInjectable: true, terminalAttachable: true } },
       global: { stubs: badgeStubs },
       attachTo: document.body,
     })
@@ -258,6 +258,15 @@ describe('agentCard terminal access', () => {
   it('offers none when the session cannot be driven', () => {
     const w = mount(AgentCard, {
       props: { agent: { ...baseAgent, liveInjectable: false } },
+      global: { stubs: badgeStubs },
+    })
+    expect(w.find('[data-testid="agent-card-terminal"]').exists()).toBe(false)
+  })
+
+  // A tmux session is injectable but has no pty broker; its socket would only ever answer 409.
+  it('offers none for a tmux session', () => {
+    const w = mount(AgentCard, {
+      props: { agent: { ...baseAgent, liveInjectable: true, terminalAttachable: false } },
       global: { stubs: badgeStubs },
     })
     expect(w.find('[data-testid="agent-card-terminal"]').exists()).toBe(false)
