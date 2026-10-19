@@ -457,9 +457,12 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 	discovery := readAgentChannelState(proc.PID)
 	var pendingQuestion *sdk.DetectedQuestion
 	var pendingConfirm *sdk.DetectedConfirm
+	var awaitingDialog bool
 	if discovery.liveInjectable && m.screenProbe != nil {
 		if screen := m.screenProbe(proc.PID); screen != nil {
 			pendingQuestion, pendingConfirm = screen.Question, screen.Confirm
+			// The terminal permission prompt draws the same footer as a picker.
+			awaitingDialog = screen.Dialog && session.PendingToolUse == nil
 		}
 	}
 	health := ComputeHealthScore(session, c.Total, c.Unknown, baselineCost)
@@ -482,6 +485,7 @@ func (m *Merger) buildAgent(proc scanner.ProcessInfo, session *parser.SessionDat
 		PermissionsBypassed:       parser.PermissionsBypassedFromArgs(proc.Command),
 		PendingQuestion:           pendingQuestion,
 		PendingConfirm:            pendingConfirm,
+		AwaitingTerminalDialog:    awaitingDialog,
 		Uptime:                    proc.Uptime,
 		LastActivity:              session.LastActivity.Format(time.RFC3339),
 		CurrentAction:             strPtr(session.CurrentAction),

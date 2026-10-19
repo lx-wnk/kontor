@@ -1,0 +1,6 @@
+⏺ Press Esc to cancel the picker, then run /login again.
+
+❯ Try "refactor di.go"
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)
+

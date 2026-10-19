@@ -350,16 +350,36 @@ func DetectConfirmScreen(rows []string) *sdk.DetectedConfirm {
 	}
 }
 
-// DetectScreen runs both detectors over one set of rows and returns whichever
-// AskUserQuestion screen is open, or nil when neither is. Callers on the scan
-// hot path should use this rather than calling the detectors separately, so a
-// single capture serves both.
+// dialogFooterRE matches the key-hint footer every Claude Code picker draws as
+// its last line (/login, /model, /mcp, /hooks, /config, /resume, …). The idle
+// prompt ends with its status line instead, so transcript text above it that
+// happens to read "Esc to cancel" never matches.
+var dialogFooterRE = regexp.MustCompile(`Esc to (cancel|close|clear)\s*$`)
+
+// DetectDialog reports whether the last non-blank row is a CLI picker footer.
+func DetectDialog(rows []string) bool {
+	for i := len(rows) - 1; i >= 0; i-- {
+		if strings.TrimSpace(rows[i]) != "" {
+			return dialogFooterRE.MatchString(rows[i])
+		}
+	}
+	return false
+}
+
+// DetectScreen runs every detector over one set of rows and returns whichever
+// screen is open, or nil when none is. Callers on the scan hot path should use
+// this rather than calling the detectors separately, so a single capture
+// serves all. The AskUserQuestion detectors run first: their modal draws the
+// same footer as any other picker but can be answered from the dashboard.
 func DetectScreen(rows []string) *sdk.PendingScreen {
 	if q := DetectQuestion(rows); q != nil {
 		return &sdk.PendingScreen{Question: q}
 	}
 	if c := DetectConfirmScreen(rows); c != nil {
 		return &sdk.PendingScreen{Confirm: c}
+	}
+	if DetectDialog(rows) {
+		return &sdk.PendingScreen{Dialog: true}
 	}
 	return nil
 }

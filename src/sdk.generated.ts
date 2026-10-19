@@ -385,14 +385,19 @@ export interface DetectedConfirm {
   options: DetectedOption[]
 }
 /**
- * PendingScreen is whichever interactive AskUserQuestion screen is currently
- * open on a session's terminal. At most one field is non-nil; both are nil when
- * no such screen is open. Probing for both in one round-trip keeps the scan hot
- * path to a single capture per tick.
+ * PendingScreen is whichever interactive screen is currently open on a
+ * session's terminal. At most one field is set; all are empty when no such
+ * screen is open. Probing for all in one round-trip keeps the scan hot path to
+ * a single capture per tick.
  */
 export interface PendingScreen {
   question?: DetectedQuestion
   confirm?: DetectedConfirm
+  /**
+   * Dialog is any other CLI picker (/login, /model, /mcp, …): only the
+   * terminal can answer it.
+   */
+  dialog?: boolean
 }
 export const SpawnerSourceTask = 'task'
 export const SpawnerSourceEnv = 'env'
@@ -497,6 +502,13 @@ export interface Agent {
    * on injectable sessions.
    */
   pendingConfirm?: DetectedConfirm
+  /**
+   * AwaitingTerminalDialog means a CLI picker (/login, /model, /mcp, …) is open
+   * on this session's live terminal. Nothing the chat sends can answer it, and
+   * the transcript never shows it. Not set while a tool call is pending, since
+   * the terminal permission prompt draws the same footer.
+   */
+  awaitingTerminalDialog?: boolean
   lastOutput?: string
   convergenceAlert: boolean
   convergenceToolName?: string

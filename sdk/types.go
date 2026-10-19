@@ -356,13 +356,16 @@ type DetectedConfirm struct {
 	Options  []DetectedOption `json:"options"`
 }
 
-// PendingScreen is whichever interactive AskUserQuestion screen is currently
-// open on a session's terminal. At most one field is non-nil; both are nil when
-// no such screen is open. Probing for both in one round-trip keeps the scan hot
-// path to a single capture per tick.
+// PendingScreen is whichever interactive screen is currently open on a
+// session's terminal. At most one field is set; all are empty when no such
+// screen is open. Probing for all in one round-trip keeps the scan hot path to
+// a single capture per tick.
 type PendingScreen struct {
 	Question *DetectedQuestion `json:"question,omitempty"`
 	Confirm  *DetectedConfirm  `json:"confirm,omitempty"`
+	// Dialog is any other CLI picker (/login, /model, /mcp, …): only the
+	// terminal can answer it.
+	Dialog bool `json:"dialog,omitempty"`
 }
 
 // How an agent's spawner attribution was established: recorded from the pipeline
@@ -453,13 +456,18 @@ type Agent struct {
 	// detected on this session's live terminal, or nil. Mutually exclusive with
 	// PendingQuestion: the TUI shows one or the other, never both. Only ever set
 	// on injectable sessions.
-	PendingConfirm      *DetectedConfirm `json:"pendingConfirm,omitempty"`
-	LastOutput          *string          `json:"lastOutput"`
-	ConvergenceAlert    bool             `json:"convergenceAlert"`
-	ConvergenceToolName *string          `json:"convergenceToolName"`
-	ErrorState          *ErrorState      `json:"errorState"`
-	PipelineTaskID      string           `json:"pipelineTaskId,omitempty"`
-	PipelineTaskTitle   string           `json:"pipelineTaskTitle,omitempty"`
+	PendingConfirm *DetectedConfirm `json:"pendingConfirm,omitempty"`
+	// AwaitingTerminalDialog means a CLI picker (/login, /model, /mcp, …) is open
+	// on this session's live terminal. Nothing the chat sends can answer it, and
+	// the transcript never shows it. Not set while a tool call is pending, since
+	// the terminal permission prompt draws the same footer.
+	AwaitingTerminalDialog bool        `json:"awaitingTerminalDialog,omitempty"`
+	LastOutput             *string     `json:"lastOutput"`
+	ConvergenceAlert       bool        `json:"convergenceAlert"`
+	ConvergenceToolName    *string     `json:"convergenceToolName"`
+	ErrorState             *ErrorState `json:"errorState"`
+	PipelineTaskID         string      `json:"pipelineTaskId,omitempty"`
+	PipelineTaskTitle      string      `json:"pipelineTaskTitle,omitempty"`
 	// SpawnerID/SpawnerName name the configured spawner this session belongs to,
 	// and SpawnerSource says how that was established (see SpawnerSource*).
 	// Empty when no spawner could be attributed.
