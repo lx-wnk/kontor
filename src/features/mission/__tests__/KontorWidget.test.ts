@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, nextTick, ref } from 'vue'
 
 const session = {
@@ -33,6 +33,9 @@ beforeEach(() => {
   session.overlayOpen.value = false
   agents.value = [{ pid: 42, status: 'active', working: true, lastOutput: 'PR #467 has four red checks.' }]
 })
+
+// A failed assertion skips a test's own restore; the window mocks must not leak into the next test.
+afterEach(() => vi.restoreAllMocks())
 
 describe('kontorWidget', () => {
   it('shows state and the last output collapsed', () => {
@@ -171,10 +174,7 @@ describe('kontorWidget', () => {
     await nextTick()
     const overlay = document.querySelector('[data-testid="kontor-expanded"]') as HTMLElement
     expect(overlay.style.top).toBe('8px')
-    expect(8 + Number.parseFloat(overlay.style.height)).toBeLessThanOrEqual(900)
-
-    rafSpy.mockRestore()
-    innerHeightSpy.mockRestore()
+    expect(8 + Number.parseFloat(overlay.style.height)).toBeLessThanOrEqual(892)
 
     rafSpy.mockRestore()
     innerHeightSpy.mockRestore()

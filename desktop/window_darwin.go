@@ -43,9 +43,13 @@ static void applyContentMinSize(NSWindow *window, double minWidth, double minHei
 // A first launch has no saved frame; shrink the default size into the screen's visible area.
 static void fitIntoVisibleFrame(NSWindow *window) {
 	NSRect visible = [[window screen] ?: [NSScreen mainScreen] visibleFrame];
+	if (NSIsEmptyRect(visible)) {
+		return;
+	}
+	NSSize minFrame = [window frameRectForContentRect:NSMakeRect(0, 0, [window contentMinSize].width, [window contentMinSize].height)].size;
 	NSRect frame = [window frame];
-	frame.size.width = MIN(frame.size.width, visible.size.width);
-	frame.size.height = MIN(frame.size.height, visible.size.height);
+	frame.size.width = MAX(MIN(frame.size.width, visible.size.width), minFrame.width);
+	frame.size.height = MAX(MIN(frame.size.height, visible.size.height), minFrame.height);
 	frame.origin.x = NSMidX(visible) - frame.size.width / 2;
 	frame.origin.y = NSMidY(visible) - frame.size.height / 2;
 	[window setFrame:frame display:NO];
