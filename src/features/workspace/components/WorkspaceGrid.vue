@@ -216,11 +216,11 @@ function swapOptions(index: number) {
 .workspace-ghost { pointer-events: none; border: 2px dashed var(--color-accent); border-radius: 12px; background: color-mix(in oklch, var(--color-accent) 10%, transparent); }
 .workspace-ghost--invalid { border-color: var(--color-danger); background: color-mix(in oklch, var(--color-danger) 10%, transparent); }
 @media (min-width: 768px) {
-  .workspace-viewport { container-type: size; overflow-y: auto; }
+  .workspace-viewport { container-type: size; overflow-y: auto; padding: 3px; }
   .workspace-grid {
-    height: calc((100cqh - (var(--fit-rows) - 1) * 12px) * var(--rows) / var(--fit-rows) + (var(--rows) - 1) * 12px);
+    height: calc(var(--rows) * max(56px, (100cqh - (var(--fit-rows) - 1) * 12px) / var(--fit-rows)) + (var(--rows) - 1) * 12px);
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--rows), minmax(56px, 1fr));
+    grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
   }
   .workspace-tile {
     min-height: 0;

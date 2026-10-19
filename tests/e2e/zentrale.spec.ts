@@ -433,7 +433,10 @@ test('the first nine rows fill the visible height and later rows scroll below th
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   const grid = page.getByTestId('workspace-grid')
   await expect(grid).toBeVisible()
-  const visible = await grid.locator('..').evaluate(el => el.clientHeight)
+  const visible = await grid.locator('..').evaluate((el) => {
+    const style = getComputedStyle(el)
+    return el.getBoundingClientRect().height - Number.parseFloat(style.paddingTop) - Number.parseFloat(style.paddingBottom)
+  })
   const height = (await grid.boundingBox())!.height
 
   // Default layout: 12 rows, so the grid is 12/9 of the visible height (gaps included).
@@ -441,4 +444,16 @@ test('the first nine rows fill the visible height and later rows scroll below th
   const agents = (await page.getByTestId('workspace-tile-agents').boundingBox())!
   const viewport = (await grid.locator('..').boundingBox())!
   expect(agents.y + agents.height).toBeLessThanOrEqual(viewport.y + viewport.height)
+})
+
+test('in a short window the rows keep their minimum height and still match the grid box', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const grid = page.getByTestId('workspace-grid')
+  await expect(grid).toBeVisible()
+
+  // 12 rows at the 56px floor plus 11 gaps; cellAt() reads the row pitch from this box, so the tracks must not overflow it.
+  const { box, scroll } = await grid.evaluate(el => ({ box: el.getBoundingClientRect().height, scroll: el.scrollHeight }))
+  expect(box).toBeCloseTo(12 * 56 + 11 * 12, 0)
+  expect(scroll).toBeLessThanOrEqual(Math.ceil(box))
 })
