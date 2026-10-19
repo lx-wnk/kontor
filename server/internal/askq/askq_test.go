@@ -511,6 +511,7 @@ func TestDetectDialog(t *testing.T) {
 		{"dialog-trailing-hint.txt", true},
 		{"dialog-wrapped-split.txt", true},
 		{"dialog-idle.txt", false},
+		{"dialog-statusline.txt", false},
 		{"dialog-draft.txt", false},
 		{"askq-nonmodal.txt", false},
 	}

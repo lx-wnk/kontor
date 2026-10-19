@@ -204,12 +204,21 @@ describe('agentTerminal', () => {
       wrapper.unmount()
     })
 
+    it('takes keyboard focus once mounted', async () => {
+      mocks.focusMock.mockClear()
+      const wrapper = mount(AgentTerminal, { props: { pid: 1234 } })
+      await wrapper.vm.$nextTick()
+      expect(mocks.focusMock).toHaveBeenCalledTimes(1)
+      wrapper.unmount()
+    })
+
     it('blurs the terminal when the overlay appears and refocuses it once it clears', async () => {
       mocks.screenRows.current = modalRows
       vi.useFakeTimers()
       const wrapper = mount(AgentTerminal, { props: { pid: 1234 } })
       await vi.advanceTimersByTimeAsync(200)
       await wrapper.vm.$nextTick()
+      mocks.focusMock.mockClear()
 
       expect(mocks.blurMock).toHaveBeenCalledTimes(1)
 

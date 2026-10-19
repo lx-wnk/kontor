@@ -18,7 +18,8 @@ const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
 const busy = ref<PermissionDecision | null>(null)
 const answering = ref(false)
 const capabilityBusy = ref<'allow' | 'deny' | null>(null)
-const showTerminal = ref(false)
+// Pinned on click, so the terminal outlives a change of the item shown above it.
+const terminal = ref<{ pid: number, title: string } | null>(null)
 const problem = ref('')
 const { resolve: resolveCapability } = useCapabilityDecisions()
 
@@ -46,7 +47,6 @@ const guarding = ref(true)
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(itemKey, () => {
-  showTerminal.value = false
   guarding.value = true
   if (guardTimer)
     clearTimeout(guardTimer)
@@ -237,7 +237,7 @@ async function answer(intent: AnswerIntent) {
           type="button"
           data-testid="mission-dialog-terminal"
           class="h-9 rounded-lg bg-accent px-4 text-[13.5px] font-semibold text-accent-contrast"
-          @click="showTerminal = true"
+          @click="next.pid !== undefined && (terminal = { pid: next.pid, title: next.projectName })"
         >
           Open terminal
         </button>
@@ -256,18 +256,18 @@ async function answer(intent: AnswerIntent) {
         </button>
       </div>
     </div>
-
-    <AgentTerminalModal
-      v-if="next.kind === 'dialog' && next.pid !== undefined"
-      :open="showTerminal"
-      :pid="next.pid"
-      :title="next.projectName"
-      @close="showTerminal = false"
-    />
   </div>
 
   <p v-else-if="!next" data-testid="mission-calm" class="flex items-center gap-2 text-[12.5px] text-fg-faint">
     <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-success" />
     Nothing needs you — agents interrupt here if they get stuck.
   </p>
+
+  <AgentTerminalModal
+    v-if="terminal"
+    open
+    :pid="terminal.pid"
+    :title="terminal.title"
+    @close="terminal = null"
+  />
 </template>

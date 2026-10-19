@@ -11,7 +11,7 @@ vi.mock('@/features/pipeline', () => ({ resolvePermissionRequest: vi.fn() }))
 vi.mock('@/utils/answerQuestion', () => ({ sendQuestionAnswer: vi.fn() }))
 vi.mock('@/features/agents', () => ({
   useCapabilityDecisions: vi.fn(),
-  AgentTerminalModal: { props: ['open', 'pid'], template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
+  AgentTerminalModal: { props: { open: Boolean, pid: Number }, template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
 }))
 
 const resolveCapability = vi.fn()
@@ -213,5 +213,15 @@ describe('nextThing decision guard', () => {
     const tmux = mountNext({ ...dialog, terminalAttachable: false })
     expect(tmux.find('[data-testid="mission-dialog-terminal"]').exists()).toBe(false)
     expect(tmux.get('[data-testid="mission-dialog-tmux"]').text()).toContain('tmux pane')
+  })
+
+  it('keeps an opened terminal while the item above it changes, until it is closed', async () => {
+    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 't', why: 'w' }
+    const w = mountNext(dialog)
+    await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
+    await w.setProps({ next: permission })
+    expect(w.get('[data-testid="stub-terminal"]').attributes('data-pid')).toBe('9')
+    await w.setProps({ next: null })
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(true)
   })
 })

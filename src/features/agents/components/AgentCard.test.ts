@@ -263,6 +263,16 @@ describe('agentCard terminal access', () => {
     expect(w.find('[data-testid="agent-card-terminal"]').exists()).toBe(false)
   })
 
+  it('opens the terminal when its prompt delivered an interactive command', async () => {
+    const w = mount(AgentCard, {
+      props: { agent: { ...baseAgent, liveInjectable: true, terminalAttachable: true } },
+      global: { stubs: { ...badgeStubs, AgentTerminalModal: { props: { open: Boolean }, template: '<div v-if="open" data-testid="stub-terminal" />' } } },
+    })
+    w.findComponent({ name: 'PromptInput' }).vm.$emit('interactiveCommand')
+    await w.vm.$nextTick()
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(true)
+  })
+
   // A tmux session is injectable but has no pty broker; its socket would only ever answer 409.
   it('offers none for a tmux session', () => {
     const w = mount(AgentCard, {
