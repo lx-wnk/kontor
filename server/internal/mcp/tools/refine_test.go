@@ -564,7 +564,6 @@ func TestApproveSpec_MCPTool_RecordsAuditEvent(t *testing.T) {
 	auditRepo := repo.NewAuditEventRepo(bundle.Client)
 	task := seedBacklogTask(t, ctx, taskRepo, srRepo)
 
-	// Attach MCP auth so originFromMCP picks it up.
 	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-spec-abc"})
 
 	registry := mcp.ToolRegistry{}
@@ -584,7 +583,8 @@ func TestApproveSpec_MCPTool_RecordsAuditEvent(t *testing.T) {
 	require.Len(t, events, 1, "exactly one audit event expected")
 	require.Equal(t, repo.AuditActionSpecApproved, events[0].Action)
 	require.Equal(t, "mcp", events[0].Metadata["source"])
-	require.Equal(t, "key:key-spec-abc", events[0].Metadata["actor"])
+	require.Equal(t, "user", events[0].Metadata["actor"])
+	require.Equal(t, "key-spec-abc", events[0].Metadata["apiKeyId"])
 }
 
 func TestInjectConcept_BroadcastsTaskUpdated(t *testing.T) {

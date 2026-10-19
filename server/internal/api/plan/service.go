@@ -32,8 +32,9 @@ type RejectDeps struct {
 	Turns     repo.RefinementTurnRepo
 	Tasks     repo.TaskRepo
 	StageRuns repo.StageRunRepo
-	// Requeue triggers a new plan_review run carrying the feedback prompt.
-	Requeue func(ctx context.Context, taskID, prompt string) error
+	// Requeue triggers a new plan_review run carrying the feedback prompt and
+	// reports whether one was created; the orchestrator may decline without error.
+	Requeue func(ctx context.Context, taskID, prompt string) (bool, error)
 	Audit   repo.AuditEventRepo
 	Origin  repo.AuditOrigin
 }
@@ -191,9 +192,10 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 	}
 
 	if d.Audit != nil {
-		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor, "stage_run_id": sr.ID}
+		meta := d.Origin.Metadata()
+		meta["stageRunId"] = sr.ID
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanApproved, "task:"+taskID, meta); err != nil {
-			slog.Warn("plan: audit plan_approved failed", "task", taskID, "err", err)
+			slog.Warn("plan: audit plan_approved failed", "task", taskID, "stageRun", sr.ID, "err", err)
 		}
 	}
 
@@ -251,25 +253,27 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 		return fmt.Errorf("reject_plan: update task metadata: %w", err)
 	}
 
-	requeued := count < localDefaultPlanIterationCap && d.Requeue != nil
+	var requeued bool
+	var requeueErr error
+	if count < localDefaultPlanIterationCap && d.Requeue != nil {
+		requeued, requeueErr = d.Requeue(ctx, taskID, feedback)
+	}
+
 	if d.Audit != nil {
-		meta := map[string]any{
-			"source":       d.Origin.Source,
-			"actor":        d.Origin.Actor,
-			"reject_count": count + 1,
-			"requeued":     requeued,
-			"stage_run_id": sr.ID,
+		meta := d.Origin.Metadata()
+		meta["stageRunId"] = sr.ID
+		meta["rejectCount"] = count + 1
+		meta["requeued"] = requeued && requeueErr == nil
+		if requeueErr != nil {
+			meta["requeueError"] = requeueErr.Error()
 		}
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionPlanRejected, "task:"+taskID, meta); err != nil {
-			slog.Warn("plan: audit plan_rejected failed", "task", taskID, "err", err)
+			slog.Warn("plan: audit plan_rejected failed", "task", taskID, "stageRun", sr.ID, "err", err)
 		}
 	}
 
-	// Only requeue when under the cap.
-	if requeued {
-		if err := d.Requeue(ctx, taskID, feedback); err != nil {
-			return fmt.Errorf("reject_plan: requeue: %w", err)
-		}
+	if requeueErr != nil {
+		return fmt.Errorf("reject_plan: requeue: %w", requeueErr)
 	}
 
 	return nil

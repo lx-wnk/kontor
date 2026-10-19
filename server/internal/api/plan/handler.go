@@ -19,7 +19,7 @@ type HandlerDeps struct {
 	Tasks     repo.TaskRepo
 	StageRuns repo.StageRunRepo
 	Advance   func(ctx context.Context, taskID string) error
-	Requeue   func(ctx context.Context, taskID, prompt string) error
+	Requeue   func(ctx context.Context, taskID, prompt string) (bool, error)
 	Revoke    func(ctx context.Context, stageRunID string) error
 	Audit     repo.AuditEventRepo
 }
@@ -52,7 +52,7 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		Advance:   h.deps.Advance,
 		Revoke:    h.deps.Revoke,
 		Audit:     h.deps.Audit,
-		Origin:    originFromHTTP(r.Context()),
+		Origin:    repo.UIAuditOrigin(auth.PayloadOrBypass(r.Context()).Sub),
 	}, taskID)
 	if err != nil {
 		jsonError(w, err.Error(), statusFor(err))
@@ -80,7 +80,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		StageRuns: h.deps.StageRuns,
 		Requeue:   h.deps.Requeue,
 		Audit:     h.deps.Audit,
-		Origin:    originFromHTTP(r.Context()),
+		Origin:    repo.UIAuditOrigin(auth.PayloadOrBypass(r.Context()).Sub),
 	}, taskID, body.Feedback); err != nil {
 		jsonError(w, err.Error(), statusFor(err))
 		return
@@ -104,14 +104,6 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
-}
-
-func originFromHTTP(ctx context.Context) repo.AuditOrigin {
-	p, ok := auth.PayloadFromContext(ctx)
-	if !ok {
-		return repo.AuditOrigin{Source: "ui"}
-	}
-	return repo.AuditOrigin{Source: "ui", Actor: p.Login, UserID: &p.Sub}
 }
 
 // statusFor maps a service error to its HTTP status: ErrPlanNotReady is a 409,

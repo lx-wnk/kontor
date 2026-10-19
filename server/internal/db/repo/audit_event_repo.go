@@ -28,11 +28,52 @@ const (
 	AuditActionSpecApproved       = "spec_approved"
 )
 
+// Audit sources: the channel an approval arrived on.
+const (
+	AuditSourceUI  = "ui"
+	AuditSourceMCP = "mcp"
+)
+
+// Audit actors: the roles the task Audit tab renders (see auditActor in api/tasks).
+const (
+	AuditActorUser  = "user"
+	AuditActorAgent = "agent"
+)
+
 // AuditOrigin identifies who triggered an auditable action and through which channel.
+// Identity lives in UserID or APIKeyID, never a login: audit_events has no delete path.
 type AuditOrigin struct {
-	Source string  // "ui" or "mcp"
-	Actor  string  // JWT Login, "key:<id>", or empty in bypass mode
-	UserID *string // JWT Sub or nil
+	Source           string
+	Actor            string
+	UserID           *string
+	APIKeyID         string
+	CallerStageRunID string
+	ModuleID         string
+}
+
+// UIAuditOrigin is a person acting through the dashboard.
+func UIAuditOrigin(userID string) AuditOrigin {
+	return AuditOrigin{Source: AuditSourceUI, Actor: AuditActorUser, UserID: &userID}
+}
+
+// MCPAuditOrigin is an MCP key; one issued to a stage run or module acts as an agent.
+func MCPAuditOrigin(keyID, stageRunID, moduleID string) AuditOrigin {
+	actor := AuditActorUser
+	if stageRunID != "" || moduleID != "" {
+		actor = AuditActorAgent
+	}
+	return AuditOrigin{Source: AuditSourceMCP, Actor: actor, APIKeyID: keyID, CallerStageRunID: stageRunID, ModuleID: moduleID}
+}
+
+// Metadata is the origin part of an audit event's metadata; empty identifiers are left out.
+func (o AuditOrigin) Metadata() map[string]any {
+	meta := map[string]any{"source": o.Source, "actor": o.Actor}
+	for k, v := range map[string]string{"apiKeyId": o.APIKeyID, "callerStageRunId": o.CallerStageRunID, "moduleId": o.ModuleID} {
+		if v != "" {
+			meta[k] = v
+		}
+	}
+	return meta
 }
 
 // AuditEventRepo persists and queries security-relevant audit events.

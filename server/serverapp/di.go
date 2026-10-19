@@ -966,9 +966,9 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 				_, err := orch.ProgressTask(ctx, taskID, nil)
 				return err
 			},
-			Requeue: func(ctx context.Context, taskID, prompt string) error {
-				_, err := orch.RequeueForUser(ctx, taskID, prompt)
-				return err
+			Requeue: func(ctx context.Context, taskID, prompt string) (bool, error) {
+				run, err := orch.RequeueForUser(ctx, taskID, prompt)
+				return run != nil, err
 			},
 			Revoke: mcppkg.StageKeyIssuer{Keys: repo.NewApiKeyRepo(entClient)}.Revoke,
 		})

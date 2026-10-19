@@ -14,7 +14,7 @@ type PlanDeps struct {
 	Tasks     repo.TaskRepo
 	StageRuns repo.StageRunRepo
 	Advance   func(ctx context.Context, taskID string) error
-	Requeue   func(ctx context.Context, taskID, prompt string) error
+	Requeue   func(ctx context.Context, taskID, prompt string) (bool, error)
 	Revoke    func(ctx context.Context, stageRunID string) error
 	Broadcast func(ctx context.Context, eventType, taskID string)
 	Audit     repo.AuditEventRepo
@@ -101,9 +101,9 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 func originFromMCP(ctx context.Context) repo.AuditOrigin {
 	info := mcp.AuthFromContext(ctx)
 	if info == nil {
-		return repo.AuditOrigin{Source: "mcp"}
+		return repo.MCPAuditOrigin("", "", "")
 	}
-	return repo.AuditOrigin{Source: "mcp", Actor: "key:" + info.KeyID}
+	return repo.MCPAuditOrigin(info.KeyID, info.StageRunID, info.ModuleID)
 }
 
 func registerGetPlanStatus(registry mcp.ToolRegistry, d PlanDeps) {

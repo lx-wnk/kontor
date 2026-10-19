@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lx-wnk/kontor/server/internal/api/plan"
+	"github.com/lx-wnk/kontor/server/internal/auth"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
@@ -71,7 +72,7 @@ func newRunningPlanRouter(t *testing.T) (http.Handler, string) {
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
 		Advance:   func(context.Context, string) error { return nil },
-		Requeue:   func(context.Context, string, string) error { return nil },
+		Requeue:   func(context.Context, string, string) (bool, error) { return true, nil },
 	})
 	r := chi.NewRouter()
 	h.Mount(r)
@@ -101,4 +102,59 @@ func TestRejectRoute_RunningRun_Returns409(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	require.Contains(t, body, "error")
+}
+
+// The approving person is the JWT subject, or the bypass identity when auth is off.
+func TestApproveRoute_AuditsTheSignedInUser(t *testing.T) {
+	for name, tc := range map[string]struct {
+		secret   string
+		wantUser string
+	}{
+		"bypass": {wantUser: auth.BypassUserID},
+		"jwt":    {secret: "test-secret", wantUser: "gh-77"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bundle, err := db.Open(":memory:")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = bundle.Client.Close() })
+
+			ctx := context.Background()
+			taskRepo := repo.NewTaskRepo(bundle.Client)
+			srRepo := repo.NewStageRunRepo(bundle.Client)
+			auditRepo := repo.NewAuditEventRepo(bundle.Client)
+			taskID, _ := seedPlanReviewTask(t, ctx, taskRepo, srRepo)
+
+			r := chi.NewRouter()
+			if tc.secret != "" {
+				r.Use(auth.RequireAuth(tc.secret))
+			}
+			plan.NewHandler(plan.HandlerDeps{
+				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+				Tasks:     taskRepo,
+				StageRuns: srRepo,
+				Advance:   func(context.Context, string) error { return nil },
+				Audit:     auditRepo,
+			}).Mount(r)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/plan/"+taskID+"/approve", nil)
+			if tc.secret != "" {
+				token, err := auth.SignJWT(auth.JWTPayload{Sub: "gh-77", Login: "octo@example.com"}, tc.secret, 60)
+				require.NoError(t, err)
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			events, err := auditRepo.ListForTask(ctx, taskID)
+			require.NoError(t, err)
+			require.Len(t, events, 1)
+			require.Equal(t, tc.wantUser, *events[0].UserID)
+			require.Equal(t, "user", events[0].Metadata["actor"])
+			require.NotContains(t, events[0].Metadata, "login", "no login or email may be copied into the audit log")
+			for _, v := range events[0].Metadata {
+				require.NotEqual(t, "octo@example.com", v)
+			}
+		})
+	}
 }

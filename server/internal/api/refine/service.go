@@ -99,12 +99,12 @@ func Confirm(ctx context.Context, d ConfirmDeps, taskID string) (*ent.Task, erro
 		}
 	}
 	if d.Audit != nil {
-		meta := map[string]any{"source": d.Origin.Source, "actor": d.Origin.Actor}
+		meta := d.Origin.Metadata()
 		if stageRunID != "" {
-			meta["stage_run_id"] = stageRunID
+			meta["stageRunId"] = stageRunID
 		}
 		if err := d.Audit.RecordTaskAudit(ctx, taskID, d.Origin.UserID, repo.AuditActionSpecApproved, "task:"+taskID, meta); err != nil {
-			slog.Warn("refine: audit spec_approved failed", "task", taskID, "err", err)
+			slog.Warn("refine: audit spec_approved failed", "task", taskID, "stageRun", stageRunID, "err", err)
 		}
 	}
 	if d.Advance != nil {

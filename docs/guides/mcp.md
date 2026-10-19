@@ -109,6 +109,14 @@ It is also attributed: an audit event (`project_created`, target `project:<id>`,
 the slug, the project id, and the id of the API key that made the call. Neither records the name or
 description — those are agent-supplied free text.
 
+`approve_plan`, `reject_plan` and `approve_spec` are attributed the same way: each writes a
+`plan_approved`, `plan_rejected` or `spec_approved` audit event (target `task:<id>`) with metadata
+`{source: "mcp", actor, apiKeyId, stageRunId}`. `actor` is `user` for a key a person created and
+`agent` for a key issued to a stage run or module, which also adds `callerStageRunId` or
+`moduleId`. A rejection adds `rejectCount`, `requeued` and, when starting the next plan round
+failed, `requeueError`. The same decisions made in the dashboard record `source: "ui"`,
+`actor: "user"` and the user's id.
+
 Each tool checks its required scope at call time and returns an MCP error if the token's scope is insufficient.
 
 ## Pipeline agents already have a key

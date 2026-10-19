@@ -153,11 +153,11 @@ func TestRejectPlan_MCPTool_StoresFeedback(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue: func(_ context.Context, id, _ string) error {
+		Requeue: func(_ context.Context, id, _ string) (bool, error) {
 			if id == taskID {
 				requeued = true
 			}
-			return nil
+			return true, nil
 		},
 	})
 
@@ -262,7 +262,7 @@ func TestRejectPlan_BroadcastsTaskUpdated(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue:   func(_ context.Context, _, _ string) error { return nil },
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return true, nil },
 		Broadcast: func(_ context.Context, eventType, _ string) {
 			calls++
 			gotEventType = eventType
@@ -291,8 +291,7 @@ func TestApprovePlan_MCPTool_RecordsAuditEvent(t *testing.T) {
 	auditRepo := repo.NewAuditEventRepo(bundle.Client)
 	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
 
-	// Attach MCP auth so originFromMCP picks it up.
-	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-abc"})
+	ctx = mcp.ContextWithAuth(ctx, &mcp.MCPAuthInfo{KeyID: "key-abc", StageRunID: "run-7"})
 
 	registry := mcp.ToolRegistry{}
 	RegisterPlanTools(registry, PlanDeps{
@@ -311,7 +310,9 @@ func TestApprovePlan_MCPTool_RecordsAuditEvent(t *testing.T) {
 	require.Len(t, events, 1, "exactly one audit event expected")
 	require.Equal(t, repo.AuditActionPlanApproved, events[0].Action)
 	require.Equal(t, "mcp", events[0].Metadata["source"])
-	require.Equal(t, "key:key-abc", events[0].Metadata["actor"])
+	require.Equal(t, "agent", events[0].Metadata["actor"], "a stage-run key acts as an agent")
+	require.Equal(t, "key-abc", events[0].Metadata["apiKeyId"])
+	require.Equal(t, "run-7", events[0].Metadata["callerStageRunId"])
 }
 
 func TestRejectPlan_MCPTool_RecordsAuditEvent(t *testing.T) {
@@ -333,7 +334,7 @@ func TestRejectPlan_MCPTool_RecordsAuditEvent(t *testing.T) {
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
-		Requeue:   func(_ context.Context, _, _ string) error { return nil },
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return true, nil },
 		Audit:     auditRepo,
 	})
 
@@ -348,5 +349,6 @@ func TestRejectPlan_MCPTool_RecordsAuditEvent(t *testing.T) {
 	require.Len(t, events, 1)
 	require.Equal(t, repo.AuditActionPlanRejected, events[0].Action)
 	require.Equal(t, "mcp", events[0].Metadata["source"])
-	require.Equal(t, "key:key-xyz", events[0].Metadata["actor"])
+	require.Equal(t, "user", events[0].Metadata["actor"], "a key a person created acts as that person")
+	require.Equal(t, "key-xyz", events[0].Metadata["apiKeyId"])
 }
