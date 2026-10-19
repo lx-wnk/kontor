@@ -36,9 +36,22 @@ static void applyPageZoom(NSWindow *window, double designWidth, double designHei
 	webView.pageZoom = kontorPageZoom(size.width, size.height, designWidth, designHeight, minScale);
 }
 
-// Wails builds its window before OnStartup but shows it only from the run loop,
-// so restoring here, on the main queue and before ordering it front, avoids a
-// visible jump. macOS clamps the saved frame to the attached screens itself.
+static void applyContentMinSize(NSWindow *window, double minWidth, double minHeight) {
+	[window setContentMinSize:NSMakeSize(minWidth, minHeight)];
+}
+
+// A first launch has no saved frame; shrink the default size into the screen's visible area.
+static void fitIntoVisibleFrame(NSWindow *window) {
+	NSRect visible = [[window screen] ?: [NSScreen mainScreen] visibleFrame];
+	NSRect frame = [window frame];
+	frame.size.width = MIN(frame.size.width, visible.size.width);
+	frame.size.height = MIN(frame.size.height, visible.size.height);
+	frame.origin.x = NSMidX(visible) - frame.size.width / 2;
+	frame.origin.y = NSMidY(visible) - frame.size.height / 2;
+	[window setFrame:frame display:NO];
+}
+
+// Runs before wails' own queued show, so the restored frame never visibly jumps.
 static void setUpMainWindow(const char *name, double designWidth, double designHeight, double minScale, double minWidth, double minHeight) {
 	NSString *frameName = [NSString stringWithUTF8String:name];
 	dispatch_async(dispatch_get_main_queue(), ^{
@@ -46,19 +59,27 @@ static void setUpMainWindow(const char *name, double designWidth, double designH
 			if (![window isKindOfClass:NSClassFromString(@"WailsWindow")]) {
 				continue;
 			}
-			[window setContentMinSize:NSMakeSize(minWidth, minHeight)];
-			[window setFrameUsingName:frameName];
+			applyContentMinSize(window, minWidth, minHeight);
+			if (![window setFrameUsingName:frameName]) {
+				fitIntoVisibleFrame(window);
+			}
 			[window setFrameAutosaveName:frameName];
 			applyPageZoom(window, designWidth, designHeight, minScale);
-			[[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidResizeNotification
-				object:window
-				queue:[NSOperationQueue mainQueue]
+			NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+			[center addObserverForName:NSWindowDidResizeNotification object:window queue:[NSOperationQueue mainQueue]
 				usingBlock:^(NSNotification *note) {
 					applyPageZoom(window, designWidth, designHeight, minScale);
 				}];
-			[window makeKeyAndOrderFront:nil];
+			// wails resets the minimum size to its own (zero) value when fullscreen ends.
+			[center addObserverForName:NSWindowDidExitFullScreenNotification object:window queue:[NSOperationQueue mainQueue]
+				usingBlock:^(NSNotification *note) {
+					dispatch_async(dispatch_get_main_queue(), ^{
+						applyContentMinSize(window, minWidth, minHeight);
+					});
+				}];
 			return;
 		}
+		NSLog(@"kontor: no WailsWindow found; window frame and page zoom are not managed");
 	});
 }
 */
@@ -69,9 +90,7 @@ import "unsafe"
 // windowFrameName keys the main window's frame in the app's user defaults.
 const windowFrameName = "KontorMainWindow"
 
-// The layout is designed for designWidth×designHeight points; a smaller window
-// zooms the page out to fit, down to minPageZoom. The content area cannot shrink
-// past the size that floor still fits, so nothing is ever cut off.
+// A window below the design size zooms the page out, down to minPageZoom; the content never shrinks past what that floor fits.
 const (
 	designWidth  = 1400
 	designHeight = 900

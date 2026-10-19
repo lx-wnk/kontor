@@ -22,6 +22,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/lx-wnk/kontor/server/serverapp"
 )
@@ -87,10 +88,11 @@ func main() {
 		Title:  "Agent Dashboard",
 		Width:  designWidth,
 		Height: designHeight,
-		// Shown by setUpMainWindow once the saved frame is applied.
+		// Shown once setUpMainWindow has applied the saved frame.
 		StartHidden: true,
-		OnStartup: func(_ context.Context) {
+		OnStartup: func(ctx context.Context) {
 			setUpMainWindow()
+			runtime.WindowShow(ctx)
 		},
 		AssetServer: &assetserver.Options{
 			Handler: bootstrapHandler("http://" + frontendAddr(instance.Addr()) + "/?shell=desktop"),

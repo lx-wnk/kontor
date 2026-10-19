@@ -27,7 +27,7 @@ consistent), down to 65%. The content area cannot shrink below the size that 65%
 
 macOS remembers the window's size and position between launches (`setFrameAutosaveName`, stored as
 `NSWindow Frame KontorMainWindow` in the `com.lxwnk.kontor` defaults) and keeps a restored window on
-the attached screens. `defaults delete com.lxwnk.kontor "NSWindow Frame KontorMainWindow"` resets it.
+the attached screens; the very first launch shrinks the default size into the screen's visible area. `defaults delete com.lxwnk.kontor "NSWindow Frame KontorMainWindow"` resets it.
 
 ## Manual smoke checklist
 
@@ -37,3 +37,4 @@ Real Mac:
 2. A mutating action (spawn an agent, create a task, answer a question) succeeds with no `403`.
 3. No App Transport Security block appears in Console.app.
 4. Shrinking the window scales the page down without cutting anything off; quitting and reopening restores the last size and position.
+5. After entering and leaving fullscreen, the window still cannot shrink below the minimum size.
