@@ -37,8 +37,17 @@ var (
 // fallback when status is absent (0). Gating on isApiErrorMessage prevents benign
 // assistant prose that mentions "authentication" or "rate limit" from being misclassified.
 func classifyAPIError(status int, errorKind, text string) sdk.ErrorState {
-	if errorKind == "authentication_failed" {
+	// Kinds from the Agent SDK's SDKAssistantMessageError union.
+	switch errorKind {
+	case "authentication_failed", "oauth_org_not_allowed":
 		return sdk.ErrorStateAuthFailed
+	case "billing_error":
+		return sdk.ErrorStateQuotaExhausted
+	case "rate_limit":
+		if quotaRE.MatchString(text) {
+			return sdk.ErrorStateQuotaExhausted
+		}
+		return sdk.ErrorStateRateLimited
 	}
 	switch status {
 	case 401, 403:
@@ -925,6 +934,10 @@ func ParseSessionFile(path string) (*SessionData, error) {
 
 		if msg.Role == "assistant" {
 			data.ConversationTurns++
+			// The last assistant entry decides: a reply after an error means the session recovered.
+			if !entry.IsAPIErrorMessage {
+				data.ErrorState = ""
+			}
 			if msg.Model != "" {
 				data.Model = msg.Model
 			}

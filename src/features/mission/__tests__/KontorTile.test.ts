@@ -259,4 +259,25 @@ describe('kontorTile', () => {
     expect(w.get('[data-testid="stub-terminal"]').attributes('data-pid')).toBe('42')
     w.unmount()
   })
+
+  it('closes the login terminal when the session changes, and drops the button once the login works again', async () => {
+    session.pid.value = 42
+    session.status.value = 'running'
+    agents.value = [{ pid: 42, errorState: 'auth_failed' }]
+    const w = mount(KontorTile, { global: { stubs: { teleport: true } } })
+    await flushPromises()
+    await w.get('[data-testid="kontor-login"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(true)
+
+    session.pid.value = 43
+    agents.value = [{ pid: 43, errorState: 'auth_failed' }]
+    await flushPromises()
+    expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
+
+    agents.value = [{ pid: 43 }]
+    await flushPromises()
+    expect(w.find('[data-testid="kontor-login"]').exists()).toBe(false)
+    w.unmount()
+  })
 })

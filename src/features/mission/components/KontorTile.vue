@@ -28,6 +28,9 @@ const paneRef = ref<InstanceType<typeof AgentSessionPane> | null>(null)
 // /login opens an interactive picker and a browser flow the chat transcript never shows; only the terminal can drive it.
 const loginExpired = computed(() => agent.value?.errorState === 'auth_failed')
 const showTerminal = ref(false)
+watch(() => agent.value?.pid, () => {
+  showTerminal.value = false
+})
 
 // Reattaches after a reload, a view switch or a server restart.
 onMounted(refresh)
@@ -96,59 +99,61 @@ async function renewSession() {
   >
     <!-- Absolute, so the transcript scrolls inside the tile: the Mission column
          has no fixed height and would otherwise grow with every message. -->
-    <AgentSessionPane v-if="agent" ref="paneRef" :key="agent.pid" :agent="agent" title="Kontor" class="absolute inset-0">
-      <template #actions>
-        <button
-          v-if="loginExpired"
-          type="button"
-          data-testid="kontor-login"
-          title="Login expired. Opens this session's terminal, where /login can finish"
-          class="h-7 rounded-md border border-warning-line px-2.5 text-[12px] text-warning-text"
-          @click="showTerminal = true"
-        >
-          Log in
-        </button>
-        <button
-          type="button"
-          data-testid="kontor-new"
-          title="Ends this session and starts a fresh one"
-          :disabled="!running"
-          class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft disabled:opacity-50"
-          @click="renewSession"
-        >
-          New
-        </button>
-        <button
-          type="button"
-          data-testid="kontor-end"
-          :disabled="!running"
-          class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft disabled:opacity-50"
-          @click="end"
-        >
-          End
-        </button>
-        <slot name="actions" />
-      </template>
-    </AgentSessionPane>
+    <template v-if="agent">
+      <AgentSessionPane ref="paneRef" :key="agent.pid" :agent="agent" title="Kontor" class="absolute inset-0">
+        <template #actions>
+          <button
+            v-if="loginExpired"
+            type="button"
+            data-testid="kontor-login"
+            title="Login expired. Opens this session's terminal, where /login can finish"
+            class="h-7 rounded-md border border-warning-line px-2.5 text-[12px] text-warning-text"
+            @click="showTerminal = true"
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            data-testid="kontor-new"
+            title="Ends this session and starts a fresh one"
+            :disabled="!running"
+            class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft disabled:opacity-50"
+            @click="renewSession"
+          >
+            New
+          </button>
+          <button
+            type="button"
+            data-testid="kontor-end"
+            :disabled="!running"
+            class="h-7 rounded-md border border-line-strong px-2.5 text-[12px] text-fg-soft disabled:opacity-50"
+            @click="end"
+          >
+            End
+          </button>
+          <slot name="actions" />
+        </template>
+      </AgentSessionPane>
 
-    <AppModal v-if="agent" :open="showTerminal" :z-index="1100" labelled-by="kontor-terminal-title" @close="showTerminal = false">
-      <div class="bg-raised px-4 py-2.5 flex justify-between items-center flex-shrink-0">
-        <span id="kontor-terminal-title" class="font-semibold text-sm text-fg">
-          Terminal — Kontor
-        </span>
-        <button
-          type="button"
-          aria-label="Close terminal"
-          class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-raised hover:text-fg"
-          @click="showTerminal = false"
-        >
-          ✕
-        </button>
-      </div>
-      <div class="flex-1 min-h-0">
-        <AgentTerminal v-if="showTerminal" :key="agent.pid" :pid="agent.pid" />
-      </div>
-    </AppModal>
+      <AppModal :open="showTerminal" :z-index="1100" labelled-by="kontor-terminal-title" @close="showTerminal = false">
+        <div class="bg-raised px-4 py-2.5 flex justify-between items-center flex-shrink-0">
+          <span id="kontor-terminal-title" class="font-semibold text-sm text-fg">
+            Terminal — Kontor
+          </span>
+          <button
+            type="button"
+            aria-label="Close terminal"
+            class="bg-transparent border-none text-fg-mute text-base cursor-pointer px-2 py-1 rounded hover:bg-raised hover:text-fg"
+            @click="showTerminal = false"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="flex-1 min-h-0">
+          <AgentTerminal v-if="showTerminal" :key="agent.pid" :pid="agent.pid" />
+        </div>
+      </AppModal>
+    </template>
 
     <div v-else class="flex min-h-0 flex-1 flex-col gap-3 p-4">
       <header class="flex items-center gap-3">
