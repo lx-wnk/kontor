@@ -82,18 +82,24 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 			if err != nil {
 				return nil, err
 			}
-			if err := planapi.RejectPlan(ctx, planapi.RejectDeps{
+			requeued, err := planapi.RejectPlan(ctx, planapi.RejectDeps{
 				Turns:     d.Turns,
 				Tasks:     d.Tasks,
 				StageRuns: d.StageRuns,
 				Requeue:   d.Requeue,
 				Audit:     d.Audit,
 				Origin:    originFromMCP(ctx),
-			}, taskID, feedback); err != nil {
+			}, taskID, feedback)
+			if err != nil {
 				return nil, mcp.Fail("reject_plan: " + err.Error())
 			}
 			safeBroadcast(d.Broadcast, ctx, "task_updated", taskID)
-			return mcp.OK(map[string]any{"status": "requeued"})
+			// "rejected": feedback stored, but no new plan round (iteration cap or orchestrator declined).
+			status := "rejected"
+			if requeued {
+				status = "requeued"
+			}
+			return mcp.OK(map[string]any{"status": status, "requeued": requeued})
 		},
 	})
 }
@@ -101,7 +107,7 @@ func registerRejectPlan(registry mcp.ToolRegistry, d PlanDeps) {
 func originFromMCP(ctx context.Context) repo.AuditOrigin {
 	info := mcp.AuthFromContext(ctx)
 	if info == nil {
-		return repo.MCPAuditOrigin("", "", "")
+		return repo.AuditOrigin{Source: repo.AuditSourceMCP}
 	}
 	return repo.MCPAuditOrigin(info.KeyID, info.StageRunID, info.ModuleID)
 }

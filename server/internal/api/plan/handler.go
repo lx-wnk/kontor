@@ -74,20 +74,21 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := RejectPlan(r.Context(), RejectDeps{
+	requeued, err := RejectPlan(r.Context(), RejectDeps{
 		Turns:     h.deps.Turns,
 		Tasks:     h.deps.Tasks,
 		StageRuns: h.deps.StageRuns,
 		Requeue:   h.deps.Requeue,
 		Audit:     h.deps.Audit,
 		Origin:    repo.UIAuditOrigin(auth.PayloadOrBypass(r.Context()).Sub),
-	}, taskID, body.Feedback); err != nil {
+	}, taskID, body.Feedback)
+	if err != nil {
 		jsonError(w, err.Error(), statusFor(err))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "requeued": requeued})
 }
 
 // GET /api/plan/{taskId}/status

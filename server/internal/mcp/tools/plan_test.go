@@ -352,3 +352,29 @@ func TestRejectPlan_MCPTool_RecordsAuditEvent(t *testing.T) {
 	require.Equal(t, "user", events[0].Metadata["actor"], "a key a person created acts as that person")
 	require.Equal(t, "key-xyz", events[0].Metadata["apiKeyId"])
 }
+
+func TestRejectPlan_MCPTool_ReportsWhenNoNewRoundStarted(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+
+	ctx := context.Background()
+	taskRepo := repo.NewTaskRepo(bundle.Client)
+	srRepo := repo.NewStageRunRepo(bundle.Client)
+	taskID := seedPlanReviewTaskMCP(t, ctx, taskRepo, srRepo)
+
+	registry := mcp.ToolRegistry{}
+	RegisterPlanTools(registry, PlanDeps{
+		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
+		Tasks:     taskRepo,
+		StageRuns: srRepo,
+		Requeue:   func(_ context.Context, _, _ string) (bool, error) { return false, nil },
+	})
+
+	result, err := registry["reject_plan"].Handler(ctx, map[string]any{"task_id": taskID, "feedback": "again"})
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result.Content[0].Text), &payload))
+	require.Equal(t, "rejected", payload["status"])
+	require.Equal(t, false, payload["requeued"])
+}

@@ -41,7 +41,6 @@ const (
 )
 
 // AuditOrigin identifies who triggered an auditable action and through which channel.
-// Identity lives in UserID or APIKeyID, never a login: audit_events has no delete path.
 type AuditOrigin struct {
 	Source           string
 	Actor            string
@@ -67,11 +66,18 @@ func MCPAuditOrigin(keyID, stageRunID, moduleID string) AuditOrigin {
 
 // Metadata is the origin part of an audit event's metadata; empty identifiers are left out.
 func (o AuditOrigin) Metadata() map[string]any {
-	meta := map[string]any{"source": o.Source, "actor": o.Actor}
-	for k, v := range map[string]string{"apiKeyId": o.APIKeyID, "callerStageRunId": o.CallerStageRunID, "moduleId": o.ModuleID} {
-		if v != "" {
-			meta[k] = v
-		}
+	meta := map[string]any{"source": o.Source}
+	if o.Actor != "" {
+		meta["actor"] = o.Actor
+	}
+	if o.APIKeyID != "" {
+		meta["apiKeyId"] = o.APIKeyID
+	}
+	if o.CallerStageRunID != "" {
+		meta["callerStageRunId"] = o.CallerStageRunID
+	}
+	if o.ModuleID != "" {
+		meta["moduleId"] = o.ModuleID
 	}
 	return meta
 }

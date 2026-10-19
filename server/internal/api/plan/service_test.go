@@ -190,22 +190,22 @@ func TestRejectPlan_RerunsStageAndStoresFeedback(t *testing.T) {
 	}
 
 	// First rejection — within cap.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 1")
 	require.NoError(t, err)
 	require.Equal(t, 1, requeued, "first rejection must trigger requeue")
 
 	// Second rejection.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 2")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 2")
 	require.NoError(t, err)
 	require.Equal(t, 2, requeued)
 
 	// Third rejection (at cap = 3, this is the third reject so still within cap).
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 3")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 3")
 	require.NoError(t, err)
 	require.Equal(t, 3, requeued)
 
 	// Fourth rejection — beyond cap, must NOT requeue.
-	err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
+	_, err = plan.RejectPlan(ctx, rejectDeps, taskID, "feedback round 4")
 	require.NoError(t, err, "beyond-cap reject must not error, just skip requeue")
 	require.Equal(t, 3, requeued, "fourth rejection must not requeue (cap exceeded)")
 
@@ -458,7 +458,7 @@ func TestRejectPlan_RunningRun_ReturnsConflict(t *testing.T) {
 	taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "running", nil)
 
 	requeued := false
-	err = plan.RejectPlan(ctx, plan.RejectDeps{
+	_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
@@ -481,7 +481,7 @@ func TestRejectPlan_NoRun_ReturnsConflict(t *testing.T) {
 	turnsRepo := repo.NewRefinementTurnRepo(bundle.Client)
 	taskID := seedPlanReviewTaskNoRun(t, ctx, taskRepo)
 
-	err = plan.RejectPlan(ctx, plan.RejectDeps{
+	_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 		Turns:     turnsRepo,
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
@@ -564,7 +564,7 @@ func TestRejectPlan_AwaitingUserWithoutPlanContent_RequeuesWithFeedback(t *testi
 			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, "awaiting_user", output)
 
 			var requeuedPrompt string
-			err = plan.RejectPlan(ctx, plan.RejectDeps{
+			_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 				Turns:     turnsRepo,
 				Tasks:     taskRepo,
 				StageRuns: srRepo,
@@ -594,7 +594,7 @@ func TestRejectPlan_OutsideAwaitingUser_ReturnsConflict(t *testing.T) {
 			taskID, _ := seedPlanReviewRun(t, ctx, taskRepo, srRepo, status, submittedPlan("plan", "test plan content"))
 
 			requeued := false
-			err = plan.RejectPlan(ctx, plan.RejectDeps{
+			_, err = plan.RejectPlan(ctx, plan.RejectDeps{
 				Turns:     repo.NewRefinementTurnRepo(bundle.Client),
 				Tasks:     taskRepo,
 				StageRuns: srRepo,
@@ -681,7 +681,7 @@ func rejectAndReadAudit(t *testing.T, requeue func(context.Context, string, stri
 		require.NoError(t, err)
 	}
 
-	rejectErr := plan.RejectPlan(ctx, plan.RejectDeps{
+	_, rejectErr := plan.RejectPlan(ctx, plan.RejectDeps{
 		Turns:     repo.NewRefinementTurnRepo(bundle.Client),
 		Tasks:     taskRepo,
 		StageRuns: srRepo,
@@ -706,7 +706,6 @@ func TestRejectPlan_RecordsPlanRejectedAuditEvent(t *testing.T) {
 	}, meta)
 }
 
-// The audit row records what happened, not what was attempted.
 func TestRejectPlan_AuditRecordsTheRequeueOutcome(t *testing.T) {
 	failed, _, err := rejectAndReadAudit(t, func(context.Context, string, string) (bool, error) { return false, errors.New("orchestrator down") }, 0)
 	require.ErrorContains(t, err, "orchestrator down")

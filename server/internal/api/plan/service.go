@@ -210,15 +210,15 @@ func ApprovePlan(ctx context.Context, d ApproveDeps, taskID string) (*ent.Task, 
 // Beyond the cap, it stores feedback but does not requeue. Returns ErrPlanNotReady
 // unless the plan_review run is awaiting_user; plan content is not required, so a
 // run that produced no usable plan can still be sent back.
-func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) error {
+func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) (requeued bool, err error) {
 	sr, err := requireAwaitingPlanReview(ctx, d.StageRuns, taskID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	task, err := d.Tasks.GetByID(ctx, taskID)
 	if err != nil {
-		return fmt.Errorf("reject_plan: get task: %w", err)
+		return false, fmt.Errorf("reject_plan: get task: %w", err)
 	}
 
 	// Read current reject count from metadata.
@@ -246,14 +246,13 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 		Content: feedback,
 		Phase:   strPtr("plan_rejected"),
 	}); err != nil {
-		return fmt.Errorf("reject_plan: store feedback turn: %w", err)
+		return false, fmt.Errorf("reject_plan: store feedback turn: %w", err)
 	}
 
 	if _, err := d.Tasks.Update(ctx, taskID, repo.UpdateTaskInput{Metadata: newMeta}); err != nil {
-		return fmt.Errorf("reject_plan: update task metadata: %w", err)
+		return false, fmt.Errorf("reject_plan: update task metadata: %w", err)
 	}
 
-	var requeued bool
 	var requeueErr error
 	if count < localDefaultPlanIterationCap && d.Requeue != nil {
 		requeued, requeueErr = d.Requeue(ctx, taskID, feedback)
@@ -273,10 +272,10 @@ func RejectPlan(ctx context.Context, d RejectDeps, taskID, feedback string) erro
 	}
 
 	if requeueErr != nil {
-		return fmt.Errorf("reject_plan: requeue: %w", requeueErr)
+		return false, fmt.Errorf("reject_plan: requeue: %w", requeueErr)
 	}
 
-	return nil
+	return requeued, nil
 }
 
 // PlanStatus returns the current gate state and latest plan output for a task.
