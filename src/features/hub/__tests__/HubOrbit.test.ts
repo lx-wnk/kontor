@@ -293,4 +293,18 @@ describe('hubOrbit', () => {
     expect(notes.findAll('[data-testid^="hub-agent-"]')).toHaveLength(2)
     notes.unmount()
   })
+
+  it('marks an agent that has just replied with a steady accent ring and an accent label', async () => {
+    const w = mountOrbit(0)
+    await w.setProps({ agents: [{ agent: agent(3, 'api-server'), x: 0, y: -90, state: 'replied' as const, needsOperator: false }] })
+    const button = w.get('[data-testid="hub-agent-3"]')
+    const dot = button.get('span')
+    expect(dot.classes()).toEqual(expect.arrayContaining(['outline-2', 'outline-accent']))
+    expect(dot.classes()).not.toContain('motion-safe:animate-pulse')
+    const status = button.get('[data-testid="hub-label"] em')
+    expect(status.text()).toBe('Replied')
+    expect(status.classes()).toContain('text-accent')
+    w.unmount()
+  })
+
 })

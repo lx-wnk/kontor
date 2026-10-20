@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { agentStatusTone, runStatusTone, stageTone, statusLabel } from './statusColors'
+import { agentDisplayStatus, agentStatusTone, runStatusTone, stageTone, statusLabel } from './statusColors'
+
+describe('agentDisplayStatus', () => {
+  it('shows a fresh agent whose turn has closed as replied, a running turn as working', () => {
+    expect(agentDisplayStatus({ status: 'active', working: false })).toBe('replied')
+    expect(agentDisplayStatus({ status: 'active', working: true })).toBe('working')
+    expect(agentDisplayStatus({ status: 'waiting', working: false })).toBe('waiting')
+  })
+
+  it('labels and tones replied as its own state', () => {
+    expect(statusLabel('replied')).toBe('Replied')
+    expect(agentStatusTone('replied')).toBe('accent')
+  })
+})
 
 describe('statusLabel', () => {
   it('returns human-readable labels for known statuses', () => {

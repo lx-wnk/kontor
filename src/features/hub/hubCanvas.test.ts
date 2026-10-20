@@ -90,11 +90,13 @@ describe('noteLabelBox', () => {
 })
 
 describe('agentPriority', () => {
-  it('ranks needs-operator above working above the rest', () => {
-    const needsOperator = agentPriority(true, false)
-    const working = agentPriority(false, true)
-    const rest = agentPriority(false, false)
-    expect(needsOperator).toBeGreaterThan(working)
+  it('ranks needs-operator above replied above working above the rest', () => {
+    const needsOperator = agentPriority(true, 'replied')
+    const replied = agentPriority(false, 'replied')
+    const working = agentPriority(false, 'working')
+    const rest = agentPriority(false, 'waiting')
+    expect(needsOperator).toBeGreaterThan(replied)
+    expect(replied).toBeGreaterThan(working)
     expect(working).toBeGreaterThan(rest)
   })
 })
@@ -211,9 +213,9 @@ describe('cullLabels with agent boxes', () => {
 
   it('always keeps a needs-operator agent even when it collides with others', () => {
     const kept = cullLabels([
-      { index: 1, sx: 100, sy: 100, text: 'A', priority: agentPriority(true, false) },
-      { index: 2, sx: 101, sy: 100, text: 'B', priority: agentPriority(false, true) },
-      { index: 3, sx: 102, sy: 100, text: 'C', priority: agentPriority(false, false) },
+      { index: 1, sx: 100, sy: 100, text: 'A', priority: agentPriority(true, 'waiting') },
+      { index: 2, sx: 101, sy: 100, text: 'B', priority: agentPriority(false, 'working') },
+      { index: 3, sx: 102, sy: 100, text: 'C', priority: agentPriority(false, 'waiting') },
     ], measured)
     expect(kept).toEqual(new Set([1]))
   })
