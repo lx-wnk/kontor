@@ -30,3 +30,28 @@ func TestParse_LastActivityFallsBackToMtimeWithoutAssistantInTail(t *testing.T) 
 		t.Fatalf("LastActivity = %v, want the file mtime %v", data.LastActivity, mtime)
 	}
 }
+
+// A session whose activity is only known from its mtime must not win the
+// content match over an older file with a real assistant reply: another
+// process in the same folder may own it.
+func TestFindSessionByContent_PrefersAssistantTimestampOverMtime(t *testing.T) {
+	dir := t.TempDir()
+	recent := time.Now().Add(-1 * time.Minute).UTC().Format(time.RFC3339Nano)
+	owned := filepath.Join(dir, "owned.jsonl")
+	if err := os.WriteFile(owned, []byte(`{"type":"assistant","timestamp":"`+recent+`","message":{"role":"assistant","content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn"}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(dir, "foreign.jsonl")
+	if err := os.WriteFile(foreign, []byte(`{"type":"user","message":{"role":"user","content":"start"}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates := []sessionFileCandidate{{path: foreign}, {path: owned}}
+	_, path, err := findSessionByContent(candidates, 3600, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != owned {
+		t.Fatalf("picked %s, want the file with an assistant reply %s", filepath.Base(path), filepath.Base(owned))
+	}
+}
