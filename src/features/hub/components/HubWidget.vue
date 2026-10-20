@@ -26,7 +26,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, planSectors, polar, sectorColour, sectorCount, shadeMix } from '../hubGeometry'
+import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, planSectors, polar, repoDirOf, sectorColour, sectorCount, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { controlsBox, CORNER_INSET_PX, cornerBoxes, launcherAngles, launcherBox, launchersFor, LEGEND_ROW_BOTTOM_PX, LEGEND_ROW_GAP_PX, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
@@ -107,10 +107,10 @@ function blocksOnOperator(agent: Agent): boolean {
 }
 
 const live = computed(() => agents.value.filter(a => a.status !== 'finished').sort((a, b) => a.pid - b.pid))
-// Equal joined names return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
+// Equal joined names and repo dirs return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
 const liveProjects = computed<AgentProject[]>((previous) => {
-  const projects = live.value.map(a => ({ key: agentProjectKey(a), label: a.projectName }))
-  const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}`).join('\n')
+  const projects = live.value.map(a => ({ key: agentProjectKey(a), label: a.projectName, repoDir: repoDirOf(a.cwd) }))
+  const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}\t${p.repoDir}`).join('\n')
   return previous && signature(projects) === signature(previous) ? previous : projects
 })
 // A refetch passes through 'loading'; a failed refetch keeps the last good notes too, so the brain and an open note card don't blank.

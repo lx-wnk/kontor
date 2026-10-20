@@ -20,6 +20,7 @@ import {
   R0,
   R_MAX,
   radiusForAge,
+  repoDirOf,
   RINGS,
   SECTOR_FLOOR_BUDGET_DEG,
   SECTOR_FLOOR_DEG,
@@ -324,6 +325,19 @@ describe('planSectors', () => {
   it('matches an agent to its project leaf case-insensitively, the leaf with the most notes winning a name tie', () => {
     const p = planSectors(['work/Babyone/a.md', 'work/Babyone/b.md', 'private/babyone/a.md'], byName(['BABYONE']))
     expect(p.sectorOfProject.get('BABYONE')).toBe('work/Babyone')
+  })
+
+  it('falls back to the agent\'s repo directory when its project name matches no leaf', () => {
+    const p = planSectors(['work/babyone-shop/a.md', 'work/babyone/a.md'], [{ key: 'BabyOne', label: 'BabyOne', repoDir: 'babyone-shop' }])
+    expect(p.sectorOfProject.get('BabyOne')).toBe('work/babyone')
+    const q = planSectors(['work/babyone-shop/a.md'], [{ key: 'BabyOne', label: 'BabyOne', repoDir: 'babyone-shop' }])
+    expect(q.sectorOfProject.get('BabyOne')).toBe('work/babyone-shop')
+  })
+
+  it('takes the repo directory above a Claude worktree, not the worktree folder', () => {
+    expect(repoDirOf('/Users/a/code/babyone-shop/.claude/worktrees/users+aw+NTR-projectReview')).toBe('babyone-shop')
+    expect(repoDirOf('/Users/a/code/babyone-shop')).toBe('babyone-shop')
+    expect(repoDirOf('/Users/a/code/babyone-shop/')).toBe('babyone-shop')
   })
 
   it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {
