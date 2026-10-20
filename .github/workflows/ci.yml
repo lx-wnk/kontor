@@ -31,7 +31,9 @@ jobs:
         # alone for outside consumers. So the directives are checked against
         # .go-version instead of derived from it.
         run: |
-          want="go $(cut -d. -f1,2 < .go-version)"
+          # X.Y.0, not X.Y: go orders 1.26 before 1.26.0, so one dependency
+          # declaring 1.26.0 makes `go mod tidy` rewrite a plain 1.26.
+          want="go $(cut -d. -f1,2 < .go-version).0"
           rc=0
           for f in go.work $(git ls-files '*go.mod'); do
             have="$(grep -m1 -E '^go ' "$f" || echo '<missing>')"

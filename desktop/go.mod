@@ -1,6 +1,6 @@
 module github.com/lx-wnk/kontor/desktop
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/lx-wnk/kontor/server v0.0.0
