@@ -320,6 +320,10 @@ func TestUpdate_SetsRejectsAndClearsTheVaultFolder(t *testing.T) {
 		!strings.Contains(rr.Body.String(), `"vaultFolder":"work/shop"`) {
 		t.Fatalf("set: got %d, body=%s", rr.Code, rr.Body.String())
 	}
+	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"name":"Renamed"}`); rr.Code != http.StatusOK ||
+		!strings.Contains(rr.Body.String(), `"vaultFolder":"work/shop"`) {
+		t.Fatalf("absent key must keep the folder: got %d, body=%s", rr.Code, rr.Body.String())
+	}
 	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"vaultFolder":"work"}`); rr.Code != http.StatusBadRequest {
 		t.Fatalf("invalid: got %d, want 400, body=%s", rr.Code, rr.Body.String())
 	}

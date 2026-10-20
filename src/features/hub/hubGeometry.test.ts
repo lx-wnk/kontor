@@ -366,6 +366,15 @@ describe('planSectors', () => {
     expect(planSectors(notes, [agentSeat(shop, 'work/gone')]).sectorOfProject.get(agentSeat(shop).key)).toBe('work/kontor')
   })
 
+  it('resolves a vault folder exactly first, then to the heavier case-only duplicate, whatever the note order', () => {
+    const shop = { projectId: 'p1', projectName: 'x', cwd: '/code/x' } as Agent
+    const seatIn = (notes: string[], folder: string) => planSectors(notes, [agentSeat(shop, folder)]).sectorOfProject.get(agentSeat(shop).key)
+    const notes = ['work/shop/a.md', 'Work/shop/a.md', 'Work/shop/b.md']
+    expect(seatIn(notes, 'work/shop')).toBe('work/shop')
+    expect(seatIn(notes, 'WORK/SHOP')).toBe('Work/shop')
+    expect(seatIn([...notes].reverse(), 'WORK/SHOP')).toBe('Work/shop')
+  })
+
   it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {
     const p = planSectors(['work/babyone/a.md'], byName(['shop']))
     expect(p.sectorOfProject.get('shop')).toBe(OTHER_SECTOR_KEY)

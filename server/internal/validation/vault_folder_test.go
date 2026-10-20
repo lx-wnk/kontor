@@ -28,6 +28,8 @@ func TestIsValidVaultFolder(t *testing.T) {
 		" work/shop",
 		"work/shop ",
 		`work\shop`,
+		"work/a\nb",
+		"work/a\x00b",
 		"work/" + strings.Repeat("s", validation.MaxVaultFolderLen),
 	}
 	for _, f := range invalid {

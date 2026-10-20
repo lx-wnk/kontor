@@ -2,6 +2,7 @@ package validation
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -12,10 +13,10 @@ const MaxVaultFolderLen = 255
 const VaultFolderMessage = "vaultFolder must be a category/project folder of the vault, such as work/shop"
 
 // IsValidVaultFolder reports whether f names a vault project folder the hub can seat
-// agents in: exactly two non-empty segments, no "." or ".." segment, no backslash and
-// no whitespace around a segment.
+// agents in: exactly two non-empty segments, no "." or ".." segment, no backslash, no
+// control character and no whitespace around a segment.
 func IsValidVaultFolder(f string) bool {
-	if utf8.RuneCountInString(f) > MaxVaultFolderLen || strings.Contains(f, `\`) {
+	if utf8.RuneCountInString(f) > MaxVaultFolderLen || strings.Contains(f, `\`) || strings.IndexFunc(f, unicode.IsControl) >= 0 {
 		return false
 	}
 	segments := strings.Split(f, "/")

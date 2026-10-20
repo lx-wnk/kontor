@@ -277,14 +277,18 @@ export function planSectors(notePaths: readonly string[], agentProjects: readonl
     else leaves.set(leafKey, { key: leafKey, label: leafLabel, weight: 1, parent: categoryKey })
   }
 
-  const leafNamed = (name: string | undefined) => {
-    if (!name)
-      return undefined
-    const candidates = [...leaves.values()].filter(l => l.label && l.label.toLowerCase() === name.toLowerCase())
+  // Case-only duplicates (`Work/shop` beside `work/shop`) resolve to the heavier leaf, then by key.
+  const heaviest = (matches: (leaf: SectorInput) => boolean) => {
+    const candidates = [...leaves.values()].filter(matches)
     candidates.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key))
     return candidates[0]?.key
   }
-  const leafAt = (folder: string | undefined) => folder ? [...leaves.keys()].find(k => k.toLowerCase() === folder.toLowerCase()) : undefined
+  const leafNamed = (name: string | undefined) => name ? heaviest(l => !!l.label && l.label.toLowerCase() === name.toLowerCase()) : undefined
+  const leafAt = (folder: string | undefined) => {
+    if (!folder)
+      return undefined
+    return leaves.has(folder) ? folder : heaviest(l => l.key.toLowerCase() === folder.toLowerCase())
+  }
   for (const p of distinct) sectorOfProject.set(p.key, leafAt(p.vaultFolder) ?? leafNamed(p.label) ?? leafNamed(p.repoDir) ?? OTHER_SECTOR_KEY)
   if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY)) {
     categoryInputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })

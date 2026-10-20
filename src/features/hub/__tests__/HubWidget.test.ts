@@ -120,6 +120,7 @@ afterEach(() => {
   graph.refresh.mockClear()
   openSettings.mockClear()
   agents.value = initialAgents
+  kontorProjects.value = []
   useWorkspace().layout.value = DEFAULT_LAYOUT
   useWorkspace().wide.value = null
   hubFocusRequest.value = null
@@ -517,7 +518,26 @@ describe('hubWidget', () => {
     const k = scale(w)
     expect(screenOf(w, 502).sx).toBeCloseTo(core.sx + x * k)
     expect(screenOf(w, 502).sy).toBeCloseTo(core.sy + y * k)
-    kontorProjects.value = []
+    w.unmount()
+  })
+
+  it('moves an agent to its project\'s vault folder once the projects load after the agents', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/kontor/one.md'), vaultNote(1, 'private/shop/one.md')]
+    agents.value = [{ pid: 503, status: 'idle', projectId: 'p1', projectName: 'kontor', working: false }] as unknown as Agent[]
+    const w = await mountHub()
+    const slot = (leaf: string) => packedFor(graph.notes.value.map(n => n.path), [], new Map([[leaf, 1]])).agentSlots.get(leaf)![0]
+    const at = ([x, y]: number[]) => {
+      const core = translateOf(w.get('[data-testid="hub-core"]'))
+      const k = scale(w)
+      return { sx: core.sx + x * k, sy: core.sy + y * k }
+    }
+    expect(screenOf(w, 503).sx).toBeCloseTo(at(slot('work/kontor')).sx)
+
+    kontorProjects.value = [{ id: 'p1', slug: 'kontor', name: 'kontor', vaultFolder: 'private/shop', createdAt: '', updatedAt: '' }]
+    await flushPromises()
+    expect(screenOf(w, 503).sx).toBeCloseTo(at(slot('private/shop')).sx)
+    expect(screenOf(w, 503).sy).toBeCloseTo(at(slot('private/shop')).sy)
     w.unmount()
   })
 
