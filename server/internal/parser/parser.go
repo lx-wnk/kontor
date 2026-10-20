@@ -595,6 +595,7 @@ type SessionData struct {
 	HasUnresolvedToolUse bool // any tool call in the tail without a result, not only the last
 	TurnOpen             bool
 	HasPendingBackground bool // a run_in_background tool_use with no matching tool_result
+	activityFromMtime    bool // LastActivity is the file mtime: no assistant timestamp in the tail
 }
 
 // sessionFileCandidate holds mtime + inode info gathered via os.Stat (cheap).
@@ -833,8 +834,9 @@ func findSessionByContent(candidates []sessionFileCandidate, uptimeSeconds int64
 		if err != nil {
 			continue
 		}
+		// An mtime says the file was written, not that this process wrote it.
 		age := time.Since(data.LastActivity)
-		if age < time.Duration(uptimeSeconds+10)*time.Second {
+		if !data.activityFromMtime && age < time.Duration(uptimeSeconds+10)*time.Second {
 			return data, c.path, nil
 		}
 		// Keep the first (most-recently modified) as fallback.
@@ -1042,9 +1044,12 @@ func ParseSessionFile(path string) (*SessionData, error) {
 	// No assistant timestamp in the tail (large entries can push them out): the file's
 	// last write is the latest activity known.
 	if data.LastActivity.IsZero() {
-		if info, err := os.Stat(path); err == nil {
-			data.LastActivity = info.ModTime()
+		info, err := os.Stat(path)
+		if err != nil {
+			return nil, fmt.Errorf("stat %s: %w", path, err)
 		}
+		data.LastActivity = info.ModTime()
+		data.activityFromMtime = true
 	}
 
 	// Authoritative token totals: a single linear pass sums every assistant
