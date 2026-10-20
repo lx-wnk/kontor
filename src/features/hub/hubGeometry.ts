@@ -95,6 +95,11 @@ export interface Sector extends SectorInput { start: number, end: number }
 // A leaf subdivides its parent category's arc; `parent` is the category key.
 export interface Leaf extends Sector { parent: string }
 
+// What a category name counts beside it: its notes, or for Other, which holds none, its agents.
+export function sectorCount(sector: Sector): number {
+  return sector.key === OTHER_SECTOR_KEY ? sector.agents ?? 0 : sector.weight
+}
+
 // Loose leaves have nothing beyond their category name to show, and Other already names itself.
 export function labelledLeaves(leaves: readonly Leaf[]): Leaf[] {
   return leaves.filter(leaf => leaf.label && leaf.key !== OTHER_SECTOR_KEY)

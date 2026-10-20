@@ -1,13 +1,17 @@
 import type { Leaf, Sector } from './hubGeometry'
 import { hierarchy, pack } from 'd3-hierarchy'
 import { FIT_RADIUS } from './hubCamera'
-import { OTHER_SECTOR_KEY, R0 } from './hubGeometry'
+import { R0 } from './hubGeometry'
 
 export interface Circle { x: number, y: number, r: number }
 
 export const AGENT_WEIGHT = 4
 const PACK_PADDING = 2
 const AGENT_RIM_GAP = 6
+// Arc around the top of a rim kept free of agents where the category name sits on it.
+const NAME_GAP_DEG = 70
+// How close, in world units, a project's top may come to its category's top and still count as touching it.
+const NAME_TOUCH_EPSILON = PACK_PADDING + 1
 // Clearance between the core disc and a category circle, and half of it between neighbouring categories.
 export const CATEGORY_GAP = 16
 // Room a category's label, drawn above its circle, needs to stay inside the fitted disc.
@@ -83,12 +87,25 @@ function slotOffset(i: number): number {
   return i % 2 === 1 ? step : -step
 }
 
-function agentSlotsForProject(project: Circle, agents: number): Array<[number, number, number]> {
+function angularDistance(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
+}
+
+// A project whose rim reaches its category's top carries the category name there; its slots spread
+// over the rest of the rim instead, nearest the outward-facing point first.
+function rimAngles(baseAngle: number, agents: number, clearsName: boolean): number[] {
+  if (!clearsName)
+    return Array.from({ length: agents }, (_, i) => baseAngle + slotOffset(i) * 360 / agents)
+  const arc = 360 - NAME_GAP_DEG
+  return Array.from({ length: agents }, (_, i) => -90 + NAME_GAP_DEG / 2 + (i + 0.5) * arc / agents)
+    .sort((a, b) => angularDistance(a, baseAngle) - angularDistance(b, baseAngle))
+}
+
+function agentSlotsForProject(project: Circle, agents: number, clearsName: boolean): Array<[number, number, number]> {
   const baseAngle = Math.atan2(project.y, project.x) * 180 / Math.PI
-  const angleStep = 360 / agents
   const slotR = project.r + AGENT_RIM_GAP
-  return Array.from({ length: agents }, (_, i) => {
-    const angleDeg = baseAngle + slotOffset(i) * angleStep
+  return rimAngles(baseAngle, agents, clearsName).map((angleDeg) => {
     const rad = angleDeg * Math.PI / 180
     return [project.x + slotR * Math.cos(rad), project.y + slotR * Math.sin(rad), angleDeg]
   })
@@ -106,7 +123,6 @@ export function packHub(
   const agentSlots = new Map<string, Array<[number, number, number]>>()
 
   const categoryData: PackDatum[] = sectors
-    .filter(sector => sector.key !== OTHER_SECTOR_KEY)
     .map((sector) => {
       const children = leaves
         .filter(leaf => leaf.parent === sector.key)
@@ -149,8 +165,9 @@ export function packHub(
   for (const leaf of leaves) {
     const agents = agentsByLeaf.get(leaf.key) ?? 0
     const project = projects.get(leaf.key)
-    if (agents > 0 && project)
-      agentSlots.set(leaf.key, agentSlotsForProject(project, agents))
+    const category = categories.get(leaf.parent)
+    if (agents > 0 && project && category)
+      agentSlots.set(leaf.key, agentSlotsForProject(project, agents, project.y - project.r - (category.y - category.r) < NAME_TOUCH_EPSILON))
   }
 
   return { categories, projects, notes, agentSlots }

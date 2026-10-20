@@ -27,6 +27,7 @@ import {
   SECTOR_LABEL_RADIUS,
   SECTOR_PALETTE_SIZE,
   sectorColour,
+  sectorCount,
   sectorFloorDeg,
   sectorLabelRadius,
   sectorTiers,
@@ -330,6 +331,12 @@ describe('planSectors', () => {
     expect(p.sectorOfProject.get('shop')).toBe(OTHER_SECTOR_KEY)
     expect(p.sectors.map(s => s.key)).toContain(OTHER_SECTOR_KEY)
     expect(p.leaves.find(l => l.key === OTHER_SECTOR_KEY)!.parent).toBe(OTHER_SECTOR_KEY)
+  })
+
+  it('counts a category\'s notes beside its name, and Other\'s agents', () => {
+    const p = planSectors(['work/babyone/a.md', 'work/babyone/b.md'], byName(['shop', 'shop', 'cart']))
+    expect(sectorCount(p.sectors.find(s => s.key === 'work')!)).toBe(2)
+    expect(sectorCount(p.sectors.find(s => s.key === OTHER_SECTOR_KEY)!)).toBe(3)
   })
 
   it('adds no Other sector when every agent has a matching project leaf', () => {
