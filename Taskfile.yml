@@ -167,7 +167,9 @@ tasks:
       # Same production tag + UniformTypeIdentifiers ldflag as build:desktop, driven
       # through `wails build` so it also renders desktop/wails.json + Info.plist into
       # a real .app bundle instead of a bare Mach-O binary.
-      - cd desktop && $(go env GOPATH)/bin/wails build -clean -tags production -ldflags "-X github.com/lx-wnk/kontor/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'"
+      # -skipbindings: generating bindings starts the app, which cannot bind
+      # 127.0.0.1:13120 while Kontor runs, and the shell binds no Go methods.
+      - cd desktop && $(go env GOPATH)/bin/wails build -clean -skipbindings -tags production -ldflags "-X github.com/lx-wnk/kontor/server/internal/version.Version={{.VERSION}} -extldflags '-framework UniformTypeIdentifiers'"
       - mkdir -p bin
       - rm -rf "bin/Kontor.app"
       - cp -R "desktop/build/bin/Kontor.app" bin/
