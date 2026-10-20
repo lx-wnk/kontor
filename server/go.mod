@@ -1,6 +1,6 @@
 module github.com/lx-wnk/kontor/server
 
-go 1.26
+go 1.26.0
 
 replace github.com/lx-wnk/kontor/sdk => ../sdk
 

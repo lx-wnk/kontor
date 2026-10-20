@@ -1,6 +1,6 @@
 module github.com/lx-wnk/kontor-plugin-anthropic-spawner
 
-go 1.26
+go 1.26.0
 
 require github.com/anthropics/anthropic-sdk-go v1.79.1
 

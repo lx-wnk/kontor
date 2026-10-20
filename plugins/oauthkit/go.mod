@@ -1,3 +1,3 @@
 module github.com/lx-wnk/kontor-plugin-oauthkit
 
-go 1.26
+go 1.26.0

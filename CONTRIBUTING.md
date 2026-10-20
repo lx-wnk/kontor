@@ -138,7 +138,7 @@ Two single sources feed CI, so neither has to be edited per module:
 
 - **`.go-version`** pins the toolchain for every `setup-go` step in `ci.yml` and `release.yml`. A Go patch bump is a one-line change here, and nothing else moves. `.go-version` is also read by `goenv`/`asdf` if you use one locally.
 
-  The `go` directives in the individual `go.mod` files stay at a plain `go 1.26`: they are *minimum language requirements*, not the build pin. Raise one only when a module genuinely starts requiring a newer language version — never for a security patch. `govulncheck` evaluates the standard library of the toolchain in use, not the directive, so `.go-version` is what governs stdlib CVEs.
+  The `go` directives in `go.work` and the individual `go.mod` files stay at `go 1.26.0` (the minor release with a `.0`, never a later patch): they are *minimum language requirements*, not the build pin. Go orders the bare `go 1.26` *before* `go 1.26.0`, so as soon as one dependency declares `go 1.26.0`, `go mod tidy` rewrites a bare `go 1.26` — which is why the `.0` form is the one CI checks for. Raise one only when a module genuinely starts requiring a newer language version — never for a security patch. `govulncheck` evaluates the standard library of the toolchain in use, not the directive, so `.go-version` is what governs stdlib CVEs.
 
   Do not delete a `go` directive to "clean up": without one the language level falls back to 1.16, the stricter `go.sum` rules no longer apply and the build breaks — and the next `go mod tidy` writes the directive back with the full patch version of whatever toolchain you happen to run.
 

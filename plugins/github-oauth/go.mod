@@ -1,6 +1,6 @@
 module github.com/lx-wnk/kontor-plugin-github-oauth
 
-go 1.26
+go 1.26.0
 
 require github.com/lx-wnk/kontor-plugin-oauthkit v0.0.0
 
