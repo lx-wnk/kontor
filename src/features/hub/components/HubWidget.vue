@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HubLevel } from '../hubCamera'
 import type { LabelBox, LabelSize } from '../hubCanvas'
-import type { AgentProject, Leaf } from '../hubGeometry'
+import type { AgentProject, Leaf, Sector } from '../hubGeometry'
 import type { Launcher } from '../hubLaunchers'
 import type { Circle } from '../hubPack'
 import type { WidgetId } from '@/features/workspace'
@@ -26,7 +26,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, OTHER_SECTOR_KEY, planSectors, polar, sectorColour, sectorMid, shadeMix } from '../hubGeometry'
+import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, planSectors, polar, sectorColour, sectorCount, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { controlsBox, CORNER_INSET_PX, cornerBoxes, launcherAngles, launcherBox, launchersFor, LEGEND_ROW_BOTTOM_PX, LEGEND_ROW_GAP_PX, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
@@ -72,7 +72,6 @@ onUnmounted(() => {
   }
 })
 
-const SECTOR_FLY_RADIUS = 260
 const SECTOR_FLY_REL = 2.6
 const AGENT_FLY_REL = 3
 const NOTE_FLY_REL = 2.6
@@ -124,7 +123,7 @@ const graphNotice = computed(() => GRAPH_NOTICES[graphStatus.value])
 const OFF_MAP: [number, number] = [Number.NaN, Number.NaN]
 
 // Leaf key → the paths placed in it, for packHub to lay out. A note packHub places (containment)
-// overrides today's age-based point; a note with no leaf (or one packHub skipped, e.g. Other) keeps it.
+// overrides today's age-based point; a note with no leaf keeps it.
 const notesByLeaf = computed(() => {
   const { sectorOfNote } = plan.value
   const byLeaf = new Map<string, string[]>()
@@ -140,14 +139,14 @@ const notesByLeaf = computed(() => {
   return byLeaf
 })
 
-// Leaf key → count of its live, matched agents (Other excluded): packHub grows the project's circle
+// Leaf key → count of its live agents, Other included: packHub grows the project's circle
 // to fit them and returns where each one sits on its rim.
 const agentsByLeaf = computed(() => {
   const { sectorOfProject } = plan.value
   const byLeaf = new Map<string, number>()
   for (const agent of live.value) {
     const leafKey = sectorOfProject.get(agentProjectKey(agent))
-    if (!leafKey || leafKey === OTHER_SECTOR_KEY)
+    if (!leafKey)
       continue
     byLeaf.set(leafKey, (byLeaf.get(leafKey) ?? 0) + 1)
   }
@@ -157,7 +156,7 @@ const agentsByLeaf = computed(() => {
 const packed = computed(() => packHub(plan.value.sectors, plan.value.leaves, notesByLeaf.value, agentsByLeaf.value))
 
 // A category/project's circle, paired with the plan node it belongs to — packHub skips a category or
-// leaf with no notes, so a sector or leaf without one is left out (Other never gets one).
+// leaf with neither notes nor agents, so a sector or leaf without them is left out.
 const categoryCircles = computed(() => plan.value.sectors.flatMap((sector) => {
   const c = packed.value.categories.get(sector.key)
   return c ? [{ sector, c }] : []
@@ -245,67 +244,12 @@ onMounted(() => refreshGraph())
 useEventListener(window, 'focus', () => refreshGraph())
 const stagePx = computed(() => Math.min(size.value.width, size.value.height))
 
-function fanSlot(i: number): number {
-  if (i === 0)
-    return 0
-  const step = Math.ceil(i / 2)
-  return i % 2 === 1 ? step : -step
-}
+// A little past MAP_RADIUS, which bounds every category circle, and past packHub's own AGENT_RIM_GAP,
+// so it clears the rim agents of the outermost project too.
+const AGENT_REACH_RADIUS = MAP_RADIUS + 8
 
-function angleOf(c: Circle): number {
-  return Math.atan2(c.y, c.x) * 180 / Math.PI
-}
-
-// The direction with the most room between category circles, as seen from the core: where an
-// agent matching no vault folder gets a home now that there is no ring to sit on.
-const otherAnchorDeg = computed(() => {
-  const angles = categoryCircles.value.map(({ c }) => angleOf(c)).sort((a, b) => a - b)
-  if (angles.length === 0)
-    return -90
-  let bestGap = -1
-  let bestMid = -90
-  for (let i = 0; i < angles.length; i++) {
-    const a = angles[i]
-    const b = i + 1 < angles.length ? angles[i + 1] : angles[0] + 360
-    if (b - a > bestGap) {
-      bestGap = b - a
-      bestMid = a + bestGap / 2
-    }
-  }
-  return bestMid
-})
-
-// A little past MAP_RADIUS, which bounds every category circle, so an Other agent never sits inside
-// one — and past packHub's own AGENT_RIM_GAP, so it clears a project's own rim agents too.
-const OTHER_RIM_RADIUS = MAP_RADIUS + 8
-const OTHER_FAN_STEP_DEG = 12
-
-// A folded Other agent shares the badge's own point — it is never drawn on its own, so it needs no
-// slot of its own; a shown one fans out beside the badge. Both sit just outside the map.
-const otherSlots = computed(() => {
-  const radius = OTHER_RIM_RADIUS
-  const anchor = otherAnchorDeg.value
-  const badge = polar(radius, anchor)
-  const slots = new Map<number, [number, number, number]>()
-  let shown = 0
-  for (const agent of live.value) {
-    const leafKey = plan.value.sectorOfProject.get(agentProjectKey(agent))
-    if (leafKey && leafKey !== OTHER_SECTOR_KEY)
-      continue
-    if (blocksOnOperator(agent) || agentDisplayStatus(agent) === 'working') {
-      shown++
-      const deg = anchor + fanSlot(shown) * OTHER_FAN_STEP_DEG
-      slots.set(agent.pid, [...polar(radius, deg), deg])
-    }
-    else {
-      slots.set(agent.pid, [...badge, anchor])
-    }
-  }
-  return slots
-})
-
-// Every live agent's screen point: a matched one on its project's rim slot (packHub's own order,
-// pid-stable since `live` is pid-sorted), an Other one from otherSlots.
+// Every live agent's screen point on its project's rim slot (packHub's own order, pid-stable since
+// `live` is pid-sorted); an agent without a vault folder rides the Other circle's rim the same way.
 const placed = computed(() => {
   const { sectorOfProject } = plan.value
   const slotIndex = new Map<string, number>()
@@ -316,15 +260,14 @@ const placed = computed(() => {
     const i = leafKey ? slotIndex.get(leafKey) ?? 0 : 0
     if (leafKey)
       slotIndex.set(leafKey, i + 1)
-    const projectSlot = leafKey && leafKey !== OTHER_SECTOR_KEY ? packed.value.agentSlots.get(leafKey)?.[i] : undefined
-    const [x, y, outwardDeg] = projectSlot ?? otherSlots.value.get(agent.pid) ?? [0, 0, 0]
+    const [x, y, outwardDeg] = (leafKey ? packed.value.agentSlots.get(leafKey)?.[i] : undefined) ?? [0, 0, 0]
     return { agent, x, y, state, needsOperator, outwardDeg }
   })
 })
 
-// The map's furthest reach plus the Other agents just past it, fixed rather than the live map's
+// The map's furthest reach plus the rim agents just past it, fixed rather than the live map's
 // extent, so the launchers never move or dock as agents come and go.
-const outerRingBasePx = computed(() => OTHER_RIM_RADIUS * k0.value)
+const outerRingBasePx = computed(() => AGENT_REACH_RADIUS * k0.value)
 const ringDocked = computed(() => launchersDocked(rel.value, k0.value, outerRingBasePx.value, stagePx.value))
 
 const projectCircles = computed(() => plan.value.leaves.flatMap((leaf) => {
@@ -395,31 +338,12 @@ function coveredByRail(box: LabelBox): boolean {
 
 const placedScreen = computed(() => placed.value.map(p => ({ p, screen: toScreen(cam.value, p.x, p.y) })))
 
-// An Other agent with nothing urgent about it folds into the badge instead of its own dot; one that
-// needs the operator or is working stays individually visible (Ruling R23 outranks the fold too).
-const collapsedOtherAgents = computed(() => placed.value.filter(p =>
-  plan.value.sectorOfProject.get(agentProjectKey(p.agent)) === OTHER_SECTOR_KEY
-  && !p.needsOperator
-  && p.state !== 'working',
-))
-// The badge sits where the first collapsed agent's own dot would sit today, so it never needs a
-// layout of its own.
-const otherBadge = computed(() => {
-  const collapsed = collapsedOtherAgents.value
-  return collapsed.length ? { x: collapsed[0].x, y: collapsed[0].y, count: collapsed.length } : null
-})
-
 // An agent under the rail is left undrawn rather than drawn unclickable: the dot would look
 // interactive and swallow every press. It keeps its row in the list view (L) and its dot on the
-// minimap, neither of which the rail covers. A collapsed Other agent is left undrawn the same way,
-// folded into the badge instead.
-const drawnAgents = computed(() => {
-  const collapsedPids = new Set(collapsedOtherAgents.value.map(p => p.agent.pid))
-  return new Set(placedScreen.value
-    .filter(({ screen: [sx, sy] }) => !coveredByRail(agentDotBox(sx, sy)))
-    .filter(({ p }) => !collapsedPids.has(p.agent.pid))
-    .map(({ p }) => p.agent.pid))
-})
+// minimap, neither of which the rail covers.
+const drawnAgents = computed(() => new Set(placedScreen.value
+  .filter(({ screen: [sx, sy] }) => !coveredByRail(agentDotBox(sx, sy)))
+  .map(({ p }) => p.agent.pid)))
 
 const EDGE_CLOCK_MS = 30_000
 // Edges fade and expire on this clock too: an idle agent sends no SSE tick to redraw them.
@@ -455,7 +379,7 @@ const sectorNames = computed(() => level.value >= 2 || !showSectorNames.value
   : categoryCircles.value.map(({ sector, c }) => {
       const point: [number, number] = [c.x, c.y - c.r]
       const [sx, sy] = toScreen(cam.value, ...point)
-      const box = sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sector.weight)))
+      const box = sectorLabelBox(sx, sy, labelSizes.value.get(sectorLabelKey(sector.label, sectorCount(sector))))
       return { key: sector.key, point, box, covered: coveredByRail(box) }
     }))
 
@@ -653,6 +577,13 @@ function onEscape(e: KeyboardEvent) {
   escape()
 }
 
+// Only a sector with a circle draws a name, so a click always finds one.
+function flyToSector(sector: Sector) {
+  const c = packed.value.categories.get(sector.key)
+  if (c)
+    flyTo(c.x, c.y, SECTOR_FLY_REL)
+}
+
 function flyToAgent(agent: Agent) {
   showCard({ kind: 'agent', pid: agent.pid })
   const hit = placed.value.find(p => p.agent.pid === agent.pid)
@@ -785,12 +716,10 @@ watch(hubFocusRequest, (target) => {
         :named-sectors="namedSectors"
         :named-leaves="namedLeaves"
         :drawn-agents="drawnAgents"
-        :other-badge="otherBadge"
         @core="openKontor"
         @agent="flyToAgent"
-        @sector="sector => flyTo(...polar(SECTOR_FLY_RADIUS, sectorMid(sector)), SECTOR_FLY_REL)"
+        @sector="flyToSector"
         @measure="sizes => labelSizes = sizes"
-        @other="toggleList"
       />
       <HubLaunchers :launchers="launchers" :cam="cam" :k0="k0" :docked="docked" :agent-ring-px="outerRingBasePx" :angles="docked ? undefined : ringAngles ?? undefined" @launch="launch" />
       <div class="absolute z-[2] flex items-end" :style="legendRowStyle">

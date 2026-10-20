@@ -213,8 +213,8 @@ function vaultFolders(): HubNote[] {
   return Array.from({ length: 6 }, (_, folder) => Array.from({ length: 20 }, (_, i) => vaultNote(folder * 20 + i, `folder${folder}/n${i}.md`))).flat()
 }
 
-// working: true throughout, so none of them lands in the Other badge (none matches a vault folder) —
-// the fixture tests the label culler on a crowded sector, not the badge fold.
+// None matches a vault folder of vaultFolders(), so all twelve ride the Other circle's rim — the
+// fixture tests the label culler on a crowded circle.
 function vaultAgents(): Agent[] {
   return VAULT_PIDS.map((pid, i) => ({
     pid,
@@ -245,8 +245,7 @@ function packedFor(paths: string[], projects: Array<{ key: string, label: string
 // mid angle — where its name is drawn.
 const TIERED_PIDS = Array.from({ length: 5 }, (_, i) => 700 + i)
 
-// working: true, so none of them lands in the Other badge (none matches a vault folder) — the
-// fixture tests tiering and rail docking, not the badge fold.
+// Matches no vault folder of vaultFolders(), so they ride the Other circle's rim.
 function tieredAgents(): Agent[] {
   return TIERED_PIDS.map(pid => ({ pid, status: 'idle', projectName: 'folder2', working: true })) as unknown as Agent[]
 }
@@ -500,7 +499,7 @@ describe('hubWidget', () => {
     const w = await mountHub()
     expect(w.find('[data-testid="hub-other-badge"]').exists()).toBe(false)
     expect(w.find('[data-testid="hub-category-__other__"]').exists()).toBe(true)
-    expect(w.findAll('[data-testid^="hub-sector-"]').map(s => s.text())).toContainEqual(expect.stringMatching(/^Other/))
+    expect(w.findAll('[data-testid^="hub-sector-"]').map(s => s.attributes('data-label-key')), 'Other counts its agents').toContain('Other 5')
 
     const core = translateOf(w.get('[data-testid="hub-core"]'))
     for (const pid of [500, 501, 502, 503, 504]) {
@@ -649,7 +648,7 @@ describe('hubWidget', () => {
   // Five agents share one project's rim; none of their dots may land on a drawn sector name.
   it('never lets a project\'s rim agent cover a sector name', async () => {
     graph.status.value = 'ready'
-    graph.notes.value = vaultFolders()
+    graph.notes.value = [...vaultFolders(), vaultNote(120, 'folder2/folder2/hub.md')]
     const pids = TIERED_PIDS
     agents.value = tieredAgents()
     const w = await mountHub(TILE)
@@ -1161,7 +1160,7 @@ describe('hubWidget', () => {
     graph.notes.value = [vaultNote(0, 'alpha/one.md'), vaultNote(1, 'beta/two.md')]
     const w = await mountHub()
     const projects = ['kontor-hub', 'web-app', 'api-server', 'worker-queue'].map(n => ({ key: n, label: n }))
-    const [x, y] = packedFor(['alpha/one.md', 'beta/two.md'], projects).notes.get('alpha/one.md')!
+    const [x, y] = packedFor(['alpha/one.md', 'beta/two.md'], projects, new Map([[hubGeometry.OTHER_SECTOR_KEY, 4]])).notes.get('alpha/one.md')!
     const stage = w.get('[data-testid="hub-stage"]').element
     for (const type of ['pointerdown', 'pointerup'])
       stage.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, clientX: 545 + x, clientY: 565 + y }))
@@ -1236,6 +1235,7 @@ describe('hubWidget', () => {
   it('anchors a project name toward the top of its circle when there is room, else keeps it centred', async () => {
     graph.status.value = 'ready'
     graph.notes.value = [vaultNote(0, 'work/babyone/one.md'), vaultNote(1, 'work/other/two.md')]
+    agents.value = []
     const w = await mountHub()
     await w.findAll('button').find(b => b.text() === 'Topics')!.trigger('click')
 

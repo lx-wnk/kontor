@@ -47,6 +47,15 @@ describe('packHub', () => {
     expect(withOther.agentSlots.get(OTHER_SECTOR_KEY)).toHaveLength(3)
   })
 
+  // Other's one project circle is its category circle, so the category name sits on its rim.
+  it('keeps every rim slot clear of the top where the category name sits', () => {
+    const withOther = packHub(sectors, leaves, notesByLeaf, new Map([[OTHER_SECTOR_KEY, 7]]))
+    for (const [, , deg] of withOther.agentSlots.get(OTHER_SECTOR_KEY)!) {
+      const d = Math.abs(deg + 90) % 360
+      expect(Math.min(d, 360 - d), `slot at ${deg}°`).toBeGreaterThanOrEqual(35 - 1e-9)
+    }
+  })
+
   it('places every note inside its project circle', () => {
     for (const [leafKey, paths] of notesByLeaf) {
       const project = result.projects.get(leafKey)

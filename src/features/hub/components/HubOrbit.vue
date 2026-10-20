@@ -9,7 +9,7 @@ import { friendlyProjectName } from '@/utils/friendlyProjectName'
 import { agentStatusTone, statusLabel } from '@/utils/statusColors'
 import { toScreen } from '../hubCamera'
 import { agentLabelKey, agentLabelOffset, inwardUnit, sectorLabelKey } from '../hubCanvas'
-import { labelledLeaves, leafColour, sectorColour } from '../hubGeometry'
+import { labelledLeaves, leafColour, sectorColour, sectorCount } from '../hubGeometry'
 
 const props = defineProps<{
   cam: Camera
@@ -25,7 +25,7 @@ const props = defineProps<{
   coreTitle: string
   coreDisabled: boolean
   // World point (top of its category circle) each sector's name sits at; a sector packHub gave no
-  // circle (Other) is left out of the map and draws no button.
+  // circle is left out of the map and draws no button.
   sectorPoints: ReadonlyMap<string, [number, number]>
   // World point (its project circle's centre) each leaf's name sits at; omitted or missing draws none.
   leafPoints?: ReadonlyMap<string, [number, number]>
@@ -41,12 +41,9 @@ const props = defineProps<{
   drawnAgents?: ReadonlySet<number>
   // The direction the culler placed each label in; omitted hangs every label toward the core.
   labelDirections?: ReadonlyMap<number, readonly [number, number]>
-  // The world point and count of the Other agents folded into one badge instead of drawn
-  // individually; null or omitted draws no badge.
-  otherBadge?: { x: number, y: number, count: number } | null
 }>()
 
-const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>], other: [] }>()
+const emit = defineEmits<{ core: [], agent: [agent: Agent], sector: [sector: Sector], measure: [sizes: ReadonlyMap<string, LabelSize>] }>()
 
 const root = ref<HTMLElement | null>(null)
 const sectorNamesShown = computed(() => props.level < 2 && props.showSectorNames)
@@ -69,7 +66,7 @@ const sizes = shallowRef<ReadonlyMap<string, LabelSize>>(new Map())
 // Joined, so a camera tick — which hands us new objects for the same labels — is not a change.
 const labelKeys = computed(() => [
   ...props.agents.map(a => agentLabelKey(a.agent.projectName, a.state)),
-  ...(sectorNamesShown.value ? namedSectorList.value.map(({ sector }) => sectorLabelKey(sector.label, sector.weight)) : []),
+  ...(sectorNamesShown.value ? namedSectorList.value.map(({ sector }) => sectorLabelKey(sector.label, sectorCount(sector))) : []),
   ...(leafNamesShown.value ? projectLeafList.value.map(({ leaf }) => sectorLabelKey(leaf.label, leaf.weight)) : []),
 ].join('\n'))
 
@@ -162,13 +159,13 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         :key="sector.key"
         type="button"
         :data-testid="`hub-sector-${i}`"
-        :data-label-key="sectorLabelKey(sector.label, sector.weight)"
+        :data-label-key="sectorLabelKey(sector.label, sectorCount(sector))"
         class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-widest hover:bg-fg/5"
         :class="[level === 1 && 'opacity-55', !showsSectorName(sector.key) && 'invisible']"
         :style="{ ...at(...point), color: `var(--sector-${sectorColour(sector.key)})` }"
         @click="$emit('sector', sector)"
       >
-        {{ sector.label }}<small class="ml-1 font-normal normal-case tracking-normal text-fg-mute">{{ sector.weight }}</small>
+        {{ sector.label }}<small class="ml-1 font-normal normal-case tracking-normal text-fg-mute">{{ sectorCount(sector) }}</small>
       </button>
     </template>
     <template v-if="leafNamesShown">
@@ -189,18 +186,6 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         }"
       >{{ leaf.label }}</span>
     </template>
-
-    <button
-      v-if="otherBadge"
-      type="button"
-      data-testid="hub-other-badge"
-      :aria-label="`${otherBadge.count} agents without a vault folder — open the list`"
-      class="pointer-events-auto -translate-1/2 cursor-pointer whitespace-nowrap rounded-full border border-line-strong bg-card px-2 py-0.5 text-[10.5px] font-semibold text-fg-mute hover:border-accent"
-      :style="at(otherBadge.x, otherBadge.y)"
-      @click="$emit('other')"
-    >
-      +{{ otherBadge.count }} other
-    </button>
 
     <!-- After the sector names, so the agent layer paints and takes pointer events above the legend. -->
     <button
