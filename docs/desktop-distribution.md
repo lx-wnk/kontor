@@ -28,6 +28,7 @@ task desktop:dmg    # -> bin/Kontor.dmg (chains desktop:dist)
 `desktop:dist` runs `wails build` (reading `desktop/wails.json` and `desktop/build/darwin/Info.plist`)
 with the same `-tags production` and `-ldflags "-extldflags '-framework UniformTypeIdentifiers'"`
 that `build:desktop` already uses for the raw-binary smoke build, so both paths link identically.
+It also rebuilds the `bin/kontor` CLI from the same frontend build, so the CLI never lags behind the app.
 `desktop:dmg` packages the resulting bundle into a plain read-only DMG via `hdiutil create` — no
 `create-dmg` or other third-party tool required.
 

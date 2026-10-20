@@ -155,6 +155,9 @@ tasks:
     cmds:
       - defer: git checkout -- desktop/wails.json
       - task: build:frontend
+      # The CLI ships next to the app; rebuilding it here keeps `kontor` from
+      # lagging behind the app it talks to.
+      - task: build
       # wails has no CLI flag for productVersion — it only reads desktop/wails.json —
       # so stamp it in before the build and restore it via defer: above, which
       # runs even on failure. Block scalar: the pattern contains ": ", which

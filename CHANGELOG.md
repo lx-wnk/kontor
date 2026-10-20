@@ -366,6 +366,7 @@ Preparing the first public release.
 
 ### Changed
 
+- `task desktop:dist` (and `desktop:dmg`, which chains it) now also rebuilds the `bin/kontor` CLI, so a freshly packaged app is never paired with a CLI that lacks its newest commands.
 - **Workspace pages scale their rows to the window.** The first nine grid rows always fill the visible height, so a default Zentrale fits the window down to row nine instead of overflowing a fixed 56px row minimum; rows past nine keep the same height and scroll below.
 
 - **Third-party notices are generated at release time and carry the full license texts.** `THIRD_PARTY_LICENSES.md` is no longer committed: goreleaser runs `scripts/gen-licenses.sh` as a before-hook and ships the file in every release archive and at `/licenses/THIRD_PARTY_LICENSES.md` in the container image. It now includes each dependency's license and NOTICE text, not only a link, as MIT, BSD and Apache-2.0 require for binary distribution. CI runs `scripts/gen-licenses.sh --check` on every PR (unknown license, missing license text, untidy modules), so a dependency update no longer fails on a stale committed file. `task licenses` writes to `dist/`, `task licenses:check` runs the gates.
