@@ -26,6 +26,8 @@ const (
 	FieldDefaultSpawnerID = "default_spawner_id"
 	// FieldSetupCommand holds the string denoting the setup_command field in the database.
 	FieldSetupCommand = "setup_command"
+	// FieldVaultFolder holds the string denoting the vault_folder field in the database.
+	FieldVaultFolder = "vault_folder"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldUpdatedAt holds the string denoting the updated_at field in the database.
@@ -52,6 +54,7 @@ var Columns = []string{
 	FieldColor,
 	FieldDefaultSpawnerID,
 	FieldSetupCommand,
+	FieldVaultFolder,
 	FieldCreatedAt,
 	FieldUpdatedAt,
 }
@@ -111,6 +114,11 @@ func ByDefaultSpawnerID(opts ...sql.OrderTermOption) OrderOption {
 // BySetupCommand orders the results by the setup_command field.
 func BySetupCommand(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSetupCommand, opts...).ToFunc()
+}
+
+// ByVaultFolder orders the results by the vault_folder field.
+func ByVaultFolder(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldVaultFolder, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

@@ -88,7 +88,7 @@ func TestSpawnerResolver_FallsBackToClaudeDefault(t *testing.T) {
 func TestSpawnerResolver_ProjectDefault(t *testing.T) {
 	f := setupResolver(t)
 
-	proj, err := f.projects.Create(t.Context(), "Proj", "proj", nil, nil, &f.altSpawner.ID, nil)
+	proj, err := f.projects.Create(t.Context(), "Proj", "proj", nil, nil, &f.altSpawner.ID, nil, nil)
 	require.NoError(t, err)
 
 	taskID := createTaskWith(t, f, "with-project", &proj.ID, nil)
@@ -103,7 +103,7 @@ func TestSpawnerResolver_TaskWinsOverProject(t *testing.T) {
 	f := setupResolver(t)
 
 	// Project sets claude-default as its default; task overrides with alt.
-	proj, err := f.projects.Create(t.Context(), "Proj", "proj-override", nil, nil, &f.defSpawner.ID, nil)
+	proj, err := f.projects.Create(t.Context(), "Proj", "proj-override", nil, nil, &f.defSpawner.ID, nil, nil)
 	require.NoError(t, err)
 
 	taskID := createTaskWith(t, f, "task-override", &proj.ID, &f.altSpawner.ID)
@@ -149,7 +149,7 @@ func TestSpawnerResolver_TaskSpawnerWinsOverAll(t *testing.T) {
 	third, err := f.spawners.Create(ctx, "Third", "third", "claude", nil, nil, nil, nil, "claude", nil, false)
 	require.NoError(t, err)
 
-	proj, err := f.projects.Create(ctx, "Proj", "proj-task-wins", nil, nil, &third.ID, nil)
+	proj, err := f.projects.Create(ctx, "Proj", "proj-task-wins", nil, nil, &third.ID, nil, nil)
 	require.NoError(t, err)
 
 	// Set project-stage and global-stage config pointing to third.
@@ -172,7 +172,7 @@ func TestSpawnerResolver_ProjectStageWinsOverProjectDefault(t *testing.T) {
 	ctx := t.Context()
 
 	// Project default points to defSpawner; project-stage config points to altSpawner.
-	proj, err := f.projects.Create(ctx, "Proj", "proj-stage-beats-default", nil, nil, &f.defSpawner.ID, nil)
+	proj, err := f.projects.Create(ctx, "Proj", "proj-stage-beats-default", nil, nil, &f.defSpawner.ID, nil, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, f.pcfg.SetScoped(ctx, &proj.ID, "stageSpawner.implementation", f.altSpawner.ID))
@@ -194,7 +194,7 @@ func TestSpawnerResolver_ProjectDefaultWinsOverGlobalStage(t *testing.T) {
 	// Global stage config points to altSpawner; project default points to defSpawner.
 	require.NoError(t, f.pcfg.SetScoped(ctx, nil, "stageSpawner.implementation", f.altSpawner.ID))
 
-	proj, err := f.projects.Create(ctx, "Proj", "proj-default-beats-global", nil, nil, &f.defSpawner.ID, nil)
+	proj, err := f.projects.Create(ctx, "Proj", "proj-default-beats-global", nil, nil, &f.defSpawner.ID, nil, nil)
 	require.NoError(t, err)
 
 	taskID := createTaskWith(t, f, "proj-default-wins", &proj.ID, nil)
@@ -242,7 +242,7 @@ func TestSpawnerResolver_StageArgEmptySkipsStageSteps(t *testing.T) {
 	f := setupResolver(t)
 	ctx := t.Context()
 
-	proj, err := f.projects.Create(ctx, "Proj", "proj-no-stage", nil, nil, nil, nil)
+	proj, err := f.projects.Create(ctx, "Proj", "proj-no-stage", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	// Set a global-stage config that would fire if stage were non-empty.

@@ -228,8 +228,8 @@ export function noteKind(path: string, frontmatterType?: string): string {
 
 export interface SectorPlan { sectors: Sector[], leaves: Leaf[], sectorOfNote: Map<string, string>, sectorOfProject: Map<string, string> }
 
-// `key` identifies the project; `label` (its name), then `repoDir`, is what a vault folder can match.
-export interface AgentProject { key: string, label: string, repoDir?: string }
+// `key` identifies the project. A leaf whose key is `vaultFolder` wins; otherwise `label` (its name), then `repoDir`, is what a vault folder can match.
+export interface AgentProject { key: string, label: string, repoDir?: string, vaultFolder?: string }
 
 const CLAUDE_WORKTREES = '/.claude/worktrees/'
 const TRAILING_SLASHES = /\/+$/
@@ -241,14 +241,14 @@ export function repoDirOf(cwd: string): string {
 }
 
 // One seat per project and repo: agents of one project in different repos each match their own folder.
-export function agentSeat(agent: Agent): AgentProject {
+export function agentSeat(agent: Agent, vaultFolder?: string): AgentProject {
   const repoDir = repoDirOf(agent.cwd)
-  return { key: `${agentProjectKey(agent)}\t${repoDir}`, label: agent.projectName, repoDir }
+  return { key: `${agentProjectKey(agent)}\t${repoDir}`, label: agent.projectName, repoDir, vaultFolder }
 }
 
 // `agentProjects` holds one entry per running agent, repeats included: a sector's weight counts the
 // distinct projects among them, its floor the instances. `sectorOfProject` resolves to a leaf,
-// matched by label, then by repo directory, against that leaf's project folder — never by which agents happen to be running.
+// matched by vault folder, then label, then repo directory, against that leaf's project folder — never by which agents happen to be running.
 export function planSectors(notePaths: readonly string[], agentProjects: readonly AgentProject[]): SectorPlan {
   const distinct = [...new Map(agentProjects.map(p => [p.key, p])).values()]
   const sectorOfNote = new Map<string, string>()
@@ -277,14 +277,19 @@ export function planSectors(notePaths: readonly string[], agentProjects: readonl
     else leaves.set(leafKey, { key: leafKey, label: leafLabel, weight: 1, parent: categoryKey })
   }
 
-  const leafNamed = (name: string | undefined) => {
-    if (!name)
-      return undefined
-    const candidates = [...leaves.values()].filter(l => l.label && l.label.toLowerCase() === name.toLowerCase())
+  // Case-only duplicates (`Work/shop` beside `work/shop`) resolve to the heavier leaf, then by key.
+  const heaviest = (matches: (leaf: SectorInput) => boolean) => {
+    const candidates = [...leaves.values()].filter(matches)
     candidates.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key))
     return candidates[0]?.key
   }
-  for (const p of distinct) sectorOfProject.set(p.key, leafNamed(p.label) ?? leafNamed(p.repoDir) ?? OTHER_SECTOR_KEY)
+  const leafNamed = (name: string | undefined) => name ? heaviest(l => !!l.label && l.label.toLowerCase() === name.toLowerCase()) : undefined
+  const leafAt = (folder: string | undefined) => {
+    if (!folder)
+      return undefined
+    return leaves.has(folder) ? folder : heaviest(l => l.key.toLowerCase() === folder.toLowerCase())
+  }
+  for (const p of distinct) sectorOfProject.set(p.key, leafAt(p.vaultFolder) ?? leafNamed(p.label) ?? leafNamed(p.repoDir) ?? OTHER_SECTOR_KEY)
   if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY)) {
     categoryInputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })
     leaves.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1, parent: OTHER_SECTOR_KEY })

@@ -1,7 +1,7 @@
 import type { ComputedRef } from 'vue'
 import type { GraphStatus, HubNote } from '../composables/useObsidianGraph'
 import type { NextThing } from '@/features/mission/composables/useNextThing'
-import type { Agent } from '@/types'
+import type { Agent, Project } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, shallowRef } from 'vue'
@@ -53,6 +53,8 @@ const initialAgents = agents.value
 const ask = vi.fn()
 const overlayOpen = ref(false)
 
+const kontorProjects = ref<Project[]>([])
+vi.mock('@/composables/useProjects', () => ({ useProjects: () => ({ projects: kontorProjects }) }))
 vi.mock('@/features/agents', () => ({
   // Fixtures name a project only; its checkout defaults to a folder of the same name.
   useAgents: () => ({ agents: computed(() => agents.value.map(a => ({ ...a, cwd: a.cwd ?? `/code/${a.projectName}` }))), selectAgent: vi.fn() }),
@@ -118,6 +120,7 @@ afterEach(() => {
   graph.refresh.mockClear()
   openSettings.mockClear()
   agents.value = initialAgents
+  kontorProjects.value = []
   useWorkspace().layout.value = DEFAULT_LAYOUT
   useWorkspace().wide.value = null
   hubFocusRequest.value = null
@@ -500,6 +503,41 @@ describe('hubWidget', () => {
     const w = await mountHub()
     expect(w.find('[data-testid="hub-agent-501"]').exists()).toBe(true)
     expect(w.find('[data-testid="hub-category-__other__"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('seats an agent in the vault folder its Kontor project names, over a folder matching its name', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/kontor/one.md'), vaultNote(1, 'private/shop/one.md')]
+    kontorProjects.value = [{ id: 'p1', slug: 'kontor', name: 'kontor', vaultFolder: 'private/shop', createdAt: '', updatedAt: '' }]
+    agents.value = [{ pid: 502, status: 'idle', projectId: 'p1', projectName: 'kontor', working: false }] as unknown as Agent[]
+    const w = await mountHub()
+    const paths = graph.notes.value.map(n => n.path)
+    const [x, y] = packedFor(paths, [], new Map([['private/shop', 1]])).agentSlots.get('private/shop')![0]
+    const core = translateOf(w.get('[data-testid="hub-core"]'))
+    const k = scale(w)
+    expect(screenOf(w, 502).sx).toBeCloseTo(core.sx + x * k)
+    expect(screenOf(w, 502).sy).toBeCloseTo(core.sy + y * k)
+    w.unmount()
+  })
+
+  it('moves an agent to its project\'s vault folder once the projects load after the agents', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/kontor/one.md'), vaultNote(1, 'private/shop/one.md')]
+    agents.value = [{ pid: 503, status: 'idle', projectId: 'p1', projectName: 'kontor', working: false }] as unknown as Agent[]
+    const w = await mountHub()
+    const slot = (leaf: string) => packedFor(graph.notes.value.map(n => n.path), [], new Map([[leaf, 1]])).agentSlots.get(leaf)![0]
+    const at = ([x, y]: number[]) => {
+      const core = translateOf(w.get('[data-testid="hub-core"]'))
+      const k = scale(w)
+      return { sx: core.sx + x * k, sy: core.sy + y * k }
+    }
+    expect(screenOf(w, 503).sx).toBeCloseTo(at(slot('work/kontor')).sx)
+
+    kontorProjects.value = [{ id: 'p1', slug: 'kontor', name: 'kontor', vaultFolder: 'private/shop', createdAt: '', updatedAt: '' }]
+    await flushPromises()
+    expect(screenOf(w, 503).sx).toBeCloseTo(at(slot('private/shop')).sx)
+    expect(screenOf(w, 503).sy).toBeCloseTo(at(slot('private/shop')).sy)
     w.unmount()
   })
 

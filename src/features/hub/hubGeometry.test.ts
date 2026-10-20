@@ -353,10 +353,26 @@ describe('planSectors', () => {
     const notes = ['work/shop-a/a.md', 'work/shop-b/a.md']
     const inA = { projectName: 'review', cwd: '/code/shop-a/.claude/worktrees/review' } as Agent
     const inB = { projectName: 'review', cwd: '/code/shop-b/.claude/worktrees/review' } as Agent
-    const both = planSectors(notes, [inA, inB].map(agentSeat))
+    const both = planSectors(notes, [inA, inB].map(a => agentSeat(a)))
     expect(both.sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
     expect(both.sectorOfProject.get(agentSeat(inB).key)).toBe('work/shop-b')
     expect(planSectors(notes, [agentSeat(inA)]).sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
+  })
+
+  it('seats a project with a vault folder there first, falling back to name and repo when the folder is gone', () => {
+    const shop = { projectId: 'p1', projectName: 'kontor', cwd: '/code/kontor' } as Agent
+    const notes = ['work/kontor/a.md', 'private/shop/a.md']
+    expect(planSectors(notes, [agentSeat(shop, 'Private/Shop')]).sectorOfProject.get(agentSeat(shop).key)).toBe('private/shop')
+    expect(planSectors(notes, [agentSeat(shop, 'work/gone')]).sectorOfProject.get(agentSeat(shop).key)).toBe('work/kontor')
+  })
+
+  it('resolves a vault folder exactly first, then to the heavier case-only duplicate, whatever the note order', () => {
+    const shop = { projectId: 'p1', projectName: 'x', cwd: '/code/x' } as Agent
+    const seatIn = (notes: string[], folder: string) => planSectors(notes, [agentSeat(shop, folder)]).sectorOfProject.get(agentSeat(shop).key)
+    const notes = ['work/shop/a.md', 'Work/shop/a.md', 'Work/shop/b.md']
+    expect(seatIn(notes, 'work/shop')).toBe('work/shop')
+    expect(seatIn(notes, 'WORK/SHOP')).toBe('Work/shop')
+    expect(seatIn([...notes].reverse(), 'WORK/SHOP')).toBe('Work/shop')
   })
 
   it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {

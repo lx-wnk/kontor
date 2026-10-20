@@ -86,7 +86,7 @@ func TestCreateTask_PlanMode_ProjectDefault(t *testing.T) {
 	env := newPlanModeTestEnv(t)
 	ctx := context.Background()
 
-	proj, err := env.projectRepo.Create(ctx, "Plan Project", "plan-proj", nil, nil, nil, nil)
+	proj, err := env.projectRepo.Create(ctx, "Plan Project", "plan-proj", nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestCreateTask_PlanMode_ExplicitOverridesProjectDefault(t *testing.T) {
 	env := newPlanModeTestEnv(t)
 	ctx := context.Background()
 
-	proj, err := env.projectRepo.Create(ctx, "Override Project", "override-proj", nil, nil, nil, nil)
+	proj, err := env.projectRepo.Create(ctx, "Override Project", "override-proj", nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}

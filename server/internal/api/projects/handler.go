@@ -39,11 +39,11 @@ type Handler struct {
 
 // projectRepo is the subset of repo.ProjectRepo this handler needs.
 type projectRepo interface {
-	Create(ctx context.Context, name, slug string, description, color, defaultSpawnerID, setupCommand *string) (*ent.Project, error)
+	Create(ctx context.Context, name, slug string, description, color, defaultSpawnerID, setupCommand, vaultFolder *string) (*ent.Project, error)
 	GetByID(ctx context.Context, id string) (*ent.Project, error)
 	GetWithFolders(ctx context.Context, id string) (*ent.Project, error)
 	ListWithFolderCount(ctx context.Context) ([]repo.ProjectWithCount, error)
-	Update(ctx context.Context, id string, name, slug *string, description, color, defaultSpawnerID, setupCommand *string, clearDescription, clearColor, clearDefaultSpawnerID, clearSetupCommand bool) (*ent.Project, error)
+	Update(ctx context.Context, id string, name, slug *string, description, color, defaultSpawnerID, setupCommand, vaultFolder *string, clearDescription, clearColor, clearDefaultSpawnerID, clearSetupCommand, clearVaultFolder bool) (*ent.Project, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -150,6 +150,7 @@ type projectView struct {
 	Color            *string      `json:"color,omitempty"`
 	DefaultSpawnerID *string      `json:"defaultSpawnerId,omitempty"`
 	SetupCommand     *string      `json:"setupCommand,omitempty"`
+	VaultFolder      *string      `json:"vaultFolder,omitempty"`
 	FolderCount      *int         `json:"folderCount,omitempty"`
 	Folders          []folderView `json:"folders,omitempty"`
 	CreatedAt        string       `json:"createdAt"`
@@ -178,6 +179,7 @@ func toProjectView(p *ent.Project, folderCount *int, folders []*ent.ProjectFolde
 		Color:            p.Color,
 		DefaultSpawnerID: p.DefaultSpawnerID,
 		SetupCommand:     p.SetupCommand,
+		VaultFolder:      p.VaultFolder,
 		FolderCount:      folderCount,
 		CreatedAt:        tsFmt(p.CreatedAt),
 		UpdatedAt:        tsFmt(p.UpdatedAt),
@@ -226,6 +228,7 @@ type createProjectBody struct {
 	Color            *string `json:"color"`
 	DefaultSpawnerID *string `json:"defaultSpawnerId"`
 	SetupCommand     *string `json:"setupCommand"`
+	VaultFolder      *string `json:"vaultFolder"`
 }
 
 // Create creates a new project.
@@ -253,7 +256,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 	if body.SetupCommand != nil && !h.canSetSetupCommand(r) {
 		return apierr.NewAppError(http.StatusForbidden, "setupCommand requires admin privileges")
 	}
-	p, err := h.projects.Create(r.Context(), body.Name, body.Slug, body.Description, body.Color, body.DefaultSpawnerID, body.SetupCommand)
+	if body.VaultFolder != nil && !validation.IsValidVaultFolder(*body.VaultFolder) {
+		return apierr.NewAppError(http.StatusBadRequest, validation.VaultFolderMessage)
+	}
+	p, err := h.projects.Create(r.Context(), body.Name, body.Slug, body.Description, body.Color, body.DefaultSpawnerID, body.SetupCommand, body.VaultFolder)
 	if err != nil {
 		if ent.IsConstraintError(err) {
 			return apierr.NewAppError(http.StatusConflict, "slug already exists")
@@ -290,6 +296,7 @@ type updateProjectBody struct {
 	Color            json.RawMessage `json:"color"`
 	DefaultSpawnerID json.RawMessage `json:"defaultSpawnerId"`
 	SetupCommand     json.RawMessage `json:"setupCommand"`
+	VaultFolder      json.RawMessage `json:"vaultFolder"`
 }
 
 // Update partially updates a project. JSON `null` clears the field; absent
@@ -336,11 +343,18 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, "setupCommand must be a string or null")
 	}
+	vaultFolder, clearVaultFolder, err := parseNullableString(body.VaultFolder)
+	if err != nil {
+		return apierr.NewAppError(http.StatusBadRequest, "vaultFolder must be a string or null")
+	}
+	if vaultFolder != nil && !validation.IsValidVaultFolder(*vaultFolder) {
+		return apierr.NewAppError(http.StatusBadRequest, validation.VaultFolderMessage)
+	}
 
 	p, err := h.projects.Update(r.Context(), id,
 		body.Name, body.Slug,
-		description, color, defaultSpawnerID, setupCommand,
-		clearDescription, clearColor, clearDefaultSpawner, clearSetupCommand,
+		description, color, defaultSpawnerID, setupCommand, vaultFolder,
+		clearDescription, clearColor, clearDefaultSpawner, clearSetupCommand, clearVaultFolder,
 	)
 	if err != nil {
 		if ent.IsNotFound(err) {

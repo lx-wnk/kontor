@@ -607,6 +607,7 @@ var (
 		{Name: "color", Type: field.TypeString, Nullable: true},
 		{Name: "default_spawner_id", Type: field.TypeString, Nullable: true},
 		{Name: "setup_command", Type: field.TypeString, Nullable: true},
+		{Name: "vault_folder", Type: field.TypeString, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 	}

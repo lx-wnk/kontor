@@ -46,7 +46,7 @@ func withJWT(t *testing.T, req *http.Request, _ bool) *http.Request {
 // seedProject inserts a project directly via the repo and returns its id.
 func seedProject(t *testing.T, h *Handler) string {
 	t.Helper()
-	p, err := h.projects.Create(context.Background(), "Proj", "proj", nil, nil, nil, nil)
+	p, err := h.projects.Create(context.Background(), "Proj", "proj", nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
@@ -279,5 +279,56 @@ func TestCreate_RejectsAnOverlongDescription(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), validation.ProjectDescriptionLengthMessage) {
 		t.Fatalf("error must name the limit, body=%s", rr.Body.String())
+	}
+}
+
+func serveProjects(t *testing.T, h *Handler, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	h.Mount(r)
+	r.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestCreate_StoresTheVaultFolder(t *testing.T) {
+	h := newTestHandler(t, true)
+	rr := serveProjects(t, h, "POST", "/api/projects", `{"name":"Shop","slug":"shop","vaultFolder":"work/babyone-shop"}`)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("got %d, want 201, body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"vaultFolder":"work/babyone-shop"`) {
+		t.Fatalf("response must carry the vault folder, body=%s", rr.Body.String())
+	}
+}
+
+func TestCreate_RejectsAVaultFolderThatIsNotAProjectFolder(t *testing.T) {
+	h := newTestHandler(t, true)
+	rr := serveProjects(t, h, "POST", "/api/projects", `{"name":"Shop","slug":"shop","vaultFolder":"../etc"}`)
+	if rr.Code != http.StatusBadRequest || !strings.Contains(rr.Body.String(), validation.VaultFolderMessage) {
+		t.Fatalf("got %d, want 400 naming the rule, body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestUpdate_SetsRejectsAndClearsTheVaultFolder(t *testing.T) {
+	h := newTestHandler(t, true)
+	id := seedProject(t, h)
+
+	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"vaultFolder":"work/shop"}`); rr.Code != http.StatusOK ||
+		!strings.Contains(rr.Body.String(), `"vaultFolder":"work/shop"`) {
+		t.Fatalf("set: got %d, body=%s", rr.Code, rr.Body.String())
+	}
+	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"name":"Renamed"}`); rr.Code != http.StatusOK ||
+		!strings.Contains(rr.Body.String(), `"vaultFolder":"work/shop"`) {
+		t.Fatalf("absent key must keep the folder: got %d, body=%s", rr.Code, rr.Body.String())
+	}
+	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"vaultFolder":"work"}`); rr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid: got %d, want 400, body=%s", rr.Code, rr.Body.String())
+	}
+	if rr := serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"vaultFolder":null}`); rr.Code != http.StatusOK ||
+		strings.Contains(rr.Body.String(), "vaultFolder") {
+		t.Fatalf("clear: got %d, body=%s", rr.Code, rr.Body.String())
 	}
 }

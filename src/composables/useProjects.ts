@@ -75,6 +75,7 @@ export interface CreateProjectInput {
   color?: string
   defaultSpawnerId?: string | null
   setupCommand?: string | null
+  vaultFolder?: string | null
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {

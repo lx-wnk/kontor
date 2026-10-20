@@ -23,6 +23,7 @@ func (Project) Fields() []ent.Field {
 		field.String("color").Optional().Nillable(),
 		field.String("default_spawner_id").Optional().Nillable(),
 		field.String("setup_command").Optional().Nillable(),
+		field.String("vault_folder").Optional().Nillable(),
 		field.Time("created_at").Default(time.Now).Immutable(),
 		field.Time("updated_at").Default(time.Now).UpdateDefault(time.Now),
 	}
