@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -82,19 +83,18 @@ func RunPTY(ctx context.Context, command []string) error {
 	if err != nil {
 		return fmt.Errorf("ptyhost: http: %w", err)
 	}
-	// Foreground sessions proxy output directly to the user's terminal and are
-	// interactive/owned by the user; treat them as always-recent (time.Now())
-	// rather than tracking output, which the dashboard interprets as live.
-	discPath, derr := writePtyDiscovery(childPid, port, token.value(), time.Now())
+	disc := newPtyDiscovery(childPid, port)
+	discPath, derr := disc.write(token.value())
 	if derr != nil {
 		slog.Warn("ptyhost: discovery write failed", "err", derr)
 	}
 
 	// Rotate the inject token periodically, re-emitting the 0600 discovery file.
 	go startTokenRotation(ctx, token, injectTokenRotateInterval(), func(newToken string) error {
-		_, werr := writePtyDiscovery(childPid, port, newToken, time.Now())
+		_, werr := disc.write(newToken)
 		return werr
 	})
+	go disc.refreshOnOutput(ctx, token)
 	defer func() {
 		if discPath != "" {
 			_ = os.Remove(discPath)
@@ -108,7 +108,7 @@ func RunPTY(ctx context.Context, command []string) error {
 	// the serializing writer too, so a user typing during an injection cannot
 	// land inside the injected prompt.
 	go func() { _, _ = io.Copy(ptyOut, os.Stdin) }()
-	_, _ = io.Copy(io.MultiWriter(os.Stdout, hub), ptmx) // returns when the child exits / pty closes
+	_, _ = io.Copy(io.MultiWriter(os.Stdout, hub, disc), ptmx) // returns when the child exits / pty closes
 
 	return cmd.Wait()
 }
@@ -326,13 +326,57 @@ func applyResize(ptmx io.Writer, data []byte) {
 	_ = pty.Setsize(f, &pty.Winsize{Cols: msg.Resize.Cols, Rows: msg.Resize.Rows})
 }
 
+// ptyDiscovery is a pty-hosted session's discovery file: as an io.Writer on the
+// pty output it stamps when the agent last produced output, which the
+// dashboard reads as "generating".
+type ptyDiscovery struct {
+	childPid, port int
+	startedAt      time.Time
+	lastOut        atomic.Int64 // unix nanos of the last output chunk
+}
+
+func newPtyDiscovery(childPid, port int) *ptyDiscovery {
+	d := &ptyDiscovery{childPid: childPid, port: port, startedAt: time.Now()}
+	d.lastOut.Store(d.startedAt.UnixNano())
+	return d
+}
+
+func (d *ptyDiscovery) Write(p []byte) (int, error) {
+	d.lastOut.Store(time.Now().UnixNano())
+	return len(p), nil
+}
+
+func (d *ptyDiscovery) write(token string) (string, error) {
+	return writePtyDiscovery(d.childPid, d.port, token, d.startedAt, time.Unix(0, d.lastOut.Load()))
+}
+
+// refreshOnOutput rewrites the file between token rotations so the dashboard
+// sees recent output without waiting for the next rotation; an idle session
+// causes no writes.
+func (d *ptyDiscovery) refreshOnOutput(ctx context.Context, token *rotatingToken) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	written := d.lastOut.Load()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cur := d.lastOut.Load(); cur != written {
+				_, _ = d.write(token.value())
+				written = cur
+			}
+		}
+	}
+}
+
 // writePtyDiscovery writes the pty-broker discovery file for a pty-hosted
 // session. It writes to {childPid}.pty.json (not {childPid}.json) so it never
 // collides with the channel bridge's {parentPid}.json file when both run for
 // the same claude process. The dashboard reads BOTH files independently:
 //   - {pid}.json  → channel bridge (channelAvailable, tmuxPane)
 //   - {pid}.pty.json → pty broker (channelAvailable, ptyInject)
-func writePtyDiscovery(childPid, port int, token string, lastOutputAt time.Time) (string, error) {
+func writePtyDiscovery(childPid, port int, token string, startedAt, lastOutputAt time.Time) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -348,7 +392,7 @@ func writePtyDiscovery(childPid, port int, token string, lastOutputAt time.Time)
 		"parentPid":    childPid,
 		"cwd":          cwd(),
 		"ptyInject":    true,
-		"startedAt":    time.Now().UTC().Format(time.RFC3339),
+		"startedAt":    startedAt.UTC().Format(time.RFC3339),
 		"lastOutputAt": lastOutputAt.UTC().Format(time.RFC3339),
 	})
 	if err := os.WriteFile(path, data, 0o600); err != nil {
