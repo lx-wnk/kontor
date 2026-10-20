@@ -2,16 +2,19 @@ import type { AgentStatus, PipelineStage, StageRunStatus } from '../types'
 
 export type ChipTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'accent'
 
-export type AgentDisplayStatus = AgentStatus | 'working'
+export type AgentDisplayStatus = AgentStatus | 'working' | 'replied'
 
 /**
  * The status the UI shows for an agent: live turn state (TurnOpen ||
  * recentOutput, server/internal/merger) overrides the time-bucketed status
  * the server sends, so the badge and any grouping stay in agreement about
- * the same agent.
+ * the same agent. 'active' without an open turn means the agent has just
+ * answered and it is the user's turn.
  */
 export function agentDisplayStatus(agent: { status: AgentStatus, working: boolean }): AgentDisplayStatus {
-  return agent.working ? 'working' : agent.status
+  if (agent.working)
+    return 'working'
+  return agent.status === 'active' ? 'replied' : agent.status
 }
 
 export function stageTone(stage: PipelineStage | string): ChipTone {
@@ -56,6 +59,7 @@ export function agentStatusTone(status: string): ChipTone {
   switch (status) {
     case 'active': return 'success'
     case 'working': return 'info'
+    case 'replied': return 'accent'
     case 'waiting': return 'warning'
     case 'error': return 'danger'
     case 'completed': return 'success'
@@ -69,6 +73,7 @@ export function statusLabel(status: string): string {
   switch (status) {
     case 'active': return 'Active'
     case 'working': return 'Working'
+    case 'replied': return 'Replied'
     // 'waiting' means 30s-5min since last activity (server/internal/merger/
     // merger.go CalculateStatus) — the agent is alive and recently active. "Waiting"
     // read as "waiting for you", colliding with the needs-you band's meaning.

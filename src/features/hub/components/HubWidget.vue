@@ -432,7 +432,7 @@ const labels = computed(() => {
     sx,
     sy,
     text: agentLabelKey(p.agent.projectName, p.state),
-    priority: agentPriority(p.needsOperator, p.state === 'working'),
+    priority: agentPriority(p.needsOperator, p.state),
   }))
   const dotObstacles = drawn.map(({ p, screen: [sx, sy] }) => ({ box: agentDotBox(sx, sy), ownerIndex: p.agent.pid }))
   const edges = [...offStageObstacles(size.value.width, size.value.height), ...launcherBoxes.value.map(box => ({ box }))]
@@ -444,7 +444,7 @@ const labels = computed(() => {
   return { directions, kept: cullLabels(candidates, c => agentLabelBox(c, sizes.get(c.text), directions.get(c.index)), obstacles) }
 })
 
-const running = computed(() => placed.value.filter(p => p.state === 'working' || p.state === 'active').length)
+const running = computed(() => placed.value.filter(p => p.state === 'working' || p.state === 'replied').length)
 const waiting = computed(() => placed.value.filter(p => p.needsOperator).length)
 const kontorState = computed(() => kontorAgent.value ? agentDisplayStatus(kontorAgent.value) : 'off')
 const kontorPage = computed(() => pageWithWidget(layout.value, KONTOR_WIDGET))

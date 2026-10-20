@@ -150,9 +150,9 @@ export function sectorLabelBox(sx: number, sy: number, size: LabelSize = UNMEASU
   return { x: sx - size.w / 2, y: sy - size.h / 2, w: size.w, h: size.h }
 }
 
-// needs-the-operator outranks working, which outranks everything else (Ruling R23).
-export function agentPriority(needsOperator: boolean, working: boolean): number {
-  return (needsOperator ? 2 : 0) + (working ? 1 : 0)
+// needs-the-operator outranks replied, which outranks working, which outranks everything else (Ruling R23).
+export function agentPriority(needsOperator: boolean, state: AgentDisplayStatus): number {
+  return (needsOperator ? 4 : 0) + (state === 'replied' ? 2 : state === 'working' ? 1 : 0)
 }
 
 export const NOTE_RADIUS_PX: Record<HubLevel, number> = { 0: 2.1, 1: 3.4, 2: 4.6 }

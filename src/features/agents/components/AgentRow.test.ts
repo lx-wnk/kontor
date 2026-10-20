@@ -55,3 +55,11 @@ describe('agentRow internal process badge', () => {
     expect(wrapper.find('[data-testid="agent-row-internal-badge"]').exists()).toBe(false)
   })
 })
+
+describe('agentRow status dot', () => {
+  it('matches the badge: accent for an agent that has just replied, success while it works', () => {
+    const dot = (agent: Agent) => mount(AgentRow, { props: { agent } }).get('[data-testid="agent-row-status-dot"]').classes()
+    expect(dot({ ...baseAgent, status: 'active', working: false })).toContain('bg-accent')
+    expect(dot({ ...baseAgent, status: 'active', working: true })).toContain('bg-success-dot')
+  })
+})

@@ -366,6 +366,7 @@ Preparing the first public release.
 
 ### Changed
 
+- **An agent that has just answered shows "Replied" instead of "Active".** For up to 30 seconds after an agent closes its turn, its badge, hub label and list row read "Replied" in the accent colour, and its hub dot gets a steady accent ring, so it reads as your turn rather than as still working. Its hub label outranks a working agent's when labels collide; needs-you still outranks both. Subagent badges keep "Active".
 - `task desktop:dist` no longer fails while Kontor is running. `wails build` now skips binding generation, which started the app and collided with the running instance on port 13120; the desktop shell binds no Go methods, so nothing is lost.
 - The `go` directive in `go.work` and every `go.mod` is now `go 1.26.0` instead of `go 1.26`, and the CI toolchain-consistency check expects that form. Go orders `1.26` before `1.26.0`, so dependencies that declare `go 1.26.0` (such as `modernc.org/sqlite` 1.60) made `go mod tidy` rewrite the directive and every Dependabot bump that pulled one in failed CI.
 - `task desktop:dist` (and `desktop:dmg`, which chains it) now also rebuilds the `bin/kontor` CLI, so a freshly packaged app is never paired with a CLI that lacks its newest commands.
