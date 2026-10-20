@@ -29,16 +29,22 @@ const notesByLeaf = new Map<string, readonly string[]>([
   ['alpha/proj1', ['alpha/proj1/note1.md', 'alpha/proj1/note2.md']],
   ['alpha/proj2', ['alpha/proj2/note1.md']],
   ['beta/proj1', ['beta/proj1/note1.md', 'beta/proj1/note2.md', 'beta/proj1/note3.md']],
-  [OTHER_SECTOR_KEY, ['other/note1.md']],
 ])
 
 describe('packHub', () => {
   const result = packHub(sectors, leaves, notesByLeaf)
 
-  it('skips the OTHER sector entirely', () => {
+  it('gives the OTHER sector no circle while it holds no agents', () => {
     expect(result.categories.has(OTHER_SECTOR_KEY)).toBe(false)
     expect(result.projects.has(OTHER_SECTOR_KEY)).toBe(false)
-    expect(result.notes.has('other/note1.md')).toBe(false)
+  })
+
+  it('gives the OTHER sector a circle with a rim slot per agent once it holds agents', () => {
+    const withOther = packHub(sectors, leaves, notesByLeaf, new Map([[OTHER_SECTOR_KEY, 3]]))
+    const circle = withOther.categories.get(OTHER_SECTOR_KEY)!
+    expect(circle).toBeDefined()
+    expect(dist(circle.x, circle.y, 0, 0) + circle.r).toBeLessThanOrEqual(MAP_RADIUS + 1e-6)
+    expect(withOther.agentSlots.get(OTHER_SECTOR_KEY)).toHaveLength(3)
   })
 
   it('places every note inside its project circle', () => {
