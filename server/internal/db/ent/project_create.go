@@ -92,6 +92,20 @@ func (_c *ProjectCreate) SetNillableSetupCommand(v *string) *ProjectCreate {
 	return _c
 }
 
+// SetVaultFolder sets the "vault_folder" field.
+func (_c *ProjectCreate) SetVaultFolder(v string) *ProjectCreate {
+	_c.mutation.SetVaultFolder(v)
+	return _c
+}
+
+// SetNillableVaultFolder sets the "vault_folder" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableVaultFolder(v *string) *ProjectCreate {
+	if v != nil {
+		_c.SetVaultFolder(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *ProjectCreate) SetCreatedAt(v time.Time) *ProjectCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -259,6 +273,10 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SetupCommand(); ok {
 		_spec.SetField(project.FieldSetupCommand, field.TypeString, value)
 		_node.SetupCommand = &value
+	}
+	if value, ok := _c.mutation.VaultFolder(); ok {
+		_spec.SetField(project.FieldVaultFolder, field.TypeString, value)
+		_node.VaultFolder = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(project.FieldCreatedAt, field.TypeTime, value)
@@ -429,6 +447,24 @@ func (u *ProjectUpsert) UpdateSetupCommand() *ProjectUpsert {
 // ClearSetupCommand clears the value of the "setup_command" field.
 func (u *ProjectUpsert) ClearSetupCommand() *ProjectUpsert {
 	u.SetNull(project.FieldSetupCommand)
+	return u
+}
+
+// SetVaultFolder sets the "vault_folder" field.
+func (u *ProjectUpsert) SetVaultFolder(v string) *ProjectUpsert {
+	u.Set(project.FieldVaultFolder, v)
+	return u
+}
+
+// UpdateVaultFolder sets the "vault_folder" field to the value that was provided on create.
+func (u *ProjectUpsert) UpdateVaultFolder() *ProjectUpsert {
+	u.SetExcluded(project.FieldVaultFolder)
+	return u
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (u *ProjectUpsert) ClearVaultFolder() *ProjectUpsert {
+	u.SetNull(project.FieldVaultFolder)
 	return u
 }
 
@@ -604,6 +640,27 @@ func (u *ProjectUpsertOne) UpdateSetupCommand() *ProjectUpsertOne {
 func (u *ProjectUpsertOne) ClearSetupCommand() *ProjectUpsertOne {
 	return u.Update(func(s *ProjectUpsert) {
 		s.ClearSetupCommand()
+	})
+}
+
+// SetVaultFolder sets the "vault_folder" field.
+func (u *ProjectUpsertOne) SetVaultFolder(v string) *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetVaultFolder(v)
+	})
+}
+
+// UpdateVaultFolder sets the "vault_folder" field to the value that was provided on create.
+func (u *ProjectUpsertOne) UpdateVaultFolder() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateVaultFolder()
+	})
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (u *ProjectUpsertOne) ClearVaultFolder() *ProjectUpsertOne {
+	return u.Update(func(s *ProjectUpsert) {
+		s.ClearVaultFolder()
 	})
 }
 
@@ -948,6 +1005,27 @@ func (u *ProjectUpsertBulk) UpdateSetupCommand() *ProjectUpsertBulk {
 func (u *ProjectUpsertBulk) ClearSetupCommand() *ProjectUpsertBulk {
 	return u.Update(func(s *ProjectUpsert) {
 		s.ClearSetupCommand()
+	})
+}
+
+// SetVaultFolder sets the "vault_folder" field.
+func (u *ProjectUpsertBulk) SetVaultFolder(v string) *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.SetVaultFolder(v)
+	})
+}
+
+// UpdateVaultFolder sets the "vault_folder" field to the value that was provided on create.
+func (u *ProjectUpsertBulk) UpdateVaultFolder() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.UpdateVaultFolder()
+	})
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (u *ProjectUpsertBulk) ClearVaultFolder() *ProjectUpsertBulk {
+	return u.Update(func(s *ProjectUpsert) {
+		s.ClearVaultFolder()
 	})
 }
 

@@ -272,7 +272,7 @@ func TestSpawnerRepo_DeleteInUseByProject(t *testing.T) {
 	s, err := r.Create(t.Context(), "P", "in-use-project", "claude", nil, nil, nil, nil, "", nil, false)
 	require.NoError(t, err)
 
-	_, err = pr.Create(t.Context(), "Proj", "proj-uses-spawner", nil, nil, &s.ID, nil)
+	_, err = pr.Create(t.Context(), "Proj", "proj-uses-spawner", nil, nil, &s.ID, nil, nil)
 	require.NoError(t, err)
 
 	err = r.Delete(t.Context(), s.ID)

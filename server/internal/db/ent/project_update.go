@@ -137,6 +137,26 @@ func (_u *ProjectUpdate) ClearSetupCommand() *ProjectUpdate {
 	return _u
 }
 
+// SetVaultFolder sets the "vault_folder" field.
+func (_u *ProjectUpdate) SetVaultFolder(v string) *ProjectUpdate {
+	_u.mutation.SetVaultFolder(v)
+	return _u
+}
+
+// SetNillableVaultFolder sets the "vault_folder" field if the given value is not nil.
+func (_u *ProjectUpdate) SetNillableVaultFolder(v *string) *ProjectUpdate {
+	if v != nil {
+		_u.SetVaultFolder(*v)
+	}
+	return _u
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (_u *ProjectUpdate) ClearVaultFolder() *ProjectUpdate {
+	_u.mutation.ClearVaultFolder()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ProjectUpdate) SetUpdatedAt(v time.Time) *ProjectUpdate {
 	_u.mutation.SetUpdatedAt(v)
@@ -258,6 +278,12 @@ func (_u *ProjectUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.SetupCommandCleared() {
 		_spec.ClearField(project.FieldSetupCommand, field.TypeString)
+	}
+	if value, ok := _u.mutation.VaultFolder(); ok {
+		_spec.SetField(project.FieldVaultFolder, field.TypeString, value)
+	}
+	if _u.mutation.VaultFolderCleared() {
+		_spec.ClearField(project.FieldVaultFolder, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(project.FieldUpdatedAt, field.TypeTime, value)
@@ -435,6 +461,26 @@ func (_u *ProjectUpdateOne) ClearSetupCommand() *ProjectUpdateOne {
 	return _u
 }
 
+// SetVaultFolder sets the "vault_folder" field.
+func (_u *ProjectUpdateOne) SetVaultFolder(v string) *ProjectUpdateOne {
+	_u.mutation.SetVaultFolder(v)
+	return _u
+}
+
+// SetNillableVaultFolder sets the "vault_folder" field if the given value is not nil.
+func (_u *ProjectUpdateOne) SetNillableVaultFolder(v *string) *ProjectUpdateOne {
+	if v != nil {
+		_u.SetVaultFolder(*v)
+	}
+	return _u
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (_u *ProjectUpdateOne) ClearVaultFolder() *ProjectUpdateOne {
+	_u.mutation.ClearVaultFolder()
+	return _u
+}
+
 // SetUpdatedAt sets the "updated_at" field.
 func (_u *ProjectUpdateOne) SetUpdatedAt(v time.Time) *ProjectUpdateOne {
 	_u.mutation.SetUpdatedAt(v)
@@ -586,6 +632,12 @@ func (_u *ProjectUpdateOne) sqlSave(ctx context.Context) (_node *Project, err er
 	}
 	if _u.mutation.SetupCommandCleared() {
 		_spec.ClearField(project.FieldSetupCommand, field.TypeString)
+	}
+	if value, ok := _u.mutation.VaultFolder(); ok {
+		_spec.SetField(project.FieldVaultFolder, field.TypeString, value)
+	}
+	if _u.mutation.VaultFolderCleared() {
+		_spec.ClearField(project.FieldVaultFolder, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(project.FieldUpdatedAt, field.TypeTime, value)

@@ -95,6 +95,11 @@ func SetupCommand(v string) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldSetupCommand, v))
 }
 
+// VaultFolder applies equality check predicate on the "vault_folder" field. It's identical to VaultFolderEQ.
+func VaultFolder(v string) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldVaultFolder, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldCreatedAt, v))
@@ -533,6 +538,81 @@ func SetupCommandEqualFold(v string) predicate.Project {
 // SetupCommandContainsFold applies the ContainsFold predicate on the "setup_command" field.
 func SetupCommandContainsFold(v string) predicate.Project {
 	return predicate.Project(sql.FieldContainsFold(FieldSetupCommand, v))
+}
+
+// VaultFolderEQ applies the EQ predicate on the "vault_folder" field.
+func VaultFolderEQ(v string) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldVaultFolder, v))
+}
+
+// VaultFolderNEQ applies the NEQ predicate on the "vault_folder" field.
+func VaultFolderNEQ(v string) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldVaultFolder, v))
+}
+
+// VaultFolderIn applies the In predicate on the "vault_folder" field.
+func VaultFolderIn(vs ...string) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldVaultFolder, vs...))
+}
+
+// VaultFolderNotIn applies the NotIn predicate on the "vault_folder" field.
+func VaultFolderNotIn(vs ...string) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldVaultFolder, vs...))
+}
+
+// VaultFolderGT applies the GT predicate on the "vault_folder" field.
+func VaultFolderGT(v string) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldVaultFolder, v))
+}
+
+// VaultFolderGTE applies the GTE predicate on the "vault_folder" field.
+func VaultFolderGTE(v string) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldVaultFolder, v))
+}
+
+// VaultFolderLT applies the LT predicate on the "vault_folder" field.
+func VaultFolderLT(v string) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldVaultFolder, v))
+}
+
+// VaultFolderLTE applies the LTE predicate on the "vault_folder" field.
+func VaultFolderLTE(v string) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldVaultFolder, v))
+}
+
+// VaultFolderContains applies the Contains predicate on the "vault_folder" field.
+func VaultFolderContains(v string) predicate.Project {
+	return predicate.Project(sql.FieldContains(FieldVaultFolder, v))
+}
+
+// VaultFolderHasPrefix applies the HasPrefix predicate on the "vault_folder" field.
+func VaultFolderHasPrefix(v string) predicate.Project {
+	return predicate.Project(sql.FieldHasPrefix(FieldVaultFolder, v))
+}
+
+// VaultFolderHasSuffix applies the HasSuffix predicate on the "vault_folder" field.
+func VaultFolderHasSuffix(v string) predicate.Project {
+	return predicate.Project(sql.FieldHasSuffix(FieldVaultFolder, v))
+}
+
+// VaultFolderIsNil applies the IsNil predicate on the "vault_folder" field.
+func VaultFolderIsNil() predicate.Project {
+	return predicate.Project(sql.FieldIsNull(FieldVaultFolder))
+}
+
+// VaultFolderNotNil applies the NotNil predicate on the "vault_folder" field.
+func VaultFolderNotNil() predicate.Project {
+	return predicate.Project(sql.FieldNotNull(FieldVaultFolder))
+}
+
+// VaultFolderEqualFold applies the EqualFold predicate on the "vault_folder" field.
+func VaultFolderEqualFold(v string) predicate.Project {
+	return predicate.Project(sql.FieldEqualFold(FieldVaultFolder, v))
+}
+
+// VaultFolderContainsFold applies the ContainsFold predicate on the "vault_folder" field.
+func VaultFolderContainsFold(v string) predicate.Project {
+	return predicate.Project(sql.FieldContainsFold(FieldVaultFolder, v))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

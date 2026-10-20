@@ -13,7 +13,7 @@ func TestProjectFolderRepo_CreateAndList(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "FP", "fp", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "FP", "fp", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f1, err := r.Create(t.Context(), p.ID, "/tmp/a", ptr("alpha"), false)
@@ -35,7 +35,7 @@ func TestProjectFolderRepo_PathUniquenessPerProject(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "U", "u", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "U", "u", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	_, err = r.Create(t.Context(), p.ID, "/tmp/same", ptr("first"), false)
@@ -50,7 +50,7 @@ func TestProjectFolderRepo_OnlyOneDefaultOnCreate(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "D", "d", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "D", "d", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f1, err := r.Create(t.Context(), p.ID, "/tmp/1", ptr("one"), false)
@@ -85,7 +85,7 @@ func TestProjectFolderRepo_UpdateSetsDefaultExclusively(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "DU", "du", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "DU", "du", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	a, err := r.Create(t.Context(), p.ID, "/tmp/x", ptr("x"), true)
@@ -108,7 +108,7 @@ func TestProjectFolderRepo_UpdatePathAndLabel(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "UP", "up", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "UP", "up", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f, err := r.Create(t.Context(), p.ID, "/tmp/initial", ptr("init"), false)
@@ -132,7 +132,7 @@ func TestProjectFolderRepo_Delete(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "DL", "dl", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "DL", "dl", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	f, err := r.Create(t.Context(), p.ID, "/tmp/dl", ptr("dl"), false)
@@ -150,7 +150,7 @@ func TestProjectFolderRepo_Suggest(t *testing.T) {
 	pr := repo.NewProjectRepo(client)
 	r := repo.NewProjectFolderRepo(client)
 
-	p, err := pr.Create(t.Context(), "SG", "sg", nil, nil, nil, nil)
+	p, err := pr.Create(t.Context(), "SG", "sg", nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	_, err = r.Create(t.Context(), p.ID, "/tmp/z", ptr("z"), false)

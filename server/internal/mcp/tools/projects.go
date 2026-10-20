@@ -205,7 +205,7 @@ func registerCreateProject(registry mcp.ToolRegistry, d WriteDeps) {
 			// admin check. tasks:write is not admin, so the MCP path always
 			// creates a project without one — do not add it back for parity.
 			// Sending the key anyway is refused by rejectUnknownArgs above.
-			p, err := d.ProjectRepo.Create(ctx, name, slug, description, color, spawnerID, nil)
+			p, err := d.ProjectRepo.Create(ctx, name, slug, description, color, spawnerID, nil, nil)
 			if err != nil {
 				// Lost race against a concurrent create: the unique index, not the
 				// pre-check above, is the authoritative duplicate guard.

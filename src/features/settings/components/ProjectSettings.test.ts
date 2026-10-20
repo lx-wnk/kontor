@@ -2,13 +2,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
+import { updateProject } from '@/composables/useProjects'
 import ProjectSettings from '@/features/settings/components/ProjectSettings.vue'
 import { MAX_DESCRIPTION_CHARS, MAX_PROJECT_NAME_CHARS, SLUG_RE } from '@/utils/validation'
 
 vi.mock('@/composables/useProjects', () => ({
   useProjects: () => ({
     projects: ref([
-      { id: 'p1', slug: 'web', name: 'Web', folders: [], createdAt: '', updatedAt: '' },
+      { id: 'p1', slug: 'web', name: 'Web', vaultFolder: 'work/web', folders: [], createdAt: '', updatedAt: '' },
       // Slug deliberately diverges from the name: a re-derivation here is visible.
       { id: 'p2', slug: 'legacy-key', name: 'Renamed Later', folders: [], createdAt: '', updatedAt: '' },
     ]),
@@ -210,5 +211,25 @@ describe('projectSettings length limits', () => {
 
     expect(nameInput(wrapper).maxLength).toBe(MAX_PROJECT_NAME_CHARS)
     expect((wrapper.get('#proj-desc').element as HTMLInputElement).maxLength).toBe(MAX_DESCRIPTION_CHARS)
+  })
+})
+
+describe('projectSettings vault folder', () => {
+  it('shows the stored vault folder and saves a trimmed edit, an empty field clearing it', async () => {
+    const wrapper = mount(ProjectSettings)
+    await wrapper.get('[data-testid="proj-edit-web"]').trigger('click')
+    await flushPromises()
+    const input = wrapper.get('[data-testid="proj-vault-folder"]')
+    expect((input.element as HTMLInputElement).value).toBe('work/web')
+
+    await input.setValue('  work/web-shop ')
+    await wrapper.findAll('button').find(b => b.text().trim() === 'Save Changes')!.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(updateProject)).toHaveBeenLastCalledWith('p1', expect.objectContaining({ vaultFolder: 'work/web-shop' }))
+
+    await input.setValue('')
+    await wrapper.findAll('button').find(b => b.text().trim() === 'Save Changes')!.trigger('click')
+    await flushPromises()
+    expect(vi.mocked(updateProject)).toHaveBeenLastCalledWith('p1', expect.objectContaining({ vaultFolder: null }))
   })
 })

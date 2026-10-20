@@ -29,6 +29,8 @@ type Project struct {
 	DefaultSpawnerID *string `json:"default_spawner_id,omitempty"`
 	// SetupCommand holds the value of the "setup_command" field.
 	SetupCommand *string `json:"setup_command,omitempty"`
+	// VaultFolder holds the value of the "vault_folder" field.
+	VaultFolder *string `json:"vault_folder,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -62,7 +64,7 @@ func (*Project) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case project.FieldID, project.FieldSlug, project.FieldName, project.FieldDescription, project.FieldColor, project.FieldDefaultSpawnerID, project.FieldSetupCommand:
+		case project.FieldID, project.FieldSlug, project.FieldName, project.FieldDescription, project.FieldColor, project.FieldDefaultSpawnerID, project.FieldSetupCommand, project.FieldVaultFolder:
 			values[i] = new(sql.NullString)
 		case project.FieldCreatedAt, project.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -126,6 +128,13 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SetupCommand = new(string)
 				*_m.SetupCommand = value.String
+			}
+		case project.FieldVaultFolder:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field vault_folder", values[i])
+			} else if value.Valid {
+				_m.VaultFolder = new(string)
+				*_m.VaultFolder = value.String
 			}
 		case project.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -203,6 +212,11 @@ func (_m *Project) String() string {
 	builder.WriteString(", ")
 	if v := _m.SetupCommand; v != nil {
 		builder.WriteString("setup_command=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.VaultFolder; v != nil {
+		builder.WriteString("vault_folder=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")

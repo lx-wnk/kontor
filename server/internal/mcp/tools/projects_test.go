@@ -85,7 +85,7 @@ func TestCreateProject_OmittedOptionalsStayUnset(t *testing.T) {
 func TestListProjects_ReportsSetupCommandPresenceWithoutTheText(t *testing.T) {
 	_, deps := newProjectRegistry(t)
 	secret := "npm config set //registry.example/:_authToken=s3cr3t"
-	_, err := deps.ProjectRepo.Create(context.Background(), "Web", "web", nil, nil, nil, &secret)
+	_, err := deps.ProjectRepo.Create(context.Background(), "Web", "web", nil, nil, nil, &secret, nil)
 	require.NoError(t, err)
 
 	readRegistry := mcp.ToolRegistry{}

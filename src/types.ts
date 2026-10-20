@@ -350,6 +350,7 @@ export interface Project {
   color?: string
   defaultSpawnerId?: string | null
   setupCommand?: string | null
+  vaultFolder?: string | null
   folderCount?: number
   folders?: ProjectFolder[]
   createdAt: string

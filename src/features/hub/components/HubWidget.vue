@@ -9,6 +9,7 @@ import type { Agent } from '@/types'
 import { useElementSize, useEventListener, useNow } from '@vueuse/core'
 import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { NEEDS_YOU, OPEN_SETTINGS } from '@/composables/openTask'
+import { useProjects } from '@/composables/useProjects'
 import { useSidebar } from '@/composables/useSidebar'
 import { pageView, useViewState } from '@/composables/useViewState'
 import { useAgents } from '@/features/agents'
@@ -107,9 +108,11 @@ function blocksOnOperator(agent: Agent): boolean {
 
 const live = computed(() => agents.value.filter(a => a.status !== 'finished').sort((a, b) => a.pid - b.pid))
 // Equal joined seats return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
+const { projects: kontorProjects } = useProjects()
+const vaultFolderOf = computed(() => new Map(kontorProjects.value.map(p => [p.id, p.vaultFolder ?? undefined])))
 const liveProjects = computed<AgentProject[]>((previous) => {
-  const projects = live.value.map(agentSeat)
-  const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}`).join('\n')
+  const projects = live.value.map(a => agentSeat(a, a.projectId ? vaultFolderOf.value.get(a.projectId) : undefined))
+  const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}\t${p.vaultFolder}`).join('\n')
   return previous && signature(projects) === signature(previous) ? previous : projects
 })
 // A refetch passes through 'loading'; a failed refetch keeps the last good notes too, so the brain and an open note card don't blank.

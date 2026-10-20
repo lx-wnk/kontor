@@ -16425,6 +16425,7 @@ type ProjectMutation struct {
 	color              *string
 	default_spawner_id *string
 	setup_command      *string
+	vault_folder       *string
 	created_at         *time.Time
 	updated_at         *time.Time
 	clearedFields      map[string]struct{}
@@ -16808,6 +16809,55 @@ func (m *ProjectMutation) ResetSetupCommand() {
 	delete(m.clearedFields, project.FieldSetupCommand)
 }
 
+// SetVaultFolder sets the "vault_folder" field.
+func (m *ProjectMutation) SetVaultFolder(s string) {
+	m.vault_folder = &s
+}
+
+// VaultFolder returns the value of the "vault_folder" field in the mutation.
+func (m *ProjectMutation) VaultFolder() (r string, exists bool) {
+	v := m.vault_folder
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVaultFolder returns the old "vault_folder" field's value of the Project entity.
+// If the Project object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMutation) OldVaultFolder(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVaultFolder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVaultFolder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVaultFolder: %w", err)
+	}
+	return oldValue.VaultFolder, nil
+}
+
+// ClearVaultFolder clears the value of the "vault_folder" field.
+func (m *ProjectMutation) ClearVaultFolder() {
+	m.vault_folder = nil
+	m.clearedFields[project.FieldVaultFolder] = struct{}{}
+}
+
+// VaultFolderCleared returns if the "vault_folder" field was cleared in this mutation.
+func (m *ProjectMutation) VaultFolderCleared() bool {
+	_, ok := m.clearedFields[project.FieldVaultFolder]
+	return ok
+}
+
+// ResetVaultFolder resets all changes to the "vault_folder" field.
+func (m *ProjectMutation) ResetVaultFolder() {
+	m.vault_folder = nil
+	delete(m.clearedFields, project.FieldVaultFolder)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *ProjectMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -16968,7 +17018,7 @@ func (m *ProjectMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.slug != nil {
 		fields = append(fields, project.FieldSlug)
 	}
@@ -16986,6 +17036,9 @@ func (m *ProjectMutation) Fields() []string {
 	}
 	if m.setup_command != nil {
 		fields = append(fields, project.FieldSetupCommand)
+	}
+	if m.vault_folder != nil {
+		fields = append(fields, project.FieldVaultFolder)
 	}
 	if m.created_at != nil {
 		fields = append(fields, project.FieldCreatedAt)
@@ -17013,6 +17066,8 @@ func (m *ProjectMutation) Field(name string) (ent.Value, bool) {
 		return m.DefaultSpawnerID()
 	case project.FieldSetupCommand:
 		return m.SetupCommand()
+	case project.FieldVaultFolder:
+		return m.VaultFolder()
 	case project.FieldCreatedAt:
 		return m.CreatedAt()
 	case project.FieldUpdatedAt:
@@ -17038,6 +17093,8 @@ func (m *ProjectMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldDefaultSpawnerID(ctx)
 	case project.FieldSetupCommand:
 		return m.OldSetupCommand(ctx)
+	case project.FieldVaultFolder:
+		return m.OldVaultFolder(ctx)
 	case project.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case project.FieldUpdatedAt:
@@ -17092,6 +17149,13 @@ func (m *ProjectMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetSetupCommand(v)
+		return nil
+	case project.FieldVaultFolder:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVaultFolder(v)
 		return nil
 	case project.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -17149,6 +17213,9 @@ func (m *ProjectMutation) ClearedFields() []string {
 	if m.FieldCleared(project.FieldSetupCommand) {
 		fields = append(fields, project.FieldSetupCommand)
 	}
+	if m.FieldCleared(project.FieldVaultFolder) {
+		fields = append(fields, project.FieldVaultFolder)
+	}
 	return fields
 }
 
@@ -17175,6 +17242,9 @@ func (m *ProjectMutation) ClearField(name string) error {
 	case project.FieldSetupCommand:
 		m.ClearSetupCommand()
 		return nil
+	case project.FieldVaultFolder:
+		m.ClearVaultFolder()
+		return nil
 	}
 	return fmt.Errorf("unknown Project nullable field %s", name)
 }
@@ -17200,6 +17270,9 @@ func (m *ProjectMutation) ResetField(name string) error {
 		return nil
 	case project.FieldSetupCommand:
 		m.ResetSetupCommand()
+		return nil
+	case project.FieldVaultFolder:
+		m.ResetVaultFolder()
 		return nil
 	case project.FieldCreatedAt:
 		m.ResetCreatedAt()
