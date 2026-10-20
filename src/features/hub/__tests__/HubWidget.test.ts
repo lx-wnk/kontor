@@ -498,6 +498,7 @@ describe('hubWidget', () => {
     graph.notes.value = [vaultNote(0, 'work/babyone-shop/one.md')]
     agents.value = [{ pid: 501, status: 'idle', projectName: 'BabyOne', cwd: '/code/babyone-shop/.claude/worktrees/review', working: false }] as unknown as Agent[]
     const w = await mountHub()
+    expect(w.find('[data-testid="hub-agent-501"]').exists()).toBe(true)
     expect(w.find('[data-testid="hub-category-__other__"]').exists()).toBe(false)
     w.unmount()
   })

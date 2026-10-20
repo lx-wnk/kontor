@@ -1,9 +1,11 @@
+import type { Agent } from '@/types'
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_FLOOR_PX,
   AGENT_SPACING_PX,
   AGENT_STAGE_MARGIN_PX,
   agentRingPx,
+  agentSeat,
   buildSectors,
   hash01,
   labelledLeaves,
@@ -338,6 +340,23 @@ describe('planSectors', () => {
     expect(repoDirOf('/Users/a/code/babyone-shop/.claude/worktrees/users+aw+NTR-projectReview')).toBe('babyone-shop')
     expect(repoDirOf('/Users/a/code/babyone-shop')).toBe('babyone-shop')
     expect(repoDirOf('/Users/a/code/babyone-shop/')).toBe('babyone-shop')
+    expect(repoDirOf('')).toBe('')
+    expect(repoDirOf('/')).toBe('')
+  })
+
+  it('sends an agent with an empty repo directory and no name match to Other', () => {
+    const p = planSectors(['work/shop/a.md'], [{ key: 'x', label: 'x', repoDir: '' }])
+    expect(p.sectorOfProject.get('x')).toBe(OTHER_SECTOR_KEY)
+  })
+
+  it('seats agents of one project name by their own repo, whichever others run', () => {
+    const notes = ['work/shop-a/a.md', 'work/shop-b/a.md']
+    const inA = { projectName: 'review', cwd: '/code/shop-a/.claude/worktrees/review' } as Agent
+    const inB = { projectName: 'review', cwd: '/code/shop-b/.claude/worktrees/review' } as Agent
+    const both = planSectors(notes, [inA, inB].map(agentSeat))
+    expect(both.sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
+    expect(both.sectorOfProject.get(agentSeat(inB).key)).toBe('work/shop-b')
+    expect(planSectors(notes, [agentSeat(inA)]).sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
   })
 
   it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {

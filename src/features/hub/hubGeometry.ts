@@ -1,3 +1,6 @@
+import type { Agent } from '@/types'
+import { agentProjectKey } from '@/utils/agentGroup'
+
 export const DAY_MS = 86_400_000
 // Matches the --sector-0…7 theme tokens in main.css.
 export const SECTOR_PALETTE_SIZE = 8
@@ -235,6 +238,12 @@ const TRAILING_SLASHES = /\/+$/
 export function repoDirOf(cwd: string): string {
   const root = cwd.split(CLAUDE_WORKTREES)[0].replace(TRAILING_SLASHES, '')
   return root.slice(root.lastIndexOf('/') + 1)
+}
+
+// One seat per project and repo: agents of one project in different repos each match their own folder.
+export function agentSeat(agent: Agent): AgentProject {
+  const repoDir = repoDirOf(agent.cwd)
+  return { key: `${agentProjectKey(agent)}\t${repoDir}`, label: agent.projectName, repoDir }
 }
 
 // `agentProjects` holds one entry per running agent, repeats included: a sector's weight counts the
