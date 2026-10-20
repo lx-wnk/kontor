@@ -38,6 +38,8 @@ const toneClass: Record<string, string> = {
 }
 
 const statusDotClass = computed(() => {
+  if (agentDisplayStatus(props.agent) === 'replied')
+    return 'bg-accent'
   if (props.agent.status === 'active')
     return 'bg-success-dot shadow-[0_0_0_3px_color-mix(in_oklch,var(--success)_18%,transparent)]'
   if (props.agent.status === 'waiting')
@@ -78,6 +80,7 @@ async function handleResolve(outcome: 'granted' | 'denied') {
       <!-- Status dot -->
       <span
         aria-hidden="true"
+        data-testid="agent-row-status-dot"
         class="w-2 h-2 rounded-full shrink-0"
         :class="statusDotClass"
       />

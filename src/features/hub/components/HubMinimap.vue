@@ -23,6 +23,7 @@ const TONE_DOT_FILL: Partial<Record<ChipTone, string>> = {
   success: 'fill-success-dot',
   info: 'fill-info-dot',
   warning: 'fill-warning-dot',
+  accent: 'fill-accent',
   neutral: 'fill-fg-faint',
 }
 
