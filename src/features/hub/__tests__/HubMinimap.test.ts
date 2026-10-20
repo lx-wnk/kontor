@@ -33,6 +33,13 @@ describe('hubMinimap', () => {
     expect(w.findAll('circle')).toHaveLength(3)
   })
 
+  it('fills a replied agent\'s dot in the accent colour, like the orbit', () => {
+    const w = mount(HubMinimap, {
+      props: { cam: { k: 2, tx: 100, ty: 50 }, size: { width: 400, height: 300 }, categories, agents: [{ ...placed(1, 90), state: 'replied' as const }] },
+    })
+    expect(w.findAll('circle').at(-1)!.classes()).toContain('fill-accent')
+  })
+
   // Keyed by pid, an exiting agent takes its own circle with it; keyed by index, Vue would patch the
   // survivor's data into the node the exiting agent held — invisible today, a wrong-colour flash
   // the moment a circle carries a transition.
