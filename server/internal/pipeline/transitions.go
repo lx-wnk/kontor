@@ -94,6 +94,16 @@ func (o *PipelineOrchestrator) applyTransitionWrites(
 	var newRunID string
 	var postCommit []func()
 
+	if resumesWork(t) {
+		current, err := taskRepo.GetByID(ctx, task.ID)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("applyTransition.%s.getTask: %w", transitionKindName(t), err)
+		}
+		if IsTerminalStage(current.CurrentStage) {
+			return nil, nil, nil, fmt.Errorf("applyTransition.%s: task %s is already %s", transitionKindName(t), task.ID, current.CurrentStage)
+		}
+	}
+
 	switch tr := t.(type) {
 	case NextTransition:
 		if _, err := srRepo.Update(ctx, sr.ID, repo.UpdateStageRunInput{
@@ -374,6 +384,18 @@ func transitionKindName(t StageTransition) string {
 		return "rate_limited"
 	default:
 		return "unknown"
+	}
+}
+
+// resumesWork reports whether t moves the task to another stage or queues a
+// further run. Fail and the run-only transitions stay allowed on a terminal
+// task: the external-cancel path fails its run deliberately.
+func resumesWork(t StageTransition) bool {
+	switch t.(type) {
+	case NextTransition, OnHoldTransition, IterateTransition, RequeueTransition:
+		return true
+	default:
+		return false
 	}
 }
 
