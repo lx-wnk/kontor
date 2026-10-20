@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"encoding/json"
 	"bytes"
 	"context"
 	"fmt"
@@ -235,5 +236,40 @@ func TestWritePtyDiscovery_WritesPtyJsonFile(t *testing.T) {
 	expectedDir := filepath.Join(home, channelconfig.DiscoveryDir)
 	if filepath.Dir(discPath) != expectedDir {
 		t.Errorf("expected file in %q, got %q", expectedDir, filepath.Dir(discPath))
+	}
+}
+
+// A token rotation re-emits the discovery file; it must carry the time of the
+// last real output and the original start, or the dashboard reads every
+// rotation as fresh output and shows the agent working for a moment.
+func TestPtyDiscovery_RewriteKeepsLastOutputAndStart(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	d := newPtyDiscovery(12345, 9999)
+	_, _ = d.Write([]byte("output"))
+	outputAt := time.Unix(0, d.lastOut.Load()).UTC().Format(time.RFC3339)
+	startedAt := d.startedAt.UTC().Format(time.RFC3339)
+
+	time.Sleep(1100 * time.Millisecond)
+	path, err := d.write("rotated-token")
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var got struct {
+		LastOutputAt string `json:"lastOutputAt"`
+		StartedAt    string `json:"startedAt"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.LastOutputAt != outputAt {
+		t.Errorf("lastOutputAt = %s, want the last output %s", got.LastOutputAt, outputAt)
+	}
+	if got.StartedAt != startedAt {
+		t.Errorf("startedAt = %s, want the original start %s", got.StartedAt, startedAt)
 	}
 }
