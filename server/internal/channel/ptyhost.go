@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -84,8 +86,7 @@ func RunPTY(ctx context.Context, command []string) error {
 		return fmt.Errorf("ptyhost: http: %w", err)
 	}
 	disc := newPtyDiscovery(childPid, port)
-	discPath, derr := disc.write(token.value())
-	if derr != nil {
+	if _, derr := disc.write(token.value()); derr != nil {
 		slog.Warn("ptyhost: discovery write failed", "err", derr)
 	}
 
@@ -96,9 +97,7 @@ func RunPTY(ctx context.Context, command []string) error {
 	})
 	go disc.refreshOnOutput(ctx, token)
 	defer func() {
-		if discPath != "" {
-			_ = os.Remove(discPath)
-		}
+		disc.remove()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
@@ -333,7 +332,14 @@ type ptyDiscovery struct {
 	childPid, port int
 	startedAt      time.Time
 	lastOut        atomic.Int64 // unix nanos of the last output chunk
+
+	mu      sync.Mutex
+	written int64  // lastOut as of the last write
+	path    string // set once written; cleared by remove
+	removed bool
 }
+
+var errDiscoveryRemoved = errors.New("ptyhost: discovery file removed")
 
 func newPtyDiscovery(childPid, port int) *ptyDiscovery {
 	d := &ptyDiscovery{childPid: childPid, port: port, startedAt: time.Now()}
@@ -346,8 +352,36 @@ func (d *ptyDiscovery) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// write is serialised with remove, so a rotation or refresh racing shutdown
+// cannot recreate the file for a pid that has exited.
 func (d *ptyDiscovery) write(token string) (string, error) {
-	return writePtyDiscovery(d.childPid, d.port, token, d.startedAt, time.Unix(0, d.lastOut.Load()))
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.removed {
+		return "", errDiscoveryRemoved
+	}
+	out := d.lastOut.Load()
+	path, err := writePtyDiscovery(d.childPid, d.port, token, d.startedAt, time.Unix(0, out))
+	if err != nil {
+		return "", err
+	}
+	d.written, d.path = out, path
+	return path, nil
+}
+
+func (d *ptyDiscovery) remove() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.removed = true
+	if d.path != "" {
+		_ = os.Remove(d.path)
+	}
+}
+
+func (d *ptyDiscovery) outputSinceWrite() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.lastOut.Load() != d.written
 }
 
 // refreshOnOutput rewrites the file between token rotations so the dashboard
@@ -356,15 +390,13 @@ func (d *ptyDiscovery) write(token string) (string, error) {
 func (d *ptyDiscovery) refreshOnOutput(ctx context.Context, token *rotatingToken) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	written := d.lastOut.Load()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if cur := d.lastOut.Load(); cur != written {
+			if d.outputSinceWrite() {
 				_, _ = d.write(token.value())
-				written = cur
 			}
 		}
 	}
@@ -395,7 +427,13 @@ func writePtyDiscovery(childPid, port int, token string, startedAt, lastOutputAt
 		"startedAt":    startedAt.UTC().Format(time.RFC3339),
 		"lastOutputAt": lastOutputAt.UTC().Format(time.RFC3339),
 	})
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	// Temp file plus rename: the merger polls this file and must never read it half-written.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
 		return "", err
 	}
 	return path, nil

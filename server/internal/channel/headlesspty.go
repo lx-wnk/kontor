@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"time"
 
@@ -47,8 +46,7 @@ func RunHeadlessPTY(ctx context.Context, name string, args, env []string, cwd st
 		return fmt.Errorf("headlesspty: http: %w", err)
 	}
 	disc := newPtyDiscovery(childPid, port)
-	discPath, derr := disc.write(token.value())
-	if derr != nil {
+	if _, derr := disc.write(token.value()); derr != nil {
 		slog.Warn("headlesspty: discovery write failed", "err", derr)
 	}
 	go startTokenRotation(ctx, token, injectTokenRotateInterval(), func(newToken string) error {
@@ -57,9 +55,7 @@ func RunHeadlessPTY(ctx context.Context, name string, args, env []string, cwd st
 	})
 	go disc.refreshOnOutput(ctx, token)
 	defer func() {
-		if discPath != "" {
-			_ = os.Remove(discPath)
-		}
+		disc.remove()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
