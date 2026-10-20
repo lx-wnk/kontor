@@ -857,9 +857,8 @@ func ParseSessionFile(path string) (*SessionData, error) {
 	}
 
 	data := &SessionData{
-		ToolCounts:   make(map[string]int),
-		Entrypoint:   sdk.EntrypointUnknown,
-		LastActivity: time.Now().Add(-24 * time.Hour), // default: old
+		ToolCounts: make(map[string]int),
+		Entrypoint: sdk.EntrypointUnknown,
 	}
 
 	// Name and raw input only: the display form costs a JSON unmarshal, a rune
@@ -951,7 +950,6 @@ func ParseSessionFile(path string) (*SessionData, error) {
 					data.LastActivity = ts
 				}
 			}
-			// If parse fails, LastActivity stays at its default (-24h old) — agent looks idle, which is correct.
 
 			var blocks []toolUseBlock
 			if err := json.Unmarshal(msg.Content, &blocks); err == nil {
@@ -1039,6 +1037,14 @@ func ParseSessionFile(path string) (*SessionData, error) {
 
 	if err := scanner.Err(); err != nil {
 		slog.Warn("parser: session scan error — partial data returned", "err", err)
+	}
+
+	// No assistant timestamp in the tail (large entries can push them out): the file's
+	// last write is the latest activity known.
+	if data.LastActivity.IsZero() {
+		if info, err := os.Stat(path); err == nil {
+			data.LastActivity = info.ModTime()
+		}
 	}
 
 	// Authoritative token totals: a single linear pass sums every assistant
