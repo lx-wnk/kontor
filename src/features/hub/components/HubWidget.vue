@@ -14,7 +14,6 @@ import { pageView, useViewState } from '@/composables/useViewState'
 import { useAgents } from '@/features/agents'
 import { NeedsYouQueue, useKontorAgent, useKontorSession } from '@/features/mission'
 import { failedWidgets, HUB_WIDGET, pageWithWidget, useWorkspace, ZENTRALE_PAGE_ID } from '@/features/workspace'
-import { agentProjectKey } from '@/utils/agentGroup'
 import { attentionFor } from '@/utils/attention'
 import { isTypingTarget } from '@/utils/isTypingTarget'
 import { NAV_ITEMS } from '@/utils/navConfig'
@@ -26,7 +25,7 @@ import { useObsidianGraph } from '../composables/useObsidianGraph'
 import { launchersDocked, LEVEL_TARGETS, toScreen } from '../hubCamera'
 import { agentDotBox, agentLabelBox, agentLabelDirection, agentLabelKey, agentPriority, boxesOverlap, cullLabels, hitNote, hubNoteSet, namesThatFit, offStageObstacles, sectorLabelBox, sectorLabelKey } from '../hubCanvas'
 import { agentNoteRows, liveEdges } from '../hubEdges'
-import { DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, planSectors, polar, sectorColour, sectorCount, shadeMix } from '../hubGeometry'
+import { agentSeat, DAY_MS, labelledLeaves, launcherRingRadius, leafColour, leafShade, notePoint, planSectors, polar, sectorColour, sectorCount, shadeMix } from '../hubGeometry'
 import { GRAPH_NOTICES } from '../hubGraphNotices'
 import { HEALTH_LENSES, notesInLens, STALE_AFTER_DAYS } from '../hubHealth'
 import { controlsBox, CORNER_INSET_PX, cornerBoxes, launcherAngles, launcherBox, launchersFor, LEGEND_ROW_BOTTOM_PX, LEGEND_ROW_GAP_PX, QUEUE_MAX_HEIGHT_SHARE, QUEUE_MAX_WIDTH_PX, QUEUE_SIDE_INSET_PX, QUEUE_TOP_PX, queueWorstCaseBox } from '../hubLaunchers'
@@ -107,9 +106,9 @@ function blocksOnOperator(agent: Agent): boolean {
 }
 
 const live = computed(() => agents.value.filter(a => a.status !== 'finished').sort((a, b) => a.pid - b.pid))
-// Equal joined names return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
+// Equal joined seats return the same array reference, so a tick that only changes an agent's status does not retrigger planSectors.
 const liveProjects = computed<AgentProject[]>((previous) => {
-  const projects = live.value.map(a => ({ key: agentProjectKey(a), label: a.projectName }))
+  const projects = live.value.map(agentSeat)
   const signature = (list: AgentProject[]) => list.map(p => `${p.key}\t${p.label}`).join('\n')
   return previous && signature(projects) === signature(previous) ? previous : projects
 })
@@ -145,7 +144,7 @@ const agentsByLeaf = computed(() => {
   const { sectorOfProject } = plan.value
   const byLeaf = new Map<string, number>()
   for (const agent of live.value) {
-    const leafKey = sectorOfProject.get(agentProjectKey(agent))
+    const leafKey = sectorOfProject.get(agentSeat(agent).key)
     if (!leafKey)
       continue
     byLeaf.set(leafKey, (byLeaf.get(leafKey) ?? 0) + 1)
@@ -256,7 +255,7 @@ const placed = computed(() => {
   return live.value.map((agent) => {
     const needsOperator = blocksOnOperator(agent)
     const state = agentDisplayStatus(agent)
-    const leafKey = sectorOfProject.get(agentProjectKey(agent))
+    const leafKey = sectorOfProject.get(agentSeat(agent).key)
     const i = leafKey ? slotIndex.get(leafKey) ?? 0 : 0
     if (leafKey)
       slotIndex.set(leafKey, i + 1)

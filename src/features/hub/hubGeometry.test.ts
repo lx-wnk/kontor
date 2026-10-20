@@ -1,9 +1,11 @@
+import type { Agent } from '@/types'
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_FLOOR_PX,
   AGENT_SPACING_PX,
   AGENT_STAGE_MARGIN_PX,
   agentRingPx,
+  agentSeat,
   buildSectors,
   hash01,
   labelledLeaves,
@@ -20,6 +22,7 @@ import {
   R0,
   R_MAX,
   radiusForAge,
+  repoDirOf,
   RINGS,
   SECTOR_FLOOR_BUDGET_DEG,
   SECTOR_FLOOR_DEG,
@@ -324,6 +327,36 @@ describe('planSectors', () => {
   it('matches an agent to its project leaf case-insensitively, the leaf with the most notes winning a name tie', () => {
     const p = planSectors(['work/Babyone/a.md', 'work/Babyone/b.md', 'private/babyone/a.md'], byName(['BABYONE']))
     expect(p.sectorOfProject.get('BABYONE')).toBe('work/Babyone')
+  })
+
+  it('falls back to the agent\'s repo directory when its project name matches no leaf', () => {
+    const p = planSectors(['work/babyone-shop/a.md', 'work/babyone/a.md'], [{ key: 'BabyOne', label: 'BabyOne', repoDir: 'babyone-shop' }])
+    expect(p.sectorOfProject.get('BabyOne')).toBe('work/babyone')
+    const q = planSectors(['work/babyone-shop/a.md'], [{ key: 'BabyOne', label: 'BabyOne', repoDir: 'babyone-shop' }])
+    expect(q.sectorOfProject.get('BabyOne')).toBe('work/babyone-shop')
+  })
+
+  it('takes the repo directory above a Claude worktree, not the worktree folder', () => {
+    expect(repoDirOf('/Users/a/code/babyone-shop/.claude/worktrees/users+aw+NTR-projectReview')).toBe('babyone-shop')
+    expect(repoDirOf('/Users/a/code/babyone-shop')).toBe('babyone-shop')
+    expect(repoDirOf('/Users/a/code/babyone-shop/')).toBe('babyone-shop')
+    expect(repoDirOf('')).toBe('')
+    expect(repoDirOf('/')).toBe('')
+  })
+
+  it('sends an agent with an empty repo directory and no name match to Other', () => {
+    const p = planSectors(['work/shop/a.md'], [{ key: 'x', label: 'x', repoDir: '' }])
+    expect(p.sectorOfProject.get('x')).toBe(OTHER_SECTOR_KEY)
+  })
+
+  it('seats agents of one project name by their own repo, whichever others run', () => {
+    const notes = ['work/shop-a/a.md', 'work/shop-b/a.md']
+    const inA = { projectName: 'review', cwd: '/code/shop-a/.claude/worktrees/review' } as Agent
+    const inB = { projectName: 'review', cwd: '/code/shop-b/.claude/worktrees/review' } as Agent
+    const both = planSectors(notes, [inA, inB].map(agentSeat))
+    expect(both.sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
+    expect(both.sectorOfProject.get(agentSeat(inB).key)).toBe('work/shop-b')
+    expect(planSectors(notes, [agentSeat(inA)]).sectorOfProject.get(agentSeat(inA).key)).toBe('work/shop-a')
   })
 
   it('sends an agent with no matching project folder to Other, both as a sector and as a leaf', () => {

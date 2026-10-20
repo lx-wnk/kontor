@@ -54,7 +54,8 @@ const ask = vi.fn()
 const overlayOpen = ref(false)
 
 vi.mock('@/features/agents', () => ({
-  useAgents: () => ({ agents, selectAgent: vi.fn() }),
+  // Fixtures name a project only; its checkout defaults to a folder of the same name.
+  useAgents: () => ({ agents: computed(() => agents.value.map(a => ({ ...a, cwd: a.cwd ?? `/code/${a.projectName}` }))), selectAgent: vi.fn() }),
 }))
 vi.mock('@/features/mission', () => ({
   NeedsYouQueue: {
@@ -489,6 +490,16 @@ describe('hubWidget', () => {
     const w = await mountHub()
     expect(w.find('[data-testid="hub-category-__other__"]').exists()).toBe(false)
     expect(w.find('[data-testid="hub-other-badge"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('seats a worktree agent in its repo\'s vault folder when its project name matches none', async () => {
+    graph.status.value = 'ready'
+    graph.notes.value = [vaultNote(0, 'work/babyone-shop/one.md')]
+    agents.value = [{ pid: 501, status: 'idle', projectName: 'BabyOne', cwd: '/code/babyone-shop/.claude/worktrees/review', working: false }] as unknown as Agent[]
+    const w = await mountHub()
+    expect(w.find('[data-testid="hub-agent-501"]').exists()).toBe(true)
+    expect(w.find('[data-testid="hub-category-__other__"]').exists()).toBe(false)
     w.unmount()
   })
 

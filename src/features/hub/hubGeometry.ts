@@ -1,3 +1,6 @@
+import type { Agent } from '@/types'
+import { agentProjectKey } from '@/utils/agentGroup'
+
 export const DAY_MS = 86_400_000
 // Matches the --sector-0…7 theme tokens in main.css.
 export const SECTOR_PALETTE_SIZE = 8
@@ -225,12 +228,27 @@ export function noteKind(path: string, frontmatterType?: string): string {
 
 export interface SectorPlan { sectors: Sector[], leaves: Leaf[], sectorOfNote: Map<string, string>, sectorOfProject: Map<string, string> }
 
-// `key` identifies the project, `label` is its name, which is what a vault folder can match.
-export interface AgentProject { key: string, label: string }
+// `key` identifies the project; `label` (its name), then `repoDir`, is what a vault folder can match.
+export interface AgentProject { key: string, label: string, repoDir?: string }
+
+const CLAUDE_WORKTREES = '/.claude/worktrees/'
+const TRAILING_SLASHES = /\/+$/
+
+// The repository folder an agent works in: a Claude worktree counts as the repo it was cut from.
+export function repoDirOf(cwd: string): string {
+  const root = cwd.split(CLAUDE_WORKTREES)[0].replace(TRAILING_SLASHES, '')
+  return root.slice(root.lastIndexOf('/') + 1)
+}
+
+// One seat per project and repo: agents of one project in different repos each match their own folder.
+export function agentSeat(agent: Agent): AgentProject {
+  const repoDir = repoDirOf(agent.cwd)
+  return { key: `${agentProjectKey(agent)}\t${repoDir}`, label: agent.projectName, repoDir }
+}
 
 // `agentProjects` holds one entry per running agent, repeats included: a sector's weight counts the
 // distinct projects among them, its floor the instances. `sectorOfProject` resolves to a leaf,
-// matched by label against that leaf's project folder — never by which agents happen to be running.
+// matched by label, then by repo directory, against that leaf's project folder — never by which agents happen to be running.
 export function planSectors(notePaths: readonly string[], agentProjects: readonly AgentProject[]): SectorPlan {
   const distinct = [...new Map(agentProjects.map(p => [p.key, p])).values()]
   const sectorOfNote = new Map<string, string>()
@@ -259,11 +277,14 @@ export function planSectors(notePaths: readonly string[], agentProjects: readonl
     else leaves.set(leafKey, { key: leafKey, label: leafLabel, weight: 1, parent: categoryKey })
   }
 
-  for (const p of distinct) {
-    const candidates = [...leaves.values()].filter(l => l.label && l.label.toLowerCase() === p.label.toLowerCase())
+  const leafNamed = (name: string | undefined) => {
+    if (!name)
+      return undefined
+    const candidates = [...leaves.values()].filter(l => l.label && l.label.toLowerCase() === name.toLowerCase())
     candidates.sort((a, b) => b.weight - a.weight || a.key.localeCompare(b.key))
-    sectorOfProject.set(p.key, candidates[0]?.key ?? OTHER_SECTOR_KEY)
+    return candidates[0]?.key
   }
+  for (const p of distinct) sectorOfProject.set(p.key, leafNamed(p.label) ?? leafNamed(p.repoDir) ?? OTHER_SECTOR_KEY)
   if ([...sectorOfProject.values()].includes(OTHER_SECTOR_KEY)) {
     categoryInputs.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1 })
     leaves.set(OTHER_SECTOR_KEY, { key: OTHER_SECTOR_KEY, label: 'Other', weight: 1, parent: OTHER_SECTOR_KEY })
