@@ -366,6 +366,7 @@ Preparing the first public release.
 
 ### Changed
 
+- `task desktop:dist` no longer fails while Kontor is running. `wails build` now skips binding generation, which started the app and collided with the running instance on port 13120; the desktop shell binds no Go methods, so nothing is lost.
 - `task desktop:dist` (and `desktop:dmg`, which chains it) now also rebuilds the `bin/kontor` CLI, so a freshly packaged app is never paired with a CLI that lacks its newest commands.
 - **Workspace pages scale their rows to the window.** The first nine grid rows always fill the visible height, so a default Zentrale fits the window down to row nine instead of overflowing a fixed 56px row minimum; rows past nine keep the same height and scroll below.
 
