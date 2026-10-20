@@ -273,3 +273,51 @@ func TestPtyDiscovery_RewriteKeepsLastOutputAndStart(t *testing.T) {
 		t.Errorf("startedAt = %s, want the original start %s", got.StartedAt, startedAt)
 	}
 }
+
+// refreshOnOutput rewrites the file only after new output, and a removed file
+// stays removed: a late tick or rotation must not resurrect it for a dead pid.
+func TestPtyDiscovery_RefreshOnlyOnOutputAndNeverAfterRemove(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	d := newPtyDiscovery(12345, 9999)
+	tok := newRotatingToken("tok")
+	path, err := d.write(tok.value())
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	go d.refreshOnOutput(ctx, tok)
+
+	mtime := func() time.Time {
+		info, err := os.Stat(path)
+		if err != nil {
+			return time.Time{}
+		}
+		return info.ModTime()
+	}
+	before := mtime()
+	time.Sleep(1200 * time.Millisecond)
+	if !mtime().Equal(before) {
+		t.Fatal("an idle session rewrote its discovery file")
+	}
+
+	_, _ = d.Write([]byte("output"))
+	deadline := time.Now().Add(3 * time.Second)
+	for mtime().Equal(before) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if mtime().Equal(before) {
+		t.Fatal("new output never reached the discovery file")
+	}
+
+	d.remove()
+	_, _ = d.Write([]byte("exit text"))
+	if _, err := d.write("rotated"); err == nil {
+		t.Error("write after remove reported success")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("discovery file came back after remove: %v", err)
+	}
+}
