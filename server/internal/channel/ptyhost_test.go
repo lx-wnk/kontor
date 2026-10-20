@@ -3,6 +3,7 @@ package channel
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -211,7 +212,7 @@ func TestWritePtyDiscovery_WritesPtyJsonFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	discPath, err := writePtyDiscovery(12345, 9999, "test-token", time.Now())
+	discPath, err := writePtyDiscovery(12345, 9999, "test-token", time.Now(), time.Now())
 	if err != nil {
 		t.Fatalf("writePtyDiscovery: %v", err)
 	}
@@ -235,5 +236,88 @@ func TestWritePtyDiscovery_WritesPtyJsonFile(t *testing.T) {
 	expectedDir := filepath.Join(home, channelconfig.DiscoveryDir)
 	if filepath.Dir(discPath) != expectedDir {
 		t.Errorf("expected file in %q, got %q", expectedDir, filepath.Dir(discPath))
+	}
+}
+
+// A token rotation re-emits the discovery file; it must carry the time of the
+// last real output and the original start, or the dashboard reads every
+// rotation as fresh output and shows the agent working for a moment.
+func TestPtyDiscovery_RewriteKeepsLastOutputAndStart(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	d := newPtyDiscovery(12345, 9999)
+	_, _ = d.Write([]byte("output"))
+	outputAt := time.Unix(0, d.lastOut.Load()).UTC().Format(time.RFC3339)
+	startedAt := d.startedAt.UTC().Format(time.RFC3339)
+
+	time.Sleep(1100 * time.Millisecond)
+	path, err := d.write("rotated-token")
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var got struct {
+		LastOutputAt string `json:"lastOutputAt"`
+		StartedAt    string `json:"startedAt"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.LastOutputAt != outputAt {
+		t.Errorf("lastOutputAt = %s, want the last output %s", got.LastOutputAt, outputAt)
+	}
+	if got.StartedAt != startedAt {
+		t.Errorf("startedAt = %s, want the original start %s", got.StartedAt, startedAt)
+	}
+}
+
+// refreshOnOutput rewrites the file only after new output, and a removed file
+// stays removed: a late tick or rotation must not resurrect it for a dead pid.
+func TestPtyDiscovery_RefreshOnlyOnOutputAndNeverAfterRemove(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	d := newPtyDiscovery(12345, 9999)
+	tok := newRotatingToken("tok")
+	path, err := d.write(tok.value())
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	go d.refreshOnOutput(ctx, tok)
+
+	mtime := func() time.Time {
+		info, err := os.Stat(path)
+		if err != nil {
+			return time.Time{}
+		}
+		return info.ModTime()
+	}
+	before := mtime()
+	time.Sleep(1200 * time.Millisecond)
+	if !mtime().Equal(before) {
+		t.Fatal("an idle session rewrote its discovery file")
+	}
+
+	_, _ = d.Write([]byte("output"))
+	deadline := time.Now().Add(3 * time.Second)
+	for mtime().Equal(before) && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if mtime().Equal(before) {
+		t.Fatal("new output never reached the discovery file")
+	}
+
+	d.remove()
+	_, _ = d.Write([]byte("exit text"))
+	if _, err := d.write("rotated"); err == nil {
+		t.Error("write after remove reported success")
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("discovery file came back after remove: %v", err)
 	}
 }
