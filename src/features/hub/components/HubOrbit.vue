@@ -98,6 +98,7 @@ const TONE_DOT_CLASS: Partial<Record<ChipTone, string>> = {
   success: 'bg-success-dot',
   info: 'bg-info-dot',
   warning: 'bg-warning-dot',
+  accent: 'bg-accent',
   neutral: 'bg-fg-faint',
 }
 
@@ -202,7 +203,7 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
     >
       <span
         class="size-[18px] rounded-full border-[3px] border-app"
-        :class="[dotClass(state), needsOperator && 'outline-2 outline-warning motion-safe:animate-pulse']"
+        :class="[dotClass(state), needsOperator ? 'outline-2 outline-warning motion-safe:animate-pulse' : state === 'replied' && 'outline-2 outline-accent']"
       />
       <!-- Absolute, so a culled label neither grows the button's hit box nor covers a neighbour's dot. -->
       <span
@@ -215,7 +216,7 @@ function labelStyle(pid: number, x: number, y: number, key: string) {
         <span data-testid="hub-label-name" class="max-w-[14ch] truncate">{{ friendlyProjectName(agent.projectName) }}</span>
         <!-- Hover only: the measured, culled label stays the short one. -->
         <span v-if="agent.sessionTitle" data-testid="hub-label-title" class="hidden max-w-[32ch] truncate text-fg-mute group-hover:inline group-focus-visible:inline">{{ agent.sessionTitle }}</span>
-        <em class="not-italic" :class="needsOperator ? 'text-warning-text' : 'text-fg-mute'">{{ statusLabel(state) }}</em>
+        <em class="not-italic" :class="needsOperator ? 'text-warning-text' : state === 'replied' ? 'text-accent' : 'text-fg-mute'">{{ statusLabel(state) }}</em>
       </span>
     </button>
   </div>

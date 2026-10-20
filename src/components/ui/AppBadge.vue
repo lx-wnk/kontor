@@ -2,13 +2,14 @@
 import { computed } from 'vue'
 import { statusLabel } from '../../utils/statusColors'
 
-type Variant = 'active' | 'working' | 'waiting' | 'idle' | 'finished' | 'completed' | 'error' | 'info'
+type Variant = 'active' | 'working' | 'replied' | 'waiting' | 'idle' | 'finished' | 'completed' | 'error' | 'info'
 
 const props = defineProps<{ variant: Variant, label?: string }>()
 
 const dotClass: Record<Variant, string> = {
   active: 'bg-success-dot',
   working: 'bg-info-dot animate-pulse',
+  replied: 'bg-accent',
   waiting: 'bg-warning-dot',
   idle: 'bg-slate-400 dark:bg-slate-500',
   finished: 'bg-slate-400 dark:bg-slate-500',
@@ -20,6 +21,7 @@ const dotClass: Record<Variant, string> = {
 const labelClass: Record<Variant, string> = {
   active: 'text-success-text',
   working: 'text-info-text',
+  replied: 'text-accent',
   waiting: 'text-warning-text',
   idle: 'text-fg-mute',
   finished: 'text-fg-mute',

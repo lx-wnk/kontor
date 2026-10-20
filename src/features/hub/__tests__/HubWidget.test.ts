@@ -537,7 +537,7 @@ describe('hubWidget', () => {
     const w = await mountHub()
     const dot = (pid: number) => w.get(`[data-testid="hub-agent-${pid}"] span`).classes()
 
-    expect(w.get('[data-testid="hub-agent-104"]').attributes('aria-label')).toBe('Api Server, Active, needs you')
+    expect(w.get('[data-testid="hub-agent-104"]').attributes('aria-label')).toBe('Api Server, Replied, needs you')
     expect(dot(104)).toEqual(expect.arrayContaining(['outline-warning', 'motion-safe:animate-pulse']))
 
     expect(w.get('[data-testid="hub-agent-105"]').attributes('aria-label')).toBe('Worker Queue, Idle')

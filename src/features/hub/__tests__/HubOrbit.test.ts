@@ -306,5 +306,4 @@ describe('hubOrbit', () => {
     expect(status.classes()).toContain('text-accent')
     w.unmount()
   })
-
 })
