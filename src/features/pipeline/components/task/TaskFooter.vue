@@ -8,7 +8,7 @@ import { useInjectedTask, useInjectedTaskActions, useInjectedTaskDetails } from 
 
 const task = useInjectedTask()
 const { isActing, actionError, actionSuccess, handleAction } = useInjectedTaskDetails()
-const { additionalPrompt, analysisInfo, cancelConfirm, slashCommands, onCancelClick, onAnalyze, onSlashSelect } = useInjectedTaskActions()
+const { additionalPrompt, analysisInfo, cancelConfirm, completeConfirm, slashCommands, onCancelClick, onCompleteClick, onAnalyze, onSlashSelect } = useInjectedTaskActions()
 
 // Surface task-action failures as toasts; success still shows inline.
 watch(actionError, (msg) => {
@@ -97,6 +97,17 @@ const showLegacyCancel = computed(() =>
           @click="onCancelClick"
         >
           {{ cancelConfirm ? 'Confirm Cancel?' : actionLabel(a.action) }}
+        </AppButton>
+        <AppButton
+          v-else-if="a.action === 'complete'"
+          variant="secondary"
+          :disabled="isActing || !a.enabled"
+          :title="completeConfirm
+            ? 'Click again to confirm — this stops the task and marks it done'
+            : (a.reason || 'The work landed outside the pipeline — mark this task done')"
+          @click="onCompleteClick"
+        >
+          {{ completeConfirm ? 'Confirm Done?' : actionLabel(a.action) }}
         </AppButton>
         <AppButton
           v-else

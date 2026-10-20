@@ -202,3 +202,26 @@ func TestComputeActions_NoPrimaryForTerminal(t *testing.T) {
 		assert.Empty(t, p.Action, "terminal stage %q must not have a primary", stage)
 	}
 }
+
+// TestComputeActions_CompleteFollowsCancel verifies marking done by hand is offered exactly where cancelling is, and never as the primary step.
+func TestComputeActions_CompleteFollowsCancel(t *testing.T) {
+	states := []taskcontrol.TaskState{
+		taskcontrol.FromFields("backlog", "", "refining", 0, false),
+		taskcontrol.FromFields("backlog", "", "draft_ready", 0, false),
+		taskcontrol.FromFields("backlog", "awaiting_user", "", 0, true),
+		taskcontrol.FromFields("on_hold", "", "", 0, false),
+		taskcontrol.FromFields("implementation", "running", "", 0, false),
+		taskcontrol.FromFields("implementation", "failed", "", 0, false),
+		taskcontrol.FromFields("implementation", "awaiting_user", "", 3, true),
+		taskcontrol.FromFields("finalization", "done", "", 0, false),
+		taskcontrol.FromFields("done", "", "", 0, false),
+		taskcontrol.FromFields("cancelled", "", "", 0, false),
+	}
+	for _, s := range states {
+		actions := taskcontrol.ComputeActions(s)
+		complete := findAction(actions, taskcontrol.ActionComplete)
+		require.Equal(t, taskcontrol.ActionComplete, complete.Action, "stage=%q runStatus=%q", s.Stage, s.RunStatus)
+		assert.Equal(t, findAction(actions, taskcontrol.ActionCancel).Enabled, complete.Enabled, "stage=%q runStatus=%q", s.Stage, s.RunStatus)
+		assert.False(t, complete.Primary, "stage=%q runStatus=%q", s.Stage, s.RunStatus)
+	}
+}

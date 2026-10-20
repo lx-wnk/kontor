@@ -285,6 +285,11 @@ export async function cancelTask(taskId: string): Promise<void> {
   return runAction(taskId, 'cancel')
 }
 
+// Endpoint defined in ACTION_META (useRunAction.ts — canonical source).
+export async function completeTask(taskId: string): Promise<void> {
+  return runAction(taskId, 'complete')
+}
+
 /**
  * Re-queue the task's current stage after a failed stage_run. Returns 202
  * Accepted — the stage_run is pending and will start when a runner slot is

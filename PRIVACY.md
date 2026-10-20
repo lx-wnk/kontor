@@ -40,7 +40,7 @@ All persistent data stays on your machine. No data is synced to a cloud service 
 | `permission_requests` | Tool permission requests from spawned stage agents |
 | `users` | GitHub user ID, login, and avatar URL (only when GitHub OAuth is configured) |
 | `api_keys` | SHA-256 hashes of bearer tokens — never the plaintext token |
-| `audit_events` | Pipeline and security events per task: stage transitions and failures, permission and capability decisions, live injections, plan/spec approvals and rejections. Each row has an action, target and timestamp plus event metadata, which can include error messages. Who acted is stored only as an id: the user's id (`user_id`, the OAuth subject, or `local` in bypass mode) or the id of the calling MCP key — never a login or email address. |
+| `audit_events` | Pipeline and security events per task: stage transitions and failures, permission and capability decisions, live injections, plan/spec approvals and rejections, tasks marked done by hand (with the PR or commit reference you typed). Each row has an action, target and timestamp plus event metadata, which can include error messages. Who acted is stored only as an id: the user's id (`user_id`, the OAuth subject, or `local` in bypass mode) or the id of the calling MCP key — never a login or email address. |
 | `web_push_subscriptions` | Web-Push endpoint URLs and VAPID keys (see section 3) |
 | `spawners`, `presets`, `remotes`, `refine` | User-configured pipeline settings |
 | `cost_history` | Aggregated per-session token and cost data imported from JSONL files |

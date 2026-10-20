@@ -160,6 +160,7 @@ POST /api/tasks/{id}/advance
 POST /api/tasks/{id}/analyze
 POST /api/tasks/{id}/approve-all-pending
 POST /api/tasks/{id}/cancel
+POST /api/tasks/{id}/complete
 POST /api/tasks/{id}/dependencies
 POST /api/tasks/{id}/git-action
 POST /api/tasks/{id}/hold

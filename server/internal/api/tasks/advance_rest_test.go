@@ -235,3 +235,110 @@ func TestResumeREST_PassesAdditionalPrompt(t *testing.T) {
 		t.Errorf("expected resume prompt forwarded, got %q", orch.resumePrompt)
 	}
 }
+
+// TestCompleteREST_MarksDoneAndRecordsAudit verifies POST /complete moves a live task to done, terminates it and records the reference.
+func TestCompleteREST_MarksDoneAndRecordsAudit(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	orch := &lifecycleOrchestrator{}
+	client, r := newLifecycleHandler(t, orch)
+	taskID := seedTaskWithRun(t, client, "implementation", "failed")
+
+	req := withAuth(t, httptest.NewRequest(http.MethodPost, "/api/tasks/"+taskID+"/complete", strings.NewReader(`{"reference":"  lx-wnk/kontor#538 "}`)))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	task, err := repo.NewTaskRepo(client).GetByID(context.Background(), taskID)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if task.CurrentStage != "done" {
+		t.Errorf("expected stage=done, got %q", task.CurrentStage)
+	}
+	if !orch.terminateCalled {
+		t.Error("complete must call NotifyTaskTerminated")
+	}
+	events, err := repo.NewAuditEventRepo(client).ListForTask(context.Background(), taskID)
+	if err != nil {
+		t.Fatalf("list audit: %v", err)
+	}
+	if len(events) != 1 || events[0].Action != repo.AuditActionTaskCompleted {
+		t.Fatalf("expected one %q audit event, got %+v", repo.AuditActionTaskCompleted, events)
+	}
+	meta := events[0].Metadata
+	if meta["reference"] != "lx-wnk/kontor#538" || meta["fromStage"] != "implementation" || meta["source"] != repo.AuditSourceUI || meta["actor"] != repo.AuditActorUser {
+		t.Errorf("unexpected audit metadata: %+v", meta)
+	}
+}
+
+// TestCompleteREST_WithoutBody verifies the reference is optional.
+func TestCompleteREST_WithoutBody(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	client, r := newLifecycleHandler(t, &lifecycleOrchestrator{})
+	taskID := seedTaskWithRun(t, client, "backlog", "done")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, withAuth(t, httptest.NewRequest(http.MethodPost, "/api/tasks/"+taskID+"/complete", nil)))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCompleteREST_ReferenceLimitCountsCharacters verifies 500 multi-byte characters pass the 500-character limit.
+func TestCompleteREST_ReferenceLimitCountsCharacters(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	client, r := newLifecycleHandler(t, &lifecycleOrchestrator{})
+	taskID := seedTaskWithRun(t, client, "implementation", "failed")
+
+	body := `{"reference":"` + strings.Repeat("ü", 500) + `"}`
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, withAuth(t, httptest.NewRequest(http.MethodPost, "/api/tasks/"+taskID+"/complete", strings.NewReader(body))))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCompleteREST_Rejects verifies terminal tasks, oversized references and malformed bodies are refused without a state change.
+func TestCompleteREST_Rejects(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	cases := []struct {
+		name  string
+		stage string
+		body  string
+	}{
+		{"done", "done", ""},
+		{"cancelled", "cancelled", ""},
+		{"reference too long", "implementation", `{"reference":"` + strings.Repeat("x", 501) + `"}`},
+		{"malformed body", "implementation", `{`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orch := &lifecycleOrchestrator{}
+			client, r := newLifecycleHandler(t, orch)
+			taskID := seedTaskWithRun(t, client, "implementation", "failed")
+			if tc.stage != "implementation" {
+				if _, err := repo.NewTaskRepo(client).Update(context.Background(), taskID, repo.UpdateTaskInput{CurrentStage: &tc.stage}); err != nil {
+					t.Fatalf("update stage: %v", err)
+				}
+			}
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, withAuth(t, httptest.NewRequest(http.MethodPost, "/api/tasks/"+taskID+"/complete", strings.NewReader(tc.body))))
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+			task, _ := repo.NewTaskRepo(client).GetByID(context.Background(), taskID)
+			if task.CurrentStage != tc.stage {
+				t.Errorf("stage changed to %q", task.CurrentStage)
+			}
+			if orch.terminateCalled {
+				t.Error("a refused completion must not terminate the task")
+			}
+		})
+	}
+}

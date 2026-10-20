@@ -20,6 +20,7 @@ const (
 	ActionRetry             = "retry"
 	ActionBack              = "back"
 	ActionCancel            = "cancel"
+	ActionComplete          = "complete"
 	ActionHold              = "hold"
 	ActionResume            = "resume"
 	ActionApproveAllPending = "approve_all_pending"
@@ -46,6 +47,7 @@ func ComputeActions(s TaskState) []Action {
 	// Terminal stages: nothing meaningful can happen.
 	if s.Stage == "done" || s.Stage == "cancelled" {
 		return []Action{
+			disabled(ActionComplete, "task is terminal"),
 			disabled(ActionAdvance, "task is terminal"),
 			disabled(ActionRetry, "task is terminal"),
 			disabled(ActionResume, "task is terminal"),
@@ -55,6 +57,11 @@ func ComputeActions(s TaskState) []Action {
 		}
 	}
 
+	// Marking done by hand is offered wherever cancelling is: work can land outside the pipeline at any stage.
+	return append(liveActions(s), enabled(ActionComplete, false))
+}
+
+func liveActions(s TaskState) []Action {
 	// Backlog stage: spec authoring and approval flow.
 	if s.Stage == "backlog" {
 		return backlogActions(s)

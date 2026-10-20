@@ -13,6 +13,7 @@ const ACTION_META: Record<string, ActionMeta> = {
   retry: { label: 'Retry Stage', variant: 'info', endpoint: id => `/api/tasks/${id}/retry` },
   resume: { label: 'Resume', variant: 'secondary', endpoint: id => `/api/tasks/${id}/resume` },
   cancel: { label: 'Cancel Task', variant: 'danger', endpoint: id => `/api/tasks/${id}/cancel` },
+  complete: { label: 'Mark Done', variant: 'secondary', endpoint: id => `/api/tasks/${id}/complete` },
   hold: { label: 'Hold', variant: 'secondary', endpoint: id => `/api/tasks/${id}/hold` },
   approve_all_pending: { label: 'Approve All Pending', variant: 'info', endpoint: id => `/api/tasks/${id}/approve-all-pending` },
   approve_spec: { label: 'Approve Spec', variant: 'primary', endpoint: id => `/api/refine/${id}/confirm` },
