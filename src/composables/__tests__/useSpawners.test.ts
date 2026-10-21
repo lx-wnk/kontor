@@ -225,4 +225,19 @@ describe('useSpawners', () => {
 
     await expect(useSpawnersMod.deleteSpawner('s1')).rejects.toThrow('spawner in use')
   })
+
+
+  // A passive consumer never raised the shared subscriber count, so its
+  // unmount must not lower it and close the stream for the owner.
+  it('a caller opted out of owning the stream (autoStart: false) does not tear it down for an owner on unmount', async () => {
+    const owner = withSetup(() => useSpawnersMod.useSpawners())
+    await nextTick()
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    withSetup(() => useSpawnersMod.useSpawners({ autoStart: false })).wrapper.unmount()
+    await nextTick()
+
+    expect(MockEventSource.instances[0].readyState).not.toBe(MockEventSource.CLOSED)
+    owner.wrapper.unmount()
+  })
 })
