@@ -371,9 +371,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
+	// The write already succeeded; a failed reload must not report it as failed.
 	v, err := h.loadView(r.Context(), p.ID)
 	if err != nil {
-		return err
+		v = toProjectView(p, nil, nil, "")
 	}
 	h.emit("project_updated", p.ID, v)
 	apierr.WriteJSON(w, http.StatusOK, v)
