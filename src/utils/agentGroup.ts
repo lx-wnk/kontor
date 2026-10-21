@@ -3,7 +3,7 @@ import { AGENT_STATUSES, SPAWNER_SOURCE_ENV } from '../types'
 import { STATUS_ORDER } from './agentSort'
 import { secondsSince, shortModel } from './format'
 import { friendlyProjectName } from './friendlyProjectName'
-import { agentDisplayStatus } from './statusColors'
+import { agentDisplayStatus, statusLabel } from './statusColors'
 
 export const AGENT_SORT_OPTIONS = [
   { value: 'latest', label: 'Latest active' },
@@ -46,10 +46,12 @@ export interface AgentGrouping {
   derivedFrom?: string
 }
 
+// 'active' holds both Working and Replied badges (see groupAgents), so it gets
+// an umbrella word; the other bands reuse their badge's label.
 const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  waiting: 'Waiting on you',
-  idle: 'Idle',
+  active: 'Live',
+  waiting: statusLabel('waiting'),
+  idle: statusLabel('idle'),
 }
 
 export function sortAgents(list: Agent[], sortBy: AgentSort, nowMs: number): Agent[] {

@@ -142,8 +142,8 @@ describe('agentCardGrid collapsible groups', () => {
 
   it('collapses all groups except the first on first load', async () => {
     const groups = [
-      { key: 'active', label: 'Active', agents: [finishedAgent(1)] },
-      { key: 'waiting', label: 'Waiting on you', agents: [finishedAgent(2)] },
+      { key: 'active', label: 'Live', agents: [finishedAgent(1)] },
+      { key: 'waiting', label: 'Quiet', agents: [finishedAgent(2)] },
       { key: 'idle', label: 'Idle', agents: [finishedAgent(3)] },
     ]
 
@@ -163,8 +163,8 @@ describe('agentCardGrid collapsible groups', () => {
 
   it('namespaces collapsed state per grouping mode and re-applies the default on switch', async () => {
     const statusGroups = [
-      { key: 'active', label: 'Active', agents: [finishedAgent(1)] },
-      { key: 'waiting', label: 'Waiting on you', agents: [finishedAgent(2)] },
+      { key: 'active', label: 'Live', agents: [finishedAgent(1)] },
+      { key: 'waiting', label: 'Quiet', agents: [finishedAgent(2)] },
     ]
     const projectGroups = [
       { key: 'project-a', label: 'Project A', agents: [finishedAgent(1)] },
@@ -200,8 +200,8 @@ describe('agentCardGrid collapsible groups', () => {
     // Empty array = a valid saved state meaning "user expanded everything".
     localStorageMock.setItem('agent-dashboard-collapsed-groups', '[]')
     const groups = [
-      { key: 'active', label: 'Active', agents: [finishedAgent(1)] },
-      { key: 'waiting', label: 'Waiting on you', agents: [finishedAgent(2)] },
+      { key: 'active', label: 'Live', agents: [finishedAgent(1)] },
+      { key: 'waiting', label: 'Quiet', agents: [finishedAgent(2)] },
     ]
 
     const w = mount(AgentCardGrid, {
