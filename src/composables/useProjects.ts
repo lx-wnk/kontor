@@ -120,10 +120,11 @@ export async function fetchProject(id: string): Promise<Project> {
 }
 
 export function useProjects(options?: { autoStart?: boolean }) {
-  if (options?.autoStart !== false)
+  // Only a caller that raised the shared subscriber count may lower it.
+  if (options?.autoStart !== false) {
     sse.startStream()
-
-  onUnmounted(sse.stopStream)
+    onUnmounted(sse.stopStream)
+  }
 
   return {
     projects,

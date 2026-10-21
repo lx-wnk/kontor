@@ -186,4 +186,18 @@ describe('useProjects', () => {
 
     await expect(useProjectsMod.createProject({ slug: 'x', name: 'X' })).rejects.toThrow('slug taken')
   })
+
+  // A passive consumer never raised the shared subscriber count, so its
+  // unmount must not lower it and close the stream for the owner.
+  it('a caller opted out of owning the stream (autoStart: false) does not tear it down for an owner on unmount', async () => {
+    const owner = withSetup(() => useProjectsMod.useProjects())
+    await nextTick()
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    withSetup(() => useProjectsMod.useProjects({ autoStart: false })).wrapper.unmount()
+    await nextTick()
+
+    expect(MockEventSource.instances[0].readyState).not.toBe(MockEventSource.CLOSED)
+    owner.wrapper.unmount()
+  })
 })
