@@ -1,6 +1,7 @@
 import type { Agent } from '../../types'
 import { describe, expect, it } from 'vitest'
 import { agentGroupOptions, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
+import { statusLabel } from '../statusColors'
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
   return {
@@ -121,10 +122,14 @@ describe('groupAgents', () => {
     const w = makeAgent({ status: 'waiting' })
     const i = makeAgent({ status: 'idle' })
     const groups = groupAgents([a, w, i], 'status')
-    const labels = groups.map(g => g.label)
-    expect(labels).toContain('Active')
-    expect(labels).toContain('Waiting on you')
-    expect(labels).toContain('Idle')
+    expect(groups.map(g => g.label)).toEqual(['Live', 'Quiet', 'Idle'])
+  })
+
+  // A band names what the badges inside it say, or an umbrella over them: the
+  // waiting band holds agents badged "Quiet", never "waiting on you".
+  it('status: names the quiet and idle bands exactly as their badges', () => {
+    const groups = groupAgents([makeAgent({ status: 'waiting' }), makeAgent({ status: 'idle' })], 'status')
+    expect(groups.map(g => g.label)).toEqual([statusLabel('waiting'), statusLabel('idle')])
   })
 
   it('model: groups by shortModel, preserving first-seen order', () => {
