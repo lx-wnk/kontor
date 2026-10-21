@@ -332,3 +332,55 @@ func TestUpdate_SetsRejectsAndClearsTheVaultFolder(t *testing.T) {
 		t.Fatalf("clear: got %d, body=%s", rr.Code, rr.Body.String())
 	}
 }
+
+// The client replaces its cached project with each event payload, so a payload
+// without folderCount reads as "no folders" until the next full refetch.
+func TestProjectEvents_CarryTheFolderCount(t *testing.T) {
+	bc := sse.NewProjectBroadcaster(sse.NewBroadcaster())
+	h := newTestHandler(t, true)
+	h.broadcaster = bc
+	ch := bc.Subscribe()
+	defer bc.Unsubscribe(ch)
+
+	nextPayload := func(wantType string) map[string]any {
+		t.Helper()
+		select {
+		case raw := <-ch:
+			var ev map[string]any
+			if err := json.Unmarshal(stripSSEFrame(raw), &ev); err != nil {
+				t.Fatalf("frame not JSON: %v", err)
+			}
+			if ev["type"] != wantType {
+				t.Fatalf("event type: got %v, want %s", ev["type"], wantType)
+			}
+			return ev["payload"].(map[string]any)
+		case <-time.After(time.Second):
+			t.Fatalf("no %s event broadcast", wantType)
+		}
+		return nil
+	}
+
+	rr := serveProjects(t, h, "POST", "/api/projects", `{"name":"Shop","slug":"shop"}`)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("create: got %d, body=%s", rr.Code, rr.Body.String())
+	}
+	created := nextPayload("project_created")
+	if created["folderCount"] != float64(0) {
+		t.Errorf("project_created folderCount: got %v, want 0", created["folderCount"])
+	}
+
+	id := created["id"].(string)
+	if _, err := h.folders.Create(context.Background(), id, "/code/shop", nil, true); err != nil {
+		t.Fatalf("seed folder: %v", err)
+	}
+	rr = serveProjects(t, h, "PATCH", "/api/projects/"+id, `{"name":"Renamed"}`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("update: got %d, body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"folderCount":1`) {
+		t.Errorf("update response must carry the folder count, body=%s", rr.Body.String())
+	}
+	if updated := nextPayload("project_updated"); updated["folderCount"] != float64(1) {
+		t.Errorf("project_updated folderCount: got %v, want 1", updated["folderCount"])
+	}
+}

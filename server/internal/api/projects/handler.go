@@ -90,14 +90,21 @@ func (h *Handler) emitProjectUpdated(r *http.Request, projectID string) {
 	if h.broadcaster == nil {
 		return
 	}
-	p, err := h.projects.GetWithFolders(r.Context(), projectID)
+	v, err := h.loadView(r.Context(), projectID)
 	if err != nil {
 		return
 	}
+	h.emit("project_updated", projectID, v)
+}
+
+func (h *Handler) loadView(ctx context.Context, projectID string) (projectView, error) {
+	p, err := h.projects.GetWithFolders(ctx, projectID)
+	if err != nil {
+		return projectView{}, err
+	}
 	folders, _ := p.Edges.FoldersOrErr()
 	count := len(folders)
-	v := toProjectView(p, &count, folders, p.ID)
-	h.emit("project_updated", p.ID, v)
+	return toProjectView(p, &count, folders, p.ID), nil
 }
 
 // Stream serves GET /api/projects/stream — live project CRUD events.
@@ -266,7 +273,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	v := toProjectView(p, nil, nil, "")
+	noFolders := 0
+	v := toProjectView(p, &noFolders, nil, "")
 	h.emit("project_created", p.ID, v)
 	apierr.WriteJSON(w, http.StatusCreated, v)
 	return nil
@@ -276,16 +284,14 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 // GET /api/projects/{id}
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) error {
 	id := chi.URLParam(r, "id")
-	p, err := h.projects.GetWithFolders(r.Context(), id)
+	v, err := h.loadView(r.Context(), id)
 	if err != nil {
 		if ent.IsNotFound(err) {
 			return apierr.NewAppError(http.StatusNotFound, "project not found")
 		}
 		return err
 	}
-	folders, _ := p.Edges.FoldersOrErr()
-	count := len(folders)
-	apierr.WriteJSON(w, http.StatusOK, toProjectView(p, &count, folders, p.ID))
+	apierr.WriteJSON(w, http.StatusOK, v)
 	return nil
 }
 
@@ -365,7 +371,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	v := toProjectView(p, nil, nil, "")
+	// The write already succeeded; a failed reload must not report it as failed.
+	v, err := h.loadView(r.Context(), p.ID)
+	if err != nil {
+		v = toProjectView(p, nil, nil, "")
+	}
 	h.emit("project_updated", p.ID, v)
 	apierr.WriteJSON(w, http.StatusOK, v)
 	return nil
