@@ -226,7 +226,6 @@ describe('useSpawners', () => {
     await expect(useSpawnersMod.deleteSpawner('s1')).rejects.toThrow('spawner in use')
   })
 
-
   // A passive consumer never raised the shared subscriber count, so its
   // unmount must not lower it and close the stream for the owner.
   it('a caller opted out of owning the stream (autoStart: false) does not tear it down for an owner on unmount', async () => {

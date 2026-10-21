@@ -128,10 +128,11 @@ export async function setDefaultSpawner(id: string): Promise<Spawner> {
 }
 
 export function useSpawners(options?: { autoStart?: boolean }) {
-  if (options?.autoStart !== false)
+  // Only a caller that raised the shared subscriber count may lower it.
+  if (options?.autoStart !== false) {
     sse.startStream()
-
-  onUnmounted(sse.stopStream)
+    onUnmounted(sse.stopStream)
+  }
 
   return {
     spawners,
