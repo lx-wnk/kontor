@@ -40,3 +40,26 @@ func TestMCPApplicationRepo_RecordCatalogueKeepsToolsOnError(t *testing.T) {
 	require.Equal(t, tools, got.Catalogue, "a failed refresh must not erase the last good catalogue")
 	require.Equal(t, "connect: refused", got.CatalogueError)
 }
+
+func TestMCPApplicationRepo_SetAllowedSpawnersRoundTrip(t *testing.T) {
+	apps := repo.NewMCPApplicationRepo(openDB(t))
+	ctx := context.Background()
+
+	created, err := apps.Upsert(ctx, repo.UpsertMCPApplicationInput{ResourceID: "res-1", ServerName: "mail"})
+	require.NoError(t, err)
+	require.NotNil(t, created.AllowedSpawners)
+	require.Empty(t, created.AllowedSpawners)
+
+	set, err := apps.SetAllowedSpawners(ctx, "res-1", []string{"sp-a", "sp-b"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"sp-a", "sp-b"}, set.AllowedSpawners)
+
+	got, err := apps.GetByResourceID(ctx, "res-1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"sp-a", "sp-b"}, got.AllowedSpawners)
+
+	cleared, err := apps.SetAllowedSpawners(ctx, "res-1", []string{})
+	require.NoError(t, err)
+	require.NotNil(t, cleared.AllowedSpawners)
+	require.Empty(t, cleared.AllowedSpawners)
+}
