@@ -93,6 +93,18 @@ func (f CheckpointFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CheckpointMutation", m)
 }
 
+// The CloudSessionFunc type is an adapter to allow the use of ordinary
+// function as CloudSession mutator.
+type CloudSessionFunc func(context.Context, *ent.CloudSessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CloudSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CloudSessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CloudSessionMutation", m)
+}
+
 // The CoordLockFunc type is an adapter to allow the use of ordinary
 // function as CoordLock mutator.
 type CoordLockFunc func(context.Context, *ent.CoordLockMutation) (ent.Value, error)

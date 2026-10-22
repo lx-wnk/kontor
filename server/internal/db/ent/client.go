@@ -22,6 +22,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/evalmetricsnapshot"
@@ -74,6 +75,8 @@ type Client struct {
 	Capability *CapabilityClient
 	// Checkpoint is the client for interacting with the Checkpoint builders.
 	Checkpoint *CheckpointClient
+	// CloudSession is the client for interacting with the CloudSession builders.
+	CloudSession *CloudSessionClient
 	// CoordLock is the client for interacting with the CoordLock builders.
 	CoordLock *CoordLockClient
 	// DriftAlert is the client for interacting with the DriftAlert builders.
@@ -154,6 +157,7 @@ func (c *Client) init() {
 	c.AuditEvent = NewAuditEventClient(c.config)
 	c.Capability = NewCapabilityClient(c.config)
 	c.Checkpoint = NewCheckpointClient(c.config)
+	c.CloudSession = NewCloudSessionClient(c.config)
 	c.CoordLock = NewCoordLockClient(c.config)
 	c.DriftAlert = NewDriftAlertClient(c.config)
 	c.EvalMetricSnapshot = NewEvalMetricSnapshotClient(c.config)
@@ -284,6 +288,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
+		CloudSession:       NewCloudSessionClient(cfg),
 		CoordLock:          NewCoordLockClient(cfg),
 		DriftAlert:         NewDriftAlertClient(cfg),
 		EvalMetricSnapshot: NewEvalMetricSnapshotClient(cfg),
@@ -341,6 +346,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
+		CloudSession:       NewCloudSessionClient(cfg),
 		CoordLock:          NewCoordLockClient(cfg),
 		DriftAlert:         NewDriftAlertClient(cfg),
 		EvalMetricSnapshot: NewEvalMetricSnapshotClient(cfg),
@@ -402,13 +408,14 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CoordLock, c.DriftAlert, c.EvalMetricSnapshot,
-		c.Grant, c.GrantUsage, c.MCPApplication, c.Materialization, c.MemoryEntry,
-		c.MemoryInjection, c.PermissionPreset, c.PermissionRequest, c.PipelineConfig,
-		c.Plugin, c.PluginSetting, c.Project, c.ProjectFolder, c.PromptTemplate,
-		c.ProviderSetting, c.RefinementTurn, c.RemoteRegistration, c.Resource,
-		c.Scratchpad, c.Skill, c.Spawner, c.StageRun, c.SystemPrompt, c.Task,
-		c.TaskDependency, c.TaskPermission, c.TaskSchedule, c.User,
+		c.Capability, c.Checkpoint, c.CloudSession, c.CoordLock, c.DriftAlert,
+		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
+		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
+		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
+		c.RemoteRegistration, c.Resource, c.Scratchpad, c.Skill, c.Spawner, c.StageRun,
+		c.SystemPrompt, c.Task, c.TaskDependency, c.TaskPermission, c.TaskSchedule,
+		c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -419,13 +426,14 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CoordLock, c.DriftAlert, c.EvalMetricSnapshot,
-		c.Grant, c.GrantUsage, c.MCPApplication, c.Materialization, c.MemoryEntry,
-		c.MemoryInjection, c.PermissionPreset, c.PermissionRequest, c.PipelineConfig,
-		c.Plugin, c.PluginSetting, c.Project, c.ProjectFolder, c.PromptTemplate,
-		c.ProviderSetting, c.RefinementTurn, c.RemoteRegistration, c.Resource,
-		c.Scratchpad, c.Skill, c.Spawner, c.StageRun, c.SystemPrompt, c.Task,
-		c.TaskDependency, c.TaskPermission, c.TaskSchedule, c.User,
+		c.Capability, c.Checkpoint, c.CloudSession, c.CoordLock, c.DriftAlert,
+		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
+		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
+		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
+		c.RemoteRegistration, c.Resource, c.Scratchpad, c.Skill, c.Spawner, c.StageRun,
+		c.SystemPrompt, c.Task, c.TaskDependency, c.TaskPermission, c.TaskSchedule,
+		c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -448,6 +456,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Capability.mutate(ctx, m)
 	case *CheckpointMutation:
 		return c.Checkpoint.mutate(ctx, m)
+	case *CloudSessionMutation:
+		return c.CloudSession.mutate(ctx, m)
 	case *CoordLockMutation:
 		return c.CoordLock.mutate(ctx, m)
 	case *DriftAlertMutation:
@@ -1443,6 +1453,139 @@ func (c *CheckpointClient) mutate(ctx context.Context, m *CheckpointMutation) (V
 		return (&CheckpointDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Checkpoint mutation op: %q", m.Op())
+	}
+}
+
+// CloudSessionClient is a client for the CloudSession schema.
+type CloudSessionClient struct {
+	config
+}
+
+// NewCloudSessionClient returns a client for the CloudSession from the given config.
+func NewCloudSessionClient(c config) *CloudSessionClient {
+	return &CloudSessionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cloudsession.Hooks(f(g(h())))`.
+func (c *CloudSessionClient) Use(hooks ...Hook) {
+	c.hooks.CloudSession = append(c.hooks.CloudSession, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cloudsession.Intercept(f(g(h())))`.
+func (c *CloudSessionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CloudSession = append(c.inters.CloudSession, interceptors...)
+}
+
+// Create returns a builder for creating a CloudSession entity.
+func (c *CloudSessionClient) Create() *CloudSessionCreate {
+	mutation := newCloudSessionMutation(c.config, OpCreate)
+	return &CloudSessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CloudSession entities.
+func (c *CloudSessionClient) CreateBulk(builders ...*CloudSessionCreate) *CloudSessionCreateBulk {
+	return &CloudSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CloudSessionClient) MapCreateBulk(slice any, setFunc func(*CloudSessionCreate, int)) *CloudSessionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CloudSessionCreateBulk{err: fmt.Errorf("calling to CloudSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CloudSessionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CloudSessionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CloudSession.
+func (c *CloudSessionClient) Update() *CloudSessionUpdate {
+	mutation := newCloudSessionMutation(c.config, OpUpdate)
+	return &CloudSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CloudSessionClient) UpdateOne(_m *CloudSession) *CloudSessionUpdateOne {
+	mutation := newCloudSessionMutation(c.config, OpUpdateOne, withCloudSession(_m))
+	return &CloudSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CloudSessionClient) UpdateOneID(id string) *CloudSessionUpdateOne {
+	mutation := newCloudSessionMutation(c.config, OpUpdateOne, withCloudSessionID(id))
+	return &CloudSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CloudSession.
+func (c *CloudSessionClient) Delete() *CloudSessionDelete {
+	mutation := newCloudSessionMutation(c.config, OpDelete)
+	return &CloudSessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CloudSessionClient) DeleteOne(_m *CloudSession) *CloudSessionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CloudSessionClient) DeleteOneID(id string) *CloudSessionDeleteOne {
+	builder := c.Delete().Where(cloudsession.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CloudSessionDeleteOne{builder}
+}
+
+// Query returns a query builder for CloudSession.
+func (c *CloudSessionClient) Query() *CloudSessionQuery {
+	return &CloudSessionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCloudSession},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CloudSession entity by its id.
+func (c *CloudSessionClient) Get(ctx context.Context, id string) (*CloudSession, error) {
+	return c.Query().Where(cloudsession.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CloudSessionClient) GetX(ctx context.Context, id string) *CloudSession {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CloudSessionClient) Hooks() []Hook {
+	return c.hooks.CloudSession
+}
+
+// Interceptors returns the client interceptors.
+func (c *CloudSessionClient) Interceptors() []Interceptor {
+	return c.inters.CloudSession
+}
+
+func (c *CloudSessionClient) mutate(ctx context.Context, m *CloudSessionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CloudSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CloudSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CloudSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CloudSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CloudSession mutation op: %q", m.Op())
 	}
 }
 
@@ -5765,8 +5908,8 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CoordLock, DriftAlert, EvalMetricSnapshot, Grant, GrantUsage,
-		MCPApplication, Materialization, MemoryEntry, MemoryInjection,
+		Checkpoint, CloudSession, CoordLock, DriftAlert, EvalMetricSnapshot, Grant,
+		GrantUsage, MCPApplication, Materialization, MemoryEntry, MemoryInjection,
 		PermissionPreset, PermissionRequest, PipelineConfig, Plugin, PluginSetting,
 		Project, ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
 		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
@@ -5775,8 +5918,8 @@ type (
 	}
 	inters struct {
 		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CoordLock, DriftAlert, EvalMetricSnapshot, Grant, GrantUsage,
-		MCPApplication, Materialization, MemoryEntry, MemoryInjection,
+		Checkpoint, CloudSession, CoordLock, DriftAlert, EvalMetricSnapshot, Grant,
+		GrantUsage, MCPApplication, Materialization, MemoryEntry, MemoryInjection,
 		PermissionPreset, PermissionRequest, PipelineConfig, Plugin, PluginSetting,
 		Project, ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
 		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
