@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -17,11 +19,12 @@ const (
 	RoutineBetaHeader = "experimental-cc-routine-2026-04-01"
 	AnthropicVersion  = "2023-06-01"
 
-	routineTimeout = 20 * time.Second
-	// maxFireErrorBody bounds the response body copied into a FireError.
+	routineTimeout   = 20 * time.Second
 	maxFireErrorBody = 4096
 	maxFireResponse  = 1 << 20
 	redactedToken    = "[redacted]"
+	// minLeakWindow is the shortest token fragment a FireError body may not contain.
+	minLeakWindow = 8
 )
 
 var (
@@ -30,7 +33,6 @@ var (
 	ErrInvalidFireURL = errors.New("not a routine fire URL: https://api.anthropic.com/v1/claude_code/routines/trig_<id>/fire")
 )
 
-// FireError reports a non-2xx answer from the fire endpoint.
 type FireError struct {
 	Status int
 	Body   string
@@ -57,8 +59,6 @@ func ValidateFireURL(s string) error {
 	return nil
 }
 
-// Fire posts to fireURL with the routine token. The token goes nowhere else:
-// the URL is validated first and redirects are never followed.
 func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (FireResult, error) {
 	if err := ValidateFireURL(fireURL); err != nil {
 		return FireResult{}, err
@@ -85,8 +85,7 @@ func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (F
 
 	resp, err := c.client().Do(req)
 	if err != nil {
-		// url.Error carries only the validated URL; the cause is dropped to keep the token out of the chain.
-		return FireResult{}, errors.New("routine fire request failed")
+		return FireResult{}, classifyTransportError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -108,21 +107,68 @@ func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (F
 }
 
 func (c RoutineClient) client() *http.Client {
-	hc := http.Client{Timeout: routineTimeout}
+	var hc http.Client
 	if c.HTTP != nil {
 		hc = *c.HTTP
+	}
+	if hc.Timeout == 0 {
+		hc.Timeout = routineTimeout
 	}
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &hc
 }
 
-// readErrorBody reads past the cap by the token's length so a token echoed at
-// the cut is redacted whole before the body is truncated.
+// classifyTransportError keeps the cause kind, never the cause text: a transport error may echo request details.
+func classifyTransportError(err error) error {
+	var netErr net.Error
+	switch {
+	case errors.Is(err, context.Canceled):
+		return fmt.Errorf("routine fire canceled: %w", context.Canceled)
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, os.ErrDeadlineExceeded),
+		errors.As(err, &netErr) && netErr.Timeout():
+		return fmt.Errorf("routine fire timed out: %w: %w", context.DeadlineExceeded, os.ErrDeadlineExceeded)
+	default:
+		return errors.New("routine fire request failed")
+	}
+}
+
 func readErrorBody(r io.Reader, token string) string {
-	raw, _ := io.ReadAll(io.LimitReader(r, int64(maxFireErrorBody+len(token))))
-	body := strings.ReplaceAll(string(raw), token, redactedToken)
+	raw, _ := io.ReadAll(io.LimitReader(r, maxFireErrorBody))
+	body := redactToken(string(raw), token)
 	if len(body) > maxFireErrorBody {
 		body = body[:maxFireErrorBody]
 	}
 	return body
+}
+
+// redactToken masks every minLeakWindow-byte window of body that occurs in the
+// token, plus a token prefix left dangling at the end by the read cap.
+func redactToken(body, token string) string {
+	window := min(minLeakWindow, len(token))
+	masked := make([]bool, len(body))
+	for i := 0; i+window <= len(body); i++ {
+		if strings.Contains(token, body[i:i+window]) {
+			for j := i; j < i+window; j++ {
+				masked[j] = true
+			}
+		}
+	}
+	for n := min(len(token)-1, len(body)); n > 0; n-- {
+		if strings.HasSuffix(body, token[:n]) {
+			for j := len(body) - n; j < len(body); j++ {
+				masked[j] = true
+			}
+			break
+		}
+	}
+
+	var out strings.Builder
+	for i := 0; i < len(body); i++ {
+		if !masked[i] {
+			out.WriteByte(body[i])
+		} else if i == 0 || !masked[i-1] {
+			out.WriteString(redactedToken)
+		}
+	}
+	return out.String()
 }

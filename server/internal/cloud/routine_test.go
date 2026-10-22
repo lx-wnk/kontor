@@ -185,15 +185,15 @@ func TestFire_DoesNotFollowRedirects(t *testing.T) {
 
 	// The rewrite transport only rewrites api.anthropic.com, so a followed redirect would reach target.
 	_, err := clientFor(t, srv).Fire(context.Background(), validFireURL, testToken, "x")
-	var fe *FireError
-	if !errors.As(err, &fe) || fe.Status != http.StatusFound {
-		t.Fatalf("err = %v, want FireError with status 302", err)
-	}
 	if n := targetHits.Load(); n != 0 {
 		t.Errorf("redirect target received %d requests, auth=%v", n, targetAuth.Load())
 	}
 	if auth, _ := targetAuth.Load().(string); auth != "" {
 		t.Errorf("redirect target saw Authorization %q", auth)
+	}
+	var fe *FireError
+	if !errors.As(err, &fe) || fe.Status != http.StatusFound {
+		t.Fatalf("err = %v, want FireError with status 302", err)
 	}
 }
 
