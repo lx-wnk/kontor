@@ -14,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
+	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
 	apigithub "github.com/lx-wnk/kontor/server/internal/api/github"
@@ -187,11 +188,22 @@ func buildBypassRouter(t *testing.T) http.Handler {
 	deps.KontorSessionHandler = apikontorsession.New(stubKontorSessions{})
 	// Fake CLI, never cloud.Runner: GET /api/cloud-accounts would otherwise run
 	// `claude auth status`.
+	cloudBroadcaster := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
 	deps.CloudSessionsHandler = cloudsessions.NewHandler(
 		repo.NewCloudSessionRepo(c),
 		deps.SpawnerRepo,
 		stubCloudCLI{},
-		sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster()),
+		cloudBroadcaster,
+	)
+	// Preview ON so the walk reaches the handlers; the fake firer never touches
+	// the network.
+	deps.CloudRoutinesHandler = cloudroutines.NewHandler(
+		repo.NewCloudRoutineRepo(c, nil),
+		repo.NewCloudSessionRepo(c),
+		deps.SpawnerRepo,
+		stubRoutineFirer{},
+		cloudBroadcaster,
+		func() bool { return true },
 	)
 
 	return NewRouter(deps)
@@ -205,6 +217,12 @@ func (stubCloudCLI) Send(context.Context, *ent.Spawner, string, string) (cloud.S
 
 func (stubCloudCLI) AuthStatus(context.Context, *ent.Spawner) (cloud.AuthStatus, error) {
 	return cloud.AuthStatus{}, nil
+}
+
+type stubRoutineFirer struct{}
+
+func (stubRoutineFirer) Fire(context.Context, string, string, string) (cloud.FireResult, error) {
+	return cloud.FireResult{}, nil
 }
 
 type stubKontorSessions struct{}
