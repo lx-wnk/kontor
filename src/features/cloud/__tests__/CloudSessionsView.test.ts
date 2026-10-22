@@ -157,7 +157,7 @@ describe('cloudSessionsView', () => {
     expect(wrapper.text()).toContain('routine')
     expect(wrapper.text()).toContain('ping')
     expect(wrapper.find('[title="Session not found"]').exists()).toBe(true)
-    expect(wrapper.find('[title="Session not found"] .sr-only').text()).toBe('Session not found')
+    expect(wrapper.find('[title="Session not found"]').findAll('.sr-only').map(e => e.text())).toContain('Session not found')
   })
 
   it('links to claude.ai in a new tab with noopener', () => {

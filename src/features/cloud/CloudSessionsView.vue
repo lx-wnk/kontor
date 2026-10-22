@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CloudAccount, CloudSessionView } from './composables/useCloudSessions'
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import AppBadge from '../../components/ui/AppBadge.vue'
 import AppButton from '../../components/ui/AppButton.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -20,12 +20,15 @@ interface AccountGroup {
 }
 
 const UNKNOWN_KEY = '__unknown__'
+const CLOUD_URL_PREFIX = 'https://claude.ai/code/'
 
 const { sessions } = useCloudSessions()
-const { accounts, refresh } = useCloudAccounts()
+const { accounts, isLoading: accountsLoading, refresh } = useCloudAccounts()
 const { spawners } = useSpawners()
 
 const groups = computed<AccountGroup[]>(() => {
+  if (accountsLoading.value)
+    return []
   const accountBySpawner = new Map<string, CloudAccount>()
   for (const account of accounts.value) {
     for (const spawner of account.spawners)
@@ -52,11 +55,40 @@ function spawnerNames(account: CloudAccount): string {
   return account.spawners.map(s => s.name).join(', ')
 }
 
+function isCloudUrl(url: string): boolean {
+  return url.startsWith(CLOUD_URL_PREFIX)
+}
+
 const drafts = reactive<Record<string, string>>({})
 const sending = reactive<Record<string, boolean>>({})
 const sendErrors = reactive<Record<string, string>>({})
 const removeErrors = reactive<Record<string, string>>({})
 const confirmRemoveId = ref<string | null>(null)
+
+function editDraft(id: string, text: string) {
+  drafts[id] = text
+  sendErrors[id] = ''
+}
+
+watch(sessions, (list) => {
+  const live = new Set(list.map(s => s.id))
+  for (const record of [drafts, sending, sendErrors, removeErrors]) {
+    for (const id of Object.keys(record)) {
+      if (!live.has(id))
+        delete record[id]
+    }
+  }
+  if (confirmRemoveId.value && !live.has(confirmRemoveId.value))
+    confirmRemoveId.value = null
+})
+
+const confirmButton = ref<HTMLElement | null>(null)
+
+async function askRemove(id: string) {
+  confirmRemoveId.value = id
+  await nextTick()
+  confirmButton.value?.focus()
+}
 
 async function send(id: string) {
   const text = (drafts[id] ?? '').trim()
@@ -180,7 +212,10 @@ async function runImport() {
       </form>
     </AppCard>
 
-    <p v-if="groups.length === 0" class="text-fg-faint text-sm">
+    <p v-if="accountsLoading" class="text-fg-faint text-sm">
+      Loading accounts…
+    </p>
+    <p v-else-if="groups.length === 0" class="text-fg-faint text-sm">
       No cloud sessions yet. Import one by URL above.
     </p>
 
@@ -206,7 +241,7 @@ async function runImport() {
       <div v-if="group.account && !isReady(group.account)" class="px-3 py-2 text-xs text-fg-mute border-b border-line">
         Not signed in with claude.ai. Run: <code class="font-mono">CLAUDE_CONFIG_DIR={{ group.account.configDir }} claude auth login</code>
       </div>
-      <div v-if="group.account?.error" class="px-3 py-2 text-xs text-danger-text border-b border-line">
+      <div v-if="group.account?.error" role="alert" class="px-3 py-2 text-xs text-danger-text border-b border-line">
         {{ group.account.error }}
       </div>
 
@@ -222,8 +257,10 @@ async function runImport() {
             </AppChip>
             <span v-if="session.lastError" :title="session.lastError">
               <AppBadge variant="error" label="Error" />
+              <span class="sr-only">{{ session.lastError }}</span>
             </span>
             <a
+              v-if="isCloudUrl(session.url)"
               :href="session.url"
               target="_blank"
               rel="noopener"
@@ -238,18 +275,21 @@ async function runImport() {
 
           <div class="flex items-start gap-2">
             <AppInput
-              v-model="drafts[session.id]"
+              :model-value="drafts[session.id]"
               type="textarea"
               :rows="2"
+              :aria-label="`Message to ${session.title}`"
               placeholder="Send a message to this session"
               :disabled="sending[session.id]"
               :error="sendErrors[session.id]"
               :data-testid="`send-box-${session.id}`"
+              @update:model-value="editDraft(session.id, $event)"
             />
             <AppButton
               variant="primary"
               size="sm"
               :disabled="sending[session.id] || !drafts[session.id]?.trim()"
+              :aria-label="`Send message to ${session.title}`"
               :data-testid="`send-${session.id}`"
               @click="send(session.id)"
             >
@@ -260,14 +300,21 @@ async function runImport() {
           <div class="flex items-center gap-2">
             <template v-if="confirmRemoveId === session.id">
               <span class="text-xs text-fg-mute">Removes the session from Kontor only. It stays on claude.ai.</span>
-              <AppButton variant="danger" size="sm" :data-testid="`remove-confirm-${session.id}`" @click="remove(session.id)">
+              <AppButton
+                :ref="(el: unknown) => { confirmButton = (el as { $el?: HTMLElement } | null)?.$el ?? null }"
+                variant="danger"
+                size="sm"
+                :aria-label="`Confirm removing ${session.title}`"
+                :data-testid="`remove-confirm-${session.id}`"
+                @click="remove(session.id)"
+              >
                 Confirm
               </AppButton>
-              <AppButton variant="secondary" size="sm" :data-testid="`remove-cancel-${session.id}`" @click="confirmRemoveId = null">
+              <AppButton variant="secondary" size="sm" :aria-label="`Cancel removing ${session.title}`" :data-testid="`remove-cancel-${session.id}`" @click="confirmRemoveId = null">
                 Cancel
               </AppButton>
             </template>
-            <AppButton v-else variant="ghost" size="sm" :data-testid="`remove-${session.id}`" @click="confirmRemoveId = session.id">
+            <AppButton v-else variant="ghost" size="sm" :aria-label="`Remove from Kontor: ${session.title}`" :data-testid="`remove-${session.id}`" @click="askRemove(session.id)">
               Remove from Kontor
             </AppButton>
             <span v-if="removeErrors[session.id]" role="status" class="text-danger-text text-xs" :data-testid="`remove-error-${session.id}`">{{ removeErrors[session.id] }}</span>
