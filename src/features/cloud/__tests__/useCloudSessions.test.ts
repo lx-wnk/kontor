@@ -193,11 +193,72 @@ describe('cloud session actions', () => {
   })
 })
 
+describe('applying action results to the shared list', () => {
+  async function mountLoaded() {
+    const mounted = withSetup(() => mod.useCloudSessions())
+    await vi.waitFor(() => expect(mounted.result.sessions.value).toHaveLength(1))
+    return mounted
+  }
+
+  it('importSession prepends the new view, and the later created event adds no duplicate', async () => {
+    const { result, wrapper } = await mountLoaded()
+    const imported = makeSession('c2')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(201, imported)))
+
+    await mod.importSession({ spawnerId: 'sp1', url: imported.url })
+
+    expect(result.sessions.value.map(s => s.id)).toEqual(['c2', 'c1'])
+    emit({ type: 'cloud_session_created', cloudSessionId: 'c2', payload: imported })
+    expect(result.sessions.value.map(s => s.id)).toEqual(['c2', 'c1'])
+    wrapper.unmount()
+  })
+
+  it('sendMessage replaces the row in place, and the later updated event is idempotent', async () => {
+    const { result, wrapper } = await mountLoaded()
+    const sent = makeSession('c1', { lastMessage: 'hi', lastMessageAt: '2026-01-02T00:00:00Z' })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, sent)))
+
+    await mod.sendMessage('c1', 'hi')
+
+    expect(result.sessions.value).toEqual([sent])
+    emit({ type: 'cloud_session_updated', cloudSessionId: 'c1', payload: sent })
+    expect(result.sessions.value).toEqual([sent])
+    wrapper.unmount()
+  })
+
+  it('a failed send leaves the list untouched', async () => {
+    const { result, wrapper } = await mountLoaded()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error: 'boom' })))
+
+    await expect(mod.sendMessage('c1', 'hi')).rejects.toThrow('boom')
+
+    expect(result.sessions.value.map(s => s.id)).toEqual(['c1'])
+    wrapper.unmount()
+  })
+})
+
+describe('reconnect', () => {
+  it('refetches the list on the first frame of a (re)connected stream', async () => {
+    const mounted = withSetup(() => mod.useCloudSessions())
+    await vi.waitFor(() => expect(mounted.result.sessions.value).toHaveLength(1))
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, [makeSession('c1'), makeSession('c3')]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    emit({ type: 'cloud_session_updated', cloudSessionId: 'unknown', payload: makeSession('unknown') })
+
+    await vi.waitFor(() => expect(mounted.result.sessions.value.map(s => s.id)).toEqual(['c1', 'c3']))
+    expect(fetchMock).toHaveBeenCalledWith('/api/cloud-sessions')
+    mounted.wrapper.unmount()
+  })
+})
+
 describe('useCloudAccounts', () => {
   const accounts = [{
     configDir: '/home/u/.claude',
     spawners: [{ id: 'sp1', name: 'Claude' }],
     auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'max' },
+    ready: true,
+    loginHint: 'CLAUDE_CONFIG_DIR=/home/u/.claude claude auth login',
   }]
 
   it('loads /api/cloud-accounts and refresh() calls ?refresh=1', async () => {
@@ -206,6 +267,8 @@ describe('useCloudAccounts', () => {
 
     const { result } = withSetup(() => mod.useCloudAccounts())
     await vi.waitFor(() => expect(result.accounts.value).toHaveLength(1))
+    expect(result.accounts.value[0].ready).toBe(true)
+    expect(result.accounts.value[0].loginHint).toContain('claude auth login')
     expect(fetchMock).toHaveBeenCalledWith('/api/cloud-accounts')
 
     await result.refresh()
