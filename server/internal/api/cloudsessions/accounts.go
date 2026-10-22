@@ -8,7 +8,6 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/apierr"
 	"github.com/lx-wnk/kontor/server/internal/cloud"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
-	"github.com/lx-wnk/kontor/server/internal/pathutil"
 )
 
 type accountSpawner struct {
@@ -20,11 +19,14 @@ type accountView struct {
 	ConfigDir string            `json:"configDir"`
 	Spawners  []accountSpawner  `json:"spawners"`
 	Auth      *cloud.AuthStatus `json:"auth"`
+	Ready     bool              `json:"ready"`
+	LoginHint string            `json:"loginHint"`
 	Error     string            `json:"error,omitempty"`
 }
 
-// Accounts lists each Claude account once, with whether it can run cloud
-// sessions. A failing lookup becomes that row's error, never a failed response.
+// Accounts lists one row per CLAUDE_CONFIG_DIR value, with whether it can run
+// cloud sessions. A symlink and its target are separate rows: the CLI's sign-in
+// depends on the literal value. A failing lookup becomes that row's error, never a failed response.
 // GET /api/cloud-accounts
 func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 	spawners, err := h.spawners.List(r.Context())
@@ -43,10 +45,10 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 		if !runsClaude(sp) {
 			continue
 		}
-		key := pathutil.Canonical(cloud.AccountDir(sp))
+		key := cloud.AccountDir(sp)
 		row, ok := byDir[key]
 		if !ok {
-			row = &accountView{ConfigDir: pathutil.ExpandLeadingTilde(cloud.AccountDir(sp))}
+			row = &accountView{ConfigDir: key, LoginHint: cloud.LoginHint(sp)}
 			byDir[key] = row
 			first[key] = sp
 			rows = append(rows, row)
@@ -62,6 +64,7 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 			continue
 		}
 		row.Auth = &st
+		row.Ready = st.CloudReady()
 	}
 
 	slices.SortFunc(rows, func(a, b *accountView) int { return cmp.Compare(a.ConfigDir, b.ConfigDir) })
