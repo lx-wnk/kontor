@@ -421,15 +421,19 @@ func TestBypassAuth_DoesNotMountThePermissionBridgeDecisions(t *testing.T) {
 	}
 }
 
-// The cloud session routes mount inside the group that applies
+// The cloud session and routine routes mount inside the group that applies
 // RequireSameOriginForMutations; a mutation without an Origin must be refused
 // before the handler runs.
-func TestBypassAuth_CloudSessionMutationsRequireSameOrigin(t *testing.T) {
+func TestBypassAuth_CloudMutationsRequireSameOrigin(t *testing.T) {
 	router := buildBypassRouter(t)
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/api/cloud-sessions/import"},
 		{http.MethodPost, "/api/cloud-sessions/smoke-test/messages"},
 		{http.MethodDelete, "/api/cloud-sessions/smoke-test"},
+		{http.MethodPost, "/api/cloud-routines"},
+		{http.MethodPatch, "/api/cloud-routines/smoke-test"},
+		{http.MethodDelete, "/api/cloud-routines/smoke-test"},
+		{http.MethodPost, "/api/cloud-routines/smoke-test/fire"},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader("{}"))
 		req.Host = "127.0.0.1"

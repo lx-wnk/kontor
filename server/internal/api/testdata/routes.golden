@@ -2,6 +2,7 @@ CONNECT /*
 CONNECT /api/plugins/{id}/proxy/*
 DELETE /*
 DELETE /api/agents/{pid}/channel
+DELETE /api/cloud-routines/{id}
 DELETE /api/cloud-sessions/{id}
 DELETE /api/grants/{id}
 DELETE /api/kontor-session
@@ -34,6 +35,7 @@ GET /api/auth/github
 GET /api/auth/login
 GET /api/capabilities
 GET /api/cloud-accounts
+GET /api/cloud-routines
 GET /api/cloud-sessions
 GET /api/cloud-sessions/stream
 GET /api/config
@@ -111,6 +113,7 @@ HEAD /api/plugins/{id}/proxy/*
 OPTIONS /*
 OPTIONS /api/plugins/{id}/proxy/*
 PATCH /*
+PATCH /api/cloud-routines/{id}
 PATCH /api/memory/entries/{id}
 PATCH /api/plugins/{id}/proxy/*
 PATCH /api/projects/{id}
@@ -125,6 +128,8 @@ POST /api/agents/{pid}/upload-image
 POST /api/analytics/patterns/refresh
 POST /api/auth/logout
 POST /api/auth/session
+POST /api/cloud-routines
+POST /api/cloud-routines/{id}/fire
 POST /api/cloud-sessions/import
 POST /api/cloud-sessions/{id}/messages
 POST /api/github/comment
