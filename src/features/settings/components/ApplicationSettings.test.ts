@@ -1,6 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { shallowRef } from 'vue'
 import ApplicationSettings from '@/features/settings/components/ApplicationSettings.vue'
+
+const spawnersRef = vi.hoisted(() => ({ current: null as unknown as { value: unknown[] } }))
+vi.mock('@/composables/useSpawners', () => ({
+  useSpawners: () => ({ spawners: spawnersRef.current }),
+}))
 
 class MockEventSource {
   static instances: MockEventSource[] = []
@@ -14,7 +20,18 @@ class MockEventSource {
   close() { this.readyState = 2 }
 }
 
+function spawner(id: string, name: string, adapterType: string, env: Record<string, string> = {}) {
+  return { id, name, slug: id, command: 'claude', args: [], env, adapterType, adapterConfig: {}, builtIn: false, isDefault: false, createdAt: '', updatedAt: '' }
+}
+
+const SPAWNERS = [
+  spawner('sp-default', 'Claude (default)', 'claude'),
+  spawner('sp-work', 'Claude Work', 'claude', { CLAUDE_CONFIG_DIR: '/Users/me/.claude-work' }),
+  spawner('sp-ollama', 'Local Ollama', 'ollama'),
+]
+
 beforeEach(() => {
+  spawnersRef.current = shallowRef(SPAWNERS)
   MockEventSource.instances = []
   vi.stubGlobal('EventSource', MockEventSource)
 })
@@ -37,19 +54,9 @@ const MAIL = {
 
 const IMAP = { ...MAIL, resourceId: 'res-imap', serverName: 'mail-private', preset: 'imap-mcp-server' }
 
-function spawner(id: string, name: string, adapterType: string, env: Record<string, string> = {}) {
-  return { id, name, slug: id, command: 'claude', args: [], env, adapterType, adapterConfig: {}, builtIn: false, isDefault: false, createdAt: '', updatedAt: '' }
-}
-
-const SPAWNERS = [
-  spawner('sp-default', 'Claude (default)', 'claude'),
-  spawner('sp-work', 'Claude Work', 'claude', { CLAUDE_CONFIG_DIR: '/Users/me/.claude-work' }),
-  spawner('sp-ollama', 'Local Ollama', 'ollama'),
-]
-
 function stubFetch(responses: Record<string, unknown>) {
   const calls: Array<{ url: string, init?: RequestInit }> = []
-  const merged: Record<string, unknown> = { 'GET /api/applications/drift': { found: [], changed: [] }, 'GET /api/spawners': SPAWNERS, ...responses }
+  const merged: Record<string, unknown> = { 'GET /api/applications/drift': { found: [], changed: [] }, ...responses }
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init })
     const body = merged[`${init?.method ?? 'GET'} ${url}`]
@@ -587,7 +594,7 @@ describe('applicationSettings', () => {
       wrapper.unmount()
     })
 
-    it('PATCHes the chosen spawner ids for that application', async () => {
+    it('patches the chosen spawner ids for that application', async () => {
       const calls = stubFetch({
         'GET /api/applications': [IMAP],
         'PATCH /api/applications/res-imap': { ...IMAP, allowedSpawners: ['sp-default'] },
@@ -625,8 +632,6 @@ describe('applicationSettings', () => {
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (init?.method === 'PATCH')
           return { ok: false, status: 400, json: async () => ({ error: 'allowedSpawners: unknown spawner sp-gone' }) }
-        if (url === '/api/spawners')
-          return { ok: true, status: 200, json: async () => SPAWNERS }
         if (url === '/api/applications/drift')
           return { ok: true, status: 200, json: async () => ({ found: [], changed: [] }) }
         return { ok: true, status: 200, json: async () => [IMAP] }
