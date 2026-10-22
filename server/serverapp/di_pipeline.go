@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"time"
 
@@ -60,6 +61,17 @@ func makeSetupWorktreeFn(projectRepo repo.ProjectRepo) func(ctx context.Context,
 }
 
 // runSetupCommand executes cmd in dir with a 5-minute timeout, logging combined output.
+// appHomeRoot is empty when the user home is unknown, so isolated applications
+// fail at resolve time instead of falling back to the shared HOME.
+func appHomeRoot() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Warn("application home root unavailable, isolated applications will fail to resolve", "err", err)
+		return ""
+	}
+	return mcpapps.HomeRootUnder(home)
+}
+
 func runSetupCommand(ctx context.Context, dir, cmd string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -190,6 +202,7 @@ func provideOrchestrator(
 			Secrets:      appSecrets,
 			Grants:       grantRepo,
 			Capabilities: capabilityRepo,
+			HomeRoot:     appHomeRoot(),
 		}.ResolveRun,
 		CheckUsageGate: func(configDir string) pipeline.UsageGateDecision {
 			d := usageDecision(configDir)

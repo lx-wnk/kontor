@@ -9,10 +9,16 @@ import (
 
 var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
 
-// IsolatedHomeEnv creates homeRoot/resourceID (0700) and returns the env that
-// points an application at it as HOME. npm_config_cache keeps the server's real
-// npm cache so a fresh HOME does not force a full re-download on every spawn.
+// HomeRootUnder is the directory holding every isolated application's HOME.
+func HomeRootUnder(userHome string) string {
+	return filepath.Join(userHome, ".claude", "kontor", "apps")
+}
+
+// IsolatedHomeEnv creates homeRoot/resourceID (0700) and returns its HOME and npm cache env.
 func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
+	if homeRoot == "" {
+		return nil, fmt.Errorf("mcpapps: home root is not configured")
+	}
 	if !resourceIDPattern.MatchString(resourceID) || resourceID == "." || resourceID == ".." {
 		return nil, fmt.Errorf("mcpapps: invalid resource id %q for home directory", resourceID)
 	}
