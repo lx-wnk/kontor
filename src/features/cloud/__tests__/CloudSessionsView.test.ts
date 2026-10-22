@@ -108,6 +108,15 @@ describe('cloudSessionsView', () => {
     expect(groups[2]!.text()).toContain('Session 4')
   })
 
+  it('lists an account without sessions with its header and sign-in hint', () => {
+    accounts.value = [makeAccount('/home/c/.claude', ['sp3'], { auth: { loggedIn: false, authMethod: '', apiProvider: '', subscriptionType: '' } })]
+    const groups = mountView().findAll('[data-testid="cloud-account"]')
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.text()).toContain('/home/c/.claude')
+    expect(groups[0]!.text()).toContain('Not signed in with claude.ai. Run: CLAUDE_CONFIG_DIR=/home/c/.claude claude auth login')
+    expect(groups[0]!.text()).toContain('No sessions yet.')
+  })
+
   it('shows Ready for a claude.ai login and the login hint otherwise', () => {
     accounts.value = [
       makeAccount('/home/a/.claude', ['sp1']),
@@ -205,6 +214,16 @@ describe('cloudSessionsView', () => {
       expect(state.removeSession).toHaveBeenCalledWith('1')
     })
 
+    it('shows a failed remove next to the remove control, not under the send box', async () => {
+      state.removeSession.mockRejectedValue(new Error('delete failed'))
+      const wrapper = mountView()
+      await wrapper.find('[data-testid="remove-1"]').trigger('click')
+      await wrapper.find('[data-testid="remove-confirm-1"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="remove-error-1"]').text()).toBe('delete failed')
+      expect(wrapper.find('[data-testid="send-box-1"]').element.parentElement!.textContent).not.toContain('delete failed')
+    })
+
     it('cancels the confirmation', async () => {
       const wrapper = mountView()
       await wrapper.find('[data-testid="remove-1"]').trigger('click')
@@ -231,7 +250,7 @@ describe('cloudSessionsView', () => {
       const wrapper = mountView()
       await wrapper.find('[data-testid="import-url"]').setValue('https://claude.ai/code/session_x')
       await wrapper.find('[data-testid="import-title"]').setValue('My title')
-      await wrapper.find('[data-testid="import-submit"]').trigger('click')
+      await wrapper.find('[data-testid="import-form"]').trigger('submit')
       await flushPromises()
       expect(state.importSession).toHaveBeenCalledWith({
         spawnerId: 'sp1',
