@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	"github.com/lx-wnk/kontor/server/internal/cloud"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -31,18 +35,43 @@ const (
 )
 
 type fakeFirer struct {
+	mu        sync.Mutex
 	result    cloud.FireResult
 	err       error
 	calls     int
 	lastURL   string
 	lastToken string
 	lastText  string
+	entered   chan struct{}
+	release   chan struct{}
 }
 
 func (f *fakeFirer) Fire(_ context.Context, fireURL, token, text string) (cloud.FireResult, error) {
+	f.mu.Lock()
 	f.calls++
 	f.lastURL, f.lastToken, f.lastText = fireURL, token, text
-	return f.result, f.err
+	result, err, entered, release := f.result, f.err, f.entered, f.release
+	f.mu.Unlock()
+	if entered != nil {
+		entered <- struct{}{}
+		<-release
+	}
+	return result, err
+}
+
+func (f *fakeFirer) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
 }
 
 type fixture struct {
@@ -161,7 +190,7 @@ func TestEveryRouteIs404WhilePreviewIsOff(t *testing.T) {
 		rr := f.do(c.method, c.path, c.body)
 		assert.Equal(t, http.StatusNotFound, rr.Code, c.method+" "+c.path)
 	}
-	assert.Zero(t, f.firer.calls)
+	assert.Zero(t, f.firer.callCount())
 
 	*f.preview = true
 	rr := f.do("GET", "/api/cloud-routines", "")
@@ -330,7 +359,7 @@ func TestFireRejectsOversizedText(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"text": strings.Repeat("x", 100001)})
 	rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", string(body))
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Zero(t, f.firer.calls)
+	assert.Zero(t, f.firer.callCount())
 }
 
 func TestFireInvalidSessionIDIs502WithoutRow(t *testing.T) {
@@ -378,7 +407,7 @@ func TestFireWhenSpawnerIsGoneIs409WithoutFiring(t *testing.T) {
 
 	rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
 	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
-	assert.Zero(t, f.firer.calls)
+	assert.Zero(t, f.firer.callCount())
 	f.requireNoSessions(t)
 }
 
@@ -387,7 +416,7 @@ func TestNoSecretKeyMapsTo503(t *testing.T) {
 
 	rr := f.do("POST", "/api/cloud-routines", f.createBody(nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), repo.ErrSecretsUnavailable.Error())
+	assert.Contains(t, rr.Body.String(), "routine tokens are unavailable: no secret key configured")
 
 	assert.Equal(t, http.StatusOK, f.do("GET", "/api/cloud-routines", "").Code)
 }
@@ -413,5 +442,163 @@ func TestFireWithoutSecretKeyMapsTo503(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, httptest.NewRequest("POST", "/api/cloud-routines/"+routine.ID+"/fire", strings.NewReader(`{}`)))
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
-	assert.Zero(t, firer.calls)
+	assert.Contains(t, rr.Body.String(), "routine tokens are unavailable: no secret key configured")
+	assert.Zero(t, firer.callCount())
+}
+
+func TestConcurrentFireOfOneRoutineCallsTheAPIOnce(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	id := f.create(t)["id"].(string)
+	f.firer.entered = make(chan struct{})
+	f.firer.release = make(chan struct{})
+
+	first := make(chan *httptest.ResponseRecorder, 1)
+	go func() { first <- f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`) }()
+	<-f.firer.entered
+
+	second := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
+	assert.Equal(t, http.StatusConflict, second.Code, second.Body.String())
+	assert.Contains(t, second.Body.String(), "routine is already firing")
+
+	f.firer.release <- struct{}{}
+	assert.Equal(t, http.StatusCreated, (<-first).Code)
+	assert.Equal(t, 1, f.firer.callCount())
+
+	f.firer.mu.Lock()
+	f.firer.entered, f.firer.release = nil, nil
+	f.firer.result.SessionID = "session_01ZZZdef9999"
+	f.firer.mu.Unlock()
+	assert.Equal(t, http.StatusCreated, f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`).Code, "the guard is released after a fire")
+}
+
+func TestFireGuardIsReleasedOnEveryExitPath(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	id := f.create(t)["id"].(string)
+
+	f.firer.err = &cloud.FireError{Status: 500, Body: "boom"}
+	assert.Equal(t, http.StatusBadGateway, f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`).Code)
+	f.firer.err = nil
+	f.firer.result.SessionID = "bad"
+	assert.Equal(t, http.StatusBadGateway, f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`).Code)
+	f.firer.result.SessionID = testSessionID
+	assert.Equal(t, http.StatusCreated, f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`).Code)
+}
+
+func TestFireGuardIsPerRoutine(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	first := f.create(t)["id"].(string)
+	second := decodeMap(t, f.do("POST", "/api/cloud-routines", f.createBody(map[string]any{"name": "other"})).Body.Bytes())["id"].(string)
+	f.firer.entered = make(chan struct{})
+	f.firer.release = make(chan struct{})
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- f.do("POST", "/api/cloud-routines/"+first+"/fire", `{}`) }()
+	<-f.firer.entered
+
+	go func() { done <- f.do("POST", "/api/cloud-routines/"+second+"/fire", `{}`) }()
+	<-f.firer.entered
+	f.firer.release <- struct{}{}
+	f.firer.release <- struct{}{}
+	codes := []int{(<-done).Code, (<-done).Code}
+	assert.Contains(t, codes, http.StatusCreated)
+	assert.Equal(t, 2, f.firer.callCount())
+}
+
+func TestFireLogsRunsThatMayHaveStartedUnrecorded(t *testing.T) {
+	cases := map[string]func(f *fixture){
+		"invalid session id": func(f *fixture) { f.firer.result.SessionID = "bad" },
+		"timeout":            func(f *fixture) { f.firer.err = fmt.Errorf("routine fire timed out: %w", context.DeadlineExceeded) },
+		"cancel":             func(f *fixture) { f.firer.err = fmt.Errorf("routine fire canceled: %w", context.Canceled) },
+		"session exists": func(f *fixture) {
+			_, err := f.sessions.Create(t.Context(), repo.CreateCloudSessionInput{
+				SessionID: testSessionID, URL: cloud.SessionURL(testSessionID), SpawnerID: f.spawner.ID, Title: "x", Origin: "routine",
+			})
+			require.NoError(t, err)
+		},
+	}
+	for name, arrange := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t, newBox(t))
+			id := f.create(t)["id"].(string)
+			arrange(f)
+			logs := captureLogs(t)
+
+			rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{"text":"private prompt text"}`)
+			require.GreaterOrEqual(t, rr.Code, 400, rr.Body.String())
+			out := logs.String()
+			assert.Contains(t, out, "level=WARN")
+			assert.Contains(t, out, id)
+			assert.NotContains(t, out, testToken)
+			assert.NotContains(t, out, "private prompt text")
+		})
+	}
+}
+
+func TestFireErrorWithStatusIsNotLoggedAsUnrecorded(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	id := f.create(t)["id"].(string)
+	f.firer.err = &cloud.FireError{Status: 429, Body: "slow down"}
+	logs := captureLogs(t)
+
+	f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
+	assert.NotContains(t, logs.String(), "level=WARN")
+}
+
+func TestFireWhenSpawnerNoLongerRunsClaudeIs409WithoutFiring(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	id := f.create(t)["id"].(string)
+	require.NoError(t, f.client.Spawner.UpdateOneID(f.spawner.ID).SetAdapterType("codex").Exec(t.Context()))
+
+	rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	assert.Zero(t, f.firer.callCount())
+	f.requireNoSessions(t)
+}
+
+func TestFireOfAnAlreadyRecordedSessionIs409(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	id := f.create(t)["id"].(string)
+	_, err := f.sessions.Create(t.Context(), repo.CreateCloudSessionInput{
+		SessionID: testSessionID, URL: cloud.SessionURL(testSessionID), SpawnerID: f.spawner.ID, Title: "imported", Origin: "imported",
+	})
+	require.NoError(t, err)
+
+	rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "already recorded")
+}
+
+func TestRoutineNameFollowsTheSessionTitleRule(t *testing.T) {
+	f := newFixture(t, newBox(t))
+	for _, name := range []string{strings.Repeat("n", 201), "bad\nname"} {
+		_, wantErr := cloudsessions.ValidateTitle(name)
+		require.Error(t, wantErr)
+
+		rr := f.do("POST", "/api/cloud-routines", f.createBody(map[string]any{"name": name}))
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, wantErr.Error(), decodeMap(t, rr.Body.Bytes())["error"])
+	}
+	title, err := cloudsessions.ValidateTitle("  padded  ")
+	require.NoError(t, err)
+	assert.Equal(t, "padded", title)
+}
+
+func TestNewHandlerPanicsOnNilDependencies(t *testing.T) {
+	bundle, err := db.Open(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+	routines := repo.NewCloudRoutineRepo(bundle.Client, nil)
+	sessions := repo.NewCloudSessionRepo(bundle.Client)
+	spawners := repo.NewSpawnerRepo(bundle.Client)
+	var firer Firer = &fakeFirer{}
+	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
+	on := func() bool { return true }
+
+	assert.NotPanics(t, func() { NewHandler(routines, sessions, spawners, firer, bc, on) })
+	assert.Panics(t, func() { NewHandler(nil, sessions, spawners, firer, bc, on) })
+	assert.Panics(t, func() { NewHandler(routines, nil, spawners, firer, bc, on) })
+	assert.Panics(t, func() { NewHandler(routines, sessions, nil, firer, bc, on) })
+	assert.Panics(t, func() { NewHandler(routines, sessions, spawners, nil, bc, on) })
+	assert.Panics(t, func() { NewHandler(routines, sessions, spawners, firer, nil, on) })
+	assert.Panics(t, func() { NewHandler(routines, sessions, spawners, firer, bc, nil) })
 }
