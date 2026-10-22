@@ -280,7 +280,7 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	if exporting && !app.ExportToClaude {
+	if exporting && (!app.ExportToClaude || body.Entry != nil) {
 		target := app.Entry
 		if body.Entry != nil {
 			target = entry
@@ -293,6 +293,13 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 			return apierr.NewAppError(http.StatusBadRequest, "exportToClaude: not available for applications with their own home")
 		}
 	}
+	if body.RequiredEnv != nil {
+		for _, name := range *body.RequiredEnv {
+			if !envNameRE.MatchString(name) {
+				return apierr.NewAppError(http.StatusBadRequest, "requiredEnv: "+name+" is not an environment variable name")
+			}
+		}
+	}
 	// Removing the export before storing a non-empty list means a failed
 	// config write never leaves the application restricted and still exported.
 	unexportFirst := body.ExportToClaude != nil && !exporting && len(allowedSpawners) > 0
@@ -302,11 +309,6 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	if body.RequiredEnv != nil {
-		for _, name := range *body.RequiredEnv {
-			if !envNameRE.MatchString(name) {
-				return apierr.NewAppError(http.StatusBadRequest, "requiredEnv: "+name+" is not an environment variable name")
-			}
-		}
 		if app, err = h.apps.SetRequiredEnv(r.Context(), app.ResourceID, *body.RequiredEnv); err != nil {
 			return err
 		}
