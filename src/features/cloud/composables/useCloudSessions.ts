@@ -85,7 +85,7 @@ function applyEvent(event: CloudSessionEvent): void {
   }
 }
 
-function upsertSession(session: CloudSessionView): CloudSessionView {
+export function upsertSession(session: CloudSessionView): CloudSessionView {
   sessions.value = sessions.value.some(s => s.id === session.id)
     ? sessions.value.map(s => s.id === session.id ? session : s)
     : [session, ...sessions.value]
