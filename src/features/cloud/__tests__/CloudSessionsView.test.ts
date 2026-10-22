@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   importSession: vi.fn(),
   removeSession: vi.fn(),
   refresh: vi.fn(),
+  refetchAccounts: vi.fn(),
   refetch: vi.fn(),
 }))
 
@@ -23,7 +24,7 @@ const accountsError = ref<string | null>(null)
 
 vi.mock('../composables/useCloudSessions', () => ({
   useCloudSessions: () => ({ sessions, isLoading: ref(false), error: sessionsError, refetch: state.refetch }),
-  useCloudAccounts: () => ({ accounts, isLoading: accountsLoading, error: accountsError, refresh: state.refresh }),
+  useCloudAccounts: () => ({ accounts, isLoading: accountsLoading, error: accountsError, refresh: state.refresh, refetch: state.refetchAccounts }),
   sendMessage: state.sendMessage,
   importSession: state.importSession,
   removeSession: state.removeSession,
@@ -259,20 +260,55 @@ describe('cloudSessionsView', () => {
       expect(state.refetch).toHaveBeenCalledOnce()
     })
 
-    it('refreshes the accounts once when a session belongs to no account row', async () => {
+    it('refetches the cached accounts once per unknown spawner, never with refresh=1', async () => {
       accounts.value = [makeAccount('/home/a/.claude', ['sp1'])]
       sessions.value = [makeSession('1', { spawnerId: 'sp1' })]
       mountView()
       await flushPromises()
-      expect(state.refresh).not.toHaveBeenCalled()
+      expect(state.refetchAccounts).not.toHaveBeenCalled()
 
       sessions.value = [...sessions.value, makeSession('2', { spawnerId: 'sp-new' })]
       await flushPromises()
-      expect(state.refresh).toHaveBeenCalledOnce()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
 
       sessions.value = [...sessions.value, makeSession('3', { spawnerId: 'sp-new' })]
       await flushPromises()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
+      expect(state.refresh).not.toHaveBeenCalled()
+    })
+
+    it('fetches once for a session that is orphaned on mount', async () => {
+      sessions.value = [makeSession('1', { spawnerId: 'gone' })]
+      mountView()
+      await flushPromises()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
+      expect(state.refresh).not.toHaveBeenCalled()
+    })
+
+    it('queues one follow-up fetch for a spawner that turns up while a fetch runs', async () => {
+      let resolve!: () => void
+      state.refetchAccounts.mockReturnValueOnce(new Promise<void>(r => (resolve = r)))
+      sessions.value = [makeSession('1', { spawnerId: 'gone-a' })]
+      mountView()
+      await flushPromises()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
+
+      sessions.value = [...sessions.value, makeSession('2', { spawnerId: 'gone-b' })]
+      await flushPromises()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
+
+      resolve()
+      await flushPromises()
+      expect(state.refetchAccounts).toHaveBeenCalledTimes(2)
+    })
+
+    it('uses refresh=1 only for the manual Refresh button', async () => {
+      sessions.value = [makeSession('1', { spawnerId: 'gone' })]
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="cloud-refresh"]').trigger('click')
       expect(state.refresh).toHaveBeenCalledOnce()
+      expect(state.refetchAccounts).toHaveBeenCalledOnce()
     })
   })
 

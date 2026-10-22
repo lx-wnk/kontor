@@ -276,6 +276,19 @@ describe('useCloudAccounts', () => {
     expect(fetchMock).toHaveBeenLastCalledWith('/api/cloud-accounts?refresh=1')
   })
 
+  it('refetch() calls the plain cached URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, accounts))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = withSetup(() => mod.useCloudAccounts())
+    await vi.waitFor(() => expect(result.accounts.value).toHaveLength(1))
+    fetchMock.mockClear()
+
+    await result.refetch()
+
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/cloud-accounts')
+  })
+
   it('records the error when the request fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, {})))
 
