@@ -34,6 +34,12 @@ func newMux(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, re
 
 func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo) {
 	t.Helper()
+	mux, apps, grants, secrets, resources, schedules, _ := newMuxWithSpawners(t, find)
+	return mux, apps, grants, secrets, resources, schedules
+}
+
+func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -48,7 +54,7 @@ func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.
 	require.NoError(t, err)
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client)).WithPresetLookup(find).Mount(mux)
-	return mux, apps, grants, secrets, resources, schedules
+	return mux, apps, grants, secrets, resources, schedules, repo.NewSpawnerRepo(bundle.Client)
 }
 
 func do(t *testing.T, mux http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -1081,4 +1087,125 @@ func TestToolState_RevokingTheDenyMakesItAskAgain(t *testing.T) {
 
 	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
 	require.Contains(t, rec.Body.String(), `"state":"asks"`, "a revoked deny stops denying: %s", rec.Body.String())
+}
+
+func newSpawner(t *testing.T, spawners repo.SpawnerRepo, name string) string {
+	t.Helper()
+	s, err := spawners.Create(context.Background(), name, "sp-"+name, "claude", nil, nil, nil, nil, "", nil, false)
+	require.NoError(t, err)
+	return s.ID
+}
+
+func decodeView(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var v map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &v))
+	return v
+}
+
+func TestPatch_SetsAllowedSpawners(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a, b := newSpawner(t, spawners, "a"), newSpawner(t, spawners, "b")
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a, b, a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, []any{a, b}, decodeView(t, rec)["allowedSpawners"])
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{a, b}, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsUnknownSpawner(t *testing.T) {
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"x"}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: unknown spawner x")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsRestrictWhileExported(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not allowed while allowedSpawners is set")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+	require.True(t, app.ExportToClaude)
+}
+
+func TestPatch_RejectsExportWhileRestricted(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not allowed while allowedSpawners is set")
+
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_ClearingRestrictionThenExportWorks(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{}, "exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+	require.True(t, app.ExportToClaude)
+}
+
+func TestView_CarriesTheMatchedPresetName(t *testing.T) {
+	const marker = "stub-mail-server"
+	find := func(e mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		if slices.Contains(e.Args, marker) {
+			return mcpapps.Preset{Server: "imap-mcp-server", Confirmed: true}, true
+		}
+		return mcpapps.Preset{}, false
+	}
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, find)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["`+marker+`"]}`))
+	require.NoError(t, err)
+	_, err = apps.Upsert(ctx, repo.UpsertMCPApplicationInput{ResourceID: "res-other", ServerName: "other", Entry: json.RawMessage(`{"command":"node","args":["x.js"]}`)})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var views []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &views))
+	presets := map[string]any{}
+	for _, v := range views {
+		presets[v["resourceId"].(string)] = v["preset"]
+		require.Equal(t, []any{}, v["allowedSpawners"])
+	}
+	require.Equal(t, map[string]any{"res-mail": "imap-mcp-server", "res-other": ""}, presets)
 }
