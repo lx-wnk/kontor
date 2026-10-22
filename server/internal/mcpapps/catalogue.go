@@ -84,6 +84,7 @@ type Refresher struct {
 	Apps         repo.MCPApplicationRepo
 	Secrets      repo.ApplicationSecretRepo
 	Capabilities repo.CapabilityRepo
+	HomeRoot     string
 	Transport    func(entry ServerEntry, env map[string]string) (mcp.Transport, error)
 	Now          func() time.Time
 }

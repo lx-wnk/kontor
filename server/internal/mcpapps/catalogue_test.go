@@ -3,6 +3,7 @@ package mcpapps_test
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -125,4 +126,68 @@ func TestRefresh_NonStdioEntryFailsWithExistingMessage(t *testing.T) {
 	stored, err := apps.GetByResourceID(ctx, app.ResourceID)
 	require.NoError(t, err)
 	require.Contains(t, stored.CatalogueError, "supports stdio servers only")
+}
+
+const imapRefreshEntry = `{"command":"npx","args":["-y","imap-mcp-server"]}`
+
+type refreshOutcome struct {
+	env            map[string]string
+	called         bool
+	err            error
+	catalogueError string
+}
+
+func refreshWithRecordedEnv(t *testing.T, entry, homeRoot string) refreshOutcome {
+	t.Helper()
+	bundle, openErr := db.Open(":memory:")
+	require.NoError(t, openErr)
+	t.Cleanup(func() { _ = bundle.Client.Close() })
+	ctx := context.Background()
+
+	apps := repo.NewMCPApplicationRepo(bundle.Client)
+	app, upsertErr := apps.Upsert(ctx, repo.UpsertMCPApplicationInput{
+		ResourceID: "res-mail", ServerName: "mail", Entry: json.RawMessage(entry),
+	})
+	require.NoError(t, upsertErr)
+
+	var out refreshOutcome
+	transport := fakeMailServer(t)
+	r := mcpapps.Refresher{
+		Apps:         apps,
+		Secrets:      repo.NewApplicationSecretRepo(bundle.Client, nil),
+		Capabilities: repo.NewCapabilityRepo(bundle.Client),
+		HomeRoot:     homeRoot,
+		Transport: func(_ mcpapps.ServerEntry, env map[string]string) (mcp.Transport, error) {
+			out.env, out.called = env, true
+			return transport, nil
+		},
+		Now: time.Now,
+	}
+	_, out.err = r.Refresh(ctx, app.ResourceID)
+	row, getErr := apps.GetByResourceID(ctx, app.ResourceID)
+	require.NoError(t, getErr)
+	out.catalogueError = row.CatalogueError
+	return out
+}
+
+func TestRefresh_IsolatedAppUsesItsOwnHome(t *testing.T) {
+	root := t.TempDir()
+	got := refreshWithRecordedEnv(t, imapRefreshEntry, root)
+	require.NoError(t, got.err)
+	require.True(t, got.called)
+	require.Equal(t, filepath.Join(root, "res-mail"), got.env["HOME"])
+}
+
+func TestRefresh_IsolatedAppWithoutHomeRootFails(t *testing.T) {
+	got := refreshWithRecordedEnv(t, imapRefreshEntry, "")
+	require.ErrorContains(t, got.err, "home root is not configured")
+	require.False(t, got.called)
+	require.Contains(t, got.catalogueError, "home root is not configured")
+}
+
+func TestRefresh_NonIsolatedAppGetsNoHome(t *testing.T) {
+	got := refreshWithRecordedEnv(t, `{"command":"unused"}`, t.TempDir())
+	require.NoError(t, got.err)
+	require.True(t, got.called)
+	require.NotContains(t, got.env, "HOME")
 }
