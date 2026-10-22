@@ -140,6 +140,24 @@ func TestProgressTask_RejectsWhenALaterStageSpawnerIsNotAllowed(t *testing.T) {
 	require.Zero(t, f.handler.runs.Load(), "no agent may be spawned")
 }
 
+func TestProgressTask_UpFrontCheckSkipsNonClaudeStages(t *testing.T) {
+	ollamaLater := func(o *pipeline.OrchestratorOptions) {
+		sp := o.ResolveSpawner
+		o.ResolveSpawner = func(ctx context.Context, taskID, stage string) (*ent.Spawner, error) {
+			if stage == "finalization" {
+				return &ent.Spawner{ID: "sp-ollama", AdapterType: "ollama"}, nil
+			}
+			return sp(ctx, taskID, stage)
+		}
+	}
+	f := newMailFixture(t, true, ollamaLater)
+
+	got := f.progress(t)
+	require.Equal(t, "failed", got.Status)
+	require.Equal(t, "handler reached", got.Output["error"])
+	require.EqualValues(t, 1, f.handler.runs.Load(), "a stage that never receives applications must not block the task")
+}
+
 func TestProgressTask_UpFrontCheckAppliesToARetryAfterFailure(t *testing.T) {
 	f := newMailFixture(t, true)
 
