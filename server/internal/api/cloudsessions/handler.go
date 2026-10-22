@@ -140,6 +140,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/api/cloud-sessions/import", apierr.ErrorMiddleware(h.Import))
 	r.Post("/api/cloud-sessions/{id}/messages", apierr.ErrorMiddleware(h.Send))
 	r.Delete("/api/cloud-sessions/{id}", apierr.ErrorMiddleware(h.Delete))
+	r.Get("/api/cloud-accounts", apierr.ErrorMiddleware(h.Accounts))
 }
 
 // Stream serves GET /api/cloud-sessions/stream — live cloud session events.
