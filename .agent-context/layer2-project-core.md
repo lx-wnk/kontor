@@ -52,12 +52,18 @@
 | Hub sector hierarchy + note kind | `src/features/hub/hubGeometry.ts` | `planSectors`, `Leaf`, `noteKind`, `NOTE_KIND`, `SESSIONS_KIND`, `leafShade`, `shadeMix` |
 | Hub link bundling | `src/features/hub/hubLinks.ts` | `bundlePoints`, `aggregateLinks`, `LINK_BUNDLE_BETA` |
 | Obsidian graph response type (client, hand-kept parity with `server/internal/api/obsidian/handler.go`) | `src/features/hub/graphApi.ts` | `GraphResponse` — tuples `[path, mtimeMs]` or `[path, mtimeMs, type]` when type present |
+| Cloud account identity + login hint (Go) | `server/internal/cloud/account.go` | `AccountDir` (the exact `CLAUDE_CONFIG_DIR` the CLI child gets, never resolved), `LoginHint` |
+| Cloud session ID / URL rule (Go) | `server/internal/cloud/sessionref.go` | `sessionIDPattern`, `ParseSessionRef`, `SessionURL` |
+| Cloud account readiness (Go; the client reads the server's `ready`) | `server/internal/cloud/runner.go` | `AuthStatus.CloudReady` |
+| Cloud CLI child env allow-list + timeouts (Go) | `server/internal/cloud/runner.go` | `childEnvKeys`, `childEnvLocalePrefix`, `envNamePattern`, `DefaultSendTimeout`, `DefaultAuthTimeout` |
+| Typed SSE broadcaster + cloud event types (Go) | `server/internal/sse/typed_broadcaster.go` | `TypedBroadcaster[E]`, `CloudSessionEvent`, `CloudSessionCreated/Updated/Deleted` |
+| Cloud session API types (client; hand-kept parity with `server/internal/api/cloudsessions/handler.go` `sessionView` and `accounts.go` `accountView`) | `src/features/cloud/composables/useCloudSessions.ts` | `CloudSessionView`, `CloudAccount`, `CloudSessionEvent` |
 | Shared 429 retry | `src/utils/fetchWithRateLimitRetry.ts` | `fetchWithRateLimitRetry` |
 | "Is the user typing" guard | `src/utils/isTypingTarget.ts` | `isTypingTarget` |
 | Nav item test id | `src/utils/navConfig.ts` | `navItemTestId`, `navItemSelector` |
 | View to page id mapping | `src/composables/useViewState.ts` | `pageIdOf`, `pageView` |
 
-**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`.
+**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`. The cloud session view, account and event types are the third and fourth, between `src/features/cloud/composables/useCloudSessions.ts` and `server/internal/api/cloudsessions/` (`sessionView`, `accountView`) plus `server/internal/sse/typed_broadcaster.go` (`CloudSessionEvent`).
 
 **How to apply:** Before adding any constant or utility function, grep the codebase for existing implementations. If one already exists, import it — never copy it. If adding a new shared value, put it in the canonical location first, then import everywhere.
 
