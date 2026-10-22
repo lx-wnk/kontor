@@ -50,11 +50,12 @@ func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo
 	grants := repo.NewGrantRepo(bundle.Client)
 	resources := repo.NewResourceRepo(bundle.Client)
 	schedules := repo.NewTaskScheduleRepo(bundle.Client)
+	spawners := repo.NewSpawnerRepo(bundle.Client)
 	_, err = apps.Upsert(context.Background(), repo.UpsertMCPApplicationInput{ResourceID: "res-mail", ServerName: "mail"})
 	require.NoError(t, err)
 	mux := chi.NewRouter()
-	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client)).WithPresetLookup(find).Mount(mux)
-	return mux, apps, grants, secrets, resources, schedules, repo.NewSpawnerRepo(bundle.Client)
+	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).Mount(mux)
+	return mux, apps, grants, secrets, resources, schedules, spawners
 }
 
 func do(t *testing.T, mux http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -830,7 +831,7 @@ func newMuxWithSetup(t *testing.T, setup applications.SetupRunner) (*chi.Mux, re
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -924,7 +925,7 @@ func newMuxWithTools(t *testing.T, tools applications.ToolCaller) (*chi.Mux, rep
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -1001,7 +1002,7 @@ func newMuxWithCaps(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.Grant
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, repo.NewApplicationSecretRepo(bundle.Client, box),
 		mcpapps.Refresher{Now: time.Now}, grants, repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, &fakeTools{}, caps).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, &fakeTools{}, caps, repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
 	return mux, apps, grants, caps
 }
 

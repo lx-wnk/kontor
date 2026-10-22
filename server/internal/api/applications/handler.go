@@ -40,6 +40,7 @@ type Handler struct {
 	tools        ToolCaller
 	capabilities repo.CapabilityRepo
 	findPreset   mcpapps.PresetFinder
+	spawners     repo.SpawnerRepo
 }
 
 // ToolCaller runs one tool on an application's own MCP server. It is an
@@ -70,11 +71,11 @@ type SetupRunner interface {
 	Get(resourceID string) (appsetup.Session, bool)
 }
 
-func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo, refresher mcpapps.Refresher, grants repo.GrantRepo, resources repo.ResourceRepo, schedules repo.TaskScheduleRepo, setup SetupRunner, tools ToolCaller, capabilities repo.CapabilityRepo) *Handler {
+func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo, refresher mcpapps.Refresher, grants repo.GrantRepo, resources repo.ResourceRepo, schedules repo.TaskScheduleRepo, setup SetupRunner, tools ToolCaller, capabilities repo.CapabilityRepo, spawners repo.SpawnerRepo) *Handler {
 	if tools == nil {
 		tools = StdioToolCaller{}
 	}
-	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset}
+	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset, spawners: spawners}
 }
 
 // WithPresetLookup replaces the lookup the deny preflight and the deny apply
@@ -134,6 +135,10 @@ type applicationView struct {
 	Tools                []toolView          `json:"tools"`
 	CatalogueError       string              `json:"catalogueError,omitempty"`
 	CatalogueRefreshedAt *string             `json:"catalogueRefreshedAt,omitempty"`
+	AllowedSpawners      []string            `json:"allowedSpawners"`
+	// Preset names the preset the entry matches, "" when none does; the UI
+	// keys its mailbox warning on it.
+	Preset string `json:"preset"`
 }
 
 func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationView, error) {
@@ -142,17 +147,21 @@ func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationVie
 		return applicationView{}, err
 	}
 	v := applicationView{
-		ResourceID:     app.ResourceID,
-		ServerName:     app.ServerName,
-		AttachAll:      app.AttachAll,
-		RequiredEnv:    app.RequiredEnv,
-		ExportToClaude: app.ExportToClaude,
-		Secrets:        make([]secretView, 0, len(meta)),
-		Tools:          make([]toolView, 0, len(app.Catalogue)),
-		CatalogueError: app.CatalogueError,
+		ResourceID:      app.ResourceID,
+		ServerName:      app.ServerName,
+		AttachAll:       app.AttachAll,
+		RequiredEnv:     app.RequiredEnv,
+		ExportToClaude:  app.ExportToClaude,
+		Secrets:         make([]secretView, 0, len(meta)),
+		Tools:           make([]toolView, 0, len(app.Catalogue)),
+		CatalogueError:  app.CatalogueError,
+		AllowedSpawners: app.AllowedSpawners,
 	}
 	if v.RequiredEnv == nil {
 		v.RequiredEnv = []string{}
+	}
+	if v.AllowedSpawners == nil {
+		v.AllowedSpawners = []string{}
 	}
 	if !mcpapps.IsEmptyEntry(app.Entry) {
 		entry, err := mcpapps.ParseEntry(app.Entry)
@@ -160,6 +169,9 @@ func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationVie
 			return applicationView{}, err
 		}
 		v.Entry = entry
+		if preset, ok := h.findPreset(entry); ok {
+			v.Preset = preset.Server
+		}
 	}
 	for _, m := range meta {
 		v.Secrets = append(v.Secrets, secretView{EnvName: m.EnvName, UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339)})
@@ -224,9 +236,24 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		RequiredEnv    *[]string            `json:"requiredEnv"`
 		Entry          *mcpapps.ServerEntry `json:"entry"`
 		ExportToClaude *bool                `json:"exportToClaude"`
+
+		AllowedSpawners *[]string `json:"allowedSpawners"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
+	}
+	allowedSpawners := app.AllowedSpawners
+	if body.AllowedSpawners != nil {
+		if allowedSpawners, err = h.validSpawnerIDs(r.Context(), *body.AllowedSpawners); err != nil {
+			return err
+		}
+	}
+	exporting := app.ExportToClaude
+	if body.ExportToClaude != nil {
+		exporting = *body.ExportToClaude
+	}
+	if len(allowedSpawners) > 0 && exporting {
+		return apierr.NewAppError(http.StatusBadRequest, "exportToClaude: not allowed while allowedSpawners is set")
 	}
 	var entry json.RawMessage
 	if body.Entry != nil {
@@ -256,6 +283,11 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if body.AllowedSpawners != nil {
+		if app, err = h.apps.SetAllowedSpawners(r.Context(), app.ResourceID, allowedSpawners); err != nil {
+			return err
+		}
+	}
 	if body.Entry != nil {
 		if app, err = h.apps.SetEntry(r.Context(), app.ResourceID, entry); err != nil {
 			return err
@@ -267,12 +299,8 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	// Export runs after the entry write above so a PATCH carrying both entry
 	// and exportToClaude mirrors the new entry into Claude's config, not the
 	// stale one.
-	exportToClaude := app.ExportToClaude
-	if body.ExportToClaude != nil {
-		exportToClaude = *body.ExportToClaude
-	}
-	if body.ExportToClaude != nil || (exportToClaude && body.Entry != nil) {
-		if app, err = h.applyExport(r, app, exportToClaude); err != nil {
+	if body.ExportToClaude != nil || (exporting && body.Entry != nil) {
+		if app, err = h.applyExport(r, app, exporting); err != nil {
 			return err
 		}
 	}
@@ -281,6 +309,25 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return writeJSON(w, http.StatusOK, v)
+}
+
+// validSpawnerIDs drops duplicates, keeping first-seen order, and answers 400
+// for an ID that names no spawner. The result is never nil.
+func (h *Handler) validSpawnerIDs(ctx context.Context, ids []string) ([]string, error) {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if slices.Contains(out, id) {
+			continue
+		}
+		if _, err := h.spawners.GetByID(ctx, id); err != nil {
+			if ent.IsNotFound(err) {
+				return nil, apierr.NewAppError(http.StatusBadRequest, "allowedSpawners: unknown spawner "+id)
+			}
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // applyExport mirrors app's entry into Claude's own config, or removes it, and

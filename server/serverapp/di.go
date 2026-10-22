@@ -841,6 +841,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 			setupManager,
 			apiapplications.StdioToolCaller{},
 			repo.NewCapabilityRepo(entClient),
+			repo.NewSpawnerRepo(entClient),
 		)
 
 		watchCtx, stopConfigWatch := context.WithCancel(context.Background())
