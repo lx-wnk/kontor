@@ -97,6 +97,7 @@ These keys live in the database `app_setting` table — the single source of tru
 | `eval.minSamples` | int | `20` | restart |
 | `eval.rateDropPP` | float | `15` | restart |
 | `eval.stddevK` | float | `3` | restart |
+| `features.preview` | bool | `false` | live |
 
 **Apply semantics:** plugin enablement (`plugins.enabled`) applies **live**. Everything else — including `auth.mode` — needs a **server restart** to take effect. The UI marks restart-only changes with a warning.
 
