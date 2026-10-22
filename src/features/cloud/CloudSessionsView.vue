@@ -11,6 +11,9 @@ import AppSelect from '../../components/ui/AppSelect.vue'
 import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
 import { formatRelativeThenDate } from '../../utils/format'
+import { useSettings } from '../settings/composables/useSettings'
+import CloudRoutinesSection from './CloudRoutinesSection.vue'
+import { isCloudUrl } from './cloudUrl'
 import { importSession, removeSession, sendMessage, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
 
 interface AccountGroup {
@@ -23,11 +26,13 @@ interface AccountGroup {
 const UNKNOWN_KEY = '__unknown__'
 const UNGROUPED_KEY = '__ungrouped__'
 const DEFAULT_ACCOUNT_LABEL = 'default (no CLAUDE_CONFIG_DIR)'
-const CLOUD_URL_PREFIX = 'https://claude.ai/code/'
 
 const { sessions, error: sessionsError, refetch: refetchSessions } = useCloudSessions()
 const { accounts, isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts, refresh: refreshAccounts } = useCloudAccounts()
 const { spawners } = useSpawners()
+const { items: settingItems, refetch: refetchSettings } = useSettings()
+const previewEnabled = computed(() => settingItems.value.find(i => i.key === 'features.preview')?.value === 'true')
+void refetchSettings()
 
 const accountBySpawner = computed(() => {
   const bySpawner = new Map<string, CloudAccount>()
@@ -103,10 +108,6 @@ watch([sessions, accounts, accountsLoading], refetchForUnknownSpawners, { immedi
 
 function spawnerNames(account: CloudAccount): string {
   return account.spawners.map(s => s.name).join(', ')
-}
-
-function isCloudUrl(url: string): boolean {
-  return url.startsWith(CLOUD_URL_PREFIX)
 }
 
 const drafts = reactive<Record<string, string>>({})
@@ -280,6 +281,8 @@ async function runImport() {
         </div>
       </form>
     </AppCard>
+
+    <CloudRoutinesSection v-if="previewEnabled" />
 
     <p v-if="accountsLoading" class="text-fg-faint text-sm">
       Loading accounts…

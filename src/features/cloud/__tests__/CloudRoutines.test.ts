@@ -74,7 +74,7 @@ function jsonResponse(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) }
 }
 
-type Responder = (url: string, init?: RequestInit) => ReturnType<typeof jsonResponse>
+type Responder = (url: string, init?: RequestInit) => ReturnType<typeof jsonResponse> | null
 
 let preview = true
 let routines: CloudRoutineView[] = []
@@ -110,7 +110,7 @@ beforeEach(() => {
   preview = true
   routines = [makeRoutine('r1')]
   override = null
-  spawners.value = [makeSpawner('sp1', 'claude'), makeSpawner('sp2', 'codex')]
+  spawners.value = [makeSpawner('sp1', 'claude'), makeSpawner('sp2', 'ollama')]
   vi.stubGlobal('EventSource', MockEventSource)
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => respond(url, init)))
   vi.resetModules()
