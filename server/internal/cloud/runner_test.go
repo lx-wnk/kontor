@@ -1,12 +1,15 @@
 package cloud
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +25,7 @@ var scrubbedKeys = []string{
 	"CLAUDE_CODE_USE_BEDROCK",
 	"CLAUDE_CODE_USE_VERTEX",
 	"CLAUDE_CODE_USE_FOUNDRY",
+	"ANTHROPIC_BASE_URL",
 }
 
 // fakeClaude installs a claude script on PATH that records argv, env and stdin
@@ -119,7 +123,7 @@ func TestSend_UnreadableOutputDoesNotEchoStdout(t *testing.T) {
 }
 
 func TestSend_Timeout(t *testing.T) {
-	fakeClaude(t, `exec sleep 5`)
+	fakeClaude(t, `sleep 5; :`)
 
 	start := time.Now()
 	_, err := Runner{Timeout: 100 * time.Millisecond}.Send(t.Context(), &ent.Spawner{}, testSessionID, "hi")
@@ -213,5 +217,122 @@ func TestAuthStatus_CloudReady(t *testing.T) {
 				t.Fatalf("CloudReady() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSend_EnvKeysCarryingAssignmentsNeverReachChild(t *testing.T) {
+	dir := fakeClaude(t, `echo '{"ok":true}'`)
+	spawnerEnv := map[string]string{
+		"ANTHROPIC_API_KEY=sk-x":      "y",
+		"CLAUDE_CODE_OAUTH_TOKEN=t":   "y",
+		"CLAUDE_CONFIG_DIR":           filepath.Join(dir, "cfg"),
+		"KEY WITH SPACE":              "y",
+		"1STARTS_WITH_DIGIT":          "y",
+		"VALID_NAME_9":                "kept",
+		"ANTHROPIC_BASE_URL":          "https://evil.example",
+		"ANTHROPIC_BASE_URL=http://x": "y",
+	}
+
+	if _, err := (Runner{}).Send(t.Context(), &ent.Spawner{Env: spawnerEnv}, testSessionID, "hi"); err != nil {
+		t.Fatal(err)
+	}
+
+	env := readRecorded(t, dir, "env")
+	for _, leaked := range []string{"sk-x", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL", "evil.example", "KEY WITH SPACE", "1STARTS_WITH_DIGIT"} {
+		if strings.Contains(env, leaked) {
+			t.Errorf("env contains %q:\n%s", leaked, env)
+		}
+	}
+	if !strings.Contains(env, "VALID_NAME_9=kept\n") {
+		t.Errorf("a plain env name was dropped:\n%s", env)
+	}
+}
+
+func TestSend_StderrIsCappedAndStripped(t *testing.T) {
+	fakeClaude(t, `printf 'line1\nline2\033[31m' >&2; head -c 10240 /dev/zero | tr '\0' x >&2; exit 1`)
+
+	_, err := Runner{}.Send(t.Context(), &ent.Spawner{}, testSessionID, "hi")
+
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "line1 line2") {
+		t.Errorf("newline was not turned into a space: %.80q", msg)
+	}
+	for _, r := range msg {
+		if r != ' ' && r < 0x20 || r == 0x7f {
+			t.Fatalf("error contains control character %q", r)
+		}
+	}
+	if n := strings.Count(msg, "x"); n > 4096 || n == 0 {
+		t.Errorf("x count = %d, want 1..4096", n)
+	}
+	if len(msg) > 4096+128 {
+		t.Errorf("error is %d bytes, want stderr capped at 4096 plus a short prefix", len(msg))
+	}
+}
+
+func TestSend_ParentCancelIsContextCanceled(t *testing.T) {
+	fakeClaude(t, `exec sleep 5`)
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(100*time.Millisecond, cancel)
+
+	_, err := Runner{}.Send(ctx, &ent.Spawner{}, testSessionID, "hi")
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if errors.Is(err, ErrTimeout) {
+		t.Fatal("a cancelled parent must not read as the runner's own timeout")
+	}
+}
+
+func TestSend_UndecodableJSONReturnsZeroResult(t *testing.T) {
+	fakeClaude(t, `echo '{"session_id":"session_x","ok":"not-a-bool"}'`)
+
+	res, err := Runner{}.Send(t.Context(), &ent.Spawner{}, testSessionID, "hi")
+
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	if res != (SendResult{}) {
+		t.Fatalf("result = %+v, want the zero value", res)
+	}
+}
+
+func TestAuthStatus_UndecodableJSONReturnsZeroStatus(t *testing.T) {
+	fakeClaude(t, `echo '{"loggedIn":true,"authMethod":5}'`)
+
+	st, err := Runner{}.AuthStatus(t.Context(), &ent.Spawner{})
+
+	if err == nil {
+		t.Fatal("want an error")
+	}
+	if st != (AuthStatus{}) {
+		t.Fatalf("status = %+v, want the zero value", st)
+	}
+}
+
+// The fake's own child outlives it unless the whole process group is killed.
+func TestSend_TimeoutKillsProcessGroup(t *testing.T) {
+	dir := fakeClaude(t, `sleep 30 & echo $! > "$R/grandchild"; wait`)
+
+	_, err := Runner{Timeout: 300 * time.Millisecond}.Send(t.Context(), &ent.Spawner{}, testSessionID, "hi")
+	if !errors.Is(err, ErrTimeout) {
+		t.Fatalf("err = %v, want ErrTimeout", err)
+	}
+
+	pid, convErr := strconv.Atoi(strings.TrimSpace(readRecorded(t, dir, "grandchild")))
+	if convErr != nil {
+		t.Fatal(convErr)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
+	deadline := time.Now().Add(2 * time.Second)
+	for syscall.Kill(pid, 0) == nil {
+		if time.Now().After(deadline) {
+			t.Fatalf("grandchild %d survived the timeout", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
