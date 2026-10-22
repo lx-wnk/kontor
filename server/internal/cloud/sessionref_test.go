@@ -70,3 +70,14 @@ func TestParseSessionRef(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionURLRoundTripsThroughParseSessionRef(t *testing.T) {
+	const id = "session_abcdefgh"
+	if got := SessionURL(id); got != "https://claude.ai/code/"+id {
+		t.Fatalf("SessionURL(%q) = %q", id, got)
+	}
+	got, err := ParseSessionRef(SessionURL(id))
+	if err != nil || got != id {
+		t.Fatalf("ParseSessionRef(SessionURL(%q)) = %q, %v", id, got, err)
+	}
+}
