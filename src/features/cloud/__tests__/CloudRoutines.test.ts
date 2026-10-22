@@ -99,6 +99,11 @@ function callTo(url: string, method: string) {
   return vi.mocked(fetch).mock.calls.find(([u, init]) => u === url && (init as RequestInit | undefined)?.method === method)
 }
 
+function editState(wrapper: Awaited<ReturnType<typeof mountView>>) {
+  const section = wrapper.findComponent({ name: 'CloudRoutinesSection' })
+  return (section.vm as unknown as { edit: { name: string, fireUrl: string, token: string } }).edit
+}
+
 async function mountView() {
   const { default: CloudSessionsView } = await import('../CloudSessionsView.vue')
   const wrapper = mount(CloudSessionsView, { attachTo: document.body })
@@ -146,7 +151,7 @@ describe('cloud routines section', () => {
     const wrapper = await mountView()
     const token = wrapper.get('[data-testid="routine-token"]')
     expect(token.attributes('type')).toBe('password')
-    expect(token.attributes('autocomplete')).toBe('off')
+    expect(token.attributes('autocomplete')).toBe('new-password')
 
     await wrapper.get('[data-testid="routine-name"]').setValue('Nightly')
     await wrapper.get('[data-testid="routine-url"]').setValue('https://api.anthropic.com/v1/claude_code/routines/trig_n/fire')
@@ -196,6 +201,7 @@ describe('cloud routines section', () => {
     const post = callTo('/api/cloud-routines/r1/fire', 'POST')
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ text: 'run it' })
     const result = wrapper.get('[data-testid="fire-result-r1"]')
+    expect(result.attributes('role')).toBe('status')
     expect(result.text()).toContain('Fired s1')
     expect(result.get('a').attributes('href')).toBe('https://claude.ai/code/session_s1')
     expect(wrapper.findAll('[data-testid="cloud-session"]').map(s => s.text())).toEqual([expect.stringContaining('Fired s1')])
@@ -215,10 +221,13 @@ describe('cloud routines section', () => {
 
     const button = wrapper.get('[data-testid="fire-r1"]')
     expect(button.text()).toBe('Firing…')
-    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.attributes('aria-disabled')).toBe('true')
+    expect(button.attributes('disabled')).toBeUndefined()
+    await button.trigger('click')
+    expect(vi.mocked(fetch).mock.calls.filter(([u]) => u === '/api/cloud-routines/r1/fire')).toHaveLength(1)
     release(jsonResponse(201, makeSession('s1')))
     await flushPromises()
-    expect(wrapper.get('[data-testid="fire-r1"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="fire-r1"]').attributes('aria-disabled')).toBeUndefined()
     wrapper.unmount()
   })
 
@@ -286,5 +295,111 @@ describe('cloud routines section', () => {
     await flushPromises()
     expect(callTo('/api/cloud-routines/r1', 'DELETE')).toBeDefined()
     wrapper.unmount()
+  })
+
+  it('cancel clears the typed token from state and the DOM', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="edit-r1"]').trigger('click')
+    const field = wrapper.get('[data-testid="edit-token-r1"]')
+    expect(field.attributes('autocomplete')).toBe('new-password')
+    await field.setValue(SECRET_TOKEN)
+    expect(editState(wrapper).token).toBe(SECRET_TOKEN)
+    await wrapper.get('[data-testid="edit-cancel-r1"]').trigger('click')
+
+    expect(editState(wrapper)).toEqual({ name: '', fireUrl: '', token: '' })
+    expect(wrapper.find('[data-testid="edit-token-r1"]').exists()).toBe(false)
+    expect(document.body.innerHTML).not.toContain(SECRET_TOKEN)
+    wrapper.unmount()
+  })
+
+  it('a successful save clears the typed token from state', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="edit-r1"]').trigger('click')
+    await wrapper.get('[data-testid="edit-token-r1"]').setValue(SECRET_TOKEN)
+    await wrapper.get('[data-testid="edit-form-r1"]').trigger('submit')
+    await flushPromises()
+
+    expect(JSON.parse(String(callTo('/api/cloud-routines/r1', 'PATCH')?.[1]?.body)).token).toBe(SECRET_TOKEN)
+    expect(editState(wrapper).token).toBe('')
+    expect(wrapper.find('[data-testid="edit-form-r1"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('clears the typed token when the routine disappears during an edit', async () => {
+    override = (url, init) => {
+      if (url === '/api/cloud-routines/r1' && init?.method === 'DELETE') {
+        routines = []
+        return { ok: true, status: 204, json: () => Promise.resolve({}) }
+      }
+      return null
+    }
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="edit-r1"]').trigger('click')
+    await wrapper.get('[data-testid="edit-token-r1"]').setValue(SECRET_TOKEN)
+    await wrapper.get('[data-testid="delete-r1"]').trigger('click')
+    await wrapper.get('[data-testid="delete-confirm-r1"]').trigger('click')
+    await flushPromises()
+
+    expect(editState(wrapper).token).toBe('')
+    wrapper.unmount()
+  })
+
+  it('a failed create keeps the token for a retry and shows the error', async () => {
+    override = (url, init) => url === '/api/cloud-routines' && init?.method === 'POST'
+      ? jsonResponse(400, { error: 'fire url is not allowed' })
+      : null
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="routine-name"]').setValue('Nightly')
+    await wrapper.get('[data-testid="routine-url"]').setValue('https://example.com/fire')
+    await wrapper.get('[data-testid="routine-token"]').setValue(SECRET_TOKEN)
+    await wrapper.get('[data-testid="routine-create-form"]').trigger('submit')
+    await flushPromises()
+
+    expect((wrapper.get('[data-testid="routine-token"]').element as HTMLInputElement).value).toBe(SECRET_TOKEN)
+    expect(wrapper.get('[data-testid="routine-create-error"]').text()).toContain('fire url is not allowed')
+    wrapper.unmount()
+  })
+
+  it('moves focus into the edit form on open and back to the Edit button on Cancel', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="edit-r1"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="edit-name-r1"]').element)
+
+    await wrapper.get('[data-testid="edit-cancel-r1"]').trigger('click')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="edit-r1"]').element)
+    wrapper.unmount()
+  })
+
+  it('returns focus to the Edit button after a successful save', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="edit-r1"]').trigger('click')
+    await wrapper.get('[data-testid="edit-form-r1"]').trigger('submit')
+    await flushPromises()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="edit-r1"]').element)
+    wrapper.unmount()
+  })
+
+  it('offers a long failure body in full behind a toggle', async () => {
+    const longBody = `${'x'.repeat(400)}END`
+    override = url => url === '/api/cloud-routines/r1/fire'
+      ? jsonResponse(502, { error: 'upstream', status: 500, body: longBody })
+      : null
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="fire-r1"]').trigger('click')
+    await flushPromises()
+
+    const details = wrapper.get('[data-testid="fire-error-r1"] details')
+    expect(details.get('summary').text()).toBe('Show full response')
+    expect(details.text()).toContain(longBody)
   })
 })
