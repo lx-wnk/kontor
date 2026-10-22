@@ -134,3 +134,49 @@ func TestWithIsolatedHome(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestRemoveIsolatedHome(t *testing.T) {
+	t.Run("removes the application's home and nothing beside it", func(t *testing.T) {
+		parent := t.TempDir()
+		root := filepath.Join(parent, "apps")
+		_, err := mcpapps.IsolatedHomeEnv(root, "res-1")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(root, "res-1", "mail.json"), []byte("{}"), 0o600))
+		_, err = mcpapps.IsolatedHomeEnv(root, "res-2")
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(parent, "keep"), nil, 0o600))
+
+		require.NoError(t, mcpapps.RemoveIsolatedHome(root, "res-1"))
+
+		_, statErr := os.Stat(filepath.Join(root, "res-1"))
+		require.True(t, os.IsNotExist(statErr))
+		_, err = os.Stat(filepath.Join(root, "res-2"))
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(parent, "keep"))
+		require.NoError(t, err)
+	})
+
+	t.Run("a missing home is not an error", func(t *testing.T) {
+		require.NoError(t, mcpapps.RemoveIsolatedHome(t.TempDir(), "res-1"))
+	})
+
+	t.Run("rejects an empty root", func(t *testing.T) {
+		require.Error(t, mcpapps.RemoveIsolatedHome("", "res-1"))
+	})
+
+	t.Run("rejects ids that could leave the root", func(t *testing.T) {
+		for _, id := range []string{"..", ".", "../x", "a/b", ""} {
+			parent := t.TempDir()
+			root := filepath.Join(parent, "apps")
+			require.NoError(t, os.Mkdir(root, 0o700))
+			require.NoError(t, os.WriteFile(filepath.Join(parent, "x"), nil, 0o600))
+
+			require.Error(t, mcpapps.RemoveIsolatedHome(root, id), "id %q", id)
+
+			_, err := os.Stat(root)
+			require.NoError(t, err, "id %q removed the root", id)
+			_, err = os.Stat(filepath.Join(parent, "x"))
+			require.NoError(t, err, "id %q removed a file outside the root", id)
+		}
+	})
+}

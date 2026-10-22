@@ -1100,7 +1100,7 @@ func TestAccounts_IsolatedWithoutHomeRootFails(t *testing.T) {
 	imapApp(t, apps)
 
 	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/accounts", nil)
-	require.GreaterOrEqual(t, rec.Code, 500, rec.Body.String())
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 	require.Equal(t, 0, tools.calls, "the lookup must never run on the shared HOME")
 }
 
@@ -1388,4 +1388,147 @@ func TestView_CarriesTheMatchedPresetName(t *testing.T) {
 		require.Equal(t, []any{}, v["allowedSpawners"])
 	}
 	require.Equal(t, map[string]any{"res-mail": "imap-mcp-server", "res-other": ""}, presets)
+}
+
+func TestPatch_ExportRemovalFailureLeavesListUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	target := dir + "/real.json"
+	require.NoError(t, os.WriteFile(target, []byte(`{"mcpServers":{"mail":{"command":"uvx"}}}`), 0o600))
+	require.NoError(t, os.Symlink(target, dir+"/.claude.json"))
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	_, err = apps.SetExport(ctx, "res-mail", true, "hash")
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}, "exportToClaude": false})
+	require.Equal(t, http.StatusBadGateway, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners, "a restricted application must never stay exported")
+	require.True(t, app.ExportToClaude)
+}
+
+func TestPatch_RestrictAndUnexportTogetherWorks(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}, "exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{a}, app.AllowedSpawners)
+	require.False(t, app.ExportToClaude)
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_RefusesExportOfAnIsolatedApplication(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+
+	_, statErr := os.Stat(filepath.Join(dir, ".claude.json"))
+	require.True(t, os.IsNotExist(statErr), "Claude's config must stay untouched")
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.False(t, app.ExportToClaude)
+}
+
+func TestPatch_RefusesExportOfAnEntryTurnedIsolatedInTheSameRequest(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"entry":          map[string]any{"command": "npx", "args": []string{"-y", "imap-mcp-server"}},
+		"exportToClaude": true,
+	})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+}
+
+func TestPatch_UnexportOfAnIsolatedApplicationWorks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"mcpServers":{"mail":{"command":"npx"}}}`), 0o600))
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	imapApp(t, apps)
+	_, err := apps.SetExport(context.Background(), "res-mail", true, "hash")
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestView_FlagsAnIsolatedHome(t *testing.T) {
+	const marker = "stub-mail-server"
+	find := func(e mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		if slices.Contains(e.Args, marker) {
+			return mcpapps.Preset{Server: "imap-mcp-server", Confirmed: true, IsolateHome: true}, true
+		}
+		return mcpapps.Preset{Server: "plain", Confirmed: true}, true
+	}
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, find)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["`+marker+`"]}`))
+	require.NoError(t, err)
+	_, err = apps.Upsert(ctx, repo.UpsertMCPApplicationInput{ResourceID: "res-other", ServerName: "other", Entry: json.RawMessage(`{"command":"node","args":["x.js"]}`)})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var views []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &views))
+	isolated := map[string]any{}
+	for _, v := range views {
+		isolated[v["resourceId"].(string)] = v["isolatedHome"]
+	}
+	require.Equal(t, map[string]any{"res-mail": true, "res-other": false}, isolated)
+}
+
+func TestPatch_RejectsANewSpawnerThatDoesNotRunClaude(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	s, err := spawners.Create(context.Background(), "Ollama", "sp-ollama", "claude", nil, nil, nil, nil, "ollama", map[string]string{"host": "http://x:11434"}, false)
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{s.ID}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: spawner "+s.ID+" does not run Claude")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+}
+
+func TestPatch_KeepsAStoredSpawnerIDThatNoLongerRunsClaude(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	s, err := spawners.Create(context.Background(), "Ollama", "sp-ollama", "claude", nil, nil, nil, nil, "ollama", map[string]string{"host": "http://x:11434"}, false)
+	require.NoError(t, err)
+	_, err = apps.SetAllowedSpawners(context.Background(), "res-mail", []string{s.ID})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{s.ID}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
