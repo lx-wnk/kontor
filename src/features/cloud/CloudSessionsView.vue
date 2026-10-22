@@ -31,7 +31,9 @@ const groups = computed<AccountGroup[]>(() => {
     for (const spawner of account.spawners)
       accountBySpawner.set(spawner.id, account)
   }
-  const byKey = new Map<string, AccountGroup>()
+  const byKey = new Map<string, AccountGroup>(
+    accounts.value.map(account => [account.configDir, { key: account.configDir, account, sessions: [] }]),
+  )
   for (const session of sessions.value) {
     const account = accountBySpawner.get(session.spawnerId) ?? null
     const key = account?.configDir ?? UNKNOWN_KEY
@@ -52,7 +54,8 @@ function spawnerNames(account: CloudAccount): string {
 
 const drafts = reactive<Record<string, string>>({})
 const sending = reactive<Record<string, boolean>>({})
-const rowErrors = reactive<Record<string, string>>({})
+const sendErrors = reactive<Record<string, string>>({})
+const removeErrors = reactive<Record<string, string>>({})
 const confirmRemoveId = ref<string | null>(null)
 
 async function send(id: string) {
@@ -60,13 +63,13 @@ async function send(id: string) {
   if (!text || sending[id])
     return
   sending[id] = true
-  rowErrors[id] = ''
+  sendErrors[id] = ''
   try {
     await sendMessage(id, text)
     drafts[id] = ''
   }
   catch (err) {
-    rowErrors[id] = errorMessage(err)
+    sendErrors[id] = errorMessage(err)
   }
   finally {
     sending[id] = false
@@ -74,12 +77,12 @@ async function send(id: string) {
 }
 
 async function remove(id: string) {
-  rowErrors[id] = ''
+  removeErrors[id] = ''
   try {
     await removeSession(id)
   }
   catch (err) {
-    rowErrors[id] = errorMessage(err)
+    removeErrors[id] = errorMessage(err)
   }
   finally {
     confirmRemoveId.value = null
@@ -133,7 +136,7 @@ async function runImport() {
     </h1>
 
     <AppCard>
-      <div class="flex flex-col gap-3 p-3">
+      <form class="flex flex-col gap-3 p-3" data-testid="import-form" @submit.prevent="runImport">
         <div class="grid gap-3 sm:grid-cols-[14rem_1fr_14rem]">
           <div>
             <AppFieldLabel for="cloud-import-spawner">
@@ -165,8 +168,8 @@ async function runImport() {
             variant="primary"
             size="sm"
             :disabled="importing || !importSpawnerId || !importUrl.trim()"
+            type="submit"
             data-testid="import-submit"
-            @click="runImport"
           >
             {{ importing ? 'Importing…' : 'Import session' }}
           </AppButton>
@@ -174,7 +177,7 @@ async function runImport() {
             {{ importError }}
           </p>
         </div>
-      </div>
+      </form>
     </AppCard>
 
     <p v-if="groups.length === 0" class="text-fg-faint text-sm">
@@ -207,7 +210,10 @@ async function runImport() {
         {{ group.account.error }}
       </div>
 
-      <ul class="divide-y divide-line">
+      <p v-if="group.sessions.length === 0" class="px-3 py-3 text-sm text-fg-faint">
+        No sessions yet.
+      </p>
+      <ul v-else class="divide-y divide-line">
         <li v-for="session in group.sessions" :key="session.id" class="flex flex-col gap-2 px-3 py-3" data-testid="cloud-session">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-fg truncate">{{ session.title }}</span>
@@ -237,7 +243,7 @@ async function runImport() {
               :rows="2"
               placeholder="Send a message to this session"
               :disabled="sending[session.id]"
-              :error="rowErrors[session.id]"
+              :error="sendErrors[session.id]"
               :data-testid="`send-box-${session.id}`"
             />
             <AppButton
@@ -264,6 +270,7 @@ async function runImport() {
             <AppButton v-else variant="ghost" size="sm" :data-testid="`remove-${session.id}`" @click="confirmRemoveId = session.id">
               Remove from Kontor
             </AppButton>
+            <span v-if="removeErrors[session.id]" role="status" class="text-danger-text text-xs" :data-testid="`remove-error-${session.id}`">{{ removeErrors[session.id] }}</span>
           </div>
         </li>
       </ul>
