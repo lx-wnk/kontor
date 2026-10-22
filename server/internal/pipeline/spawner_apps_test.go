@@ -62,7 +62,7 @@ func resolveMailApp(t *testing.T, entry string) mcpapps.RunApplications {
 		Grants:       repo.NewGrantRepo(bundle.Client),
 		Capabilities: repo.NewCapabilityRepo(bundle.Client),
 	}
-	apps, err := resolver.ResolveRun(context.Background(), &ent.Task{ID: "t1", Cwd: "/repo"})
+	apps, err := resolver.ResolveRun(context.Background(), &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
 	require.NoError(t, err)
 	return apps
 }

@@ -624,7 +624,7 @@ func TestAgentStageHandler_ApplicationResolutionFailureFailsBeforeSpawn(t *testi
 			minted = true
 			return "key", nil
 		},
-		ResolveApplications: func(context.Context, *ent.Task) (mcpapps.RunApplications, error) {
+		ResolveApplications: func(context.Context, *ent.Task, *ent.Spawner, string) (mcpapps.RunApplications, error) {
 			return mcpapps.RunApplications{}, &mcpapps.MissingSecretError{Server: "mail", EnvName: "MAIL_PASSWORD"}
 		},
 	}
@@ -636,4 +636,60 @@ func TestAgentStageHandler_ApplicationResolutionFailureFailsBeforeSpawn(t *testi
 	require.Contains(t, fail.Reason, "MAIL_PASSWORD")
 	require.False(t, spawned, "a run must never start without the mailbox it was given")
 	require.False(t, minted, "no credential is minted for a run that will not start")
+}
+
+func TestAgentStageHandler_SpawnerNotAllowedFailsBeforeSpawn(t *testing.T) {
+	spawned := false
+	handler := pipeline.NewAgentStageHandlerForTest("implementation", func(pipeline.SpawnAgentOptions) (pipeline.SpawnResult, error) {
+		spawned = true
+		return pipeline.SpawnResult{PID: 123}, nil
+	})
+
+	ctx := &pipeline.StageContext{
+		Ctx:               context.Background(),
+		Task:              &ent.Task{Title: "Reply to mail", Cwd: "/tmp/proj-apps-spawner"},
+		StageRun:          &ent.StageRun{Stage: "implementation", ID: "sr-apps-spawner"},
+		RecordAudit:       func(string, map[string]any) {},
+		RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },
+		ResolveApplications: func(context.Context, *ent.Task, *ent.Spawner, string) (mcpapps.RunApplications, error) {
+			return mcpapps.RunApplications{}, &mcpapps.SpawnerNotAllowedError{Server: "mail-private", Spawner: "work", Stage: "implementation"}
+		},
+	}
+
+	tr, err := handler.Execute(ctx)
+	require.NoError(t, err)
+	fail, ok := tr.(pipeline.FailTransition)
+	require.True(t, ok, "got %T", tr)
+	require.True(t, strings.HasPrefix(fail.Reason, `MCP applications: application "mail-private" is not allowed`), fail.Reason)
+	require.False(t, spawned, "a run must never start with a mailbox its spawner is not allowed to use")
+}
+
+func TestAgentStageHandler_PassesResolvedSpawnerAndStage(t *testing.T) {
+	type call struct{ spawnerID, stage string }
+	spawnerFor := map[string]string{"specification": "sp-spec", "implementation": "sp-impl"}
+
+	var calls []call
+	for _, stage := range []string{"specification", "implementation"} {
+		handler := pipeline.NewAgentStageHandlerForTest(stage, func(pipeline.SpawnAgentOptions) (pipeline.SpawnResult, error) {
+			return pipeline.SpawnResult{PID: 123}, nil
+		})
+		ctx := &pipeline.StageContext{
+			Ctx:               context.Background(),
+			Task:              &ent.Task{ID: "t1", Title: "t", Cwd: "/tmp/proj-apps-stage-" + stage},
+			StageRun:          &ent.StageRun{Stage: stage, ID: "sr-" + stage},
+			RecordAudit:       func(string, map[string]any) {},
+			RequestPermission: func(string, string, string) *ent.PermissionRequest { return nil },
+			ResolveSpawner: func(_ context.Context, _ string, st string) (*ent.Spawner, error) {
+				return &ent.Spawner{ID: spawnerFor[st], AdapterType: "claude"}, nil
+			},
+			ResolveApplications: func(_ context.Context, _ *ent.Task, sp *ent.Spawner, st string) (mcpapps.RunApplications, error) {
+				calls = append(calls, call{spawnerID: sp.ID, stage: st})
+				return mcpapps.RunApplications{}, nil
+			},
+		}
+		_, err := handler.Execute(ctx)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, []call{{"sp-spec", "specification"}, {"sp-impl", "implementation"}}, calls)
 }
