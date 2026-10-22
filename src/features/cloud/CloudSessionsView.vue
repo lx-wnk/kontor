@@ -26,7 +26,7 @@ const DEFAULT_ACCOUNT_LABEL = 'default (no CLAUDE_CONFIG_DIR)'
 const CLOUD_URL_PREFIX = 'https://claude.ai/code/'
 
 const { sessions, error: sessionsError, refetch: refetchSessions } = useCloudSessions()
-const { accounts, isLoading: accountsLoading, error: accountsError, refresh: refreshAccounts } = useCloudAccounts()
+const { accounts, isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts, refresh: refreshAccounts } = useCloudAccounts()
 const { spawners } = useSpawners()
 
 const accountBySpawner = computed(() => {
@@ -77,19 +77,29 @@ async function refreshAll() {
   }
 }
 
-const refreshedSpawnerIds = new Set<string>()
+const checkedSpawnerIds = new Set<string>()
+let accountFetchRunning = false
 
-watch([sessions, accounts, accountsLoading], () => {
-  if (accountsLoading.value)
+async function refetchForUnknownSpawners() {
+  if (accountFetchRunning || accountsLoading.value)
     return
   const unmapped = sessions.value
     .map(s => s.spawnerId)
-    .filter(id => !accountBySpawner.value.has(id) && !refreshedSpawnerIds.has(id))
+    .filter(id => !accountBySpawner.value.has(id) && !checkedSpawnerIds.has(id))
   if (unmapped.length === 0)
     return
-  unmapped.forEach(id => refreshedSpawnerIds.add(id))
-  void refreshAll()
-}, { immediate: true })
+  accountFetchRunning = true
+  unmapped.forEach(id => checkedSpawnerIds.add(id))
+  try {
+    await refetchAccounts()
+  }
+  finally {
+    accountFetchRunning = false
+  }
+  await refetchForUnknownSpawners()
+}
+
+watch([sessions, accounts, accountsLoading], refetchForUnknownSpawners, { immediate: true })
 
 function spawnerNames(account: CloudAccount): string {
   return account.spawners.map(s => s.name).join(', ')

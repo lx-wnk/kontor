@@ -180,6 +180,7 @@ export function useCloudAccounts() {
     accounts,
     isLoading: accountsLoading,
     error: accountsError,
+    refetch: () => fetchAccounts('/api/cloud-accounts'),
     refresh: () => fetchAccounts('/api/cloud-accounts?refresh=1'),
   }
 }
