@@ -64,6 +64,7 @@ describe('useViewState', () => {
     const { useViewState, isCoreView, pageIdOf, resolveView } = await freshModule()
     expect(useViewState().activeView.value).toBe('page:p-abc')
     expect(isCoreView('zentrale')).toBe(true)
+    expect(isCoreView('cloud')).toBe(true)
     expect(isCoreView('page:p-abc')).toBe(false)
     expect(pageIdOf('page:p-abc')).toBe('p-abc')
     expect(pageIdOf('zentrale')).toBeNull()

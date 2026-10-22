@@ -40,6 +40,11 @@ describe('navConfig', () => {
       expect(NAV_GROUPS).toContain(item.group)
   })
 
+  it('lists Cloud sessions under Monitor', () => {
+    expect(NAV_ITEMS.find(i => i.view === 'cloud')).toMatchObject({ label: 'Cloud sessions', group: 'Monitor' })
+    expect(viewTitle('cloud')).toBe('Cloud sessions')
+  })
+
   it('viewTitle returns the label for a view', () => {
     expect(viewTitle('dashboard')).toBe('Dashboard')
     expect(viewTitle('cost')).toBe('Cost')
