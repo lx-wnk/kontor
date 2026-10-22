@@ -16,11 +16,7 @@ func remainingAgentStages(task *ent.Task, requiresAgent func(stage string) bool)
 		if requiresAgent(stage) {
 			stages = append(stages, stage)
 		}
-		if stage == "ready" {
-			stage = stageAfterReady(task)
-		} else {
-			stage = NextStageForKind(task.Kind, stage)
-		}
+		stage = nextStage(task, stage)
 	}
 	return stages
 }
