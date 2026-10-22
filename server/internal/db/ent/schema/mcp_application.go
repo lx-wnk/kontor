@@ -28,6 +28,9 @@ func (MCPApplication) Fields() []ent.Field {
 		field.JSON("required_env", []string{}).
 			Default([]string{}).
 			Annotations(entsql.Default("[]")),
+		field.JSON("allowed_spawners", []string{}).
+			Default([]string{}).
+			Annotations(entsql.Default("[]")),
 		field.JSON("catalogue", []CatalogueTool{}).
 			Default([]CatalogueTool{}).
 			Annotations(entsql.Default("[]")),

@@ -9713,6 +9713,8 @@ type MCPApplicationMutation struct {
 	attach_all             *bool
 	required_env           *[]string
 	appendrequired_env     []string
+	allowed_spawners       *[]string
+	appendallowed_spawners []string
 	catalogue              *[]schema.CatalogueTool
 	appendcatalogue        []schema.CatalogueTool
 	catalogue_error        *string
@@ -9989,6 +9991,57 @@ func (m *MCPApplicationMutation) AppendedRequiredEnv() ([]string, bool) {
 func (m *MCPApplicationMutation) ResetRequiredEnv() {
 	m.required_env = nil
 	m.appendrequired_env = nil
+}
+
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (m *MCPApplicationMutation) SetAllowedSpawners(s []string) {
+	m.allowed_spawners = &s
+	m.appendallowed_spawners = nil
+}
+
+// AllowedSpawners returns the value of the "allowed_spawners" field in the mutation.
+func (m *MCPApplicationMutation) AllowedSpawners() (r []string, exists bool) {
+	v := m.allowed_spawners
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowedSpawners returns the old "allowed_spawners" field's value of the MCPApplication entity.
+// If the MCPApplication object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MCPApplicationMutation) OldAllowedSpawners(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowedSpawners is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowedSpawners requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowedSpawners: %w", err)
+	}
+	return oldValue.AllowedSpawners, nil
+}
+
+// AppendAllowedSpawners adds s to the "allowed_spawners" field.
+func (m *MCPApplicationMutation) AppendAllowedSpawners(s []string) {
+	m.appendallowed_spawners = append(m.appendallowed_spawners, s...)
+}
+
+// AppendedAllowedSpawners returns the list of values that were appended to the "allowed_spawners" field in this mutation.
+func (m *MCPApplicationMutation) AppendedAllowedSpawners() ([]string, bool) {
+	if len(m.appendallowed_spawners) == 0 {
+		return nil, false
+	}
+	return m.appendallowed_spawners, true
+}
+
+// ResetAllowedSpawners resets all changes to the "allowed_spawners" field.
+func (m *MCPApplicationMutation) ResetAllowedSpawners() {
+	m.allowed_spawners = nil
+	m.appendallowed_spawners = nil
 }
 
 // SetCatalogue sets the "catalogue" field.
@@ -10341,7 +10394,7 @@ func (m *MCPApplicationMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *MCPApplicationMutation) Fields() []string {
-	fields := make([]string, 0, 12)
+	fields := make([]string, 0, 13)
 	if m.resource_id != nil {
 		fields = append(fields, mcpapplication.FieldResourceID)
 	}
@@ -10353,6 +10406,9 @@ func (m *MCPApplicationMutation) Fields() []string {
 	}
 	if m.required_env != nil {
 		fields = append(fields, mcpapplication.FieldRequiredEnv)
+	}
+	if m.allowed_spawners != nil {
+		fields = append(fields, mcpapplication.FieldAllowedSpawners)
 	}
 	if m.catalogue != nil {
 		fields = append(fields, mcpapplication.FieldCatalogue)
@@ -10394,6 +10450,8 @@ func (m *MCPApplicationMutation) Field(name string) (ent.Value, bool) {
 		return m.AttachAll()
 	case mcpapplication.FieldRequiredEnv:
 		return m.RequiredEnv()
+	case mcpapplication.FieldAllowedSpawners:
+		return m.AllowedSpawners()
 	case mcpapplication.FieldCatalogue:
 		return m.Catalogue()
 	case mcpapplication.FieldCatalogueError:
@@ -10427,6 +10485,8 @@ func (m *MCPApplicationMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldAttachAll(ctx)
 	case mcpapplication.FieldRequiredEnv:
 		return m.OldRequiredEnv(ctx)
+	case mcpapplication.FieldAllowedSpawners:
+		return m.OldAllowedSpawners(ctx)
 	case mcpapplication.FieldCatalogue:
 		return m.OldCatalogue(ctx)
 	case mcpapplication.FieldCatalogueError:
@@ -10479,6 +10539,13 @@ func (m *MCPApplicationMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetRequiredEnv(v)
+		return nil
+	case mcpapplication.FieldAllowedSpawners:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowedSpawners(v)
 		return nil
 	case mcpapplication.FieldCatalogue:
 		v, ok := value.([]schema.CatalogueTool)
@@ -10605,6 +10672,9 @@ func (m *MCPApplicationMutation) ResetField(name string) error {
 		return nil
 	case mcpapplication.FieldRequiredEnv:
 		m.ResetRequiredEnv()
+		return nil
+	case mcpapplication.FieldAllowedSpawners:
+		m.ResetAllowedSpawners()
 		return nil
 	case mcpapplication.FieldCatalogue:
 		m.ResetCatalogue()
