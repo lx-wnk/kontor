@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
@@ -63,6 +64,9 @@ func makeSetupWorktreeFn(projectRepo repo.ProjectRepo) func(ctx context.Context,
 // appHomeRoot is "" when the user home is unknown; isolated applications then fail to resolve.
 func appHomeRoot() string {
 	home, err := os.UserHomeDir()
+	if err == nil && !filepath.IsAbs(home) {
+		err = fmt.Errorf("user home %q is not absolute", home)
+	}
 	if err != nil {
 		slog.Warn("application home root unavailable, isolated applications will fail to resolve", "err", err)
 		return ""

@@ -82,9 +82,9 @@ func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo
 	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset, spawners: spawners}
 }
 
-// WithPresetLookup replaces the lookup the deny preflight and the deny apply
-// share. It exists so a test can supply a preset the embedded catalogue does
-// not contain; production keeps mcpapps.FindPreset.
+// WithPresetLookup replaces the preset lookup every route in this handler uses.
+// It exists so a test can supply a preset the embedded catalogue does not
+// contain; production keeps mcpapps.FindPreset.
 func (h *Handler) WithPresetLookup(find mcpapps.PresetFinder) *Handler {
 	h.findPreset = find
 	return h
@@ -664,6 +664,9 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 	if err := h.apps.Delete(r.Context(), app.ResourceID); err != nil {
 		return err
 	}
+	if err := h.setup.Stop(app.ResourceID); err != nil {
+		slog.Warn("setup session not stopped before delete", "resourceId", app.ResourceID, "err", err)
+	}
 	h.removeIsolatedHome(app)
 	if _, err := h.resources.SetState(r.Context(), app.ResourceID, repo.ResourceStateOrphaned); err != nil {
 		return err
@@ -676,7 +679,11 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 // removeIsolatedHome deletes the HOME an isolated application kept its accounts in.
 // The row is already gone, so a failure is logged and never fails the delete.
 func (h *Handler) removeIsolatedHome(app *ent.MCPApplication) {
-	if h.homeRoot == "" || !mcpapps.ValidHomeResourceID(app.ResourceID) || mcpapps.IsEmptyEntry(app.Entry) {
+	if h.homeRoot == "" || mcpapps.IsEmptyEntry(app.Entry) {
+		return
+	}
+	if !mcpapps.ValidHomeResourceID(app.ResourceID) {
+		slog.Warn("application home not removed, invalid resource id", "resourceId", app.ResourceID)
 		return
 	}
 	entry, err := mcpapps.ParseEntry(app.Entry)

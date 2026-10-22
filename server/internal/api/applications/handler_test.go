@@ -41,10 +41,10 @@ func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.
 
 func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
 	t.Helper()
-	return newMuxWithHome(t, find, "")
+	return newMuxWithHome(t, find, "", nil)
 }
 
-func newMuxWithHome(t *testing.T, find mcpapps.PresetFinder, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
+func newMuxWithHome(t *testing.T, find mcpapps.PresetFinder, homeRoot string, setup applications.SetupRunner) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
 	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
@@ -59,8 +59,11 @@ func newMuxWithHome(t *testing.T, find mcpapps.PresetFinder, homeRoot string) (*
 	spawners := repo.NewSpawnerRepo(bundle.Client)
 	_, err = apps.Upsert(context.Background(), repo.UpsertMCPApplicationInput{ResourceID: "res-mail", ServerName: "mail"})
 	require.NoError(t, err)
+	if setup == nil {
+		setup = appsetup.NewManager(appsetup.Options{})
+	}
 	mux := chi.NewRouter()
-	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
+	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, setup, nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, grants, secrets, resources, schedules, spawners
 }
 
@@ -353,7 +356,7 @@ func TestDeleteApplication_RemovesRowSecretsAndGrantsAndOrphansTheResource(t *te
 
 func TestDelete_RemovesIsolatedHome(t *testing.T) {
 	root := t.TempDir()
-	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root)
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, nil)
 	resID := deletableApp(t, apps, grants, secrets, resources)
 	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
 	require.NoError(t, err)
@@ -367,9 +370,44 @@ func TestDelete_RemovesIsolatedHome(t *testing.T) {
 	require.DirExists(t, root)
 }
 
+func TestDelete_StopsRunningSetupBeforeRemovingHome(t *testing.T) {
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, setup)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(home, 0o700))
+	setup.onStop = func() { require.DirExists(t, home, "setup must be stopped before its HOME is removed") }
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.Equal(t, 1, setup.stopped)
+	require.Equal(t, resID, setup.stoppedID)
+	require.NoDirExists(t, home)
+}
+
+func TestDelete_KeepsHomeDirOfNonIsolatedApp(t *testing.T) {
+	root := t.TempDir()
+	withoutIsolation := func(mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		return mcpapps.Preset{Server: "notes"}, true
+	}
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, withoutIsolation, root, nil)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","notes-mcp"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(home, 0o700))
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.DirExists(t, home, "only isolated applications own a directory under the home root")
+}
+
 func TestDelete_IsolatedAppWithoutHomeDirStillSucceeds(t *testing.T) {
 	root := t.TempDir()
-	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root)
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, nil)
 	resID := deletableApp(t, apps, grants, secrets, resources)
 	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
 	require.NoError(t, err)
@@ -819,6 +857,8 @@ func TestDenies_UnconfirmedPresetIs422(t *testing.T) {
 type fakeSetup struct {
 	started   int
 	stopped   int
+	stoppedID string
+	onStop    func()
 	lastEnv   map[string]string
 	lastSetup mcpapps.PresetSetup
 	session   *appsetup.Session
@@ -837,8 +877,12 @@ func (f *fakeSetup) Start(_ context.Context, resourceID string, setup mcpapps.Pr
 	return sess, nil
 }
 
-func (f *fakeSetup) Stop(string) error {
+func (f *fakeSetup) Stop(resourceID string) error {
 	f.stopped++
+	f.stoppedID = resourceID
+	if f.onStop != nil {
+		f.onStop()
+	}
 	f.session = nil
 	return nil
 }
