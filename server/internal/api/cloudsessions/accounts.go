@@ -29,6 +29,9 @@ type accountView struct {
 // depends on the literal value. A failing lookup becomes that row's error, never a failed response.
 // GET /api/cloud-accounts
 func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		return apierr.NewAppError(http.StatusForbidden, "cross-site request refused")
+	}
 	spawners, err := h.spawners.List(r.Context())
 	if err != nil {
 		return err
@@ -56,7 +59,7 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 		row.Spawners = append(row.Spawners, accountSpawner{ID: sp.ID, Name: sp.Name})
 	}
 
-	// ponytail: sequential, so the response takes up to rows x the runner timeout (60 s each); look rows up in parallel if accounts grow.
+	// ponytail: sequential, so the response takes up to rows x cloud.DefaultAuthTimeout; look rows up in parallel if accounts grow.
 	for key, row := range byDir {
 		st, err := h.auth.Status(r.Context(), first[key], refresh)
 		if err != nil {
