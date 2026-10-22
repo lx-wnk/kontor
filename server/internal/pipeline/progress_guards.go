@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -62,6 +63,12 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 	stageRun, err := o.ensureStageRun(ctx, task, latest)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator.ensureStageRun: %w", err)
+	}
+
+	if handler.RequiresAgent() && latest == nil {
+		if err := o.checkApplicationsUpFront(ctx, task); err != nil {
+			return o.applyTransition(ctx, task, stageRun, FailTransition{Reason: "MCP applications: " + err.Error()})
+		}
 	}
 
 	// Auto-create a git worktree before spawning the agent.
@@ -312,4 +319,30 @@ func (o *PipelineOrchestrator) filePermissionRequest(
 		o.opts.OnPermissionRequest(task.ID, req)
 	}
 	return req
+}
+
+// checkApplicationsUpFront refuses a task whose later agent stage resolves to a
+// spawner that may not use one of its attached applications, so the run does not
+// fail halfway through after spending the earlier stages. Any other resolve
+// error is left to the per-stage gate.
+func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, task *ent.Task) error {
+	if o.opts.ResolveApplications == nil || o.opts.ResolveSpawner == nil {
+		return nil
+	}
+	requiresAgent := func(stage string) bool {
+		h := o.resolveHandler(stage)
+		return h != nil && h.RequiresAgent()
+	}
+	for _, stage := range remainingAgentStages(task, requiresAgent) {
+		spawner, err := o.opts.ResolveSpawner(ctx, task.ID, stage)
+		if err != nil {
+			spawner = nil
+		}
+		_, err = o.opts.ResolveApplications(ctx, task, spawner, stage)
+		var notAllowed *mcpapps.SpawnerNotAllowedError
+		if errors.As(err, &notAllowed) {
+			return err
+		}
+	}
+	return nil
 }
