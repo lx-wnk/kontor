@@ -202,6 +202,23 @@ var (
 			},
 		},
 	}
+	// CloudRoutinesColumns holds the columns for the "cloud_routines" table.
+	CloudRoutinesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "name", Type: field.TypeString},
+		{Name: "fire_url", Type: field.TypeString},
+		{Name: "spawner_id", Type: field.TypeString},
+		{Name: "token_ciphertext", Type: field.TypeString},
+		{Name: "token_nonce", Type: field.TypeString},
+	}
+	// CloudRoutinesTable holds the schema information for the "cloud_routines" table.
+	CloudRoutinesTable = &schema.Table{
+		Name:       "cloud_routines",
+		Columns:    CloudRoutinesColumns,
+		PrimaryKey: []*schema.Column{CloudRoutinesColumns[0]},
+	}
 	// CloudSessionsColumns holds the columns for the "cloud_sessions" table.
 	CloudSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -1175,6 +1192,7 @@ var (
 		AuditEventsTable,
 		CapabilitiesTable,
 		CheckpointsTable,
+		CloudRoutinesTable,
 		CloudSessionsTable,
 		CoordLocksTable,
 		DriftAlertsTable,
