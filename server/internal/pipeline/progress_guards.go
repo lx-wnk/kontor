@@ -324,7 +324,12 @@ func hasLiveProcess(run *ent.StageRun) bool {
 	return (run.Status == "running" || run.Status == "awaiting_user") && proc.IsPidAlive(stageRunPid(run))
 }
 
-// checkApplicationsUpFront fails on the first later stage whose spawner may not use an attached application.
+// usesApplications reports whether a stage run on sp gets MCP applications: only the native Claude path does.
+func usesApplications(sp *ent.Spawner) bool {
+	return sp == nil || sp.AdapterType == "" || sp.AdapterType == "claude"
+}
+
+// checkApplicationsUpFront fails on the first remaining stage whose spawner may not use an attached application.
 func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, task *ent.Task) error {
 	if o.opts.ResolveApplications == nil || o.opts.ResolveSpawner == nil {
 		return nil
@@ -340,6 +345,9 @@ func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, tas
 				continue
 			}
 			spawner = nil
+		}
+		if !usesApplications(spawner) {
+			continue
 		}
 		_, err = o.opts.ResolveApplications(ctx, task, spawner, stage)
 		var notAllowed *mcpapps.SpawnerNotAllowedError

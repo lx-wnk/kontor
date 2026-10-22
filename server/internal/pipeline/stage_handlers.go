@@ -58,7 +58,7 @@ func (h *agentStageHandler) Execute(ctx *StageContext) (StageTransition, error) 
 	// type, build the corresponding LLMSpawner and dispatch via the HTTP/
 	// custom-command abstraction. The adapter writes its own synthetic JSONL
 	// session file so the completion detector can read the output unchanged.
-	if resolved != nil && resolved.AdapterType != "" && resolved.AdapterType != "claude" {
+	if !usesApplications(resolved) {
 		adapter, err := llmadapter.NewLLMSpawnerFromSpawner(resolved, acpPermissionGate(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("agentStageHandler.Execute(%s): build adapter: %w", h.stage, err)
