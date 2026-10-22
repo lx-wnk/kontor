@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/lx-wnk/kontor/server/internal/cloud"
@@ -38,22 +39,44 @@ type fakeCLI struct {
 	authCalls   int
 	lastText    string
 	lastSession string
+	sendCtxErr  error
+	authHook    func()
+	sendHook    func()
 }
 
-func (f *fakeCLI) Send(_ context.Context, _ *ent.Spawner, sessionID, text string) (cloud.SendResult, error) {
+func (f *fakeCLI) Send(ctx context.Context, _ *ent.Spawner, sessionID, text string) (cloud.SendResult, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.sendCalls++
 	f.lastText = text
 	f.lastSession = sessionID
+	hook := f.sendHook
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sendCtxErr = ctx.Err()
 	return f.sendResult, f.sendErr
 }
 
 func (f *fakeCLI) AuthStatus(_ context.Context, _ *ent.Spawner) (cloud.AuthStatus, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.authCalls++
+	hook := f.authHook
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.auth, f.authErr
+}
+
+func (f *fakeCLI) authCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.authCalls
 }
 
 type fixture struct {
@@ -110,6 +133,15 @@ func (f *fixture) importSession(t *testing.T, ref string) map[string]any {
 	rr := f.do("POST", "/api/cloud-sessions/import", string(body))
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	return decodeMap(t, rr.Body.Bytes())
+}
+
+func (f *fixture) sendCtx(ctx context.Context, id, text string) *httptest.ResponseRecorder {
+	body, _ := json.Marshal(map[string]string{"text": text})
+	req := httptest.NewRequest("POST", "/api/cloud-sessions/"+id+"/messages", bytes.NewBuffer(body)).WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	f.router.ServeHTTP(rr, req)
+	return rr
 }
 
 func (f *fixture) send(id, text string) *httptest.ResponseRecorder {
@@ -480,4 +512,93 @@ func TestStream_ServesEvents(t *testing.T) {
 	n, err := resp.Body.Read(buf)
 	require.NoError(t, err)
 	require.Contains(t, string(buf[:n]), sse.CloudSessionCreated)
+}
+
+func TestSend_SpawnerNoLongerClaudeIs409BeforeAuth(t *testing.T) {
+	f := newFixture(t)
+	id := f.importSession(t, testSessionID)["id"].(string)
+	custom := "custom"
+	_, err := f.h.spawners.Update(t.Context(), f.spawner.ID, nil, nil, nil, nil, nil, nil, nil, &custom, nil, false, false)
+	require.NoError(t, err)
+
+	rr := f.send(id, "hi")
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	require.Equal(t, "spawner "+f.spawner.ID+" no longer runs Claude", decodeMap(t, rr.Body.Bytes())["error"])
+	require.Zero(t, f.cli.authCalls)
+	require.Zero(t, f.cli.sendCalls)
+
+	stored, err := f.h.sessions.Get(t.Context(), id)
+	require.NoError(t, err)
+	require.Empty(t, stored.LastMessage)
+	require.Nil(t, stored.LastMessageAt)
+}
+
+func TestNewHandler_RequiresBroadcaster(t *testing.T) {
+	require.PanicsWithValue(t, "cloudsessions.Handler requires a broadcaster", func() {
+		NewHandler(nil, nil, &fakeCLI{}, nil)
+	})
+}
+
+func TestAuthCache_ConcurrentLookupsShareOneCLICall(t *testing.T) {
+	f := newFixture(t)
+	release := make(chan struct{})
+	f.cli.authHook = func() { <-release }
+
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := f.h.auth.Status(t.Context(), f.spawner, false)
+			assert.NoError(t, err)
+		}()
+		if f.cli.authCount() == 0 {
+			require.Eventually(t, func() bool { return f.cli.authCount() == 1 }, time.Second, time.Millisecond)
+		}
+	}
+	// give the second caller time to reach (and wrongly pass) the cache
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, 1, f.cli.authCount(), "second caller must wait on the in-flight lookup")
+	close(release)
+	wg.Wait()
+	require.Equal(t, 1, f.cli.authCount())
+}
+
+func TestAuthCache_NotReadyStatusIsNotCached(t *testing.T) {
+	f := newFixture(t)
+	id := f.importSession(t, testSessionID)["id"].(string)
+	f.cli.auth = cloud.AuthStatus{LoggedIn: false}
+	require.Equal(t, http.StatusConflict, f.send(id, "hi").Code)
+
+	f.cli.auth = cloud.AuthStatus{LoggedIn: true, AuthMethod: "claude.ai"}
+	require.Equal(t, http.StatusOK, f.send(id, "hi").Code, "a retry right after claude auth login must succeed")
+	require.Equal(t, 2, f.cli.authCalls)
+}
+
+func TestSend_ClientDisconnectStillRecordsAndBroadcasts(t *testing.T) {
+	f := newFixture(t)
+	id := f.importSession(t, testSessionID)["id"].(string)
+	f.nextEvent(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f.cli.sendHook = cancel
+
+	rr := f.sendCtx(ctx, id, "hi")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.NoError(t, f.cli.sendCtxErr, "the CLI call must outlive the request context")
+
+	stored, err := f.h.sessions.Get(t.Context(), id)
+	require.NoError(t, err)
+	require.Equal(t, "hi", stored.LastMessage)
+	require.Equal(t, sse.CloudSessionUpdated, f.nextEvent(t)["type"])
+}
+
+func TestImport_TitleWithControlCharactersIs400(t *testing.T) {
+	f := newFixture(t)
+	for _, title := range []string{"a\nb", "a\x1b[31mb", "a\x00b"} {
+		body, _ := json.Marshal(map[string]string{"spawnerId": f.spawner.ID, "url": testSessionID, "title": title})
+		rr := f.do("POST", "/api/cloud-sessions/import", string(body))
+		require.Equal(t, http.StatusBadRequest, rr.Code, title)
+		require.Equal(t, "title: contains control characters", decodeMap(t, rr.Body.Bytes())["error"])
+	}
 }
