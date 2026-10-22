@@ -628,6 +628,66 @@ describe('applicationSettings', () => {
       wrapper.unmount()
     })
 
+    it('shows a stored id without a spawner as a checked removed spawner and unticking drops it', async () => {
+      const calls = stubFetch({
+        'GET /api/applications': [{ ...IMAP, allowedSpawners: ['gone-1234-abcd'] }],
+        'PATCH /api/applications/res-imap': { ...IMAP, allowedSpawners: [] },
+      })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      const stale = wrapper.find('[data-testid="application-spawner-res-imap-gone-1234-abcd"]')
+      expect(wrapper.find('[data-testid="application-spawners-res-imap"]').text()).toContain('Removed spawner (gone-123)')
+      expect((stale.element as HTMLInputElement).checked).toBe(true)
+
+      await stale.setValue(false)
+      await flushPromises()
+
+      const patch = calls.find(c => c.init?.method === 'PATCH')
+      expect(JSON.parse(String(patch?.init?.body))).toEqual({ allowedSpawners: [] })
+      expect(wrapper.find('[data-testid="application-spawner-res-imap-gone-1234-abcd"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('keeps the stored stale id when a live spawner is ticked', async () => {
+      const calls = stubFetch({
+        'GET /api/applications': [{ ...IMAP, allowedSpawners: ['gone-1234-abcd'] }],
+        'PATCH /api/applications/res-imap': { ...IMAP, allowedSpawners: ['gone-1234-abcd', 'sp-default'] },
+      })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(true)
+      await flushPromises()
+
+      const patch = calls.find(c => c.init?.method === 'PATCH')
+      expect(JSON.parse(String(patch?.init?.body))).toEqual({ allowedSpawners: ['gone-1234-abcd', 'sp-default'] })
+      wrapper.unmount()
+    })
+
+    it('renders the fieldset for stale ids even with no claude spawner', async () => {
+      spawnersRef.current = shallowRef([])
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, allowedSpawners: ['gone-1234-abcd'] }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-spawners-res-imap"]').text()).toContain('Removed spawner (gone-123)')
+      wrapper.unmount()
+    })
+
+    it('shows the mailbox warning as a note even with no claude spawner', async () => {
+      spawnersRef.current = shallowRef([])
+      stubFetch({ 'GET /api/applications': [IMAP] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      const warning = wrapper.find('[data-testid="application-spawners-warning-res-imap"]')
+      expect(warning.text()).toBe('Any spawner can read this mailbox.')
+      expect(warning.attributes('role')).toBe('note')
+      expect(wrapper.find('[data-testid="application-spawners-res-imap"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
     it('shows the server error when the PATCH is rejected', async () => {
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (init?.method === 'PATCH')
@@ -680,7 +740,9 @@ describe('applicationSettings', () => {
       await flushPromises()
 
       expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('disabled')).toBeDefined()
-      expect(wrapper.find('[data-testid="application-export-hint-res-imap"]').text()).toBe('Export is off while the application is limited to spawners.')
+      const hint = wrapper.find('[data-testid="application-export-hint-res-imap"]')
+      expect(hint.text()).toBe('Export is off while the application is limited to spawners.')
+      expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('aria-describedby')).toBe(hint.attributes('id'))
       wrapper.unmount()
     })
 
