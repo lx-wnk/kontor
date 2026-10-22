@@ -201,11 +201,11 @@ func (h *agentStageHandler) Execute(ctx *StageContext) (StageTransition, error) 
 
 	var apps mcpapps.RunApplications
 	if ctx.ResolveApplications != nil {
-		resolved, err := ctx.ResolveApplications(ctx.Ctx, ctx.Task)
+		runApps, err := ctx.ResolveApplications(ctx.Ctx, ctx.Task, resolved, h.stage)
 		if err != nil {
 			return FailTransition{Reason: "MCP applications: " + err.Error()}, nil
 		}
-		apps = resolved
+		apps = runApps
 	}
 
 	// A credential that cannot be minted is not a reason to refuse the spawn:
