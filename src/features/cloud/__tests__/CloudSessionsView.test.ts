@@ -177,7 +177,7 @@ describe('cloudSessionsView', () => {
 
     it('disables the box while a send is in flight', async () => {
       let resolve!: (v: CloudSessionView) => void
-      state.sendMessage.mockReturnValue(new Promise<CloudSessionView>((r) => { resolve = r }))
+      state.sendMessage.mockReturnValue(new Promise<CloudSessionView>(r => (resolve = r)))
       const wrapper = mountView()
       await wrapper.find('[data-testid="send-box-1"]').setValue('hello')
       await wrapper.find('[data-testid="send-1"]').trigger('click')
