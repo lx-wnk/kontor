@@ -44,6 +44,7 @@ All persistent data stays on your machine. No data is synced to a cloud service 
 | `web_push_subscriptions` | Web-Push endpoint URLs and VAPID keys (see section 3) |
 | `spawners`, `presets`, `remotes`, `refine` | User-configured pipeline settings |
 | `mcp_applications` | MCP application definitions (command, arguments, non-secret environment) and, per application, the IDs of the spawners it is limited to (`allowed_spawners`). Secret values are encrypted in a separate table. |
+| `cloud_session` | One row per claude.ai cloud session you import in Cloud sessions: the session ID, its URL, the ID of the spawner it is sent through, a title, its origin, the full text of the last message you sent to it (earlier messages are overwritten, replies are never read), the time of that message, and the text of the last error, if any. The last error can quote the `claude` CLI's stderr, capped at 4096 bytes. **Remove from Kontor** (`DELETE /api/cloud-sessions/{id}`) deletes the row; the session on claude.ai is untouched. |
 | `cost_history` | Aggregated per-session token and cost data imported from JSONL files |
 | `capabilities` | The permission catalogue — one row per grantable capability (a Claude Code tool name, or a coarser named action such as `memory.read`/`memory.write`) with its class and which enforcement points may apply it. Seeded on boot from the built-in tool list plus a small fixed set of non-tool actions; no user content. |
 | `grants` | Capability grants bound to a context (global, project, task, routine, or agent session): pattern, mode (allow/deny/ask), optional expiry and rate limit, and who granted or revoked it. Existing `task_permissions` and `permission_presets` rows are backfilled into this table on boot (`granted_by = "migration:legacy"`). Also created and revoked directly via the `kontor grants` CLI; a revoked grant's row is kept (tombstoned via `revoked_at`/`revoked_by`), not deleted, so revoking a grant does not remove data. |
@@ -121,6 +122,14 @@ None of the following integrations are active by default. Data only leaves your 
 ### Webhook and email notifications (forward-looking)
 
 The notification-config API accepts and persists `webhook_url` (with HMAC authentication) and an `email` channel. **No delivery code for these channels exists yet** — as of the current release, configuring them stores the URL or address locally but nothing is sent via them. When and if delivery is implemented, task notification payloads (title, status, and stage output, which may contain source-code excerpts or other content from the task) will be sent to the configured SMTP server or webhook endpoint. You will be responsible for that endpoint's data handling and applicable transfer basis. This document will be updated when delivery is shipped.
+
+### Cloud sessions (`claude` CLI)
+
+- When you send a message in **Cloud sessions**, Kontor runs `claude -p --cloud <session id> --output-format json` under the Claude account of the session's spawner and passes the message text on stdin. The CLI sends the text to Anthropic over your claude.ai login; Kontor makes no request to Anthropic itself.
+- Kontor never reads or stores the OAuth token of that login. The CLI starts without `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` and the Bedrock, Vertex and Foundry switches, so a key or token in the server's environment is not used or forwarded.
+- The sign-in status of each account comes from `claude auth status --json`. Kontor keeps only `loggedIn`, `authMethod`, `apiProvider` and `subscriptionType`, in memory for 60 seconds; the email address and organisation fields in that output are not decoded.
+- The last message and the last error of each session are persisted locally (see section 2). Removing a session from Kontor does not remove it, or the message, from claude.ai.
+- **Transfer basis:** Anthropic PBC is a US entity covered by the EU–US Data Privacy Framework (DPF) where applicable.
 
 ### Issue-tracker import (Jira / GitHub)
 
