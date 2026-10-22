@@ -9,6 +9,11 @@ import (
 
 var resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
 
+// ValidHomeResourceID reports whether id is safe to use as one path element under the home root.
+func ValidHomeResourceID(id string) bool {
+	return resourceIDPattern.MatchString(id) && id != "." && id != ".."
+}
+
 // HomeRootUnder is the directory holding every isolated application's HOME.
 func HomeRootUnder(userHome string) string {
 	return filepath.Join(userHome, ".claude", "kontor", "apps")
@@ -19,7 +24,7 @@ func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
 	if homeRoot == "" {
 		return nil, fmt.Errorf("mcpapps: home root is not configured")
 	}
-	if !resourceIDPattern.MatchString(resourceID) || resourceID == "." || resourceID == ".." {
+	if !ValidHomeResourceID(resourceID) {
 		return nil, fmt.Errorf("mcpapps: invalid resource id %q for home directory", resourceID)
 	}
 	dir := filepath.Join(homeRoot, resourceID)

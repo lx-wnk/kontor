@@ -842,7 +842,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 			apiapplications.StdioToolCaller{},
 			repo.NewCapabilityRepo(entClient),
 			repo.NewSpawnerRepo(entClient),
-		)
+		).WithHomeRoot(appHomeRoot())
 
 		watchCtx, stopConfigWatch := context.WithCancel(context.Background())
 		if err := claudeconfig.Watch(watchCtx, func() {

@@ -60,9 +60,7 @@ func makeSetupWorktreeFn(projectRepo repo.ProjectRepo) func(ctx context.Context,
 	}
 }
 
-// runSetupCommand executes cmd in dir with a 5-minute timeout, logging combined output.
-// appHomeRoot is empty when the user home is unknown, so isolated applications
-// fail at resolve time instead of falling back to the shared HOME.
+// appHomeRoot is "" when the user home is unknown; isolated applications then fail to resolve.
 func appHomeRoot() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -72,6 +70,7 @@ func appHomeRoot() string {
 	return mcpapps.HomeRootUnder(home)
 }
 
+// runSetupCommand executes cmd in dir with a 5-minute timeout, logging combined output.
 func runSetupCommand(ctx context.Context, dir, cmd string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()

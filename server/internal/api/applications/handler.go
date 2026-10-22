@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -661,12 +664,32 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 	if err := h.apps.Delete(r.Context(), app.ResourceID); err != nil {
 		return err
 	}
+	h.removeIsolatedHome(app)
 	if _, err := h.resources.SetState(r.Context(), app.ResourceID, repo.ResourceStateOrphaned); err != nil {
 		return err
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// removeIsolatedHome deletes the HOME an isolated application kept its accounts in.
+// The row is already gone, so a failure is logged and never fails the delete.
+func (h *Handler) removeIsolatedHome(app *ent.MCPApplication) {
+	if h.homeRoot == "" || !mcpapps.ValidHomeResourceID(app.ResourceID) || mcpapps.IsEmptyEntry(app.Entry) {
+		return
+	}
+	entry, err := mcpapps.ParseEntry(app.Entry)
+	if err != nil {
+		slog.Warn("application home not removed, entry unreadable", "resourceId", app.ResourceID, "err", err)
+		return
+	}
+	if preset, ok := h.findPreset(entry); !ok || !preset.IsolateHome {
+		return
+	}
+	if err := os.RemoveAll(filepath.Join(h.homeRoot, app.ResourceID)); err != nil {
+		slog.Warn("application home not removed", "resourceId", app.ResourceID, "err", err)
+	}
 }
 
 // startSetup runs the application's preset setup wizard as a child process so
@@ -698,6 +721,13 @@ func (h *Handler) startSetup(w http.ResponseWriter, r *http.Request) error {
 	}
 	for k, v := range secretValues {
 		env[k] = v
+	}
+	if preset.IsolateHome {
+		home, err := mcpapps.IsolatedHomeEnv(h.homeRoot, app.ResourceID)
+		if err != nil {
+			return apierr.NewAppError(http.StatusInternalServerError, err.Error())
+		}
+		maps.Copy(env, home)
 	}
 	sess, err := h.setup.Start(r.Context(), app.ResourceID, *preset.Setup, env)
 	if err != nil {
