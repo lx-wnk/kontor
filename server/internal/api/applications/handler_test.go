@@ -1465,6 +1465,59 @@ func TestPatch_RefusesExportOfAnEntryTurnedIsolatedInTheSameRequest(t *testing.T
 	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
 }
 
+func TestPatch_EntrySwitchToIsolatedPresetWhileExportedIsRefused(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	imapEntry := map[string]any{"command": "npx", "args": []string{"-y", "imap-mcp-server"}}
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"entry": imapEntry})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.JSONEq(t, `{"command":"uvx"}`, string(app.Entry))
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.JSONEq(t, `{"command":"uvx"}`, string(servers["mail"]))
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"entry": imapEntry, "exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	servers, err = claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_InvalidRequiredEnvLeavesTheExportInPlace(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"allowedSpawners": []string{a},
+		"exportToClaude":  false,
+		"requiredEnv":     []string{"bad name"},
+	})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.True(t, app.ExportToClaude)
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.Contains(t, servers, "mail")
+}
+
 func TestPatch_UnexportOfAnIsolatedApplicationWorks(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)
