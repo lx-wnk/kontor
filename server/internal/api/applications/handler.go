@@ -254,7 +254,7 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	}
 	allowedSpawners := app.AllowedSpawners
 	if body.AllowedSpawners != nil {
-		if allowedSpawners, err = h.validSpawnerIDs(r.Context(), *body.AllowedSpawners); err != nil {
+		if allowedSpawners, err = h.validSpawnerIDs(r.Context(), *body.AllowedSpawners, app.AllowedSpawners); err != nil {
 			return err
 		}
 	}
@@ -322,11 +322,17 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 }
 
 // validSpawnerIDs drops duplicates, keeping first-seen order, and answers 400
-// for an ID that names no spawner. The result is never nil.
-func (h *Handler) validSpawnerIDs(ctx context.Context, ids []string) ([]string, error) {
+// for a new ID that names no spawner. An ID already stored passes even when its
+// spawner is gone, so a stale entry can be kept or removed but never has to be
+// pruned silently, which would widen the restriction. The result is never nil.
+func (h *Handler) validSpawnerIDs(ctx context.Context, ids, stored []string) ([]string, error) {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if slices.Contains(out, id) {
+			continue
+		}
+		if slices.Contains(stored, id) {
+			out = append(out, id)
 			continue
 		}
 		if _, err := h.spawners.GetByID(ctx, id); err != nil {
