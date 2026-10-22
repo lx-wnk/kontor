@@ -3,6 +3,7 @@ package pipeline_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -37,7 +38,8 @@ type upFrontFixture struct {
 
 // newUpFrontFixture builds an orchestrator whose spawner resolver gives
 // implementation and self_review spawner A and finalization spawner B.
-func newUpFrontFixture(t *testing.T, resolve func(ctx context.Context, task *ent.Task, spawner *ent.Spawner, stage string) (mcpapps.RunApplications, error), spawners *[2]*ent.Spawner) upFrontFixture {
+// tweak, when set, edits the options before the orchestrator is built.
+func newUpFrontFixture(t *testing.T, resolve func(ctx context.Context, task *ent.Task, spawner *ent.Spawner, stage string) (mcpapps.RunApplications, error), spawners *[2]*ent.Spawner, tweak ...func(*pipeline.OrchestratorOptions)) upFrontFixture {
 	t.Helper()
 	ctx := context.Background()
 	bundle, err := db.Open(":memory:")
@@ -59,7 +61,7 @@ func newUpFrontFixture(t *testing.T, resolve func(ctx context.Context, task *ent
 
 	taskRepo := repo.NewTaskRepo(c)
 	srRepo := repo.NewStageRunRepo(c)
-	orch, err := pipeline.NewOrchestrator(pipeline.OrchestratorOptions{
+	opts := pipeline.OrchestratorOptions{
 		TaskRepo:       taskRepo,
 		StageRunRepo:   srRepo,
 		PermissionRepo: repo.NewPermissionRepo(c),
@@ -69,7 +71,11 @@ func newUpFrontFixture(t *testing.T, resolve func(ctx context.Context, task *ent
 			return spawnerFor(stage), nil
 		},
 		ResolveApplications: resolve,
-	})
+	}
+	for _, fn := range tweak {
+		fn(&opts)
+	}
+	orch, err := pipeline.NewOrchestrator(opts)
 	require.NoError(t, err)
 
 	handler := &countingAgentHandler{stage: "implementation"}
@@ -83,7 +89,10 @@ func newUpFrontFixture(t *testing.T, resolve func(ctx context.Context, task *ent
 	return upFrontFixture{orch: orch, task: task, handler: handler, srRepo: srRepo}
 }
 
-func TestProgressTask_RejectsWhenALaterStageSpawnerIsNotAllowed(t *testing.T) {
+// newMailFixture wires the real resolver over one explicitly attached, non-attach-all
+// application "mail" that lists only spawner A (or every spawner when restricted is false).
+func newMailFixture(t *testing.T, restricted bool, tweak ...func(*pipeline.OrchestratorOptions)) upFrontFixture {
+	t.Helper()
 	ctx := context.Background()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
@@ -98,25 +107,101 @@ func TestProgressTask_RejectsWhenALaterStageSpawnerIsNotAllowed(t *testing.T) {
 		Capabilities: repo.NewCapabilityRepo(bundle.Client),
 	}
 	var spawners [2]*ent.Spawner
-	f := newUpFrontFixture(t, resolver.ResolveRun, &spawners)
+	f := newUpFrontFixture(t, resolver.ResolveRun, &spawners, tweak...)
 
 	_, err = appRepo.Upsert(ctx, repo.UpsertMCPApplicationInput{
 		ResourceID: "res-mail", ServerName: "mail", Entry: json.RawMessage(`{"command":"npx","args":["mail"]}`),
 	})
 	require.NoError(t, err)
-	_, err = appRepo.SetAllowedSpawners(ctx, "res-mail", []string{spawners[0].ID})
-	require.NoError(t, err)
+	if restricted {
+		_, err = appRepo.SetAllowedSpawners(ctx, "res-mail", []string{spawners[0].ID})
+		require.NoError(t, err)
+	}
+	return f
+}
 
-	run, err := f.orch.ProgressTask(ctx, f.task.ID, nil)
+func (f upFrontFixture) progress(t *testing.T) *ent.StageRun {
+	t.Helper()
+	run, err := f.orch.ProgressTask(context.Background(), f.task.ID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, run)
-
-	got, err := f.srRepo.GetByID(ctx, run.ID)
+	got, err := f.srRepo.GetByID(context.Background(), run.ID)
 	require.NoError(t, err)
+	return got
+}
+
+func TestProgressTask_RejectsWhenALaterStageSpawnerIsNotAllowed(t *testing.T) {
+	f := newMailFixture(t, true)
+
+	got := f.progress(t)
 	require.Equal(t, "failed", got.Status)
 	require.Contains(t, got.Output["error"], "MCP applications:")
 	require.Contains(t, got.Output["error"], "finalization")
 	require.Zero(t, f.handler.runs.Load(), "no agent may be spawned")
+}
+
+func TestProgressTask_UpFrontCheckAppliesToARetryAfterFailure(t *testing.T) {
+	f := newMailFixture(t, true)
+
+	first := f.progress(t)
+	second := f.progress(t)
+
+	require.NotEqual(t, first.ID, second.ID, "a retry starts a new iteration")
+	require.Equal(t, "failed", second.Status)
+	require.Contains(t, second.Output["error"], "finalization")
+	require.Zero(t, f.handler.runs.Load(), "a retry must not spawn the earlier stages either")
+}
+
+func TestProgressTask_LaterStageSpawnerResolveErrorFailsClosedForRestrictedApp(t *testing.T) {
+	failLater := func(o *pipeline.OrchestratorOptions) {
+		sp := o.ResolveSpawner
+		o.ResolveSpawner = func(ctx context.Context, taskID, stage string) (*ent.Spawner, error) {
+			if stage == "finalization" {
+				return nil, errors.New("spawner lookup failed")
+			}
+			return sp(ctx, taskID, stage)
+		}
+	}
+
+	restricted := newMailFixture(t, true, failLater)
+	got := restricted.progress(t)
+	require.Equal(t, "failed", got.Status)
+	require.Contains(t, got.Output["error"], mcpapps.UnresolvedSpawner)
+	require.Zero(t, restricted.handler.runs.Load())
+
+	unrestricted := newMailFixture(t, false, failLater)
+	unrestricted.progress(t)
+	require.Equal(t, int32(1), unrestricted.handler.runs.Load(), "an unrestricted application does not fail on an unresolved spawner")
+}
+
+func TestProgressTask_CurrentStageSpawnerResolveErrorIsLeftToTheStageGate(t *testing.T) {
+	f := newMailFixture(t, true, func(o *pipeline.OrchestratorOptions) {
+		sp := o.ResolveSpawner
+		o.ResolveSpawner = func(ctx context.Context, taskID, stage string) (*ent.Spawner, error) {
+			if stage == "implementation" {
+				return nil, errors.New("spawner lookup failed")
+			}
+			return sp(ctx, taskID, "self_review")
+		}
+	})
+
+	got := f.progress(t)
+	require.Equal(t, int32(1), f.handler.runs.Load(), "the up-front check must not blame the current stage's spawner")
+	require.NotContains(t, got.Output["error"], mcpapps.UnresolvedSpawner)
+}
+
+func TestProgressTask_UpFrontCheckIsSkippedWithoutBothResolvers(t *testing.T) {
+	tests := map[string]func(*pipeline.OrchestratorOptions){
+		"no ResolveApplications": func(o *pipeline.OrchestratorOptions) { o.ResolveApplications = nil },
+		"no ResolveSpawner":      func(o *pipeline.OrchestratorOptions) { o.ResolveSpawner = nil },
+	}
+	for name, tweak := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newMailFixture(t, true, tweak)
+			f.progress(t)
+			require.Equal(t, int32(1), f.handler.runs.Load(), "the stage must start")
+		})
+	}
 }
 
 func TestProgressTask_UpFrontCheckIgnoresOtherResolveErrors(t *testing.T) {

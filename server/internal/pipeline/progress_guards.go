@@ -65,7 +65,7 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 		return nil, fmt.Errorf("orchestrator.ensureStageRun: %w", err)
 	}
 
-	if handler.RequiresAgent() && latest == nil {
+	if handler.RequiresAgent() && !hasLiveProcess(stageRun) {
 		if err := o.checkApplicationsUpFront(ctx, task); err != nil {
 			return o.applyTransition(ctx, task, stageRun, FailTransition{Reason: "MCP applications: " + err.Error()})
 		}
@@ -103,10 +103,9 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 
 	// Re-entry guard: if the run is already running with a live PID, return without spawning.
 	if handler.RequiresAgent() {
-		pid := stageRunPid(stageRun)
-		if (stageRun.Status == "running" || stageRun.Status == "awaiting_user") && proc.IsPidAlive(pid) {
+		if hasLiveProcess(stageRun) {
 			slog.Info("orchestrator: re-entry skipped — live PID already running",
-				"stage", stageRun.Stage, "runID", stageRun.ID, "pid", pid)
+				"stage", stageRun.Stage, "runID", stageRun.ID, "pid", stageRunPid(stageRun))
 			return stageRun, nil
 		}
 	}
@@ -321,10 +320,11 @@ func (o *PipelineOrchestrator) filePermissionRequest(
 	return req
 }
 
-// checkApplicationsUpFront refuses a task whose later agent stage resolves to a
-// spawner that may not use one of its attached applications, so the run does not
-// fail halfway through after spending the earlier stages. Any other resolve
-// error is left to the per-stage gate.
+func hasLiveProcess(run *ent.StageRun) bool {
+	return (run.Status == "running" || run.Status == "awaiting_user") && proc.IsPidAlive(stageRunPid(run))
+}
+
+// checkApplicationsUpFront fails on the first later stage whose spawner may not use an attached application.
 func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, task *ent.Task) error {
 	if o.opts.ResolveApplications == nil || o.opts.ResolveSpawner == nil {
 		return nil
@@ -336,6 +336,9 @@ func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, tas
 	for _, stage := range remainingAgentStages(task, requiresAgent) {
 		spawner, err := o.opts.ResolveSpawner(ctx, task.ID, stage)
 		if err != nil {
+			if stage == task.CurrentStage {
+				continue
+			}
 			spawner = nil
 		}
 		_, err = o.opts.ResolveApplications(ctx, task, spawner, stage)
