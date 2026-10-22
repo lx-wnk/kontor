@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -139,4 +140,36 @@ func TestCloudAccounts_RefreshBypassesCache(t *testing.T) {
 	f.accounts(t, "?refresh=1")
 
 	require.Equal(t, 2, f.cli.authCount())
+}
+
+func TestCloudAccounts_SecFetchSite(t *testing.T) {
+	tests := []struct {
+		name       string
+		header     string
+		wantStatus int
+		wantCalls  int
+	}{
+		{"cross-site is refused", "cross-site", http.StatusForbidden, 0},
+		{"same-origin passes", "same-origin", http.StatusOK, 1},
+		{"none passes", "none", http.StatusOK, 1},
+		{"absent passes", "", http.StatusOK, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			req := httptest.NewRequest("GET", "/api/cloud-accounts?refresh=1", nil)
+			if tt.header != "" {
+				req.Header.Set("Sec-Fetch-Site", tt.header)
+			}
+			rr := httptest.NewRecorder()
+
+			f.router.ServeHTTP(rr, req)
+
+			require.Equal(t, tt.wantStatus, rr.Code, rr.Body.String())
+			if tt.wantStatus == http.StatusForbidden {
+				require.JSONEq(t, `{"error":"cross-site request refused"}`, rr.Body.String())
+			}
+			require.Equal(t, tt.wantCalls, f.cli.authCount())
+		})
+	}
 }
