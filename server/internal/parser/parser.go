@@ -144,8 +144,17 @@ func allClaudeConfigDirs() []string {
 	var dirs []string
 	add := func(d string) {
 		d = strings.TrimSpace(d)
-		if d != "" && !seen[d] {
-			seen[d] = true
+		if d == "" {
+			return
+		}
+		// Dedup by the resolved dir so ~/.claude -> ~/.claude-personal is one account;
+		// a dir missing on disk keeps its literal path (consumers stat lazily).
+		key := d
+		if resolved, err := filepath.EvalSymlinks(d); err == nil {
+			key = resolved
+		}
+		if !seen[key] {
+			seen[key] = true
 			dirs = append(dirs, d)
 		}
 	}

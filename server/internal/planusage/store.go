@@ -39,9 +39,14 @@ func NewStore() *Store {
 	return &Store{entries: make(map[string]Sample)}
 }
 
-// canonicalKey normalises a config directory path: tilde-expand then clean.
+// canonicalKey normalises a config directory path: tilde-expand, clean, then
+// resolve symlinks so a sample posted under ~/.claude is found under its target.
 func canonicalKey(configDir string) string {
-	return filepath.Clean(pathutil.ExpandLeadingTilde(configDir))
+	p := filepath.Clean(pathutil.ExpandLeadingTilde(configDir))
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		return resolved
+	}
+	return p
 }
 
 // Set records a sample for configDir (last write wins).
