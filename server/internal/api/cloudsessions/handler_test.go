@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -82,6 +83,7 @@ func (f *fakeCLI) authCount() int {
 type fixture struct {
 	h       *Handler
 	cli     *fakeCLI
+	raw     *sse.Broadcaster
 	router  chi.Router
 	events  chan []byte
 	spawner *ent.Spawner
@@ -105,7 +107,8 @@ func newFixture(t *testing.T) *fixture {
 		sendResult: cloud.SendResult{OK: true},
 		auth:       cloud.AuthStatus{LoggedIn: true, AuthMethod: "claude.ai"},
 	}
-	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
+	raw := sse.NewBroadcaster()
+	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](raw)
 	h := NewHandler(repo.NewCloudSessionRepo(bundle.Client), spawners, cli, bc)
 	clock := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	h.auth = NewAuthCache(cli, func() time.Time { return clock })
@@ -115,7 +118,7 @@ func newFixture(t *testing.T) *fixture {
 
 	r := chi.NewRouter()
 	h.Mount(r)
-	return &fixture{h: h, cli: cli, router: r, events: events, spawner: sp, dir: dir, clock: &clock}
+	return &fixture{h: h, cli: cli, raw: raw, router: r, events: events, spawner: sp, dir: dir, clock: &clock}
 }
 
 func (f *fixture) do(method, path, body string) *httptest.ResponseRecorder {
@@ -326,26 +329,55 @@ func TestSend_MissingSpawnerIs404(t *testing.T) {
 	require.Zero(t, f.cli.sendCalls)
 }
 
-func TestSend_NotSignedInIs409WithLoginHint(t *testing.T) {
+func TestSend_NotSignedInIs409WithLoginHintAndStoresNothing(t *testing.T) {
 	f := newFixture(t)
 	id := f.importSession(t, testSessionID)["id"].(string)
+	f.nextEvent(t)
 	f.cli.auth = cloud.AuthStatus{LoggedIn: true, AuthMethod: "api_key"}
 
 	rr := f.send(id, "hi")
 	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 	require.Equal(t,
-		"account is not signed in with claude.ai; run: CLAUDE_CONFIG_DIR="+f.dir+" claude auth login",
+		"account is not signed in with claude.ai; run: CLAUDE_CONFIG_DIR='"+f.dir+"' claude auth login",
 		decodeMap(t, rr.Body.Bytes())["error"])
 	require.Zero(t, f.cli.sendCalls)
+
+	stored, err := f.h.sessions.Get(t.Context(), id)
+	require.NoError(t, err)
+	require.Empty(t, stored.LastError)
+	require.Empty(t, stored.LastMessage)
+	f.requireNoEvent(t)
 }
 
-func TestSend_AuthStatusErrorIs502(t *testing.T) {
-	f := newFixture(t)
-	id := f.importSession(t, testSessionID)["id"].(string)
-	f.cli.authErr = cloud.ErrClaudeNotFound
+func TestSend_AuthStatusErrorIs502StoresErrorAndBroadcasts(t *testing.T) {
+	for name, authErr := range map[string]error{
+		"cli missing": cloud.ErrClaudeNotFound,
+		"timeout":     cloud.ErrTimeout,
+		"other":       errors.New("claude auth status exploded"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			id := f.importSession(t, testSessionID)["id"].(string)
+			f.nextEvent(t)
+			f.cli.authErr = authErr
 
-	require.Equal(t, http.StatusBadGateway, f.send(id, "hi").Code)
-	require.Zero(t, f.cli.sendCalls)
+			rr := f.send(id, "hi")
+			require.Equal(t, http.StatusBadGateway, rr.Code, rr.Body.String())
+			require.Equal(t, authErr.Error(), decodeMap(t, rr.Body.Bytes())["error"])
+			require.Zero(t, f.cli.sendCalls)
+
+			stored, err := f.h.sessions.Get(t.Context(), id)
+			require.NoError(t, err)
+			require.Equal(t, authErr.Error(), stored.LastError)
+			require.Empty(t, stored.LastMessage, "the message never left Kontor")
+			require.Nil(t, stored.LastMessageAt)
+
+			ev := f.nextEvent(t)
+			require.Equal(t, sse.CloudSessionUpdated, ev["type"])
+			require.Equal(t, id, ev["cloudSessionId"])
+			require.Equal(t, authErr.Error(), ev["payload"].(map[string]any)["lastError"])
+		})
+	}
 }
 
 func TestSend_TimeoutIs502StoresErrorAndBroadcasts(t *testing.T) {
@@ -420,7 +452,7 @@ func TestAuthCache_CallsAuthStatusOncePerTTL(t *testing.T) {
 	require.Equal(t, 2, f.cli.authCalls)
 }
 
-func TestAuthCache_KeysByCanonicalConfigDir(t *testing.T) {
+func TestAuthCache_SymlinkAndTargetAreSeparateAccounts(t *testing.T) {
 	f := newFixture(t)
 	link := filepath.Join(t.TempDir(), "link")
 	require.NoError(t, os.Symlink(f.dir, link))
@@ -432,11 +464,15 @@ func TestAuthCache_KeysByCanonicalConfigDir(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.h.auth.Status(t.Context(), other, false)
 	require.NoError(t, err)
-	require.Equal(t, 1, f.cli.authCalls)
+	require.Equal(t, 2, f.cli.authCalls, "the CLI keys its login by the literal config dir")
+
+	_, err = f.h.auth.Status(t.Context(), other, false)
+	require.NoError(t, err)
+	require.Equal(t, 2, f.cli.authCalls)
 
 	_, err = f.h.auth.Status(t.Context(), other, true)
 	require.NoError(t, err)
-	require.Equal(t, 2, f.cli.authCalls, "refresh bypasses the cache")
+	require.Equal(t, 3, f.cli.authCalls, "refresh bypasses the cache")
 }
 
 func TestAuthCache_DoesNotCacheErrors(t *testing.T) {
@@ -512,6 +548,24 @@ func TestStream_ServesEvents(t *testing.T) {
 	n, err := resp.Body.Read(buf)
 	require.NoError(t, err)
 	require.Contains(t, string(buf[:n]), sse.CloudSessionCreated)
+}
+
+func TestStream_ClosedStreamUnsubscribes(t *testing.T) {
+	f := newFixture(t)
+	srv := httptest.NewServer(f.router)
+	t.Cleanup(srv.Close)
+	require.Equal(t, 1, f.raw.SubscriberCount(), "the fixture's own subscriber")
+
+	ctx, cancel := context.WithCancel(t.Context())
+	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/cloud-sessions/stream", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, 2, f.raw.SubscriberCount())
+
+	cancel()
+	require.Eventually(t, func() bool { return f.raw.SubscriberCount() == 1 }, time.Second, time.Millisecond)
 }
 
 func TestSend_SpawnerNoLongerClaudeIs409BeforeAuth(t *testing.T) {
