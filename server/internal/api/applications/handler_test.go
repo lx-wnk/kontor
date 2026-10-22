@@ -1036,6 +1036,11 @@ func (f *fakeTools) Call(_ context.Context, _ mcpapps.ServerEntry, env map[strin
 
 func newMuxWithTools(t *testing.T, tools applications.ToolCaller) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
 	t.Helper()
+	return newMuxWithToolsHome(t, tools, t.TempDir())
+}
+
+func newMuxWithToolsHome(t *testing.T, tools applications.ToolCaller, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -1048,7 +1053,7 @@ func newMuxWithTools(t *testing.T, tools applications.ToolCaller) (*chi.Mux, rep
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -1074,6 +1079,29 @@ func TestAccounts_DerivesOneSecretNamePerTemplatePerAccount(t *testing.T) {
 		"IMAP_MCP_ACCOUNT_WORK_GMAIL_SMTP_PASSWORD"]}`, rec.Body.String())
 	require.Equal(t, "imap.example.com", tools.lastEnv["IMAP_HOST"], "the server is started with the application's own secrets")
 	require.NotContains(t, rec.Body.String(), "work@example.com", "the accounts themselves are not part of the answer")
+}
+
+func TestAccounts_UsesIsolatedHome(t *testing.T) {
+	t.Setenv("npm_config_cache", "/real/npm-cache")
+	root := t.TempDir()
+	tools := &fakeTools{raw: json.RawMessage(`{"accounts":[]}`)}
+	mux, apps, _ := newMuxWithToolsHome(t, tools, root)
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/accounts", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, filepath.Join(root, "res-mail"), tools.lastEnv["HOME"], "the lookup must read the same mailbox store a run does")
+	require.Equal(t, "/real/npm-cache", tools.lastEnv["npm_config_cache"])
+}
+
+func TestAccounts_IsolatedWithoutHomeRootFails(t *testing.T) {
+	tools := &fakeTools{raw: json.RawMessage(`{"accounts":[]}`)}
+	mux, apps, _ := newMuxWithToolsHome(t, tools, "")
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/accounts", nil)
+	require.GreaterOrEqual(t, rec.Code, 500, rec.Body.String())
+	require.Equal(t, 0, tools.calls, "the lookup must never run on the shared HOME")
 }
 
 func TestAccounts_EmptyListIsAnEmptyAnswerNotAnError(t *testing.T) {

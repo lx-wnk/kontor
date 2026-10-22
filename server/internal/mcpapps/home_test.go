@@ -109,3 +109,28 @@ func TestIsolateHome_OnlyTheImapPresetOptsIn(t *testing.T) {
 func TestHomeRootUnder(t *testing.T) {
 	require.Equal(t, filepath.Join("/u", ".claude", "kontor", "apps"), mcpapps.HomeRootUnder("/u"))
 }
+
+func TestWithIsolatedHome(t *testing.T) {
+	t.Run("leaves a non-isolated preset's env alone", func(t *testing.T) {
+		in := map[string]string{"A": "1"}
+		out, err := mcpapps.WithIsolatedHome(in, mcpapps.Preset{}, t.TempDir(), "res-1")
+		require.NoError(t, err)
+		require.Equal(t, in, out)
+		require.NotContains(t, out, "HOME")
+	})
+
+	t.Run("adds the isolated home without mutating the input", func(t *testing.T) {
+		t.Setenv("npm_config_cache", "/cache/npm")
+		root := t.TempDir()
+		in := map[string]string{"A": "1", "HOME": "/shared"}
+		out, err := mcpapps.WithIsolatedHome(in, mcpapps.Preset{IsolateHome: true}, root, "res-1")
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"A": "1", "HOME": filepath.Join(root, "res-1"), "npm_config_cache": "/cache/npm"}, out)
+		require.Equal(t, map[string]string{"A": "1", "HOME": "/shared"}, in)
+	})
+
+	t.Run("fails closed without a home root", func(t *testing.T) {
+		_, err := mcpapps.WithIsolatedHome(map[string]string{}, mcpapps.Preset{IsolateHome: true}, "", "res-1")
+		require.Error(t, err)
+	})
+}
