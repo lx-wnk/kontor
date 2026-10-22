@@ -20,15 +20,22 @@ func HomeRootUnder(userHome string) string {
 	return filepath.Join(userHome, ".claude", "kontor", "apps")
 }
 
-// IsolatedHomeEnv creates homeRoot/resourceID (0700) and returns its HOME and npm cache env.
-func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
+func homeDir(homeRoot, resourceID string) (string, error) {
 	if homeRoot == "" {
-		return nil, fmt.Errorf("mcpapps: home root is not configured")
+		return "", fmt.Errorf("mcpapps: home root is not configured")
 	}
 	if !ValidHomeResourceID(resourceID) {
-		return nil, fmt.Errorf("mcpapps: invalid resource id %q for home directory", resourceID)
+		return "", fmt.Errorf("mcpapps: invalid resource id %q for home directory", resourceID)
 	}
-	dir := filepath.Join(homeRoot, resourceID)
+	return filepath.Join(homeRoot, resourceID), nil
+}
+
+// IsolatedHomeEnv creates homeRoot/resourceID (0700) and returns its HOME and npm cache env.
+func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
+	dir, err := homeDir(homeRoot, resourceID)
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("mcpapps: create home %q: %w", dir, err)
 	}
@@ -45,6 +52,15 @@ func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
 		cache = filepath.Join(serverHome, ".npm")
 	}
 	return map[string]string{"HOME": dir, "npm_config_cache": cache}, nil
+}
+
+// RemoveIsolatedHome deletes homeRoot/resourceID; a missing directory is not an error.
+func RemoveIsolatedHome(homeRoot, resourceID string) error {
+	dir, err := homeDir(homeRoot, resourceID)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(dir)
 }
 
 // WithIsolatedHome returns env with the preset's isolated HOME merged last, or env itself when the preset does not isolate.

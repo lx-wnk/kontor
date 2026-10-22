@@ -6,11 +6,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -44,6 +43,7 @@ type Handler struct {
 	findPreset   mcpapps.PresetFinder
 	spawners     repo.SpawnerRepo
 	homeRoot     string
+	patchMu      sync.Mutex
 }
 
 // ToolCaller runs one tool on an application's own MCP server. It is an
@@ -145,9 +145,9 @@ type applicationView struct {
 	CatalogueError       string              `json:"catalogueError,omitempty"`
 	CatalogueRefreshedAt *string             `json:"catalogueRefreshedAt,omitempty"`
 	AllowedSpawners      []string            `json:"allowedSpawners"`
-	// Preset names the preset the entry matches, "" when none does; the UI
-	// keys its mailbox warning on it.
-	Preset string `json:"preset"`
+	// "" when no preset matches.
+	Preset       string `json:"preset"`
+	IsolatedHome bool   `json:"isolatedHome"`
 }
 
 func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationView, error) {
@@ -180,6 +180,7 @@ func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationVie
 		v.Entry = entry
 		if preset, ok := h.findPreset(entry); ok {
 			v.Preset = preset.Server
+			v.IsolatedHome = preset.IsolateHome
 		}
 	}
 	for _, m := range meta {
@@ -236,6 +237,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
+	h.patchMu.Lock()
+	defer h.patchMu.Unlock()
 	app, err := h.load(r)
 	if err != nil {
 		return err
@@ -277,6 +280,27 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if exporting && !app.ExportToClaude {
+		target := app.Entry
+		if body.Entry != nil {
+			target = entry
+		}
+		isolated, err := h.isolatesHome(target)
+		if err != nil {
+			return err
+		}
+		if isolated {
+			return apierr.NewAppError(http.StatusBadRequest, "exportToClaude: not available for applications with their own home")
+		}
+	}
+	// Removing the export before storing a non-empty list means a failed
+	// config write never leaves the application restricted and still exported.
+	unexportFirst := body.ExportToClaude != nil && !exporting && len(allowedSpawners) > 0
+	if unexportFirst {
+		if app, err = h.applyExport(r, app, false); err != nil {
+			return err
+		}
+	}
 	if body.RequiredEnv != nil {
 		for _, name := range *body.RequiredEnv {
 			if !envNameRE.MatchString(name) {
@@ -308,7 +332,7 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	// Export runs after the entry write above so a PATCH carrying both entry
 	// and exportToClaude mirrors the new entry into Claude's config, not the
 	// stale one.
-	if body.ExportToClaude != nil || (exporting && body.Entry != nil) {
+	if !unexportFirst && (body.ExportToClaude != nil || (exporting && body.Entry != nil)) {
 		if app, err = h.applyExport(r, app, exporting); err != nil {
 			return err
 		}
@@ -320,10 +344,7 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, http.StatusOK, v)
 }
 
-// validSpawnerIDs drops duplicates, keeping first-seen order, and answers 400
-// for a new ID that names no spawner. An ID already stored passes even when its
-// spawner is gone, so a stale entry can be kept or removed but never has to be
-// pruned silently, which would widen the restriction. The result is never nil.
+// An ID already stored passes even when its spawner is gone or no longer runs Claude.
 func (h *Handler) validSpawnerIDs(ctx context.Context, ids, stored []string) ([]string, error) {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -334,11 +355,15 @@ func (h *Handler) validSpawnerIDs(ctx context.Context, ids, stored []string) ([]
 			out = append(out, id)
 			continue
 		}
-		if _, err := h.spawners.GetByID(ctx, id); err != nil {
+		spawner, err := h.spawners.GetByID(ctx, id)
+		if err != nil {
 			if ent.IsNotFound(err) {
 				return nil, apierr.NewAppError(http.StatusBadRequest, "allowedSpawners: unknown spawner "+id)
 			}
 			return nil, err
+		}
+		if spawner.AdapterType != "" && spawner.AdapterType != "claude" {
+			return nil, apierr.NewAppError(http.StatusBadRequest, "allowedSpawners: spawner "+id+" does not run Claude")
 		}
 		out = append(out, id)
 	}
@@ -684,24 +709,29 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 // removeIsolatedHome deletes the HOME an isolated application kept its accounts in.
 // The row is already gone, so a failure is logged and never fails the delete.
 func (h *Handler) removeIsolatedHome(app *ent.MCPApplication) {
-	if h.homeRoot == "" || mcpapps.IsEmptyEntry(app.Entry) {
-		return
-	}
-	if !mcpapps.ValidHomeResourceID(app.ResourceID) {
-		slog.Warn("application home not removed, invalid resource id", "resourceId", app.ResourceID)
-		return
-	}
-	entry, err := mcpapps.ParseEntry(app.Entry)
+	isolated, err := h.isolatesHome(app.Entry)
 	if err != nil {
 		slog.Warn("application home not removed, entry unreadable", "resourceId", app.ResourceID, "err", err)
 		return
 	}
-	if preset, ok := h.findPreset(entry); !ok || !preset.IsolateHome {
+	if !isolated {
 		return
 	}
-	if err := os.RemoveAll(filepath.Join(h.homeRoot, app.ResourceID)); err != nil {
+	if err := mcpapps.RemoveIsolatedHome(h.homeRoot, app.ResourceID); err != nil {
 		slog.Warn("application home not removed", "resourceId", app.ResourceID, "err", err)
 	}
+}
+
+func (h *Handler) isolatesHome(raw json.RawMessage) (bool, error) {
+	if mcpapps.IsEmptyEntry(raw) {
+		return false, nil
+	}
+	entry, err := mcpapps.ParseEntry(raw)
+	if err != nil {
+		return false, err
+	}
+	preset, ok := h.findPreset(entry)
+	return ok && preset.IsolateHome, nil
 }
 
 // startSetup runs the application's preset setup wizard as a child process so
@@ -787,7 +817,7 @@ func (h *Handler) accounts(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	preset, ok := mcpapps.FindPreset(entry)
+	preset, ok := h.findPreset(entry)
 	if !ok || len(preset.SecretTemplates) == 0 {
 		return apierr.NewAppError(http.StatusConflict, "this server declares no per-account secrets")
 	}
