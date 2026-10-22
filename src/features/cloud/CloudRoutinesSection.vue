@@ -13,6 +13,7 @@ import { errorMessage } from '../../utils/errorMessage'
 import { isCloudUrl } from './cloudUrl'
 import { FireFailedError, useCloudRoutines } from './composables/useCloudRoutines'
 
+const BODY_PREVIEW_CHARS = 200
 const TOKEN_INPUT_CLASS = 'w-full bg-app border border-line rounded-md px-3 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent font-sans'
 
 interface FireFailure { status: number, body: string }
@@ -78,10 +79,26 @@ const edit = reactive({ name: '', fireUrl: '', token: '' })
 const saving = ref(false)
 const editError = ref('')
 
-function startEdit(routine: CloudRoutineView) {
+const editButtonId = (id: string) => `routine-edit-btn-${id}`
+const editFormId = (id: string) => `routine-edit-form-${id}`
+
+async function startEdit(routine: CloudRoutineView) {
   editingId.value = routine.id
   Object.assign(edit, { name: routine.name, fireUrl: routine.fireUrl, token: '' })
   editError.value = ''
+  await nextTick()
+  document.getElementById(editFormId(routine.id))?.querySelector('input')?.focus()
+}
+
+async function closeEdit() {
+  const id = editingId.value
+  editingId.value = null
+  Object.assign(edit, { name: '', fireUrl: '', token: '' })
+  editError.value = ''
+  if (!id)
+    return
+  await nextTick()
+  document.getElementById(editButtonId(id))?.focus()
 }
 
 async function saveEdit(id: string) {
@@ -91,8 +108,7 @@ async function saveEdit(id: string) {
   editError.value = ''
   try {
     await update(id, { name: edit.name.trim(), fireUrl: edit.fireUrl.trim(), token: edit.token })
-    edit.token = ''
-    editingId.value = null
+    await closeEdit()
   }
   catch (err) {
     editError.value = errorMessage(err)
@@ -164,7 +180,7 @@ watch(routines, (list) => {
   if (confirmDeleteId.value && !live.has(confirmDeleteId.value))
     confirmDeleteId.value = null
   if (editingId.value && !live.has(editingId.value))
-    editingId.value = null
+    void closeEdit()
 })
 </script>
 
@@ -201,12 +217,14 @@ watch(routines, (list) => {
         data-testid="routine-url"
       />
       <div>
-        <label for="routine-token" class="block text-sm font-medium text-fg-soft mb-1">Token</label>
+        <AppFieldLabel for="routine-token">
+          Token
+        </AppFieldLabel>
         <input
           id="routine-token"
           v-model="newToken"
           type="password"
-          autocomplete="off"
+          autocomplete="new-password"
           :class="TOKEN_INPUT_CLASS"
           data-testid="routine-token"
         >
@@ -252,7 +270,8 @@ watch(routines, (list) => {
           <AppButton
             variant="primary"
             size="sm"
-            :disabled="firing[routine.id]"
+            :class="firing[routine.id] && 'opacity-40 cursor-not-allowed'"
+            :aria-disabled="firing[routine.id] || undefined"
             :aria-label="`Fire ${routine.name}`"
             :data-testid="`fire-${routine.id}`"
             @click="runFire(routine.id)"
@@ -262,7 +281,7 @@ watch(routines, (list) => {
           <span class="sr-only" role="status" aria-live="polite">{{ firing[routine.id] ? 'Firing…' : '' }}</span>
         </div>
 
-        <p v-if="fired[routine.id]" class="text-sm text-fg-soft" :data-testid="`fire-result-${routine.id}`">
+        <p v-if="fired[routine.id]" role="status" class="text-sm text-fg-soft" :data-testid="`fire-result-${routine.id}`">
           Started <span class="font-semibold">{{ fired[routine.id]!.title }}</span>
           <a
             v-if="isCloudUrl(fired[routine.id]!.url)"
@@ -276,9 +295,15 @@ watch(routines, (list) => {
           <div class="font-semibold">
             HTTP {{ failures[routine.id]!.status }}
           </div>
-          <p class="line-clamp-3 break-words whitespace-pre-wrap" :title="failures[routine.id]!.body">
+          <p class="line-clamp-3 break-words whitespace-pre-wrap" :aria-hidden="failures[routine.id]!.body.length > BODY_PREVIEW_CHARS || undefined">
             {{ failures[routine.id]!.body }}
           </p>
+          <details v-if="failures[routine.id]!.body.length > BODY_PREVIEW_CHARS">
+            <summary class="cursor-pointer text-xs">
+              Show full response
+            </summary>
+            <pre class="max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs">{{ failures[routine.id]!.body }}</pre>
+          </details>
         </div>
         <p v-else-if="fireErrors[routine.id]" role="alert" class="text-danger-text text-sm" :data-testid="`fire-error-${routine.id}`">
           {{ fireErrors[routine.id] }}
@@ -286,6 +311,7 @@ watch(routines, (list) => {
 
         <form
           v-if="editingId === routine.id"
+          :id="editFormId(routine.id)"
           class="flex flex-col gap-2 border border-line rounded-md p-3"
           :data-testid="`edit-form-${routine.id}`"
           @submit.prevent="saveEdit(routine.id)"
@@ -293,12 +319,14 @@ watch(routines, (list) => {
           <AppInput v-model="edit.name" label="Name" :data-testid="`edit-name-${routine.id}`" />
           <AppInput v-model="edit.fireUrl" label="Fire URL" :data-testid="`edit-url-${routine.id}`" />
           <div>
-            <label :for="`routine-edit-token-${routine.id}`" class="block text-sm font-medium text-fg-soft mb-1">Token</label>
+            <AppFieldLabel :for="`routine-edit-token-${routine.id}`">
+              Token
+            </AppFieldLabel>
             <input
               :id="`routine-edit-token-${routine.id}`"
               v-model="edit.token"
               type="password"
-              autocomplete="off"
+              autocomplete="new-password"
               :aria-describedby="`routine-token-hint-${routine.id}`"
               :class="TOKEN_INPUT_CLASS"
               :data-testid="`edit-token-${routine.id}`"
@@ -311,7 +339,7 @@ watch(routines, (list) => {
             <AppButton variant="primary" size="sm" type="submit" :disabled="saving" :data-testid="`edit-save-${routine.id}`">
               {{ saving ? 'Saving…' : 'Save' }}
             </AppButton>
-            <AppButton variant="secondary" size="sm" :aria-label="`Cancel editing ${routine.name}`" @click="editingId = null">
+            <AppButton variant="secondary" size="sm" :aria-label="`Cancel editing ${routine.name}`" :data-testid="`edit-cancel-${routine.id}`" @click="closeEdit()">
               Cancel
             </AppButton>
             <p v-if="editError" role="alert" class="text-danger-text text-xs">
@@ -323,6 +351,7 @@ watch(routines, (list) => {
         <div class="flex items-center gap-2">
           <AppButton
             v-if="editingId !== routine.id"
+            :id="editButtonId(routine.id)"
             variant="ghost"
             size="sm"
             :aria-label="`Edit ${routine.name}`"
