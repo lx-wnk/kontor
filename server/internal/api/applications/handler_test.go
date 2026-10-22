@@ -1252,6 +1252,34 @@ func TestPatch_RejectsUnknownSpawner(t *testing.T) {
 	require.Empty(t, app.AllowedSpawners)
 }
 
+func TestPatch_KeepsAStoredSpawnerIDWhoseSpawnerIsGone(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	live := newSpawner(t, spawners, "live")
+	_, err := apps.SetAllowedSpawners(context.Background(), "res-mail", []string{"gone"})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"gone", live}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{"gone", live}, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsANewUnknownSpawnerNextToAStoredStaleOne(t *testing.T) {
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	_, err := apps.SetAllowedSpawners(context.Background(), "res-mail", []string{"gone"})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"gone", "typo"}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: unknown spawner typo")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{"gone"}, app.AllowedSpawners)
+}
+
 func TestPatch_RejectsRestrictWhileExported(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
