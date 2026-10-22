@@ -8,7 +8,6 @@ package planusage
 import (
 	"maps"
 	"math"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -39,14 +38,10 @@ func NewStore() *Store {
 	return &Store{entries: make(map[string]Sample)}
 }
 
-// canonicalKey normalises a config directory path: tilde-expand, clean, then
-// resolve symlinks so a sample posted under ~/.claude is found under its target.
+// canonicalKey resolves symlinks so a sample posted under ~/.claude is found
+// under the store it links to.
 func canonicalKey(configDir string) string {
-	p := filepath.Clean(pathutil.ExpandLeadingTilde(configDir))
-	if resolved, err := filepath.EvalSymlinks(p); err == nil {
-		return resolved
-	}
-	return p
+	return pathutil.Canonical(configDir)
 }
 
 // Set records a sample for configDir (last write wins).
