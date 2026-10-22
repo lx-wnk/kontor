@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/lx-wnk/kontor/server/internal/sanitize"
@@ -20,9 +21,15 @@ import (
 )
 
 const (
-	claudeCommand  = "claude"
-	defaultTimeout = 60 * time.Second
-	authMethodWeb  = "claude.ai"
+	// DefaultSendTimeout bounds a send when Runner.Timeout is zero.
+	DefaultSendTimeout = 60 * time.Second
+	// DefaultAuthTimeout bounds a sign-in check when Runner.Timeout is zero.
+	DefaultAuthTimeout = 15 * time.Second
+)
+
+const (
+	claudeCommand = "claude"
+	authMethodWeb = "claude.ai"
 	// killGrace bounds how long Wait lingers on a killed child's pipes.
 	killGrace = time.Second
 	// maxStderrBytes bounds the CLI stderr copied into an error.
@@ -31,7 +38,7 @@ const (
 
 // envNamePattern is a plain env var name. A spawner env key that holds "=" or
 // whitespace would otherwise turn into a different variable than the one the
-// scrub list checks.
+// allow-list checks.
 var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var (
@@ -41,24 +48,22 @@ var (
 	ErrTimeout = errors.New("the claude CLI timed out")
 )
 
-// scrubbedEnvKeys would switch the CLI to API-key or third-party auth, send the
-// account's OAuth token to another host (ANTHROPIC_BASE_URL), or
-// (CLAUDE_CODE_OAUTH_TOKEN, which passes BuildSpawnEnv's CLAUDE_ prefix rule)
-// override the account CLAUDE_CONFIG_DIR selects. Cloud sessions need the
-// claude.ai login of that config dir.
-var scrubbedEnvKeys = []string{
-	"ANTHROPIC_API_KEY",
-	"ANTHROPIC_AUTH_TOKEN",
-	"ANTHROPIC_BASE_URL",
-	"CLAUDE_CODE_OAUTH_TOKEN",
-	"CLAUDE_CODE_USE_BEDROCK",
-	"CLAUDE_CODE_USE_VERTEX",
-	"CLAUDE_CODE_USE_FOUNDRY",
+// childEnvKeys is everything the CLI child may see. Any other variable could
+// switch its auth, pick another keychain item or redirect the account's token,
+// so the account CLAUDE_CONFIG_DIR selects is the only login in play.
+var childEnvKeys = map[string]struct{}{
+	"PATH": {}, "HOME": {}, "USER": {}, "LOGNAME": {}, "SHELL": {}, "TMPDIR": {}, "TZ": {}, "TERM": {}, "LANG": {},
+	"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "NO_PROXY": {}, "http_proxy": {}, "https_proxy": {}, "no_proxy": {},
+	"SSL_CERT_FILE": {}, "SSL_CERT_DIR": {}, "NODE_EXTRA_CA_CERTS": {},
+	claudeconfig.EnvVar: {},
 }
+
+const childEnvLocalePrefix = "LC_"
 
 // Runner runs the claude CLI under a spawner's Claude account.
 type Runner struct {
-	// Timeout bounds one CLI call; zero means 60 seconds.
+	// Timeout bounds one CLI call; zero means DefaultSendTimeout or
+	// DefaultAuthTimeout.
 	Timeout time.Duration
 }
 
@@ -92,7 +97,7 @@ func (r Runner) Send(ctx context.Context, sp *ent.Spawner, sessionID, text strin
 		return SendResult{}, ErrInvalidSessionRef
 	}
 	var res SendResult
-	if err := r.runJSON(ctx, sp, text, &res, "-p", "--cloud", sessionID, "--output-format", "json"); err != nil {
+	if err := r.runJSON(ctx, sp, r.timeout(DefaultSendTimeout), text, &res, "-p", "--cloud", sessionID, "--output-format", "json"); err != nil {
 		return SendResult{}, err
 	}
 	return res, nil
@@ -101,7 +106,7 @@ func (r Runner) Send(ctx context.Context, sp *ent.Spawner, sessionID, text strin
 // AuthStatus reads the sign-in status of the spawner's Claude account.
 func (r Runner) AuthStatus(ctx context.Context, sp *ent.Spawner) (AuthStatus, error) {
 	var st AuthStatus
-	if err := r.runJSON(ctx, sp, "", &st, "auth", "status", "--json"); err != nil {
+	if err := r.runJSON(ctx, sp, r.timeout(DefaultAuthTimeout), "", &st, "auth", "status", "--json"); err != nil {
 		return AuthStatus{}, err
 	}
 	return st, nil
@@ -109,13 +114,9 @@ func (r Runner) AuthStatus(ctx context.Context, sp *ent.Spawner) (AuthStatus, er
 
 // runJSON decodes the CLI's stdout into v. A signed-out `auth status` prints
 // its JSON and exits 1, so JSON on stdout wins over a non-zero exit.
-func (r Runner) runJSON(ctx context.Context, sp *ent.Spawner, stdin string, v any, args ...string) error {
+func (r Runner) runJSON(ctx context.Context, sp *ent.Spawner, timeout time.Duration, stdin string, v any, args ...string) error {
 	if ok, reason := services.ValidateSpawnerCommand(claudeCommand); !ok {
 		return fmt.Errorf("claude command not permitted: %s", reason)
-	}
-	timeout := r.Timeout
-	if timeout == 0 {
-		timeout = defaultTimeout
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -163,16 +164,28 @@ func (r Runner) runJSON(ctx context.Context, sp *ent.Spawner, stdin string, v an
 	}
 }
 
-func childEnv(sp *ent.Spawner) []string {
-	base := pipeline.BaseSpawnEnv(sp)
-	for _, k := range scrubbedEnvKeys {
-		delete(base, k)
+func (r Runner) timeout(def time.Duration) time.Duration {
+	if r.Timeout > 0 {
+		return r.Timeout
 	}
-	env := make([]string, 0, len(base))
-	for k, v := range base {
-		if envNamePattern.MatchString(k) {
-			env = append(env, k+"="+v)
+	return def
+}
+
+func childEnvVars(sp *ent.Spawner) map[string]string {
+	vars := make(map[string]string)
+	for k, v := range pipeline.BaseSpawnEnv(sp) {
+		if _, ok := childEnvKeys[k]; ok || (strings.HasPrefix(k, childEnvLocalePrefix) && envNamePattern.MatchString(k)) {
+			vars[k] = v
 		}
+	}
+	return vars
+}
+
+func childEnv(sp *ent.Spawner) []string {
+	vars := childEnvVars(sp)
+	env := make([]string, 0, len(vars))
+	for k, v := range vars {
+		env = append(env, k+"="+v)
 	}
 	return env
 }
