@@ -29,6 +29,7 @@
 | Claude model catalog + default models (Go) | `server/internal/claudemodel/catalog.go` | `IDs`, `IsKnown`, `Latest` — never pin a default model ID |
 | Server defaults (Go) | `server/internal/db/defaults.go` | `DefaultStage`, `DefaultStageTimeoutSeconds` |
 | Server validation (Go) | `server/internal/validation/slug.go` | `SlugPattern`, `SlugPatternMessage` |
+| Isolated application home (Go) | `server/internal/mcpapps/home.go` | `HomeRootUnder`, `IsolatedHomeEnv`, `WithIsolatedHome`, `RemoveIsolatedHome` |
 | Server status thresholds (Go) | `server/internal/merger/merger.go` | `activeThreshold`, `waitingThreshold` |
 | Pipeline stage labels (client) | `src/utils/stageLabels.ts` | `STAGE_LABELS`, `STAGE_DESCRIPTIONS` |
 | Shared task option lists (client) | `src/utils/taskOptions.ts` | `TASK_PRIORITY_OPTIONS`, `TASK_AUTONOMY_OPTIONS`, `TaskPriority`, `TaskAutonomy` |
