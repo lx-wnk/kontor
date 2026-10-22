@@ -3,13 +3,16 @@ package cloud
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 const (
@@ -23,6 +26,9 @@ type rewriteTransport struct {
 }
 
 func (r rewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Hostname() != "api.anthropic.com" {
+		return r.base.RoundTrip(req)
+	}
 	clone := req.Clone(req.Context())
 	clone.URL.Scheme = r.target.Scheme
 	clone.URL.Host = r.target.Host
@@ -79,6 +85,8 @@ func TestValidateFireURL(t *testing.T) {
 		"uppercase scheme":      "HTTPS://api.anthropic.com/v1/claude_code/routines/trig_01AbC9/fire",
 		"uppercase fire":        "https://api.anthropic.com/v1/claude_code/routines/trig_01AbC9/FIRE",
 		"double slash":          "https://api.anthropic.com//v1/claude_code/routines/trig_01AbC9/fire",
+		"bare query":            validFireURL + "?",
+		"bare fragment":         validFireURL + "#",
 		"zero-width suffix":     validFireURL + "\u200b",
 	}
 	for name, s := range invalid {
@@ -175,7 +183,7 @@ func TestFire_DoesNotFollowRedirects(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// A plain client without CheckRedirect: Fire itself must refuse to follow.
+	// The rewrite transport only rewrites api.anthropic.com, so a followed redirect would reach target.
 	_, err := clientFor(t, srv).Fire(context.Background(), validFireURL, testToken, "x")
 	var fe *FireError
 	if !errors.As(err, &fe) || fe.Status != http.StatusFound {
@@ -183,6 +191,9 @@ func TestFire_DoesNotFollowRedirects(t *testing.T) {
 	}
 	if n := targetHits.Load(); n != 0 {
 		t.Errorf("redirect target received %d requests, auth=%v", n, targetAuth.Load())
+	}
+	if auth, _ := targetAuth.Load().(string); auth != "" {
+		t.Errorf("redirect target saw Authorization %q", auth)
 	}
 }
 
@@ -254,7 +265,7 @@ func TestFire_TokenNeverInErrors(t *testing.T) {
 	})
 
 	t.Run("transport failure", func(t *testing.T) {
-		c := RoutineClient{HTTP: &http.Client{Transport: failingTransport{}}}
+		c := RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: errors.New("dial " + testToken)}}}
 		_, err := c.Fire(context.Background(), validFireURL, testToken, "x")
 		if err == nil || strings.Contains(err.Error(), testToken) {
 			t.Errorf("err = %v", err)
@@ -305,8 +316,141 @@ func TestFireError_ErrorOmitsBody(t *testing.T) {
 	}
 }
 
-type failingTransport struct{}
+type failingTransport struct{ err error }
 
-func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, errors.New("dial failed")
+func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, f.err
+}
+
+func assertNoTokenFragment(t *testing.T, label, got, token string) {
+	t.Helper()
+	const minLeak = 8
+	for i := 0; i+minLeak <= len(token); i++ {
+		if frag := token[i : i+minLeak]; strings.Contains(got, frag) {
+			t.Errorf("%s: body contains token fragment %q (token offset %d)", label, frag, i)
+			return
+		}
+	}
+}
+
+func fireWithBody(t *testing.T, token, body string) *FireError {
+	t.Helper()
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = io.WriteString(w, body)
+	}))
+	defer srv.Close()
+	_, err := clientFor(t, srv).Fire(context.Background(), validFireURL, token, "x")
+	var fe *FireError
+	if !errors.As(err, &fe) {
+		t.Fatalf("err = %v, want *FireError", err)
+	}
+	if len(fe.Body) > 4096 {
+		t.Errorf("body length = %d, want <= 4096", len(fe.Body))
+	}
+	return fe
+}
+
+func TestFire_BodyNeverHoldsTokenFragments(t *testing.T) {
+	filler := func(n int) string { return strings.Repeat("a", n) }
+	const periodic = "abcabcabcabcabc"
+	cases := map[string]struct{ token, body string }{
+		"many copies":                       {testToken, strings.Repeat(testToken+" ", 300)},
+		"many copies ending mid-token":      {testToken, strings.Repeat(testToken+" ", 200) + testToken[:20]},
+		"copy followed by longer text":      {testToken, testToken + "-suffix-" + testToken + "more"},
+		"overlapping copies":                {"aaaaaaaaaaaa", filler(19)},
+		"periodic token, shifted copies":    {periodic, "x" + periodic + periodic[3:] + periodic[6:] + filler(4096)},
+		"token prefix of a later substring": {testToken, testToken[:12] + " " + testToken[:30] + " " + testToken + testToken[5:]},
+		"partial token at the very end":     {testToken, filler(4096-15) + testToken},
+		"fragment only":                     {testToken, "echo: " + testToken[10:30]},
+		"short token":                       {"abc123", "x abc123 y abc123"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			fe := fireWithBody(t, tc.token, tc.body)
+			assertNoTokenFragment(t, name, fe.Body, tc.token)
+			if len(tc.token) < 8 && strings.Contains(fe.Body, tc.token) {
+				t.Errorf("short token survived: %q", fe.Body)
+			}
+		})
+	}
+}
+
+func TestFire_SecondCopyStraddlingTheCutNeverLeaks(t *testing.T) {
+	for pad := 4096 - 4*len(testToken); pad <= 4096+len(testToken); pad++ {
+		body := testToken + strings.Repeat("a", pad) + testToken
+		fe := fireWithBody(t, testToken, body)
+		assertNoTokenFragment(t, fmt.Sprintf("pad %d", pad), fe.Body, testToken)
+		if t.Failed() {
+			return
+		}
+	}
+}
+
+func TestFire_ForcesDefaultTimeoutOnSuppliedClient(t *testing.T) {
+	if got := (RoutineClient{HTTP: &http.Client{}}).client().Timeout; got != routineTimeout {
+		t.Errorf("zero timeout became %v, want %v", got, routineTimeout)
+	}
+	if got := (RoutineClient{}).client().Timeout; got != routineTimeout {
+		t.Errorf("nil client timeout = %v, want %v", got, routineTimeout)
+	}
+	if got := (RoutineClient{HTTP: &http.Client{Timeout: 3 * time.Second}}).client().Timeout; got != 3*time.Second {
+		t.Errorf("explicit timeout became %v, want 3s", got)
+	}
+}
+
+func TestFire_ClassifiesTransportErrors(t *testing.T) {
+	t.Run("client timeout", func(t *testing.T) {
+		release := make(chan struct{})
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+		defer srv.Close()
+		defer close(release)
+		c := clientFor(t, srv)
+		c.HTTP.Timeout = 50 * time.Millisecond
+		_, err := c.Fire(context.Background(), validFireURL, testToken, "x")
+		if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Errorf("err = %v, want DeadlineExceeded and os.ErrDeadlineExceeded", err)
+		}
+		if errors.Is(err, context.Canceled) {
+			t.Error("timeout classified as canceled")
+		}
+	})
+
+	t.Run("context deadline", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+		_, err := RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: context.DeadlineExceeded}}}.Fire(ctx, validFireURL, testToken, "x")
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("err = %v, want DeadlineExceeded", err)
+		}
+	})
+
+	t.Run("cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: context.Canceled}}}.Fire(ctx, validFireURL, testToken, "x")
+		if !errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("err = %v, want Canceled only", err)
+		}
+	})
+
+	t.Run("other", func(t *testing.T) {
+		_, err := RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: errors.New("tls: " + testToken)}}}.Fire(context.Background(), validFireURL, testToken, "x")
+		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Errorf("err = %v, want a plain failure", err)
+		}
+		if strings.Contains(err.Error(), testToken) {
+			t.Error("error contains the token")
+		}
+	})
+
+	for name, err := range map[string]error{"timeout": context.DeadlineExceeded, "canceled": context.Canceled} {
+		t.Run("no token in "+name, func(t *testing.T) {
+			wrapped := fmt.Errorf("%s %w", testToken, err)
+			_, got := RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: wrapped}}}.Fire(context.Background(), validFireURL, testToken, "x")
+			if got == nil || strings.Contains(got.Error(), testToken) {
+				t.Errorf("err = %v", got)
+			}
+		})
+	}
 }
