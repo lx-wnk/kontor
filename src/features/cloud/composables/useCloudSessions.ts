@@ -29,6 +29,8 @@ export interface CloudAccount {
   configDir: string
   spawners: { id: string, name: string }[]
   auth: CloudAccountAuth | null
+  ready: boolean
+  loginHint: string
   error?: string
 }
 
@@ -83,6 +85,13 @@ function applyEvent(event: CloudSessionEvent): void {
   }
 }
 
+function upsertSession(session: CloudSessionView): CloudSessionView {
+  sessions.value = sessions.value.some(s => s.id === session.id)
+    ? sessions.value.map(s => s.id === session.id ? session : s)
+    : [session, ...sessions.value]
+  return session
+}
+
 function handleSseMessage(data: string): void {
   try {
     applyEvent(JSON.parse(data) as CloudSessionEvent)
@@ -96,6 +105,7 @@ const sse = createSseResource({
   streamUrl: '/api/cloud-sessions/stream',
   fetchInitial: fetchSessions,
   onMessage: handleSseMessage,
+  onConnected: fetchSessions,
 })
 
 // Surfaces the server's `{error}` text so the view can show it verbatim.
@@ -116,11 +126,11 @@ async function postJson(url: string, body: unknown): Promise<CloudSessionView> {
 }
 
 export function importSession(input: ImportCloudSessionInput): Promise<CloudSessionView> {
-  return postJson('/api/cloud-sessions/import', input)
+  return postJson('/api/cloud-sessions/import', input).then(upsertSession)
 }
 
 export function sendMessage(id: string, text: string): Promise<CloudSessionView> {
-  return postJson(`/api/cloud-sessions/${id}/messages`, { text })
+  return postJson(`/api/cloud-sessions/${id}/messages`, { text }).then(upsertSession)
 }
 
 export async function removeSession(id: string): Promise<void> {
