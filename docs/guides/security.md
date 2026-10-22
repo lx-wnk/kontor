@@ -41,6 +41,7 @@ On a default install, any local process that reaches the loopback port with a ma
 | `POST/PATCH /api/spawners` | Define the command a spawner executes — the code calls this "RCE-equivalent" (`server/internal/pipeline/spawner.go`, `server/internal/llmadapter/llm_custom.go`) |
 | `PATCH /api/settings/{key}` | Change `auth.mode`, `git.allowPush`, `worktree.force` |
 | `POST /api/grants` | Write the `grants` rows the capability gate reads |
+| `POST /api/cloud-sessions/*` | Run the `claude` CLI under a spawner's Claude account (the `messages` route) and send the text to Anthropic |
 
 The third entry is worth stating plainly, because it bounds what the capability gate
 in [Capabilities and the permission gate](#capabilities-and-the-permission-gate) is
