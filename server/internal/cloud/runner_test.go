@@ -18,14 +18,22 @@ import (
 
 const testSessionID = "session_abcdefgh"
 
-var scrubbedKeys = []string{
+// blockedEnvKeys must never reach the child: auth switches, token and
+// keychain overrides, endpoint redirects, and an arbitrary name.
+var blockedEnvKeys = []string{
 	"ANTHROPIC_API_KEY",
 	"ANTHROPIC_AUTH_TOKEN",
+	"ANTHROPIC_BASE_URL",
+	"ANTHROPIC_MODEL",
 	"CLAUDE_CODE_OAUTH_TOKEN",
+	"CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+	"CLAUDE_CODE_CUSTOM_OAUTH_URL",
+	"CLAUDE_CODE_API_BASE_URL",
+	"CLAUDE_SECURESTORAGE_CONFIG_DIR",
 	"CLAUDE_CODE_USE_BEDROCK",
 	"CLAUDE_CODE_USE_VERTEX",
 	"CLAUDE_CODE_USE_FOUNDRY",
-	"ANTHROPIC_BASE_URL",
+	"FOO",
 }
 
 // fakeClaude installs a claude script on PATH that records argv, env and stdin
@@ -39,6 +47,10 @@ func fakeClaude(t *testing.T, body string) string {
 	}
 	t.Setenv("PATH", dir+":/usr/bin:/bin")
 	return dir
+}
+
+func envHas(env, key string) bool {
+	return strings.Contains("\n"+env, "\n"+key+"=")
 }
 
 func readRecorded(t *testing.T, dir, name string) string {
@@ -55,7 +67,7 @@ func TestSend_ArgvEnvStdin(t *testing.T) {
 	const text = "--help\nrm -rf"
 	cfg := filepath.Join(dir, "account-cfg")
 	spawnerEnv := map[string]string{"CLAUDE_CONFIG_DIR": cfg}
-	for _, k := range scrubbedKeys {
+	for _, k := range blockedEnvKeys {
 		t.Setenv(k, "from-process")
 		spawnerEnv[k] = "from-spawner"
 	}
@@ -82,10 +94,55 @@ func TestSend_ArgvEnvStdin(t *testing.T) {
 	if !strings.Contains(env, "CLAUDE_CONFIG_DIR="+cfg+"\n") {
 		t.Fatalf("env lacks the spawner's CLAUDE_CONFIG_DIR:\n%s", env)
 	}
-	for _, k := range scrubbedKeys {
-		if strings.Contains(env, k+"=") {
-			t.Errorf("scrubbed key %s reached the child", k)
+	for _, k := range blockedEnvKeys {
+		if envHas(env, k) {
+			t.Errorf("blocked key %s reached the child", k)
 		}
+	}
+}
+
+func TestSend_AllowListedEnvReachesChild(t *testing.T) {
+	dir := fakeClaude(t, `echo '{"ok":true}'`)
+	want := map[string]string{
+		"HOME":                "/home/acct",
+		"USER":                "acct",
+		"LOGNAME":             "acct",
+		"SHELL":               "/bin/zsh",
+		"TMPDIR":              "/tmp/acct",
+		"TZ":                  "Europe/Berlin",
+		"TERM":                "xterm-256color",
+		"LANG":                "de_DE.UTF-8",
+		"LC_ALL":              "de_DE.UTF-8",
+		"LC_MESSAGES":         "en_US.UTF-8",
+		"HTTP_PROXY":          "http://proxy:3128",
+		"HTTPS_PROXY":         "http://proxy:3129",
+		"NO_PROXY":            "localhost",
+		"http_proxy":          "http://proxy:3130",
+		"https_proxy":         "http://proxy:3131",
+		"no_proxy":            "127.0.0.1",
+		"SSL_CERT_FILE":       "/etc/ca.pem",
+		"SSL_CERT_DIR":        "/etc/certs",
+		"NODE_EXTRA_CA_CERTS": "/etc/extra.pem",
+		"CLAUDE_CONFIG_DIR":   filepath.Join(dir, "cfg"),
+	}
+	spawnerEnv := map[string]string{}
+	for k, v := range want {
+		t.Setenv(k, v)
+		spawnerEnv[k] = v
+	}
+
+	if _, err := (Runner{}).Send(t.Context(), &ent.Spawner{Env: spawnerEnv}, testSessionID, "hi"); err != nil {
+		t.Fatal(err)
+	}
+
+	env := readRecorded(t, dir, "env")
+	for k, v := range want {
+		if !strings.Contains("\n"+env, "\n"+k+"="+v+"\n") {
+			t.Errorf("allowed %s=%s did not reach the child", k, v)
+		}
+	}
+	if !strings.Contains("\n"+env, "\nPATH="+dir+":") {
+		t.Errorf("PATH did not reach the child:\n%s", env)
 	}
 }
 
@@ -228,7 +285,8 @@ func TestSend_EnvKeysCarryingAssignmentsNeverReachChild(t *testing.T) {
 		"CLAUDE_CONFIG_DIR":           filepath.Join(dir, "cfg"),
 		"KEY WITH SPACE":              "y",
 		"1STARTS_WITH_DIGIT":          "y",
-		"VALID_NAME_9":                "kept",
+		"LC_MESSAGES":                 "kept",
+		"LC_BAD=x":                    "y",
 		"ANTHROPIC_BASE_URL":          "https://evil.example",
 		"ANTHROPIC_BASE_URL=http://x": "y",
 	}
@@ -238,12 +296,12 @@ func TestSend_EnvKeysCarryingAssignmentsNeverReachChild(t *testing.T) {
 	}
 
 	env := readRecorded(t, dir, "env")
-	for _, leaked := range []string{"sk-x", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL", "evil.example", "KEY WITH SPACE", "1STARTS_WITH_DIGIT"} {
+	for _, leaked := range []string{"sk-x", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL", "evil.example", "KEY WITH SPACE", "1STARTS_WITH_DIGIT", "LC_BAD"} {
 		if strings.Contains(env, leaked) {
 			t.Errorf("env contains %q:\n%s", leaked, env)
 		}
 	}
-	if !strings.Contains(env, "VALID_NAME_9=kept\n") {
+	if !strings.Contains(env, "LC_MESSAGES=kept\n") {
 		t.Errorf("a plain env name was dropped:\n%s", env)
 	}
 }
@@ -315,24 +373,70 @@ func TestAuthStatus_UndecodableJSONReturnsZeroStatus(t *testing.T) {
 }
 
 // The fake's own child outlives it unless the whole process group is killed.
+// The runner deadline is long so start-up under load never races the kill; the
+// test cancels only once the grandchild has recorded its pid.
 func TestSend_TimeoutKillsProcessGroup(t *testing.T) {
-	dir := fakeClaude(t, `sleep 30 & echo $! > "$R/grandchild"; wait`)
+	dir := fakeClaude(t, `sleep 30 & echo $! > "$R/grandchild.tmp"; mv "$R/grandchild.tmp" "$R/grandchild"; wait`)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	errc := make(chan error, 1)
+	go func() {
+		_, err := Runner{Timeout: time.Minute}.Send(ctx, &ent.Spawner{}, testSessionID, "hi")
+		errc <- err
+	}()
 
-	_, err := Runner{Timeout: 300 * time.Millisecond}.Send(t.Context(), &ent.Spawner{}, testSessionID, "hi")
-	if !errors.Is(err, ErrTimeout) {
-		t.Fatalf("err = %v, want ErrTimeout", err)
-	}
-
-	pid, convErr := strconv.Atoi(strings.TrimSpace(readRecorded(t, dir, "grandchild")))
-	if convErr != nil {
-		t.Fatal(convErr)
-	}
+	pid := waitForPID(t, filepath.Join(dir, "grandchild"), errc)
 	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })
-	deadline := time.Now().Add(2 * time.Second)
+	cancel()
+	if err := <-errc; !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
 	for syscall.Kill(pid, 0) == nil {
 		if time.Now().After(deadline) {
-			t.Fatalf("grandchild %d survived the timeout", pid)
+			t.Fatalf("grandchild %d survived the cancel", pid)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func waitForPID(t *testing.T, path string, errc <-chan error) int {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if b, err := os.ReadFile(path); err == nil { //nolint:gosec // path is under t.TempDir
+			pid, convErr := strconv.Atoi(strings.TrimSpace(string(b)))
+			if convErr != nil {
+				t.Fatal(convErr)
+			}
+			return pid
+		}
+		select {
+		case err := <-errc:
+			t.Fatalf("Send returned before the grandchild started: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the fake never recorded its grandchild")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestRunner_DefaultTimeouts(t *testing.T) {
+	if DefaultSendTimeout != 60*time.Second {
+		t.Errorf("DefaultSendTimeout = %v, want 60s", DefaultSendTimeout)
+	}
+	if DefaultAuthTimeout != 15*time.Second {
+		t.Errorf("DefaultAuthTimeout = %v, want 15s", DefaultAuthTimeout)
+	}
+	for _, def := range []time.Duration{DefaultSendTimeout, DefaultAuthTimeout} {
+		if got := (Runner{}).timeout(def); got != def {
+			t.Errorf("zero Runner timeout(%v) = %v, want the default", def, got)
+		}
+		if got := (Runner{Timeout: time.Second}).timeout(def); got != time.Second {
+			t.Errorf("Runner{Timeout: 1s}.timeout(%v) = %v, want 1s", def, got)
+		}
 	}
 }
