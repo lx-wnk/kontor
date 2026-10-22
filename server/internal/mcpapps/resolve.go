@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 
 	"github.com/lx-wnk/kontor/server/internal/capability"
@@ -113,12 +112,11 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task, spawner *ent.S
 		if err != nil {
 			return RunApplications{}, err
 		}
-		if matched && preset.IsolateHome {
-			home, err := IsolatedHomeEnv(r.HomeRoot, app.ResourceID)
+		if matched {
+			values, err = WithIsolatedHome(values, preset, r.HomeRoot, app.ResourceID)
 			if err != nil {
 				return RunApplications{}, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
 			}
-			maps.Copy(values, home)
 		}
 		merged, err := WithEnv(app.Entry, values)
 		if err != nil {

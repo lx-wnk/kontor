@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -735,12 +734,9 @@ func (h *Handler) startSetup(w http.ResponseWriter, r *http.Request) error {
 	for k, v := range secretValues {
 		env[k] = v
 	}
-	if preset.IsolateHome {
-		home, err := mcpapps.IsolatedHomeEnv(h.homeRoot, app.ResourceID)
-		if err != nil {
-			return apierr.NewAppError(http.StatusInternalServerError, err.Error())
-		}
-		maps.Copy(env, home)
+	env, err = mcpapps.WithIsolatedHome(env, preset, h.homeRoot, app.ResourceID)
+	if err != nil {
+		return apierr.NewAppError(http.StatusInternalServerError, err.Error())
 	}
 	sess, err := h.setup.Start(r.Context(), app.ResourceID, *preset.Setup, env)
 	if err != nil {
@@ -799,7 +795,11 @@ func (h *Handler) accounts(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	raw, err := h.tools.Call(r.Context(), entry, values, "imap_list_accounts", nil)
+	env, err := mcpapps.WithIsolatedHome(values, preset, h.homeRoot, app.ResourceID)
+	if err != nil {
+		return apierr.NewAppError(http.StatusInternalServerError, err.Error())
+	}
+	raw, err := h.tools.Call(r.Context(), entry, env, "imap_list_accounts", nil)
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}

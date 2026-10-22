@@ -2,6 +2,7 @@ package mcpapps
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,4 +45,19 @@ func IsolatedHomeEnv(homeRoot, resourceID string) (map[string]string, error) {
 		cache = filepath.Join(serverHome, ".npm")
 	}
 	return map[string]string{"HOME": dir, "npm_config_cache": cache}, nil
+}
+
+// WithIsolatedHome returns env with the preset's isolated HOME merged last, or env itself when the preset does not isolate.
+func WithIsolatedHome(env map[string]string, preset Preset, homeRoot, resourceID string) (map[string]string, error) {
+	if !preset.IsolateHome {
+		return env, nil
+	}
+	home, err := IsolatedHomeEnv(homeRoot, resourceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(env)+len(home))
+	maps.Copy(out, env)
+	maps.Copy(out, home)
+	return out, nil
 }
