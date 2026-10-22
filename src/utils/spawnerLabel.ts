@@ -1,5 +1,5 @@
-const STALE_ID_PREFIX_LENGTH = 8
+import { shortId } from '@/composables/useCopyId'
 
 export function staleSpawnerLabel(id: string): string {
-  return `Removed spawner (${id.slice(0, STALE_ID_PREFIX_LENGTH)})`
+  return `Removed spawner (${shortId(id)})`
 }

@@ -785,8 +785,10 @@ describe('applicationSettings', () => {
     })
 
     it('disables the checklist while a spawner PATCH is in flight so a second click cannot send a stale list', async () => {
-      let release: () => void = () => {}
-      const held = new Promise<void>((resolve) => { release = resolve })
+      let release: () => void = () => undefined
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
       const patches: unknown[] = []
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (init?.method === 'PATCH') {

@@ -37,6 +37,8 @@ export interface ApplicationView {
   entry: ApplicationEntry
   exportToClaude: boolean
   allowedSpawners: string[]
+  /** True when the preset gives the application its own home, so it cannot be exported. */
+  isolatedHome: boolean
   /** Server name of the matched preset, empty when none matched. */
   preset: string
 }
