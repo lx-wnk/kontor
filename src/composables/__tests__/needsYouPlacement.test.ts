@@ -22,7 +22,7 @@ describe('needsYouPlacement', () => {
   })
 
   it('is a strip on every other core view', () => {
-    for (const view of ['workflows', 'pipeline', 'cost', 'schedules', 'eval'] as const)
+    for (const view of ['cloud', 'workflows', 'pipeline', 'cost', 'schedules', 'eval'] as const)
       expect(needsYouPlacement({ view, pageHasHub: false, error: false })).toEqual({ strip: true })
   })
 })

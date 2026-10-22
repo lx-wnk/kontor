@@ -59,6 +59,7 @@ const EvalView = defineAsyncComponent(() => import('@/features/analytics/compone
 const PipelineBoard = defineAsyncComponent(() => import('@/features/pipeline/components/PipelineBoard.vue'))
 const WorkflowsView = defineAsyncComponent(() => import('@/features/workflows/components/WorkflowsView.vue'))
 const SchedulesView = defineAsyncComponent(() => import('./components/SchedulesView.vue'))
+const CloudSessionsView = defineAsyncComponent(() => import('@/features/cloud/CloudSessionsView.vue'))
 // Heavy modal loaded on demand — split into its own chunk (includes DependencyGraph + StageCostWaterfall).
 const TaskModal = defineAsyncComponent(() => import('@/features/pipeline/components/TaskModal.vue'))
 // Modal/panel components that drag in marked + dompurify (RefinementChat) and diff (EditGateModal) —
@@ -419,6 +420,7 @@ onMounted(() => usageComposable.start())
         />
         <CostAnalyticsView v-else-if="activeView === 'cost'" />
         <SchedulesView v-else-if="activeView === 'schedules'" />
+        <CloudSessionsView v-else-if="activeView === 'cloud'" />
         <EvalView v-else-if="activeView === 'eval'" />
         <WorkflowsView
           v-else-if="activeView === 'workflows'"

@@ -13,7 +13,7 @@ describe('launchersFor', () => {
     expect(l.at(-1)!.kind).toBe('new-page')
   })
   it('adds own pages after the core views', () => {
-    const l = launchersFor(NAV_ITEMS, [{ id: 'morning', title: 'Morning' }], 'zentrale')
+    const l = launchersFor(NAV_ITEMS, [{ id: 'morning', title: 'Morning' }], 'zentrale', Infinity)
     expect(l.at(-2)).toMatchObject({ id: 'page:morning', label: 'Morning', view: 'page:morning', kind: 'view' })
   })
   it('turns the eighth slot into More when there are more than eight', () => {
