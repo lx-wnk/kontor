@@ -5,6 +5,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import { useSpawners } from '@/composables/useSpawners'
 import { useApplications } from '@/features/settings/composables/useApplications'
 import { formatDateTime } from '@/utils/format'
+import { staleSpawnerLabel } from '@/utils/spawnerLabel'
 
 const { applications, loading, error, drift, setupSessions, fetchApplications, setAttachAll, setRequiredEnv, setSecret, deleteSecret, refreshCatalogue, createApplication, deleteApplication, setEntry, setExport, setAllowedSpawners, fetchDrift, importApplication, startSetup, stopSetup, fetchAccountNames, subscribe, unsubscribe } = useApplications()
 const { spawners } = useSpawners()
@@ -42,8 +43,6 @@ const claudeSpawners = computed(() => spawners.value.filter(s => s.adapterType =
 function spawnerLabel(s: { name: string, env: Record<string, string> }) {
   return `${s.name} (${s.env.CLAUDE_CONFIG_DIR ?? '~/.claude'})`
 }
-
-const STALE_ID_PREFIX_LENGTH = 8
 
 function staleSpawnerIds(app: ApplicationView) {
   return app.allowedSpawners.filter(id => !claudeSpawners.value.some(s => s.id === id))
@@ -378,7 +377,7 @@ async function writeAppVersion(name: string) {
             :data-testid="`application-spawner-${app.resourceId}-${id}`"
             @change="toggleSpawner(app, id, $event.target as HTMLInputElement)"
           >
-          Removed spawner ({{ id.slice(0, STALE_ID_PREFIX_LENGTH) }})
+          {{ staleSpawnerLabel(id) }}
         </label>
       </fieldset>
 

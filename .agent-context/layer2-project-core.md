@@ -33,6 +33,7 @@
 | Pipeline stage labels (client) | `src/utils/stageLabels.ts` | `STAGE_LABELS`, `STAGE_DESCRIPTIONS` |
 | Shared task option lists (client) | `src/utils/taskOptions.ts` | `TASK_PRIORITY_OPTIONS`, `TASK_AUTONOMY_OPTIONS`, `TaskPriority`, `TaskAutonomy` |
 | Shared UI component types (client) | `src/components/ui/selectOption.ts` | `SelectOption<T>` |
+| Spawner label for an ID with no loaded spawner (client) | `src/utils/spawnerLabel.ts` | `staleSpawnerLabel` |
 | Workspace layout rules (client) | `src/features/workspace/layout.ts` | `GRID_COLUMNS`, `ZENTRALE_PAGE_ID`, `PAGE_ID_PATTERN`, `WIDGET_ID_PATTERN`, `DEFAULT_LAYOUT` |
 | Workspace layout rules (server, hand-kept parity with the client) | `server/internal/settings/workspace_layout.go` | `workspaceColumns`, `workspacePageID`, `workspaceWidgetID`, caps |
 | Widget catalogue (titles, spans, minimums) | `src/features/workspace/widgetSpecs.ts` | `WIDGET_SPECS`, `HUB_WIDGET` |

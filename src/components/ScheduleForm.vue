@@ -6,6 +6,7 @@ import { createSchedule, previewSchedule, updateSchedule } from '../composables/
 import { useSpawners } from '../composables/useSpawners'
 import { formatDateTime } from '../utils/format'
 import { nextRadioGroupName } from '../utils/radioGroup'
+import { staleSpawnerLabel } from '../utils/spawnerLabel'
 import { TASK_PRIORITY_OPTIONS } from '../utils/taskOptions'
 import AppButton from './ui/AppButton.vue'
 import AppInput from './ui/AppInput.vue'
@@ -42,10 +43,8 @@ onMounted(() => {
   void refetchSpawners()
 })
 
-const STALE_ID_PREFIX_LENGTH = 8
-
 function limitLine(ids: string[]) {
-  const names = ids.map(id => spawners.value.find(s => s.id === id)?.name ?? `Removed spawner (${id.slice(0, STALE_ID_PREFIX_LENGTH)})`)
+  const names = ids.map(id => spawners.value.find(s => s.id === id)?.name ?? staleSpawnerLabel(id))
   return `Limited to: ${names.join(', ')}`
 }
 
