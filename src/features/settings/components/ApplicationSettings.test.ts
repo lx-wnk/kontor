@@ -49,6 +49,7 @@ const MAIL = {
   entry: { command: 'node', args: ['mail-server.js'], env: {} },
   exportToClaude: false,
   allowedSpawners: [] as string[],
+  isolatedHome: false,
   preset: '',
 }
 
@@ -753,6 +754,104 @@ describe('applicationSettings', () => {
 
       expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('disabled')).toBeUndefined()
       expect(wrapper.find('[data-testid="application-export-hint-res-imap"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('disables every spawner checkbox and explains why while the application is exported', async () => {
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, exportToClaude: true }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      const fieldset = wrapper.find('[data-testid="application-spawners-res-imap"]')
+      const boxes = fieldset.findAll('input[type="checkbox"]')
+      expect(boxes).toHaveLength(2)
+      for (const box of boxes)
+        expect(box.attributes('disabled')).toBeDefined()
+      const hint = wrapper.find('[data-testid="application-spawners-export-hint-res-imap"]')
+      expect(hint.text()).toBe('Turn export off to limit this application to spawners.')
+      expect(fieldset.attributes('aria-describedby')).toBe(hint.attributes('id'))
+      wrapper.unmount()
+    })
+
+    it('keeps the spawner checklist enabled and unexplained for an unexported application', async () => {
+      stubFetch({ 'GET /api/applications': [IMAP] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      for (const box of wrapper.findAll('[data-testid="application-spawners-res-imap"] input[type="checkbox"]'))
+        expect(box.attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-testid="application-spawners-export-hint-res-imap"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('disables the checklist while a spawner PATCH is in flight so a second click cannot send a stale list', async () => {
+      let release: () => void = () => {}
+      const held = new Promise<void>((resolve) => { release = resolve })
+      const patches: unknown[] = []
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'PATCH') {
+          patches.push(JSON.parse(String(init.body)))
+          await held
+          return { ok: true, status: 200, json: async () => ({ ...IMAP, allowedSpawners: ['sp-default'] }) }
+        }
+        if (url === '/api/applications/drift')
+          return { ok: true, status: 200, json: async () => ({ found: [], changed: [] }) }
+        return { ok: true, status: 200, json: async () => [IMAP] }
+      }))
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(true)
+      await flushPromises()
+
+      const second = wrapper.find('[data-testid="application-spawner-res-imap-sp-work"]')
+      expect(second.attributes('disabled')).toBeDefined()
+      expect(patches).toEqual([{ allowedSpawners: ['sp-default'] }])
+
+      release()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="application-spawner-res-imap-sp-work"]').attributes('disabled')).toBeUndefined()
+      wrapper.unmount()
+    })
+
+    it('re-enables the checklist after a failed PATCH', async () => {
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'PATCH')
+          return { ok: false, status: 400, json: async () => ({ error: 'boom' }) }
+        if (url === '/api/applications/drift')
+          return { ok: true, status: 200, json: async () => ({ found: [], changed: [] }) }
+        return { ok: true, status: 200, json: async () => [IMAP] }
+      }))
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(true)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-spawner-res-imap-sp-work"]').attributes('disabled')).toBeUndefined()
+      wrapper.unmount()
+    })
+
+    it('disables the export switch with a hint for an isolated application that is not exported', async () => {
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, isolatedHome: true }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      const toggle = wrapper.find('[data-testid="application-export-res-imap"]')
+      expect(toggle.attributes('disabled')).toBeDefined()
+      const hint = wrapper.find('[data-testid="application-export-isolated-hint-res-imap"]')
+      expect(hint.text()).toBe('Export is unavailable for applications with their own home.')
+      expect(toggle.attributes('aria-describedby')).toContain(hint.attributes('id'))
+      wrapper.unmount()
+    })
+
+    it('keeps the export switch enabled for an already exported isolated application', async () => {
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, isolatedHome: true, exportToClaude: true }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-testid="application-export-isolated-hint-res-imap"]').exists()).toBe(false)
       wrapper.unmount()
     })
   })
