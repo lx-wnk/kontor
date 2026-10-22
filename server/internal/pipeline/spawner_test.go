@@ -251,6 +251,17 @@ func TestBuildSpawnEnv_ExpandsTildeInSpawnerEnv(t *testing.T) {
 	require.NotContains(t, env, "CLAUDE_CONFIG_DIR=~/.claude-work")
 }
 
+func TestBaseSpawnEnv_NoStageRun(t *testing.T) {
+	t.Setenv("HOME", "/tmp/fakehome")
+	spawner := &ent.Spawner{Env: map[string]string{"CLAUDE_CONFIG_DIR": "~/.claude-work"}}
+
+	env := pipeline.BaseSpawnEnv(spawner)
+
+	require.Equal(t, "/tmp/fakehome/.claude-work", env["CLAUDE_CONFIG_DIR"])
+	require.NotContains(t, env, "DASHBOARD_STAGE_RUN_ID")
+	require.NotContains(t, env, "DASHBOARD_TASK_ID")
+}
+
 func TestBuildSpawnEnv_DenyListExcludesSecrets(t *testing.T) {
 	t.Setenv("DASHBOARD_SECRET_KEY", "master-key-value")
 	t.Setenv("DASHBOARD_JWT_SECRET", "super-secret-value")
