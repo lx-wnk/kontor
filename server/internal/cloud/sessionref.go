@@ -41,3 +41,8 @@ func ParseSessionRef(s string) (string, error) {
 	}
 	return id, nil
 }
+
+// SessionURL returns the claude.ai/code URL of a session ID.
+func SessionURL(id string) string {
+	return "https://" + sessionURLHost + sessionURLPathPrefix + id
+}
