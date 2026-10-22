@@ -117,3 +117,31 @@ func TestCloudSessionRepo_UnknownID(t *testing.T) {
 	_, err = r.RecordSend(t.Context(), "missing", "m", time.Now(), "")
 	require.True(t, ent.IsNotFound(err))
 }
+
+func TestCloudSessionRepo_RecordErrorLeavesMessageUntouched(t *testing.T) {
+	r := repo.NewCloudSessionRepo(openTestDB(t))
+	created, err := r.Create(t.Context(), newCloudSessionInput("session_a"))
+	require.NoError(t, err)
+	at := time.Now().UTC().Truncate(time.Second)
+	_, err = r.RecordSend(t.Context(), created.ID, "hello", at, "")
+	require.NoError(t, err)
+
+	got, err := r.RecordError(t.Context(), created.ID, "claude is not signed in")
+	require.NoError(t, err)
+	require.Equal(t, "claude is not signed in", got.LastError)
+	require.Equal(t, "hello", got.LastMessage)
+	require.NotNil(t, got.LastMessageAt)
+	require.True(t, got.LastMessageAt.Equal(at))
+
+	reread, err := r.Get(t.Context(), created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "claude is not signed in", reread.LastError)
+	require.Equal(t, "hello", reread.LastMessage)
+}
+
+func TestCloudSessionRepo_RecordErrorUnknownID(t *testing.T) {
+	r := repo.NewCloudSessionRepo(openTestDB(t))
+
+	_, err := r.RecordError(t.Context(), "missing", "boom")
+	require.True(t, ent.IsNotFound(err))
+}
