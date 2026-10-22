@@ -36,9 +36,7 @@ func (e *MissingServerError) Error() string {
 	return fmt.Sprintf("application %q is attached but has no server definition", e.Server)
 }
 
-// SpawnerNotAllowedError reports an explicitly attached application whose allowed
-// spawners exclude the stage's spawner. Spawner is the spawner's name, or
-// UnresolvedSpawner when the stage has none.
+// SpawnerNotAllowedError.Spawner is the spawner's name, or UnresolvedSpawner when the stage has none.
 type SpawnerNotAllowedError struct{ Server, Spawner, Stage string }
 
 func (e *SpawnerNotAllowedError) Error() string {
@@ -112,11 +110,9 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task, spawner *ent.S
 		if err != nil {
 			return RunApplications{}, err
 		}
-		if matched {
-			values, err = WithIsolatedHome(values, preset, r.HomeRoot, app.ResourceID)
-			if err != nil {
-				return RunApplications{}, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
-			}
+		values, err = WithIsolatedHome(values, preset, r.HomeRoot, app.ResourceID)
+		if err != nil {
+			return RunApplications{}, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
 		}
 		merged, err := WithEnv(app.Entry, values)
 		if err != nil {
@@ -152,7 +148,6 @@ func spawnerAllowed(app *ent.MCPApplication, spawner *ent.Spawner) bool {
 	return spawner != nil && slices.Contains(app.AllowedSpawners, spawner.ID)
 }
 
-// matchedPreset finds the preset matching app's server entry.
 func matchedPreset(app *ent.MCPApplication) (Preset, bool, error) {
 	entry, err := ParseEntry(app.Entry)
 	if err != nil {
