@@ -9,16 +9,13 @@ import { CONTROLS_BUTTON_COUNT, CONTROLS_BUTTON_PX, CONTROLS_GAP_PX, CONTROLS_RI
 describe('launchersFor', () => {
   it('lists the other core views and ends with New page', () => {
     const l = launchersFor(NAV_ITEMS, [], 'zentrale')
-    expect(l.map(x => x.id)).toEqual([...NAV_ITEMS.filter(i => i.view !== 'zentrale').map(i => i.view), 'new-page'])
+    expect(l.map(x => x.id)).toEqual([...NAV_ITEMS.filter(i => i.view !== 'zentrale' && i.view !== 'cloud').map(i => i.view), 'new-page'])
+    expect(l.map(x => x.id)).not.toContain('cloud')
     expect(l.at(-1)!.kind).toBe('new-page')
   })
-  it('lets More replace the first own page once the core views fill the ring', () => {
+  it('adds own pages after the core views', () => {
     const l = launchersFor(NAV_ITEMS, [{ id: 'morning', title: 'Morning' }], 'zentrale')
-    expect(l).toHaveLength(MAX_LAUNCHERS)
-    expect(l.slice(0, 2).map(x => x.id)).toEqual(['dashboard', 'pipeline'])
-    expect(l.at(-2)).toMatchObject({ id: 'cloud', kind: 'view' })
-    expect(l.at(-1)).toMatchObject({ id: 'more', kind: 'more' })
-    expect(l.map(x => x.id)).not.toContain('page:morning')
+    expect(l.at(-2)).toMatchObject({ id: 'page:morning', label: 'Morning', view: 'page:morning', kind: 'view' })
   })
   it('turns the eighth slot into More when there are more than eight', () => {
     const pages = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }]
