@@ -31,11 +31,25 @@ const MAIL = {
   ],
   entry: { command: 'node', args: ['mail-server.js'], env: {} },
   exportToClaude: false,
+  allowedSpawners: [] as string[],
+  preset: '',
 }
+
+const IMAP = { ...MAIL, resourceId: 'res-imap', serverName: 'mail-private', preset: 'imap-mcp-server' }
+
+function spawner(id: string, name: string, adapterType: string, env: Record<string, string> = {}) {
+  return { id, name, slug: id, command: 'claude', args: [], env, adapterType, adapterConfig: {}, builtIn: false, isDefault: false, createdAt: '', updatedAt: '' }
+}
+
+const SPAWNERS = [
+  spawner('sp-default', 'Claude (default)', 'claude'),
+  spawner('sp-work', 'Claude Work', 'claude', { CLAUDE_CONFIG_DIR: '/Users/me/.claude-work' }),
+  spawner('sp-ollama', 'Local Ollama', 'ollama'),
+]
 
 function stubFetch(responses: Record<string, unknown>) {
   const calls: Array<{ url: string, init?: RequestInit }> = []
-  const merged: Record<string, unknown> = { 'GET /api/applications/drift': { found: [], changed: [] }, ...responses }
+  const merged: Record<string, unknown> = { 'GET /api/applications/drift': { found: [], changed: [] }, 'GET /api/spawners': SPAWNERS, ...responses }
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init })
     const body = merged[`${init?.method ?? 'GET'} ${url}`]
@@ -557,5 +571,122 @@ describe('applicationSettings', () => {
     expect(wrapper.html()).toContain('read-only (per server)')
 
     wrapper.unmount()
+  })
+
+  describe('spawner restriction', () => {
+    it('lists only claude spawners, labelled with their account directory', async () => {
+      stubFetch({ 'GET /api/applications': [IMAP] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      const fieldset = wrapper.find('[data-testid="application-spawners-res-imap"]')
+      expect(fieldset.text()).toContain('Claude (default) (~/.claude)')
+      expect(fieldset.text()).toContain('Claude Work (/Users/me/.claude-work)')
+      expect(fieldset.text()).not.toContain('Local Ollama')
+      expect(fieldset.findAll('input[type="checkbox"]')).toHaveLength(2)
+      wrapper.unmount()
+    })
+
+    it('PATCHes the chosen spawner ids for that application', async () => {
+      const calls = stubFetch({
+        'GET /api/applications': [IMAP],
+        'PATCH /api/applications/res-imap': { ...IMAP, allowedSpawners: ['sp-default'] },
+      })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(true)
+      await flushPromises()
+
+      const patch = calls.find(c => c.init?.method === 'PATCH')
+      expect(patch?.url).toBe('/api/applications/res-imap')
+      expect(JSON.parse(String(patch?.init?.body))).toEqual({ allowedSpawners: ['sp-default'] })
+      expect((wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').element as HTMLInputElement).checked).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('removes an id when its checkbox is cleared', async () => {
+      const calls = stubFetch({
+        'GET /api/applications': [{ ...IMAP, allowedSpawners: ['sp-default', 'sp-work'] }],
+        'PATCH /api/applications/res-imap': { ...IMAP, allowedSpawners: ['sp-work'] },
+      })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(false)
+      await flushPromises()
+
+      const patch = calls.find(c => c.init?.method === 'PATCH')
+      expect(JSON.parse(String(patch?.init?.body))).toEqual({ allowedSpawners: ['sp-work'] })
+      wrapper.unmount()
+    })
+
+    it('shows the server error when the PATCH is rejected', async () => {
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'PATCH')
+          return { ok: false, status: 400, json: async () => ({ error: 'allowedSpawners: unknown spawner sp-gone' }) }
+        if (url === '/api/spawners')
+          return { ok: true, status: 200, json: async () => SPAWNERS }
+        if (url === '/api/applications/drift')
+          return { ok: true, status: 200, json: async () => ({ found: [], changed: [] }) }
+        return { ok: true, status: 200, json: async () => [IMAP] }
+      }))
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').setValue(true)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('allowedSpawners: unknown spawner sp-gone')
+      expect((wrapper.find('[data-testid="application-spawner-res-imap-sp-default"]').element as HTMLInputElement).checked).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('warns that any spawner can read an unrestricted mailbox', async () => {
+      stubFetch({ 'GET /api/applications': [IMAP] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-spawners-warning-res-imap"]').text()).toBe('Any spawner can read this mailbox.')
+      wrapper.unmount()
+    })
+
+    it('drops the mailbox warning once the application is restricted', async () => {
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, allowedSpawners: ['sp-default'] }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Any spawner can read this mailbox.')
+      wrapper.unmount()
+    })
+
+    it('shows no mailbox warning for a non-imap application', async () => {
+      stubFetch({ 'GET /api/applications': [MAIL] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Any spawner can read this mailbox.')
+      wrapper.unmount()
+    })
+
+    it('disables the export toggle with a hint while restricted', async () => {
+      stubFetch({ 'GET /api/applications': [{ ...IMAP, allowedSpawners: ['sp-default'] }] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="application-export-hint-res-imap"]').text()).toBe('Export is off while the application is limited to spawners.')
+      wrapper.unmount()
+    })
+
+    it('keeps the export toggle enabled without a restriction', async () => {
+      stubFetch({ 'GET /api/applications': [IMAP] })
+      const wrapper = mount(ApplicationSettings)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="application-export-res-imap"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-testid="application-export-hint-res-imap"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
   })
 })
