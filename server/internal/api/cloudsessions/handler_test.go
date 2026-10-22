@@ -111,7 +111,7 @@ func newFixture(t *testing.T) *fixture {
 	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](raw)
 	h := NewHandler(repo.NewCloudSessionRepo(bundle.Client), spawners, cli, bc)
 	clock := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	h.auth = NewAuthCache(cli, func() time.Time { return clock })
+	h.auth = newAuthCache(cli, func() time.Time { return clock })
 
 	events := bc.Subscribe()
 	t.Cleanup(func() { bc.Unsubscribe(events) })

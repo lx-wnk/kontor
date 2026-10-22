@@ -43,10 +43,10 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 		if !runsClaude(sp) {
 			continue
 		}
-		key := pathutil.Canonical(ConfigDir(sp))
+		key := pathutil.Canonical(cloud.AccountDir(sp))
 		row, ok := byDir[key]
 		if !ok {
-			row = &accountView{ConfigDir: pathutil.ExpandLeadingTilde(ConfigDir(sp))}
+			row = &accountView{ConfigDir: pathutil.ExpandLeadingTilde(cloud.AccountDir(sp))}
 			byDir[key] = row
 			first[key] = sp
 			rows = append(rows, row)

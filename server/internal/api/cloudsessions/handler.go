@@ -16,13 +16,10 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/lx-wnk/kontor/server/internal/apierr"
-	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/cloud"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
-	"github.com/lx-wnk/kontor/server/internal/pathutil"
-	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/lx-wnk/kontor/server/internal/sse"
 )
 
@@ -47,21 +44,13 @@ func runsClaude(sp *ent.Spawner) bool {
 	return sp.AdapterType == "" || sp.AdapterType == claudeAdapter
 }
 
-// ConfigDir is the Claude config dir a spawner's CLI runs on.
-func ConfigDir(sp *ent.Spawner) string {
-	if dir := pipeline.BaseSpawnEnv(sp)[claudeconfig.EnvVar]; dir != "" {
-		return dir
-	}
-	return claudeconfig.DefaultDir()
-}
-
 type authEntry struct {
 	status  cloud.AuthStatus
 	fetched time.Time
 }
 
-// AuthCache memoises `claude auth status` per canonical config dir.
-type AuthCache struct {
+// authCache memoises `claude auth status` per account dir.
+type authCache struct {
 	cli     CLI
 	now     func() time.Time
 	flight  singleflight.Group
@@ -69,17 +58,17 @@ type AuthCache struct {
 	entries map[string]authEntry
 }
 
-// NewAuthCache returns a cache with a 60 s TTL; now is the clock.
-func NewAuthCache(cli CLI, now func() time.Time) *AuthCache {
-	return &AuthCache{cli: cli, now: now, entries: map[string]authEntry{}}
+// newAuthCache returns a cache with a 60 s TTL; now is the clock.
+func newAuthCache(cli CLI, now func() time.Time) *authCache {
+	return &authCache{cli: cli, now: now, entries: map[string]authEntry{}}
 }
 
 // Status returns the cached status for the spawner's config dir, asking the CLI
 // when the entry is older than the TTL or refresh is set. Concurrent lookups for
-// one dir share a single CLI call. Only CloudReady results are cached, so a
+// one account share a single CLI call. Only CloudReady results are cached, so a
 // retry right after `claude auth login` sees the new state.
-func (c *AuthCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (cloud.AuthStatus, error) {
-	key := pathutil.Canonical(ConfigDir(sp))
+func (c *authCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (cloud.AuthStatus, error) {
+	key := cloud.AccountDir(sp)
 	c.mu.Lock()
 	e, ok := c.entries[key]
 	c.mu.Unlock()
@@ -110,7 +99,7 @@ type Handler struct {
 	sessions    repo.CloudSessionRepo
 	spawners    repo.SpawnerRepo
 	cli         CLI
-	auth        *AuthCache
+	auth        *authCache
 	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]
 }
 
@@ -123,7 +112,7 @@ func NewHandler(sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, cli C
 		sessions:    sessions,
 		spawners:    spawners,
 		cli:         cli,
-		auth:        NewAuthCache(cli, time.Now),
+		auth:        newAuthCache(cli, time.Now),
 		broadcaster: broadcaster,
 	}
 }
@@ -266,7 +255,7 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 
 	created, err := h.sessions.Create(r.Context(), repo.CreateCloudSessionInput{
 		SessionID: sessionID,
-		URL:       "https://claude.ai/code/" + sessionID,
+		URL:       cloud.SessionURL(sessionID),
 		SpawnerID: sp.ID,
 		Title:     title,
 		Origin:    cloudsession.OriginImported,
@@ -322,17 +311,25 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 		return apierr.NewAppError(http.StatusConflict, "spawner "+sp.ID+" no longer runs Claude")
 	}
 
-	st, err := h.auth.Status(r.Context(), sp, false)
+	// A client that hangs up mid-send must not skip recording the outcome.
+	ctx := context.WithoutCancel(r.Context())
+	st, err := h.auth.Status(ctx, sp, false)
 	if err != nil {
+		updated, recErr := h.sessions.RecordError(ctx, session.ID, err.Error())
+		if recErr != nil {
+			if ent.IsNotFound(recErr) {
+				return apierr.NewAppError(http.StatusNotFound, "cloud session not found")
+			}
+			return recErr
+		}
+		h.emit(sse.CloudSessionUpdated, updated.ID, toView(updated))
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
 	if !st.CloudReady() {
 		return apierr.NewAppError(http.StatusConflict,
-			"account is not signed in with claude.ai; run: CLAUDE_CONFIG_DIR="+ConfigDir(sp)+" claude auth login")
+			"account is not signed in with claude.ai; run: "+cloud.LoginHint(sp))
 	}
 
-	// A client that hangs up mid-send must not skip recording the outcome.
-	ctx := context.WithoutCancel(r.Context())
 	result, sendErr := h.cli.Send(ctx, sp, session.SessionID, body.Text)
 	errText := ""
 	switch {
