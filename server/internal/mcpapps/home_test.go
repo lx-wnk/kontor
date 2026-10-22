@@ -41,6 +41,13 @@ func TestIsolatedHomeEnv(t *testing.T) {
 		require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
 	})
 
+	t.Run("rejects an empty root", func(t *testing.T) {
+		_, err := mcpapps.IsolatedHomeEnv("", "app")
+		require.Error(t, err)
+		_, statErr := os.Stat("app")
+		require.True(t, os.IsNotExist(statErr), "an empty root created a cwd-relative directory")
+	})
+
 	t.Run("two ids get two directories", func(t *testing.T) {
 		root := t.TempDir()
 		a, err := mcpapps.IsolatedHomeEnv(root, "a")
@@ -97,4 +104,8 @@ func TestIsolateHome_OnlyTheImapPresetOptsIn(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, p.IsolateHome, "preset %q must not isolate HOME", name)
 	}
+}
+
+func TestHomeRootUnder(t *testing.T) {
+	require.Equal(t, filepath.Join("/u", ".claude", "kontor", "apps"), mcpapps.HomeRootUnder("/u"))
 }

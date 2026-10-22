@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -208,4 +209,67 @@ func TestResolveRun_AllowedSpawners(t *testing.T) {
 func TestSpawnerNotAllowedError_Text(t *testing.T) {
 	err := &mcpapps.SpawnerNotAllowedError{Server: "mail-private", Spawner: "B", Stage: "implementation"}
 	require.Equal(t, `application "mail-private" is not allowed for spawner "B" (stage implementation)`, err.Error())
+}
+
+var (
+	imapEntryA = json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`)
+	imapEntryB = json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server@2"]}`)
+)
+
+func renderedEnv(t *testing.T, out mcpapps.RunApplications, server string) map[string]string {
+	t.Helper()
+	var entry struct {
+		Env map[string]string `json:"env"`
+	}
+	require.NoError(t, json.Unmarshal(out.Servers[server], &entry))
+	return entry.Env
+}
+
+func TestResolveRun_TwoMailAppsGetDifferentHome(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+	f.addApp(t, "res-mail-b", "mail-b", true, imapEntryB)
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+
+	a, b := renderedEnv(t, out, "mail-a"), renderedEnv(t, out, "mail-b")
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-a"), a["HOME"])
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-b"), b["HOME"])
+	require.NotEmpty(t, a["npm_config_cache"])
+}
+
+func TestResolveRun_NonIsolatedAppKeepsEnv(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-notes", "notes", true, notesEntry)
+	require.NoError(t, f.secrets.Set(f.ctx, "res-notes", "NOTES_TOKEN", "tok"))
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+
+	env := renderedEnv(t, out, "notes")
+	require.NotContains(t, env, "HOME")
+	require.NotContains(t, env, "npm_config_cache")
+	require.Equal(t, "tok", env["NOTES_TOKEN"])
+}
+
+func TestResolveRun_IsolatedHomeOverridesSecret(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+	require.NoError(t, f.secrets.Set(f.ctx, "res-mail-a", "HOME", "/shared"))
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-a"), renderedEnv(t, out, "mail-a")["HOME"])
+}
+
+func TestResolveRun_IsolatedAppWithoutHomeRootFailsClosed(t *testing.T) {
+	f := newResolveFixture(t)
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+
+	_, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.Error(t, err)
 }
