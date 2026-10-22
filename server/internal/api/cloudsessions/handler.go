@@ -38,6 +38,18 @@ type CLI interface {
 	AuthStatus(ctx context.Context, sp *ent.Spawner) (cloud.AuthStatus, error)
 }
 
+// ValidateTitle returns the trimmed session title, or an error when it is too long or holds control characters.
+func ValidateTitle(s string) (string, error) {
+	title := strings.TrimSpace(s)
+	if utf8.RuneCountInString(title) > maxTitleRunes {
+		return "", fmt.Errorf("title must be at most %d characters", maxTitleRunes)
+	}
+	if strings.ContainsFunc(title, unicode.IsControl) {
+		return "", errors.New("title: contains control characters")
+	}
+	return title, nil
+}
+
 // RunsClaude reports whether the spawner drives the claude CLI; an empty adapter
 // type is the schema default, claude.
 func RunsClaude(sp *ent.Spawner) bool {
@@ -234,12 +246,9 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, err.Error())
 	}
-	title := strings.TrimSpace(body.Title)
-	if utf8.RuneCountInString(title) > maxTitleRunes {
-		return apierr.NewAppError(http.StatusBadRequest, fmt.Sprintf("title must be at most %d characters", maxTitleRunes))
-	}
-	if strings.ContainsFunc(title, unicode.IsControl) {
-		return apierr.NewAppError(http.StatusBadRequest, "title: contains control characters")
+	title, err := ValidateTitle(body.Title)
+	if err != nil {
+		return apierr.NewAppError(http.StatusBadRequest, err.Error())
 	}
 	if title == "" {
 		title = sessionID

@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 
@@ -24,7 +25,6 @@ import (
 )
 
 const (
-	maxNameRunes  = 200
 	maxTokenBytes = 4096
 	maxTextBytes  = 100000
 	maxBodyBytes  = 1 << 20
@@ -43,16 +43,22 @@ type Handler struct {
 	firer       Firer
 	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]
 	previewOn   func() bool
+
+	firingMu sync.Mutex
+	firing   map[string]struct{}
 }
 
 // NewHandler returns a Handler. previewOn reports the preview features switch;
-// every route answers 404 while it is off. It panics on a nil broadcaster.
+// every route answers 404 while it is off. It panics on any nil dependency.
 func NewHandler(routines repo.CloudRoutineRepo, sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, firer Firer,
 	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent], previewOn func() bool) *Handler {
-	if broadcaster == nil {
-		panic("cloudroutines.Handler requires a broadcaster")
+	if routines == nil || sessions == nil || spawners == nil || firer == nil || broadcaster == nil || previewOn == nil {
+		panic("cloudroutines.Handler requires routines, sessions, spawners, firer, broadcaster and previewOn")
 	}
-	return &Handler{routines: routines, sessions: sessions, spawners: spawners, firer: firer, broadcaster: broadcaster, previewOn: previewOn}
+	return &Handler{
+		routines: routines, sessions: sessions, spawners: spawners, firer: firer,
+		broadcaster: broadcaster, previewOn: previewOn, firing: map[string]struct{}{},
+	}
 }
 
 // Mount registers the cloud routine routes on r. Caller must wrap r with
@@ -111,14 +117,12 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
 }
 
 func validateName(s string) (string, error) {
-	name := strings.TrimSpace(s)
-	switch {
-	case name == "":
+	name, err := cloudsessions.ValidateTitle(s)
+	if err != nil {
+		return "", badRequest(err.Error())
+	}
+	if name == "" {
 		return "", badRequest("name is required")
-	case utf8.RuneCountInString(name) > maxNameRunes:
-		return "", badRequest(fmt.Sprintf("name must be at most %d characters", maxNameRunes))
-	case strings.ContainsFunc(name, unicode.IsControl):
-		return "", badRequest("name: contains control characters")
 	}
 	return name, nil
 }
@@ -143,7 +147,6 @@ func validateToken(s string) error {
 	return nil
 }
 
-// claudeSpawner returns the spawner a routine runs under, or a 400 when it is missing or not a claude spawner.
 func (h *Handler) claudeSpawner(ctx context.Context, id string) (*ent.Spawner, error) {
 	sp, err := h.spawners.GetByID(ctx, id)
 	if err != nil {
@@ -158,10 +161,30 @@ func (h *Handler) claudeSpawner(ctx context.Context, id string) (*ent.Spawner, e
 	return sp, nil
 }
 
+func (h *Handler) acquireFire(id string) bool {
+	h.firingMu.Lock()
+	defer h.firingMu.Unlock()
+	if _, busy := h.firing[id]; busy {
+		return false
+	}
+	h.firing[id] = struct{}{}
+	return true
+}
+
+func (h *Handler) releaseFire(id string) {
+	h.firingMu.Lock()
+	defer h.firingMu.Unlock()
+	delete(h.firing, id)
+}
+
+func warnUnrecorded(routineID, reason string) {
+	slog.Warn("routine run may have started without a Kontor session record", "routineId", routineID, "reason", reason)
+}
+
 func mapRepoError(err error) error {
 	switch {
 	case errors.Is(err, repo.ErrSecretsUnavailable):
-		return apierr.NewAppError(http.StatusServiceUnavailable, err.Error())
+		return apierr.NewAppError(http.StatusServiceUnavailable, "routine tokens are unavailable: no secret key configured")
 	case ent.IsNotFound(err):
 		return apierr.NewAppError(http.StatusNotFound, "cloud routine not found")
 	}
@@ -296,6 +319,10 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return mapRepoError(err)
 	}
+	if !h.acquireFire(id) {
+		return apierr.NewAppError(http.StatusConflict, "routine is already firing")
+	}
+	defer h.releaseFire(id)
 	token, err := h.routines.Token(r.Context(), id)
 	if err != nil {
 		return mapRepoError(err)
@@ -324,10 +351,14 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 			})
 			return nil
 		}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			warnUnrecorded(id, "fire timed out or was canceled")
+		}
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
 	sessionID, err := cloud.ParseSessionRef(result.SessionID)
 	if err != nil {
+		warnUnrecorded(id, "fire result has an invalid session id")
 		return apierr.NewAppError(http.StatusBadGateway, "routine fire returned an invalid session id")
 	}
 
@@ -339,6 +370,7 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 		Origin:    cloudsession.OriginRoutine,
 	})
 	if err != nil {
+		warnUnrecorded(id, "session row was not created")
 		if errors.Is(err, repo.ErrCloudSessionExists) {
 			return apierr.NewAppError(http.StatusConflict, "cloud session already recorded")
 		}
