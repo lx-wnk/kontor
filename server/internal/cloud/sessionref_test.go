@@ -20,7 +20,7 @@ func TestParseSessionRef(t *testing.T) {
 		{"https url cse", "https://claude.ai/code/" + cse, cse, false},
 		{"trailing slash", "https://claude.ai/code/" + sess + "/", sess, false},
 		{"query string", "https://claude.ai/code/" + sess + "?x=1", sess, false},
-		{"max length id", "session_" + strings.Repeat("a", 120), "session_" + strings.Repeat("a", 120), false},
+		{"max length id", "session_" + strings.Repeat("a", 128), "session_" + strings.Repeat("a", 128), false},
 
 		{"http scheme", "http://claude.ai/code/x", "", true},
 		{"http scheme valid id", "http://claude.ai/code/" + sess, "", true},
@@ -42,7 +42,7 @@ func TestParseSessionRef(t *testing.T) {
 		{"encoded slash", "https://claude.ai/code/session_abc%2Fdefgh", "", true},
 		{"path traversal bare", "session_../..", "", true},
 		{"id too short", "session_abcdefg", "", true},
-		{"id too long", "session_" + strings.Repeat("a", 121), "", true},
+		{"id too long", "session_" + strings.Repeat("a", 129), "", true},
 		{"unknown prefix", "task_abcdefgh", "", true},
 		{"empty", "", "", true},
 		{"whitespace padded", " " + sess + " ", "", true},
