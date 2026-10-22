@@ -9,9 +9,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/lx-wnk/kontor/server/internal/apierr"
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
@@ -39,6 +41,12 @@ type CLI interface {
 	AuthStatus(ctx context.Context, sp *ent.Spawner) (cloud.AuthStatus, error)
 }
 
+// runsClaude reports whether the spawner drives the claude CLI; an empty adapter
+// type is the schema default, claude.
+func runsClaude(sp *ent.Spawner) bool {
+	return sp.AdapterType == "" || sp.AdapterType == claudeAdapter
+}
+
 // ConfigDir is the Claude config dir a spawner's CLI runs on.
 func ConfigDir(sp *ent.Spawner) string {
 	if dir := pipeline.BaseSpawnEnv(sp)[claudeconfig.EnvVar]; dir != "" {
@@ -56,6 +64,7 @@ type authEntry struct {
 type AuthCache struct {
 	cli     CLI
 	now     func() time.Time
+	flight  singleflight.Group
 	mu      sync.Mutex
 	entries map[string]authEntry
 }
@@ -66,7 +75,9 @@ func NewAuthCache(cli CLI, now func() time.Time) *AuthCache {
 }
 
 // Status returns the cached status for the spawner's config dir, asking the CLI
-// when the entry is older than the TTL or refresh is set. Errors are not cached.
+// when the entry is older than the TTL or refresh is set. Concurrent lookups for
+// one dir share a single CLI call. Only CloudReady results are cached, so a
+// retry right after `claude auth login` sees the new state.
 func (c *AuthCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (cloud.AuthStatus, error) {
 	key := pathutil.Canonical(ConfigDir(sp))
 	c.mu.Lock()
@@ -75,14 +86,23 @@ func (c *AuthCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (
 	if ok && !refresh && c.now().Sub(e.fetched) < authCacheTTL {
 		return e.status, nil
 	}
-	st, err := c.cli.AuthStatus(ctx, sp)
+	// The shared call must not die with the first caller's request.
+	v, err, _ := c.flight.Do(key, func() (any, error) {
+		st, err := c.cli.AuthStatus(context.WithoutCancel(ctx), sp)
+		if err != nil {
+			return nil, err
+		}
+		if st.CloudReady() {
+			c.mu.Lock()
+			c.entries[key] = authEntry{status: st, fetched: c.now()}
+			c.mu.Unlock()
+		}
+		return st, nil
+	})
 	if err != nil {
 		return cloud.AuthStatus{}, err
 	}
-	c.mu.Lock()
-	c.entries[key] = authEntry{status: st, fetched: c.now()}
-	c.mu.Unlock()
-	return st, nil
+	return v.(cloud.AuthStatus), nil
 }
 
 // Handler serves the cloud session routes.
@@ -94,8 +114,11 @@ type Handler struct {
 	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]
 }
 
-// NewHandler returns a Handler. broadcaster may be nil; emit is then a no-op.
+// NewHandler returns a Handler. It panics on a nil broadcaster.
 func NewHandler(sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, cli CLI, broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]) *Handler {
+	if broadcaster == nil {
+		panic("cloudsessions.Handler requires a broadcaster")
+	}
 	return &Handler{
 		sessions:    sessions,
 		spawners:    spawners,
@@ -106,9 +129,6 @@ func NewHandler(sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, cli C
 }
 
 func (h *Handler) emit(eventType, id string, payload any) {
-	if h.broadcaster == nil {
-		return
-	}
 	h.broadcaster.Broadcast(sse.CloudSessionEvent{Type: eventType, CloudSessionID: id, Payload: payload})
 }
 
@@ -226,6 +246,9 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 	if utf8.RuneCountInString(title) > maxTitleRunes {
 		return apierr.NewAppError(http.StatusBadRequest, fmt.Sprintf("title must be at most %d characters", maxTitleRunes))
 	}
+	if strings.ContainsFunc(title, unicode.IsControl) {
+		return apierr.NewAppError(http.StatusBadRequest, "title: contains control characters")
+	}
 	if title == "" {
 		title = sessionID
 	}
@@ -236,7 +259,7 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	if sp.AdapterType != "" && sp.AdapterType != claudeAdapter {
+	if !runsClaude(sp) {
 		return apierr.NewAppError(http.StatusBadRequest, "cloud sessions need a claude spawner")
 	}
 
@@ -292,6 +315,10 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 			return apierr.NewAppError(http.StatusNotFound, "spawner not found")
 		}
 		return err
+	}
+
+	if !runsClaude(sp) {
+		return apierr.NewAppError(http.StatusConflict, "spawner "+sp.ID+" no longer runs Claude")
 	}
 
 	st, err := h.auth.Status(r.Context(), sp, false)
