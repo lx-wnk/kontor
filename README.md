@@ -92,7 +92,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Insights** — workflow patterns, cost by project and session, and eval drift detection over past stage runs.
 
-**Integrations** — MCP endpoint with scoped tokens, Obsidian vault ([guide](docs/guides/obsidian.md)), GitHub pull requests ([guide](docs/guides/github.md)), pluggable LLM adapters (OpenAI-compatible, Ollama, `anthropic`), Web Push, webhook and email notifications. Codex, Gemini and Junie CLI agents can be monitored opt-in.
+**Integrations** — MCP endpoint with scoped tokens, MCP applications such as mail that can be [limited to chosen spawners](docs/guides/mcp.md#limiting-an-application-to-spawners) (Claude accounts), Obsidian vault ([guide](docs/guides/obsidian.md)), GitHub pull requests ([guide](docs/guides/github.md)), pluggable LLM adapters (OpenAI-compatible, Ollama, `anthropic`), Web Push, webhook and email notifications. Codex, Gemini and Junie CLI agents can be monitored opt-in.
 
 **Security & permissions** — GitHub OAuth + JWT, scoped API keys, and one capability gate (allow / deny / ask) for spawned agents, memory, Obsidian and GitHub access. See [Security](docs/guides/security.md).
 

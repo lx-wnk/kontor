@@ -154,7 +154,7 @@ An MCP server the dashboard knows is an *application*. The dashboard holds the s
 
 The same over HTTP: `POST /api/applications` with `{"name": "mail", "command": "npx", "args": ["-y", "imap-mcp-server"], "env": {"IMAP_HOST": "imap.example.com"}}`. Editing a definition is `PATCH /api/applications/{resourceId}` with `{"entry": {...}}` — it replaces the fields the app knows (`type`, `command`, `args`, `url`, `env`) and keeps any other key the entry carries, so a definition imported from Claude's config does not lose what the CLI wrote there.
 
-**Removing** a server (`DELETE /api/applications/{resourceId}`) revokes the grants on its tools, deletes its secrets and drops the definition. If it was mirrored into `~/.claude.json`, that entry goes with it; a server the app never mirrored stays in the file and is then offered as found. It is refused with `409` while a routine still attaches it, and the message names those routines. The registry row stays behind as `orphaned` so grants anchored to it still resolve.
+**Removing** a server (`DELETE /api/applications/{resourceId}`) revokes the grants on its tools, deletes its secrets and drops the definition. It also stops a running setup and removes the application's home directory with everything the server stored there. If it was mirrored into `~/.claude.json`, that entry goes with it; a server the app never mirrored stays in the file and is then offered as found. It is refused with `409` while a routine still attaches it, and the message names those routines. The registry row stays behind as `orphaned` so grants anchored to it still resolve.
 
 ### Servers registered with Claude Code
 
@@ -168,6 +168,10 @@ Servers that existed in `~/.claude.json` when this version first started were im
 
 The switch on an application writes its definition into `~/.claude.json` as `mcpServers.<name>`, so a plain `claude` session sees the same server. The dashboard changes only that one key, keeps every other key and the file's mode, writes through a temporary file in the same directory, and refuses to write through a symlinked config. Secrets are never written: the exported entry is the stored definition, not the one a run gets with its secrets merged in.
 
+The switch is off and cannot be turned on while the application is [limited to spawners](#limiting-an-application-to-spawners): an exported entry sits in a config directory that every session of that account sees, which would defeat the limit. `PATCH /api/applications/{resourceId}` refuses the combination with `400` and `exportToClaude: not allowed while allowedSpawners is set`. To limit an application that is already exported — servers imported when this version first started are — turn export off first; Settings → Applications disables the **Allowed spawners** checklist while the application is exported and shows `Turn export off to limit this application to spawners.`
+
+Export is also unavailable for an application that runs in [its own home](#setting-a-server-up) (today `imap-mcp-server`): the exported entry is the stored definition, which carries no isolated `HOME`. `PATCH /api/applications/{resourceId}` refuses turning it on with `400` and `exportToClaude: not available for applications with their own home`, and the switch is disabled with `Export is unavailable for applications with their own home.` unless the application is already exported, so it can still be turned off.
+
 ### Routine run modes over MCP
 
 `manage_schedule` takes `runMode` on `create` and `update`: `job` (the default) fires one agent run in the routine's working directory, `pipeline` fires a pipeline task that starts in `ready`. A `pipeline` routine needs a git working directory — the tool refuses anything else with `working directory is not a git repository`, and an unknown value with `runMode must be job or pipeline`, exactly as `POST`/`PATCH /api/schedules` do.
@@ -179,6 +183,25 @@ A run receives the dashboard's own servers, every application marked **Attach to
 - Servers that already existed when applications were introduced are marked **Attach to every run**, so existing setups keep working. Servers added later start unattached. Change it per application in Settings → Applications.
 - To attach an application to a routine, tick it under **Applications** in the routine form (**Build → Schedules**), or send `applications` — a list of application resource ids — with `POST` or `PATCH /api/schedules`. An unknown id is rejected with `400`.
 - The scheduler copies the routine's list onto every task it creates. The task API does not accept `applications`; a task gets applications only from its routine.
+- An application can be limited to chosen spawners, so a run reaches it only through a spawner on its list. See [Limiting an application to spawners](#limiting-an-application-to-spawners).
+
+### Limiting an application to spawners
+
+**An application with a list of allowed spawners reaches only those spawners.** The list is empty by default, which means unrestricted, so existing applications behave as before. Use it to keep a mailbox from reaching the wrong Claude account: a spawner is what selects the account, through its `CLAUDE_CONFIG_DIR` (or `~/.claude` when it sets none).
+
+In **Settings → Applications**, each application has an **Allowed spawners** checklist of the Claude spawners, labelled `<name> (<CLAUDE_CONFIG_DIR or ~/.claude>)`. None ticked means any spawner. An application using the `imap-mcp-server` preset with an empty list shows the warning `Any spawner can read this mailbox.` The routine form shows `Limited to: <names>` under each restricted application.
+
+The same over HTTP: `PATCH /api/applications/{resourceId}` with `{"allowedSpawners": ["<spawner id>", …]}`; `[]` lifts the limit. A spawner ID that is not already stored and names no spawner is refused with `400` and `allowedSpawners: unknown spawner <id>`. Only Claude spawners can be listed: a new ID of a spawner that does not run Claude is refused with `400` and `allowedSpawners: spawner <id> does not run Claude`. The checklist is disabled while the application is exported (see above) and while a change is being saved.
+
+- **The check runs per stage, against that stage's resolved spawner.** An application attached to the routine explicitly and not allowed for the stage's spawner **fails the stage run before the agent starts**, with a reason beginning `MCP applications: application "<name>" is not allowed for spawner "<spawner>" (stage <stage>)`. An application reached only through **Attach to every run** is skipped for that run instead, and the skip is logged. A stage whose spawner cannot be resolved counts as not allowed.
+- **Stages on a non-Claude spawner never receive applications.** Only the native Claude path attaches them, so such a stage is skipped by the up-front check below instead of failing it.
+- **A task does not spend early stages first.** Whenever a fresh agent-stage run is about to start — the first start and every retry — the spawners of the remaining agent stages are resolved too, and the run fails right away if a later stage would be refused.
+- **A deleted spawner stays on the list.** An ID already stored is still accepted after its spawner is deleted, and Settings shows it as `Removed spawner (<first 8 characters of the id>)`; untick it to remove it. It is never pruned silently, because an emptied list would mean unrestricted. A list whose IDs all belong to deleted spawners admits no spawner.
+- **Export is unavailable while the list is not empty** (nor for an application with its own home), see [Also available in Claude Code sessions](#also-available-in-claude-code-sessions).
+
+**Recommended setup: one application per trust boundary.** For mail, add one `imap-mcp-server` application per account that must stay apart — say `mail-private`, limited to the private spawner, and `mail-work`, limited to the work spawner. The limit is per application, not per mailbox inside one application. Presets that declare `isolateHome` (today `imap-mcp-server`) also give each application its own `HOME`, so two applications never share a mailbox store; see [Setting a server up](#setting-a-server-up).
+
+**What this does not stop.** The limit prevents a mailbox from reaching the wrong account by configuration or by default. It does not stop an agent with shell access as the same OS user from reading another application's home directory; that needs separate OS users and is out of scope.
 
 ### Secrets
 
@@ -193,7 +216,7 @@ The same over HTTP: `PATCH /api/applications/{resourceId}` with `{"requiredEnv":
 
 ### Tools and grants
 
-**Refresh tool list** (`POST /api/applications/{resourceId}/refresh`) starts the server from the definition stored in the app, with its secrets, and reads its tool list. Only stdio servers — entries with a `command` — are supported; `http` and `sse` servers are refused with an error. A failed refresh keeps the previous list and shows the error.
+**Refresh tool list** (`POST /api/applications/{resourceId}/refresh`) starts the server from the definition stored in the app, with its secrets, and reads its tool list. Only stdio servers — entries with a `command` — are supported; `http` and `sse` servers are refused with an error. A failed refresh keeps the previous list and shows the error. An application whose preset isolates its home is started in that home, see [Setting a server up](#setting-a-server-up).
 
 Each tool becomes a capability named the way Claude Code names it, `mcp__<server>__<tool>`, with class `tool`. A later refresh never changes the class of a capability that already exists. The server's `readOnlyHint` and `destructiveHint` are shown for orientation only; the MCP specification says clients must not trust them.
 
@@ -217,8 +240,10 @@ Settings → Applications lists every tool with what it resolves to today: **den
 A preset may also declare a `setup` block — a command, its arguments with a `{port}` placeholder, and a readiness path. **Set up** in Settings → Applications then starts that command on a free port, passing the application's own environment and its stored secrets, and shows the server's own configuration page in a sandboxed frame once the readiness path answers.
 
 - The port is also handed to the child as `SETUP_PORT`.
+- **An application whose preset declares `isolateHome` always runs in its own home.** Every start of its server uses it: the setup page, agent runs, the account lookup below and **Refresh tool list**. The server runs with `HOME` set to `~/.claude/kontor/apps/<resourceId>` (created with mode `0700`) and `npm_config_cache` pointing at your real npm cache, so a setup does not reinstall the package. `imap-mcp-server` keeps its accounts, stored passwords and their key under `HOME/.imap-mcp`; every start uses the same home, so what you configure in the setup page is what the agent sees, and a second application starts with an empty store. **Upgrading:** an `imap-mcp-server` application created before this release ran with the shared `HOME`, so its accounts sit in `~/.imap-mcp`. It now uses an empty `~/.claude/kontor/apps/<resourceId>`, so run **Set up** again for each mail application. The old `~/.imap-mcp` is left in place; delete it once the accounts are set up again. If your user home cannot be determined, or is not an absolute path, each of those four fails instead of falling back to the shared `HOME`: a run does not start, and the setup, account lookup and refresh endpoints answer with an error (the refresh answers `502` with `tool catalogue: …` and records the error on the application). Adding or importing an application does not refresh its tools.
 - One setup runs per application; starting a second replaces the first.
 - It stops on **Done**, on fifteen minutes idle, after thirty minutes at most, and when the dashboard shuts down.
+- Deleting the application stops a running setup and removes its home directory with everything the server stored there.
 - **The setup page is reachable on your local network while it runs** — the panel says so for as long as the process lives. Click Done when you are finished.
 - `POST /api/applications/{resourceId}/setup` answers the session, `GET` returns it, `DELETE` stops it. A server without a setup block answers `409`; a command that fails to start or never becomes ready answers `502` with the tail of its own stderr.
 

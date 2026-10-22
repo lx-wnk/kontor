@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +41,9 @@ type Handler struct {
 	tools        ToolCaller
 	capabilities repo.CapabilityRepo
 	findPreset   mcpapps.PresetFinder
+	spawners     repo.SpawnerRepo
+	homeRoot     string
+	patchMu      sync.Mutex
 }
 
 // ToolCaller runs one tool on an application's own MCP server. It is an
@@ -70,18 +74,24 @@ type SetupRunner interface {
 	Get(resourceID string) (appsetup.Session, bool)
 }
 
-func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo, refresher mcpapps.Refresher, grants repo.GrantRepo, resources repo.ResourceRepo, schedules repo.TaskScheduleRepo, setup SetupRunner, tools ToolCaller, capabilities repo.CapabilityRepo) *Handler {
+func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo, refresher mcpapps.Refresher, grants repo.GrantRepo, resources repo.ResourceRepo, schedules repo.TaskScheduleRepo, setup SetupRunner, tools ToolCaller, capabilities repo.CapabilityRepo, spawners repo.SpawnerRepo) *Handler {
 	if tools == nil {
 		tools = StdioToolCaller{}
 	}
-	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset}
+	return &Handler{apps: apps, secrets: secrets, refresher: refresher, grants: grants, resources: resources, schedules: schedules, setup: setup, tools: tools, capabilities: capabilities, findPreset: mcpapps.FindPreset, spawners: spawners}
 }
 
-// WithPresetLookup replaces the lookup the deny preflight and the deny apply
-// share. It exists so a test can supply a preset the embedded catalogue does
-// not contain; production keeps mcpapps.FindPreset.
+// WithPresetLookup replaces the preset lookup every route in this handler uses.
+// It exists so a test can supply a preset the embedded catalogue does not
+// contain; production keeps mcpapps.FindPreset.
 func (h *Handler) WithPresetLookup(find mcpapps.PresetFinder) *Handler {
 	h.findPreset = find
+	return h
+}
+
+// WithHomeRoot sets the directory holding each isolated application's HOME.
+func (h *Handler) WithHomeRoot(root string) *Handler {
+	h.homeRoot = root
 	return h
 }
 
@@ -134,6 +144,10 @@ type applicationView struct {
 	Tools                []toolView          `json:"tools"`
 	CatalogueError       string              `json:"catalogueError,omitempty"`
 	CatalogueRefreshedAt *string             `json:"catalogueRefreshedAt,omitempty"`
+	AllowedSpawners      []string            `json:"allowedSpawners"`
+	// "" when no preset matches.
+	Preset       string `json:"preset"`
+	IsolatedHome bool   `json:"isolatedHome"`
 }
 
 func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationView, error) {
@@ -142,17 +156,21 @@ func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationVie
 		return applicationView{}, err
 	}
 	v := applicationView{
-		ResourceID:     app.ResourceID,
-		ServerName:     app.ServerName,
-		AttachAll:      app.AttachAll,
-		RequiredEnv:    app.RequiredEnv,
-		ExportToClaude: app.ExportToClaude,
-		Secrets:        make([]secretView, 0, len(meta)),
-		Tools:          make([]toolView, 0, len(app.Catalogue)),
-		CatalogueError: app.CatalogueError,
+		ResourceID:      app.ResourceID,
+		ServerName:      app.ServerName,
+		AttachAll:       app.AttachAll,
+		RequiredEnv:     app.RequiredEnv,
+		ExportToClaude:  app.ExportToClaude,
+		Secrets:         make([]secretView, 0, len(meta)),
+		Tools:           make([]toolView, 0, len(app.Catalogue)),
+		CatalogueError:  app.CatalogueError,
+		AllowedSpawners: app.AllowedSpawners,
 	}
 	if v.RequiredEnv == nil {
 		v.RequiredEnv = []string{}
+	}
+	if v.AllowedSpawners == nil {
+		v.AllowedSpawners = []string{}
 	}
 	if !mcpapps.IsEmptyEntry(app.Entry) {
 		entry, err := mcpapps.ParseEntry(app.Entry)
@@ -160,6 +178,10 @@ func (h *Handler) view(r *http.Request, app *ent.MCPApplication) (applicationVie
 			return applicationView{}, err
 		}
 		v.Entry = entry
+		if preset, ok := h.findPreset(entry); ok {
+			v.Preset = preset.Server
+			v.IsolatedHome = preset.IsolateHome
+		}
 	}
 	for _, m := range meta {
 		v.Secrets = append(v.Secrets, secretView{EnvName: m.EnvName, UpdatedAt: m.UpdatedAt.UTC().Format(time.RFC3339)})
@@ -215,6 +237,8 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
+	h.patchMu.Lock()
+	defer h.patchMu.Unlock()
 	app, err := h.load(r)
 	if err != nil {
 		return err
@@ -224,9 +248,24 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		RequiredEnv    *[]string            `json:"requiredEnv"`
 		Entry          *mcpapps.ServerEntry `json:"entry"`
 		ExportToClaude *bool                `json:"exportToClaude"`
+
+		AllowedSpawners *[]string `json:"allowedSpawners"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
+	}
+	allowedSpawners := app.AllowedSpawners
+	if body.AllowedSpawners != nil {
+		if allowedSpawners, err = h.validSpawnerIDs(r.Context(), *body.AllowedSpawners, app.AllowedSpawners); err != nil {
+			return err
+		}
+	}
+	exporting := app.ExportToClaude
+	if body.ExportToClaude != nil {
+		exporting = *body.ExportToClaude
+	}
+	if len(allowedSpawners) > 0 && exporting {
+		return apierr.NewAppError(http.StatusBadRequest, "exportToClaude: not allowed while allowedSpawners is set")
 	}
 	var entry json.RawMessage
 	if body.Entry != nil {
@@ -241,18 +280,46 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	if exporting && (!app.ExportToClaude || body.Entry != nil) {
+		target := app.Entry
+		if body.Entry != nil {
+			target = entry
+		}
+		isolated, err := h.isolatesHome(target)
+		if err != nil {
+			return err
+		}
+		if isolated {
+			return apierr.NewAppError(http.StatusBadRequest, "exportToClaude: not available for applications with their own home")
+		}
+	}
 	if body.RequiredEnv != nil {
 		for _, name := range *body.RequiredEnv {
 			if !envNameRE.MatchString(name) {
 				return apierr.NewAppError(http.StatusBadRequest, "requiredEnv: "+name+" is not an environment variable name")
 			}
 		}
+	}
+	// Removing the export before storing a non-empty list means a failed
+	// config write never leaves the application restricted and still exported.
+	unexportFirst := body.ExportToClaude != nil && !exporting && len(allowedSpawners) > 0
+	if unexportFirst {
+		if app, err = h.applyExport(r, app, false); err != nil {
+			return err
+		}
+	}
+	if body.RequiredEnv != nil {
 		if app, err = h.apps.SetRequiredEnv(r.Context(), app.ResourceID, *body.RequiredEnv); err != nil {
 			return err
 		}
 	}
 	if body.AttachAll != nil {
 		if app, err = h.apps.SetAttachAll(r.Context(), app.ResourceID, *body.AttachAll); err != nil {
+			return err
+		}
+	}
+	if body.AllowedSpawners != nil {
+		if app, err = h.apps.SetAllowedSpawners(r.Context(), app.ResourceID, allowedSpawners); err != nil {
 			return err
 		}
 	}
@@ -267,12 +334,8 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 	// Export runs after the entry write above so a PATCH carrying both entry
 	// and exportToClaude mirrors the new entry into Claude's config, not the
 	// stale one.
-	exportToClaude := app.ExportToClaude
-	if body.ExportToClaude != nil {
-		exportToClaude = *body.ExportToClaude
-	}
-	if body.ExportToClaude != nil || (exportToClaude && body.Entry != nil) {
-		if app, err = h.applyExport(r, app, exportToClaude); err != nil {
+	if !unexportFirst && (body.ExportToClaude != nil || (exporting && body.Entry != nil)) {
+		if app, err = h.applyExport(r, app, exporting); err != nil {
 			return err
 		}
 	}
@@ -281,6 +344,32 @@ func (h *Handler) patch(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return writeJSON(w, http.StatusOK, v)
+}
+
+// An ID already stored passes even when its spawner is gone or no longer runs Claude.
+func (h *Handler) validSpawnerIDs(ctx context.Context, ids, stored []string) ([]string, error) {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if slices.Contains(out, id) {
+			continue
+		}
+		if slices.Contains(stored, id) {
+			out = append(out, id)
+			continue
+		}
+		spawner, err := h.spawners.GetByID(ctx, id)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return nil, apierr.NewAppError(http.StatusBadRequest, "allowedSpawners: unknown spawner "+id)
+			}
+			return nil, err
+		}
+		if spawner.AdapterType != "" && spawner.AdapterType != "claude" {
+			return nil, apierr.NewAppError(http.StatusBadRequest, "allowedSpawners: spawner "+id+" does not run Claude")
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // applyExport mirrors app's entry into Claude's own config, or removes it, and
@@ -607,12 +696,44 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 	if err := h.apps.Delete(r.Context(), app.ResourceID); err != nil {
 		return err
 	}
+	if err := h.setup.Stop(app.ResourceID); err != nil {
+		slog.Warn("setup session not stopped before delete", "resourceId", app.ResourceID, "err", err)
+	}
+	h.removeIsolatedHome(app)
 	if _, err := h.resources.SetState(r.Context(), app.ResourceID, repo.ResourceStateOrphaned); err != nil {
 		return err
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 	return nil
+}
+
+// removeIsolatedHome deletes the HOME an isolated application kept its accounts in.
+// The row is already gone, so a failure is logged and never fails the delete.
+func (h *Handler) removeIsolatedHome(app *ent.MCPApplication) {
+	isolated, err := h.isolatesHome(app.Entry)
+	if err != nil {
+		slog.Warn("application home not removed, entry unreadable", "resourceId", app.ResourceID, "err", err)
+		return
+	}
+	if !isolated {
+		return
+	}
+	if err := mcpapps.RemoveIsolatedHome(h.homeRoot, app.ResourceID); err != nil {
+		slog.Warn("application home not removed", "resourceId", app.ResourceID, "err", err)
+	}
+}
+
+func (h *Handler) isolatesHome(raw json.RawMessage) (bool, error) {
+	if mcpapps.IsEmptyEntry(raw) {
+		return false, nil
+	}
+	entry, err := mcpapps.ParseEntry(raw)
+	if err != nil {
+		return false, err
+	}
+	preset, ok := h.findPreset(entry)
+	return ok && preset.IsolateHome, nil
 }
 
 // startSetup runs the application's preset setup wizard as a child process so
@@ -630,7 +751,7 @@ func (h *Handler) startSetup(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	preset, ok := mcpapps.FindPreset(entry)
+	preset, ok := h.findPreset(entry)
 	if !ok || preset.Setup == nil {
 		return apierr.NewAppError(http.StatusConflict, "this server has no setup page")
 	}
@@ -644,6 +765,10 @@ func (h *Handler) startSetup(w http.ResponseWriter, r *http.Request) error {
 	}
 	for k, v := range secretValues {
 		env[k] = v
+	}
+	env, err = mcpapps.WithIsolatedHome(env, preset, h.homeRoot, app.ResourceID)
+	if err != nil {
+		return apierr.NewAppError(http.StatusInternalServerError, err.Error())
 	}
 	sess, err := h.setup.Start(r.Context(), app.ResourceID, *preset.Setup, env)
 	if err != nil {
@@ -694,7 +819,7 @@ func (h *Handler) accounts(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	preset, ok := mcpapps.FindPreset(entry)
+	preset, ok := h.findPreset(entry)
 	if !ok || len(preset.SecretTemplates) == 0 {
 		return apierr.NewAppError(http.StatusConflict, "this server declares no per-account secrets")
 	}
@@ -702,7 +827,11 @@ func (h *Handler) accounts(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	raw, err := h.tools.Call(r.Context(), entry, values, "imap_list_accounts", nil)
+	env, err := mcpapps.WithIsolatedHome(values, preset, h.homeRoot, app.ResourceID)
+	if err != nil {
+		return apierr.NewAppError(http.StatusInternalServerError, err.Error())
+	}
+	raw, err := h.tools.Call(r.Context(), entry, env, "imap_list_accounts", nil)
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}

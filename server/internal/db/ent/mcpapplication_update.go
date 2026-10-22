@@ -56,6 +56,18 @@ func (_u *MCPApplicationUpdate) AppendRequiredEnv(v []string) *MCPApplicationUpd
 	return _u
 }
 
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (_u *MCPApplicationUpdate) SetAllowedSpawners(v []string) *MCPApplicationUpdate {
+	_u.mutation.SetAllowedSpawners(v)
+	return _u
+}
+
+// AppendAllowedSpawners appends value to the "allowed_spawners" field.
+func (_u *MCPApplicationUpdate) AppendAllowedSpawners(v []string) *MCPApplicationUpdate {
+	_u.mutation.AppendAllowedSpawners(v)
+	return _u
+}
+
 // SetCatalogue sets the "catalogue" field.
 func (_u *MCPApplicationUpdate) SetCatalogue(v []schema.CatalogueTool) *MCPApplicationUpdate {
 	_u.mutation.SetCatalogue(v)
@@ -203,6 +215,14 @@ func (_u *MCPApplicationUpdate) sqlSave(ctx context.Context) (_node int, err err
 			sqljson.Append(u, mcpapplication.FieldRequiredEnv, value)
 		})
 	}
+	if value, ok := _u.mutation.AllowedSpawners(); ok {
+		_spec.SetField(mcpapplication.FieldAllowedSpawners, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedSpawners(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, mcpapplication.FieldAllowedSpawners, value)
+		})
+	}
 	if value, ok := _u.mutation.Catalogue(); ok {
 		_spec.SetField(mcpapplication.FieldCatalogue, field.TypeJSON, value)
 	}
@@ -275,6 +295,18 @@ func (_u *MCPApplicationUpdateOne) SetRequiredEnv(v []string) *MCPApplicationUpd
 // AppendRequiredEnv appends value to the "required_env" field.
 func (_u *MCPApplicationUpdateOne) AppendRequiredEnv(v []string) *MCPApplicationUpdateOne {
 	_u.mutation.AppendRequiredEnv(v)
+	return _u
+}
+
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (_u *MCPApplicationUpdateOne) SetAllowedSpawners(v []string) *MCPApplicationUpdateOne {
+	_u.mutation.SetAllowedSpawners(v)
+	return _u
+}
+
+// AppendAllowedSpawners appends value to the "allowed_spawners" field.
+func (_u *MCPApplicationUpdateOne) AppendAllowedSpawners(v []string) *MCPApplicationUpdateOne {
+	_u.mutation.AppendAllowedSpawners(v)
 	return _u
 }
 
@@ -453,6 +485,14 @@ func (_u *MCPApplicationUpdateOne) sqlSave(ctx context.Context) (_node *MCPAppli
 	if value, ok := _u.mutation.AppendedRequiredEnv(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, mcpapplication.FieldRequiredEnv, value)
+		})
+	}
+	if value, ok := _u.mutation.AllowedSpawners(); ok {
+		_spec.SetField(mcpapplication.FieldAllowedSpawners, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedSpawners(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, mcpapplication.FieldAllowedSpawners, value)
 		})
 	}
 	if value, ok := _u.mutation.Catalogue(); ok {

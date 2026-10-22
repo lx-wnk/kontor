@@ -28,6 +28,7 @@ type MCPApplicationRepo interface {
 	List(ctx context.Context) ([]*ent.MCPApplication, error)
 	SetAttachAll(ctx context.Context, resourceID string, attachAll bool) (*ent.MCPApplication, error)
 	SetRequiredEnv(ctx context.Context, resourceID string, names []string) (*ent.MCPApplication, error)
+	SetAllowedSpawners(ctx context.Context, resourceID string, ids []string) (*ent.MCPApplication, error)
 	RecordCatalogue(ctx context.Context, resourceID string, tools []schema.CatalogueTool, catalogueErr string, at time.Time) error
 	SetEntry(ctx context.Context, resourceID string, entry json.RawMessage) (*ent.MCPApplication, error)
 	SetExport(ctx context.Context, resourceID string, export bool, exportedHash string) (*ent.MCPApplication, error)
@@ -92,6 +93,17 @@ func (r *entMCPApplicationRepo) SetRequiredEnv(ctx context.Context, resourceID s
 		names = []string{}
 	}
 	return row.Update().SetRequiredEnv(names).Save(ctx)
+}
+
+func (r *entMCPApplicationRepo) SetAllowedSpawners(ctx context.Context, resourceID string, ids []string) (*ent.MCPApplication, error) {
+	row, err := r.GetByResourceID(ctx, resourceID)
+	if err != nil {
+		return nil, err
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+	return row.Update().SetAllowedSpawners(ids).Save(ctx)
 }
 
 func (r *entMCPApplicationRepo) RecordCatalogue(ctx context.Context, resourceID string, tools []schema.CatalogueTool, catalogueErr string, at time.Time) error {

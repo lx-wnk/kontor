@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "match": "imap-mcp-server",
   "confirmed": true,
+  "isolateHome": true,
   "denyGlobal": [
     "imap_add_account",
     "imap_update_account",

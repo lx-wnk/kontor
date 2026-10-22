@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
@@ -57,6 +59,19 @@ func makeSetupWorktreeFn(projectRepo repo.ProjectRepo) func(ctx context.Context,
 		}
 		return runSetupCommand(ctx, worktreePath, *proj.SetupCommand)
 	}
+}
+
+// appHomeRoot is "" when the user home is unknown; isolated applications then fail to resolve.
+func appHomeRoot() string {
+	home, err := os.UserHomeDir()
+	if err == nil && !filepath.IsAbs(home) {
+		err = fmt.Errorf("user home %q is not absolute", home)
+	}
+	if err != nil {
+		slog.Warn("application home root unavailable, isolated applications will fail to resolve", "err", err)
+		return ""
+	}
+	return mcpapps.HomeRootUnder(home)
 }
 
 // runSetupCommand executes cmd in dir with a 5-minute timeout, logging combined output.
@@ -190,6 +205,7 @@ func provideOrchestrator(
 			Secrets:      appSecrets,
 			Grants:       grantRepo,
 			Capabilities: capabilityRepo,
+			HomeRoot:     appHomeRoot(),
 		}.ResolveRun,
 		CheckUsageGate: func(configDir string) pipeline.UsageGateDecision {
 			d := usageDecision(configDir)

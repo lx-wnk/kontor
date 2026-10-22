@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -84,12 +85,12 @@ func TestResolveRun_OnlyAttachedAndAttachAllServersReachTheRun(t *testing.T) {
 	f.addApp(t, "res-mail", "mail", false, mailEntry, "search")
 	f.addApp(t, "res-notes", "notes", true, notesEntry)
 
-	unattached, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"})
+	unattached, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
 	require.NoError(t, err)
 	require.Contains(t, unattached.Servers, "notes")
 	require.NotContains(t, unattached.Servers, "mail", "a mailbox nobody attached must not reach a coding task")
 
-	attached, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t2", Cwd: "/repo", Applications: []string{"res-mail"}})
+	attached, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t2", Cwd: "/repo", Applications: []string{"res-mail"}}, nil, "implementation")
 	require.NoError(t, err)
 	require.Contains(t, attached.Servers, "mail")
 }
@@ -100,7 +101,7 @@ func TestResolveRun_SecretsGoOnlyIntoTheirOwnServerEntry(t *testing.T) {
 	f.addApp(t, "res-notes", "notes", true, notesEntry)
 	require.NoError(t, f.secrets.Set(f.ctx, "res-mail", "MAIL_PASSWORD", "hunter2"))
 
-	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}})
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}}, nil, "implementation")
 	require.NoError(t, err)
 	require.Contains(t, string(out.Servers["mail"]), "hunter2")
 	require.NotContains(t, string(out.Servers["notes"]), "hunter2")
@@ -112,7 +113,7 @@ func TestResolveRun_MissingRequiredSecretFailsTheRun(t *testing.T) {
 	_, err := f.apps.SetRequiredEnv(f.ctx, "res-mail", []string{"MAIL_PASSWORD"})
 	require.NoError(t, err)
 
-	_, err = f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}})
+	_, err = f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}}, nil, "implementation")
 	var missing *mcpapps.MissingSecretError
 	require.True(t, errors.As(err, &missing))
 	require.Equal(t, "MAIL_PASSWORD", missing.EnvName)
@@ -122,7 +123,7 @@ func TestResolveRun_AttachedApplicationWithNoEntryFailsTheRun(t *testing.T) {
 	f := newResolveFixture(t)
 	f.addApp(t, "res-mail", "mail", false, nil)
 
-	_, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}})
+	_, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo", Applications: []string{"res-mail"}}, nil, "implementation")
 	var missing *mcpapps.MissingServerError
 	require.True(t, errors.As(err, &missing))
 }
@@ -131,7 +132,7 @@ func TestResolveRun_AttachAllApplicationWithNoEntryIsSkippedSilently(t *testing.
 	f := newResolveFixture(t)
 	f.addApp(t, "res-notes", "notes", true, nil)
 
-	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"})
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
 	require.NoError(t, err)
 	require.NotContains(t, out.Servers, "notes")
 }
@@ -145,14 +146,133 @@ func TestResolveRun_GrantsDecideAllowDenyAndSilenceMeansAsk(t *testing.T) {
 
 	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{
 		ID: "t1", Cwd: "/repo", RoutineID: &routineID, Applications: []string{"res-mail"},
-	})
+	}, nil, "implementation")
 	require.NoError(t, err)
 	require.Equal(t, []string{"mcp__mail__search"}, out.Allow)
 	require.Equal(t, []string{"mcp__mail__send"}, out.Deny)
 	require.NotContains(t, out.Allow, "mcp__mail__draft", "no grant is not an allow")
 	require.True(t, out.CatalogueTools["mcp__mail__draft"])
 
-	other, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t2", Cwd: "/repo", Applications: []string{"res-mail"}})
+	other, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t2", Cwd: "/repo", Applications: []string{"res-mail"}}, nil, "implementation")
 	require.NoError(t, err)
 	require.NotContains(t, other.Allow, "mcp__mail__search", "a routine's grant does not leak into another task")
+}
+
+func TestResolveRun_AllowedSpawners(t *testing.T) {
+	spawnerA := &ent.Spawner{ID: "sp-a", Name: "A"}
+	spawnerB := &ent.Spawner{ID: "sp-b", Name: "B"}
+
+	cases := []struct {
+		name        string
+		attachAll   bool
+		allowed     []string
+		spawner     *ent.Spawner
+		wantServer  bool
+		wantErrName string
+	}{
+		{name: "explicit attach, spawner listed", allowed: []string{"sp-a"}, spawner: spawnerA, wantServer: true},
+		{name: "explicit attach, spawner not listed", allowed: []string{"sp-a"}, spawner: spawnerB, wantErrName: "B"},
+		{name: "attach_all, spawner not listed is skipped", attachAll: true, allowed: []string{"sp-a"}, spawner: spawnerB},
+		{name: "attach_all, spawner listed", attachAll: true, allowed: []string{"sp-a"}, spawner: spawnerA, wantServer: true},
+		{name: "attach_all, list naming only a deleted spawner is skipped", attachAll: true, allowed: []string{"gone"}, spawner: spawnerA},
+		{name: "attach_all, unresolved spawner is skipped", attachAll: true, allowed: []string{"sp-a"}, spawner: nil},
+		{name: "empty list is unrestricted", spawner: spawnerB, wantServer: true},
+		{name: "list naming only a deleted spawner blocks everyone", allowed: []string{"gone"}, spawner: spawnerA, wantErrName: "A"},
+		{name: "unresolved spawner is blocked", allowed: []string{"sp-a"}, spawner: nil, wantErrName: "(unresolved)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newResolveFixture(t)
+			f.addApp(t, "res-mail", "mail-private", tc.attachAll, mailEntry)
+			_, err := f.apps.SetAllowedSpawners(f.ctx, "res-mail", tc.allowed)
+			require.NoError(t, err)
+
+			task := &ent.Task{ID: "t1", Cwd: "/repo"}
+			if !tc.attachAll {
+				task.Applications = []string{"res-mail"}
+			}
+			out, err := f.resolver.ResolveRun(f.ctx, task, tc.spawner, "implementation")
+
+			if tc.wantErrName != "" {
+				var notAllowed *mcpapps.SpawnerNotAllowedError
+				require.True(t, errors.As(err, &notAllowed), "got %v", err)
+				require.Equal(t, mcpapps.SpawnerNotAllowedError{Server: "mail-private", Spawner: tc.wantErrName, Stage: "implementation"}, *notAllowed)
+				return
+			}
+			require.NoError(t, err)
+			if tc.wantServer {
+				require.Contains(t, out.Servers, "mail-private")
+			} else {
+				require.NotContains(t, out.Servers, "mail-private")
+			}
+		})
+	}
+}
+
+func TestSpawnerNotAllowedError_Text(t *testing.T) {
+	err := &mcpapps.SpawnerNotAllowedError{Server: "mail-private", Spawner: "B", Stage: "implementation"}
+	require.Equal(t, `application "mail-private" is not allowed for spawner "B" (stage implementation)`, err.Error())
+}
+
+var (
+	imapEntryA = json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`)
+	imapEntryB = json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server@2"]}`)
+)
+
+func renderedEnv(t *testing.T, out mcpapps.RunApplications, server string) map[string]string {
+	t.Helper()
+	var entry struct {
+		Env map[string]string `json:"env"`
+	}
+	require.NoError(t, json.Unmarshal(out.Servers[server], &entry))
+	return entry.Env
+}
+
+func TestResolveRun_TwoMailAppsGetDifferentHome(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+	f.addApp(t, "res-mail-b", "mail-b", true, imapEntryB)
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+
+	a, b := renderedEnv(t, out, "mail-a"), renderedEnv(t, out, "mail-b")
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-a"), a["HOME"])
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-b"), b["HOME"])
+	require.NotEmpty(t, a["npm_config_cache"])
+}
+
+func TestResolveRun_NonIsolatedAppKeepsEnv(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-notes", "notes", true, notesEntry)
+	require.NoError(t, f.secrets.Set(f.ctx, "res-notes", "NOTES_TOKEN", "tok"))
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+
+	env := renderedEnv(t, out, "notes")
+	require.NotContains(t, env, "HOME")
+	require.NotContains(t, env, "npm_config_cache")
+	require.Equal(t, "tok", env["NOTES_TOKEN"])
+}
+
+func TestResolveRun_IsolatedHomeOverridesSecret(t *testing.T) {
+	f := newResolveFixture(t)
+	f.resolver.HomeRoot = t.TempDir()
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+	require.NoError(t, f.secrets.Set(f.ctx, "res-mail-a", "HOME", "/shared"))
+
+	out, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(f.resolver.HomeRoot, "res-mail-a"), renderedEnv(t, out, "mail-a")["HOME"])
+}
+
+func TestResolveRun_IsolatedAppWithoutHomeRootFailsClosed(t *testing.T) {
+	f := newResolveFixture(t)
+	f.addApp(t, "res-mail-a", "mail-a", true, imapEntryA)
+
+	_, err := f.resolver.ResolveRun(f.ctx, &ent.Task{ID: "t1", Cwd: "/repo"}, nil, "implementation")
+	require.Error(t, err)
 }

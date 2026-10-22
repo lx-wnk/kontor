@@ -27,6 +27,8 @@ type MCPApplication struct {
 	AttachAll bool `json:"attach_all,omitempty"`
 	// RequiredEnv holds the value of the "required_env" field.
 	RequiredEnv []string `json:"required_env,omitempty"`
+	// AllowedSpawners holds the value of the "allowed_spawners" field.
+	AllowedSpawners []string `json:"allowed_spawners,omitempty"`
 	// Catalogue holds the value of the "catalogue" field.
 	Catalogue []schema.CatalogueTool `json:"catalogue,omitempty"`
 	// CatalogueError holds the value of the "catalogue_error" field.
@@ -51,7 +53,7 @@ func (*MCPApplication) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case mcpapplication.FieldRequiredEnv, mcpapplication.FieldCatalogue, mcpapplication.FieldEntry:
+		case mcpapplication.FieldRequiredEnv, mcpapplication.FieldAllowedSpawners, mcpapplication.FieldCatalogue, mcpapplication.FieldEntry:
 			values[i] = new([]byte)
 		case mcpapplication.FieldAttachAll, mcpapplication.FieldExportToClaude:
 			values[i] = new(sql.NullBool)
@@ -104,6 +106,14 @@ func (_m *MCPApplication) assignValues(columns []string, values []any) error {
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.RequiredEnv); err != nil {
 					return fmt.Errorf("unmarshal field required_env: %w", err)
+				}
+			}
+		case mcpapplication.FieldAllowedSpawners:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field allowed_spawners", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.AllowedSpawners); err != nil {
+					return fmt.Errorf("unmarshal field allowed_spawners: %w", err)
 				}
 			}
 		case mcpapplication.FieldCatalogue:
@@ -204,6 +214,9 @@ func (_m *MCPApplication) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("required_env=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RequiredEnv))
+	builder.WriteString(", ")
+	builder.WriteString("allowed_spawners=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowedSpawners))
 	builder.WriteString(", ")
 	builder.WriteString("catalogue=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Catalogue))

@@ -369,6 +369,7 @@ var (
 		{Name: "server_name", Type: field.TypeString},
 		{Name: "attach_all", Type: field.TypeBool, Default: false},
 		{Name: "required_env", Type: field.TypeJSON, Default: "[]"},
+		{Name: "allowed_spawners", Type: field.TypeJSON, Default: "[]"},
 		{Name: "catalogue", Type: field.TypeJSON, Default: "[]"},
 		{Name: "catalogue_error", Type: field.TypeString, Default: ""},
 		{Name: "catalogue_refreshed_at", Type: field.TypeTime, Nullable: true},

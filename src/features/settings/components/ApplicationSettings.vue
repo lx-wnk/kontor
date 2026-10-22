@@ -2,10 +2,13 @@
 import type { ApplicationEntry, ApplicationView } from '@/features/settings/composables/useApplications'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import { useSpawners } from '@/composables/useSpawners'
 import { useApplications } from '@/features/settings/composables/useApplications'
 import { formatDateTime } from '@/utils/format'
+import { staleSpawnerLabel } from '@/utils/spawnerLabel'
 
-const { applications, loading, error, drift, setupSessions, fetchApplications, setAttachAll, setRequiredEnv, setSecret, deleteSecret, refreshCatalogue, createApplication, deleteApplication, setEntry, setExport, fetchDrift, importApplication, startSetup, stopSetup, fetchAccountNames, subscribe, unsubscribe } = useApplications()
+const { applications, loading, error, drift, setupSessions, fetchApplications, setAttachAll, setRequiredEnv, setSecret, deleteSecret, refreshCatalogue, createApplication, deleteApplication, setEntry, setExport, setAllowedSpawners, fetchDrift, importApplication, startSetup, stopSetup, fetchAccountNames, subscribe, unsubscribe } = useApplications()
+const { spawners } = useSpawners()
 const actionError = ref<string | null>(null)
 const drafts = reactive<Record<string, string>>({})
 const requiredEnvDrafts = reactive<Record<string, string>>({})
@@ -32,6 +35,49 @@ const panelState = computed<PanelState>(() => {
     return 'error'
   return applications.value.length ? 'rows' : 'empty'
 })
+
+const IMAP_PRESET = 'imap-mcp-server'
+
+const claudeSpawners = computed(() => spawners.value.filter(s => s.adapterType === 'claude'))
+
+function spawnerOptionLabel(s: { name: string, env: Record<string, string> }) {
+  return `${s.name} (${s.env.CLAUDE_CONFIG_DIR ?? '~/.claude'})`
+}
+
+function staleSpawnerIds(app: ApplicationView) {
+  return app.allowedSpawners.filter(id => !claudeSpawners.value.some(s => s.id === id))
+}
+
+const spawnerPatchPending = reactive<Record<string, boolean>>({})
+
+function spawnersLocked(app: ApplicationView) {
+  return app.exportToClaude || !!spawnerPatchPending[app.resourceId]
+}
+
+async function toggleSpawner(app: ApplicationView, id: string, input: HTMLInputElement) {
+  const ids = input.checked ? [...app.allowedSpawners, id] : app.allowedSpawners.filter(x => x !== id)
+  spawnerPatchPending[app.resourceId] = true
+  try {
+    await run(() => setAllowedSpawners(app.resourceId, ids))
+  }
+  finally {
+    spawnerPatchPending[app.resourceId] = false
+  }
+  // A failed PATCH leaves the store unchanged, so Vue never re-patches the checked property.
+  input.checked = applications.value.find(a => a.resourceId === app.resourceId)?.allowedSpawners.includes(id) ?? false
+}
+
+function exportUnavailable(app: ApplicationView) {
+  return app.isolatedHome && !app.exportToClaude
+}
+
+function exportDescribedBy(app: ApplicationView) {
+  const ids = [
+    app.allowedSpawners.length ? `application-export-hint-${app.resourceId}` : '',
+    exportUnavailable(app) ? `application-export-isolated-hint-${app.resourceId}` : '',
+  ].filter(Boolean)
+  return ids.length ? ids.join(' ') : undefined
+}
 
 function isSet(app: ApplicationView, envName: string) {
   return app.secrets.some(s => s.envName === envName)
@@ -304,6 +350,8 @@ async function writeAppVersion(name: string) {
               role="switch"
               :aria-checked="app.exportToClaude"
               :aria-label="`Export ${app.serverName} to Claude Code`"
+              :disabled="app.allowedSpawners.length > 0 || exportUnavailable(app)"
+              :aria-describedby="exportDescribedBy(app)"
               :data-testid="`application-export-${app.resourceId}`"
               class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:cursor-not-allowed"
               :class="app.exportToClaude ? 'bg-accent' : 'bg-line-strong'"
@@ -317,6 +365,59 @@ async function writeAppVersion(name: string) {
           </label>
         </div>
       </div>
+      <p v-if="app.allowedSpawners.length" :id="`application-export-hint-${app.resourceId}`" class="text-xs text-fg-mute" :data-testid="`application-export-hint-${app.resourceId}`">
+        Export is off while the application is limited to spawners.
+      </p>
+      <p v-if="exportUnavailable(app)" :id="`application-export-isolated-hint-${app.resourceId}`" class="text-xs text-fg-mute" :data-testid="`application-export-isolated-hint-${app.resourceId}`">
+        Export is unavailable for applications with their own home.
+      </p>
+
+      <p
+        v-if="app.preset === IMAP_PRESET && !app.allowedSpawners.length"
+        role="note"
+        class="text-xs text-amber-600"
+        :data-testid="`application-spawners-warning-${app.resourceId}`"
+      >
+        Any spawner can read this mailbox.
+      </p>
+
+      <fieldset
+        v-if="claudeSpawners.length || staleSpawnerIds(app).length"
+        class="flex flex-col gap-1"
+        :disabled="spawnersLocked(app)"
+        :aria-describedby="app.exportToClaude ? `application-spawners-export-hint-${app.resourceId}` : undefined"
+        :data-testid="`application-spawners-${app.resourceId}`"
+      >
+        <legend class="text-sm font-medium text-fg">
+          Allowed spawners
+        </legend>
+        <p class="text-xs text-fg-mute">
+          Only the spawners ticked here may attach this application. None ticked means any spawner.
+        </p>
+        <p v-if="app.exportToClaude" :id="`application-spawners-export-hint-${app.resourceId}`" class="text-xs text-fg-mute" :data-testid="`application-spawners-export-hint-${app.resourceId}`">
+          Turn export off to limit this application to spawners.
+        </p>
+        <label v-for="s in claudeSpawners" :key="s.id" class="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            :checked="app.allowedSpawners.includes(s.id)"
+            :disabled="spawnersLocked(app)"
+            :data-testid="`application-spawner-${app.resourceId}-${s.id}`"
+            @change="toggleSpawner(app, s.id, $event.target as HTMLInputElement)"
+          >
+          {{ spawnerOptionLabel(s) }}
+        </label>
+        <label v-for="id in staleSpawnerIds(app)" :key="id" class="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked
+            :disabled="spawnersLocked(app)"
+            :data-testid="`application-spawner-${app.resourceId}-${id}`"
+            @change="toggleSpawner(app, id, $event.target as HTMLInputElement)"
+          >
+          {{ staleSpawnerLabel(id) }}
+        </label>
+      </fieldset>
 
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">

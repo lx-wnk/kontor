@@ -84,6 +84,7 @@ type Refresher struct {
 	Apps         repo.MCPApplicationRepo
 	Secrets      repo.ApplicationSecretRepo
 	Capabilities repo.CapabilityRepo
+	HomeRoot     string
 	Transport    func(entry ServerEntry, env map[string]string) (mcp.Transport, error)
 	Now          func() time.Time
 }
@@ -131,6 +132,12 @@ func (r Refresher) list(ctx context.Context, app *ent.MCPApplication) ([]schema.
 	env, err := r.Secrets.Values(ctx, app.ResourceID)
 	if err != nil {
 		return nil, err
+	}
+	if preset, ok := FindPreset(entry); ok {
+		env, err = WithIsolatedHome(env, preset, r.HomeRoot, app.ResourceID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	transport, err := r.Transport(entry, env)
 	if err != nil {

@@ -194,7 +194,7 @@ type StageContext struct {
 	// ResolveApplications decides which MCP applications a run gets, with
 	// which environment, and which of their tools are allowed or denied. nil
 	// means the run gets no MCP applications.
-	ResolveApplications func(ctx context.Context, task *ent.Task) (mcpapps.RunApplications, error)
+	ResolveApplications func(ctx context.Context, task *ent.Task, spawner *ent.Spawner, stage string) (mcpapps.RunApplications, error)
 
 	// CheckUsageGate, when non-nil, is called immediately before the native-
 	// Claude spawn. It returns a Decision; when Block is true the handler
@@ -417,7 +417,7 @@ type OrchestratorOptions struct {
 	// orchestrator builds — see the matching StageContext field for what it
 	// does. nil disables MCP applications the same way a nil AuthorizeMemory
 	// disables the memory push.
-	ResolveApplications func(ctx context.Context, task *ent.Task) (mcpapps.RunApplications, error)
+	ResolveApplications func(ctx context.Context, task *ent.Task, spawner *ent.Spawner, stage string) (mcpapps.RunApplications, error)
 
 	// CheckUsageGate is forwarded verbatim onto every StageContext this
 	// orchestrator builds — see the matching StageContext field. nil = no gate.

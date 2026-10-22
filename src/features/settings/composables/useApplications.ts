@@ -36,6 +36,11 @@ export interface ApplicationView {
   catalogueRefreshedAt?: string
   entry: ApplicationEntry
   exportToClaude: boolean
+  allowedSpawners: string[]
+  /** True when the preset gives the application its own home, so it cannot be exported. */
+  isolatedHome: boolean
+  /** Server name of the matched preset, empty when none matched. */
+  preset: string
 }
 
 export interface ApplicationDrift {
@@ -100,6 +105,7 @@ export function useApplications() {
   const setRequiredEnv = (resourceId: string, names: string[]) => patch(resourceId, { requiredEnv: names })
   const setEntry = (resourceId: string, entry: ApplicationEntry) => patch(resourceId, { entry })
   const setExport = (resourceId: string, exportToClaude: boolean) => patch(resourceId, { exportToClaude })
+  const setAllowedSpawners = (resourceId: string, ids: string[]) => patch(resourceId, { allowedSpawners: ids })
 
   async function createApplication(input: { name: string, command: string, args: string[], env: Record<string, string> }): Promise<void> {
     const res = await fetch('/api/applications', {
@@ -213,5 +219,5 @@ export function useApplications() {
     eventSource = null
   }
 
-  return { applications, loading, error, drift, setupSessions, fetchApplications, setAttachAll, setRequiredEnv, setSecret, deleteSecret, refreshCatalogue, createApplication, deleteApplication, setEntry, setExport, fetchDrift, importApplication, startSetup, stopSetup, fetchAccountNames, subscribe, unsubscribe }
+  return { applications, loading, error, drift, setupSessions, fetchApplications, setAttachAll, setRequiredEnv, setSecret, deleteSecret, refreshCatalogue, createApplication, deleteApplication, setEntry, setExport, setAllowedSpawners, fetchDrift, importApplication, startSetup, stopSetup, fetchAccountNames, subscribe, unsubscribe }
 }

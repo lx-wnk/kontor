@@ -49,6 +49,7 @@ type Preset struct {
 	DenyArgs        []ArgDeny    `json:"denyArgs,omitempty"`
 	Setup           *PresetSetup `json:"setup,omitempty"`
 	SecretTemplates []string     `json:"secretTemplates,omitempty"`
+	IsolateHome     bool         `json:"isolateHome,omitempty"`
 }
 
 func LoadPreset(name string) (Preset, error) {

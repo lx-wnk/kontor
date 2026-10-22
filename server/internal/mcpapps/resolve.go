@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"slices"
 
 	"github.com/lx-wnk/kontor/server/internal/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -34,17 +36,31 @@ func (e *MissingServerError) Error() string {
 	return fmt.Sprintf("application %q is attached but has no server definition", e.Server)
 }
 
+// SpawnerNotAllowedError.Spawner is the spawner's name, or UnresolvedSpawner when the stage has none.
+type SpawnerNotAllowedError struct{ Server, Spawner, Stage string }
+
+func (e *SpawnerNotAllowedError) Error() string {
+	return fmt.Sprintf("application %q is not allowed for spawner %q (stage %s)", e.Server, e.Spawner, e.Stage)
+}
+
+const UnresolvedSpawner = "(unresolved)"
+
 type Resolver struct {
 	Apps         repo.MCPApplicationRepo
 	Secrets      repo.ApplicationSecretRepo
 	Grants       repo.GrantRepo
 	Capabilities repo.CapabilityRepo
+	HomeRoot     string
 }
 
 // ResolveRun decides what one run gets. It calls capability.Decide directly and
 // not memory.Gate.Authorize: rendering an allow list is not a use of the tool,
 // and Authorize books rate-limit usage.
-func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplications, error) {
+//
+// An application with a non-empty AllowedSpawners list reaches only those
+// spawners: an explicit attach to any other fails the run, an attach-all
+// application is skipped. A nil spawner matches no list.
+func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task, spawner *ent.Spawner, stage string) (RunApplications, error) {
 	out := RunApplications{Servers: map[string]json.RawMessage{}, CatalogueTools: map[string]bool{}}
 
 	apps, err := r.Apps.List(ctx)
@@ -63,6 +79,18 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplicatio
 		if !explicit && !app.AttachAll {
 			continue
 		}
+		if !spawnerAllowed(app, spawner) {
+			name := UnresolvedSpawner
+			if spawner != nil {
+				name = spawner.Name
+			}
+			if explicit {
+				return RunApplications{}, &SpawnerNotAllowedError{Server: app.ServerName, Spawner: name, Stage: stage}
+			}
+			slog.Info("mcpapps: application skipped, spawner not allowed",
+				"server", app.ServerName, "task", task.ID, "stage", stage, "spawner", name)
+			continue
+		}
 		if IsEmptyEntry(app.Entry) {
 			if explicit {
 				return RunApplications{}, &MissingServerError{Server: app.ServerName}
@@ -78,16 +106,22 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplicatio
 				return RunApplications{}, &MissingSecretError{Server: app.ServerName, EnvName: name}
 			}
 		}
+		preset, matched, err := matchedPreset(app)
+		if err != nil {
+			return RunApplications{}, err
+		}
+		values, err = WithIsolatedHome(values, preset, r.HomeRoot, app.ResourceID)
+		if err != nil {
+			return RunApplications{}, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
+		}
 		merged, err := WithEnv(app.Entry, values)
 		if err != nil {
 			return RunApplications{}, err
 		}
 		out.Servers[app.ServerName] = merged
-		argDeny, err := presetArgDeny(app)
-		if err != nil {
-			return RunApplications{}, err
+		if matched {
+			out.ArgDeny = append(out.ArgDeny, preset.ArgDenyRules(app.ServerName)...)
 		}
-		out.ArgDeny = append(out.ArgDeny, argDeny...)
 
 		for _, tool := range app.Catalogue {
 			name := CapabilityName(app.ServerName, tool.Name)
@@ -107,18 +141,20 @@ func (r Resolver) ResolveRun(ctx context.Context, task *ent.Task) (RunApplicatio
 	return out, nil
 }
 
-// presetArgDeny renders the argument rules of the preset matching app's server
-// entry, named by the server name the spawned agent sees.
-func presetArgDeny(app *ent.MCPApplication) ([]string, error) {
+func spawnerAllowed(app *ent.MCPApplication, spawner *ent.Spawner) bool {
+	if len(app.AllowedSpawners) == 0 {
+		return true
+	}
+	return spawner != nil && slices.Contains(app.AllowedSpawners, spawner.ID)
+}
+
+func matchedPreset(app *ent.MCPApplication) (Preset, bool, error) {
 	entry, err := ParseEntry(app.Entry)
 	if err != nil {
-		return nil, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
+		return Preset{}, false, fmt.Errorf("mcpapps.ResolveRun: %s: %w", app.ServerName, err)
 	}
 	preset, ok := FindPreset(entry)
-	if !ok {
-		return nil, nil
-	}
-	return preset.ArgDenyRules(app.ServerName), nil
+	return preset, ok, nil
 }
 
 func (r Resolver) decide(ctx context.Context, capName string, contexts []capability.Context) (capability.Decision, error) {

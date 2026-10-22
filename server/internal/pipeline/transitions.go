@@ -470,11 +470,15 @@ func (o *PipelineOrchestrator) decideCompletedTransition(ctx context.Context, ta
 	if run.Stage == "plan_review" {
 		return WaitUserTransition{Reason: "Plan review: awaiting user approval", Output: transcriptPlanOutput(run, output), AgentDone: true}
 	}
-	// After ready, enter plan_review only when the task opted into plan mode.
-	if run.Stage == "ready" {
-		return NextTransition{Stage: stageAfterReady(task), Output: output}
+	return NextTransition{Stage: nextStage(task, run.Stage), Output: output}
+}
+
+// nextStage enters plan_review after ready only when the task opted into plan mode.
+func nextStage(task *ent.Task, stage string) string {
+	if stage == "ready" {
+		return stageAfterReady(task)
 	}
-	return NextTransition{Stage: NextStageForKind(task.Kind, run.Stage), Output: output}
+	return NextStageForKind(task.Kind, stage)
 }
 
 // transcriptPlanOutput stamps a plan recovered from the transcript fence as

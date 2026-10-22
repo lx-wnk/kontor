@@ -22,6 +22,8 @@ const (
 	FieldAttachAll = "attach_all"
 	// FieldRequiredEnv holds the string denoting the required_env field in the database.
 	FieldRequiredEnv = "required_env"
+	// FieldAllowedSpawners holds the string denoting the allowed_spawners field in the database.
+	FieldAllowedSpawners = "allowed_spawners"
 	// FieldCatalogue holds the string denoting the catalogue field in the database.
 	FieldCatalogue = "catalogue"
 	// FieldCatalogueError holds the string denoting the catalogue_error field in the database.
@@ -49,6 +51,7 @@ var Columns = []string{
 	FieldServerName,
 	FieldAttachAll,
 	FieldRequiredEnv,
+	FieldAllowedSpawners,
 	FieldCatalogue,
 	FieldCatalogueError,
 	FieldCatalogueRefreshedAt,
@@ -74,6 +77,8 @@ var (
 	DefaultAttachAll bool
 	// DefaultRequiredEnv holds the default value on creation for the "required_env" field.
 	DefaultRequiredEnv []string
+	// DefaultAllowedSpawners holds the default value on creation for the "allowed_spawners" field.
+	DefaultAllowedSpawners []string
 	// DefaultCatalogue holds the default value on creation for the "catalogue" field.
 	DefaultCatalogue []schema.CatalogueTool
 	// DefaultCatalogueError holds the default value on creation for the "catalogue_error" field.

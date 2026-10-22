@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -34,6 +35,17 @@ func newMux(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, re
 
 func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo) {
 	t.Helper()
+	mux, apps, grants, secrets, resources, schedules, _ := newMuxWithSpawners(t, find)
+	return mux, apps, grants, secrets, resources, schedules
+}
+
+func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
+	t.Helper()
+	return newMuxWithHome(t, find, "", nil)
+}
+
+func newMuxWithHome(t *testing.T, find mcpapps.PresetFinder, homeRoot string, setup applications.SetupRunner) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -44,11 +56,15 @@ func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.
 	grants := repo.NewGrantRepo(bundle.Client)
 	resources := repo.NewResourceRepo(bundle.Client)
 	schedules := repo.NewTaskScheduleRepo(bundle.Client)
+	spawners := repo.NewSpawnerRepo(bundle.Client)
 	_, err = apps.Upsert(context.Background(), repo.UpsertMCPApplicationInput{ResourceID: "res-mail", ServerName: "mail"})
 	require.NoError(t, err)
+	if setup == nil {
+		setup = appsetup.NewManager(appsetup.Options{})
+	}
 	mux := chi.NewRouter()
-	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client)).WithPresetLookup(find).Mount(mux)
-	return mux, apps, grants, secrets, resources, schedules
+	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, setup, nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
+	return mux, apps, grants, secrets, resources, schedules, spawners
 }
 
 func do(t *testing.T, mux http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -336,6 +352,68 @@ func TestDeleteApplication_RemovesRowSecretsAndGrantsAndOrphansTheResource(t *te
 	res, err := resources.Get(ctx, repo.ResourceKindApplication, repo.GlobalScope(), "mcp-mail")
 	require.NoError(t, err, "the resource row must survive so grants anchored to it still resolve")
 	require.Equal(t, repo.ResourceStateOrphaned, res.State)
+}
+
+func TestDelete_RemovesIsolatedHome(t *testing.T) {
+	root := t.TempDir()
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, nil)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".imap-mcp"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".imap-mcp", "accounts.json"), []byte("{}"), 0o600))
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.NoDirExists(t, home, "the application's accounts and key must go with it")
+	require.DirExists(t, root)
+}
+
+func TestDelete_StopsRunningSetupBeforeRemovingHome(t *testing.T) {
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, setup)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(home, 0o700))
+	setup.onStop = func() { require.DirExists(t, home, "setup must be stopped before its HOME is removed") }
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.Equal(t, 1, setup.stopped)
+	require.Equal(t, resID, setup.stoppedID)
+	require.NoDirExists(t, home)
+}
+
+func TestDelete_KeepsHomeDirOfNonIsolatedApp(t *testing.T) {
+	root := t.TempDir()
+	withoutIsolation := func(mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		return mcpapps.Preset{Server: "notes"}, true
+	}
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, withoutIsolation, root, nil)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","notes-mcp"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(home, 0o700))
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.DirExists(t, home, "only isolated applications own a directory under the home root")
+}
+
+func TestDelete_IsolatedAppWithoutHomeDirStillSucceeds(t *testing.T) {
+	root := t.TempDir()
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root, nil)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 }
 
 func TestDeleteApplication_AttachedToRoutinesIs409AndRemovesNothing(t *testing.T) {
@@ -779,6 +857,8 @@ func TestDenies_UnconfirmedPresetIs422(t *testing.T) {
 type fakeSetup struct {
 	started   int
 	stopped   int
+	stoppedID string
+	onStop    func()
 	lastEnv   map[string]string
 	lastSetup mcpapps.PresetSetup
 	session   *appsetup.Session
@@ -797,8 +877,12 @@ func (f *fakeSetup) Start(_ context.Context, resourceID string, setup mcpapps.Pr
 	return sess, nil
 }
 
-func (f *fakeSetup) Stop(string) error {
+func (f *fakeSetup) Stop(resourceID string) error {
 	f.stopped++
+	f.stoppedID = resourceID
+	if f.onStop != nil {
+		f.onStop()
+	}
 	f.session = nil
 	return nil
 }
@@ -812,6 +896,11 @@ func (f *fakeSetup) Get(string) (appsetup.Session, bool) {
 
 func newMuxWithSetup(t *testing.T, setup applications.SetupRunner) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
 	t.Helper()
+	return newMuxWithSetupHome(t, setup, mcpapps.FindPreset, t.TempDir())
+}
+
+func newMuxWithSetupHome(t *testing.T, setup applications.SetupRunner, find mcpapps.PresetFinder, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -824,7 +913,7 @@ func newMuxWithSetup(t *testing.T, setup applications.SetupRunner) (*chi.Mux, re
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -856,6 +945,47 @@ func TestStartSetup_PassesTheEntryEnvAndTheSecrets(t *testing.T) {
 	require.Contains(t, setup.lastSetup.Args, "{port}", "the preset's args are passed through unsubstituted; the manager fills the port")
 	require.NotContains(t, rec.Body.String(), "hunter2", "no secret value may appear in the response")
 	require.Contains(t, rec.Body.String(), "local network", "the response carries the warning the panel shows")
+}
+
+func TestSetup_UsesIsolatedHome(t *testing.T) {
+	t.Setenv("npm_config_cache", "/real/npm-cache")
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, mcpapps.FindPreset, root)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, filepath.Join(root, "res-mail"), setup.lastEnv["HOME"], "setup must run in the same HOME a run resolves")
+	require.Equal(t, "/real/npm-cache", setup.lastEnv["npm_config_cache"])
+}
+
+func TestSetup_NonIsolatedAppGetsNoHome(t *testing.T) {
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	withSetupNoIsolation := func(mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		return mcpapps.Preset{Server: "notes", Setup: &mcpapps.PresetSetup{Command: "true"}}, true
+	}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, withSetupNoIsolation, root)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","notes-mcp"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NotContains(t, setup.lastEnv, "HOME")
+	require.NotContains(t, setup.lastEnv, "npm_config_cache")
+}
+
+func TestSetup_IsolatedWithoutHomeRootFails(t *testing.T) {
+	setup := &fakeSetup{}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, mcpapps.FindPreset, "")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.GreaterOrEqual(t, rec.Code, 500, rec.Body.String())
+	require.Equal(t, 0, setup.started, "setup must never start on the shared HOME")
 }
 
 func TestStartSetup_FailureIs502(t *testing.T) {
@@ -906,6 +1036,11 @@ func (f *fakeTools) Call(_ context.Context, _ mcpapps.ServerEntry, env map[strin
 
 func newMuxWithTools(t *testing.T, tools applications.ToolCaller) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
 	t.Helper()
+	return newMuxWithToolsHome(t, tools, t.TempDir())
+}
+
+func newMuxWithToolsHome(t *testing.T, tools applications.ToolCaller, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -918,7 +1053,7 @@ func newMuxWithTools(t *testing.T, tools applications.ToolCaller) (*chi.Mux, rep
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, tools, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -944,6 +1079,29 @@ func TestAccounts_DerivesOneSecretNamePerTemplatePerAccount(t *testing.T) {
 		"IMAP_MCP_ACCOUNT_WORK_GMAIL_SMTP_PASSWORD"]}`, rec.Body.String())
 	require.Equal(t, "imap.example.com", tools.lastEnv["IMAP_HOST"], "the server is started with the application's own secrets")
 	require.NotContains(t, rec.Body.String(), "work@example.com", "the accounts themselves are not part of the answer")
+}
+
+func TestAccounts_UsesIsolatedHome(t *testing.T) {
+	t.Setenv("npm_config_cache", "/real/npm-cache")
+	root := t.TempDir()
+	tools := &fakeTools{raw: json.RawMessage(`{"accounts":[]}`)}
+	mux, apps, _ := newMuxWithToolsHome(t, tools, root)
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/accounts", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, filepath.Join(root, "res-mail"), tools.lastEnv["HOME"], "the lookup must read the same mailbox store a run does")
+	require.Equal(t, "/real/npm-cache", tools.lastEnv["npm_config_cache"])
+}
+
+func TestAccounts_IsolatedWithoutHomeRootFails(t *testing.T) {
+	tools := &fakeTools{raw: json.RawMessage(`{"accounts":[]}`)}
+	mux, apps, _ := newMuxWithToolsHome(t, tools, "")
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/accounts", nil)
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	require.Equal(t, 0, tools.calls, "the lookup must never run on the shared HOME")
 }
 
 func TestAccounts_EmptyListIsAnEmptyAnswerNotAnError(t *testing.T) {
@@ -995,7 +1153,7 @@ func newMuxWithCaps(t *testing.T) (*chi.Mux, repo.MCPApplicationRepo, repo.Grant
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, repo.NewApplicationSecretRepo(bundle.Client, box),
 		mcpapps.Refresher{Now: time.Now}, grants, repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, &fakeTools{}, caps).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), &fakeSetup{}, &fakeTools{}, caps, repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
 	return mux, apps, grants, caps
 }
 
@@ -1081,4 +1239,349 @@ func TestToolState_RevokingTheDenyMakesItAskAgain(t *testing.T) {
 
 	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
 	require.Contains(t, rec.Body.String(), `"state":"asks"`, "a revoked deny stops denying: %s", rec.Body.String())
+}
+
+func newSpawner(t *testing.T, spawners repo.SpawnerRepo, name string) string {
+	t.Helper()
+	s, err := spawners.Create(context.Background(), name, "sp-"+name, "claude", nil, nil, nil, nil, "", nil, false)
+	require.NoError(t, err)
+	return s.ID
+}
+
+func decodeView(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var v map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &v))
+	return v
+}
+
+func TestPatch_SetsAllowedSpawners(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a, b := newSpawner(t, spawners, "a"), newSpawner(t, spawners, "b")
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a, b, a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, []any{a, b}, decodeView(t, rec)["allowedSpawners"])
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{a, b}, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsUnknownSpawner(t *testing.T) {
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"x"}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: unknown spawner x")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+}
+
+func TestPatch_KeepsAStoredSpawnerIDWhoseSpawnerIsGone(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	live := newSpawner(t, spawners, "live")
+	_, err := apps.SetAllowedSpawners(context.Background(), "res-mail", []string{"gone"})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"gone", live}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{"gone", live}, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsANewUnknownSpawnerNextToAStoredStaleOne(t *testing.T) {
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	_, err := apps.SetAllowedSpawners(context.Background(), "res-mail", []string{"gone"})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{"gone", "typo"}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: unknown spawner typo")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{"gone"}, app.AllowedSpawners)
+}
+
+func TestPatch_RejectsRestrictWhileExported(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not allowed while allowedSpawners is set")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+	require.True(t, app.ExportToClaude)
+}
+
+func TestPatch_RejectsExportWhileRestricted(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not allowed while allowedSpawners is set")
+
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_ClearingRestrictionThenExportWorks(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{}, "exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+	require.True(t, app.ExportToClaude)
+}
+
+func TestView_CarriesTheMatchedPresetName(t *testing.T) {
+	const marker = "stub-mail-server"
+	find := func(e mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		if slices.Contains(e.Args, marker) {
+			return mcpapps.Preset{Server: "imap-mcp-server", Confirmed: true}, true
+		}
+		return mcpapps.Preset{}, false
+	}
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, find)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["`+marker+`"]}`))
+	require.NoError(t, err)
+	_, err = apps.Upsert(ctx, repo.UpsertMCPApplicationInput{ResourceID: "res-other", ServerName: "other", Entry: json.RawMessage(`{"command":"node","args":["x.js"]}`)})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var views []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &views))
+	presets := map[string]any{}
+	for _, v := range views {
+		presets[v["resourceId"].(string)] = v["preset"]
+		require.Equal(t, []any{}, v["allowedSpawners"])
+	}
+	require.Equal(t, map[string]any{"res-mail": "imap-mcp-server", "res-other": ""}, presets)
+}
+
+func TestPatch_ExportRemovalFailureLeavesListUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	target := dir + "/real.json"
+	require.NoError(t, os.WriteFile(target, []byte(`{"mcpServers":{"mail":{"command":"uvx"}}}`), 0o600))
+	require.NoError(t, os.Symlink(target, dir+"/.claude.json"))
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	_, err = apps.SetExport(ctx, "res-mail", true, "hash")
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}, "exportToClaude": false})
+	require.Equal(t, http.StatusBadGateway, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners, "a restricted application must never stay exported")
+	require.True(t, app.ExportToClaude)
+}
+
+func TestPatch_RestrictAndUnexportTogetherWorks(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{a}, "exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Equal(t, []string{a}, app.AllowedSpawners)
+	require.False(t, app.ExportToClaude)
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_RefusesExportOfAnIsolatedApplication(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	imapApp(t, apps)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+
+	_, statErr := os.Stat(filepath.Join(dir, ".claude.json"))
+	require.True(t, os.IsNotExist(statErr), "Claude's config must stay untouched")
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.False(t, app.ExportToClaude)
+}
+
+func TestPatch_RefusesExportOfAnEntryTurnedIsolatedInTheSameRequest(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"entry":          map[string]any{"command": "npx", "args": []string{"-y", "imap-mcp-server"}},
+		"exportToClaude": true,
+	})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+}
+
+func TestPatch_EntrySwitchToIsolatedPresetWhileExportedIsRefused(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	imapEntry := map[string]any{"command": "npx", "args": []string{"-y", "imap-mcp-server"}}
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"entry": imapEntry})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "exportToClaude: not available for applications with their own home")
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.JSONEq(t, `{"command":"uvx"}`, string(app.Entry))
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.JSONEq(t, `{"command":"uvx"}`, string(servers["mail"]))
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"entry": imapEntry, "exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	servers, err = claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestPatch_InvalidRequiredEnvLeavesTheExportInPlace(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	a := newSpawner(t, spawners, "a")
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"uvx"}`))
+	require.NoError(t, err)
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": true})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec = do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{
+		"allowedSpawners": []string{a},
+		"exportToClaude":  false,
+		"requiredEnv":     []string{"bad name"},
+	})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	app, err := apps.GetByResourceID(ctx, "res-mail")
+	require.NoError(t, err)
+	require.True(t, app.ExportToClaude)
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.Contains(t, servers, "mail")
+}
+
+func TestPatch_UnexportOfAnIsolatedApplicationWorks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"mcpServers":{"mail":{"command":"npx"}}}`), 0o600))
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, mcpapps.FindPreset)
+	imapApp(t, apps)
+	_, err := apps.SetExport(context.Background(), "res-mail", true, "hash")
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"exportToClaude": false})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	servers, err := claudeconfig.UserMCPServers()
+	require.NoError(t, err)
+	require.NotContains(t, servers, "mail")
+}
+
+func TestView_FlagsAnIsolatedHome(t *testing.T) {
+	const marker = "stub-mail-server"
+	find := func(e mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		if slices.Contains(e.Args, marker) {
+			return mcpapps.Preset{Server: "imap-mcp-server", Confirmed: true, IsolateHome: true}, true
+		}
+		return mcpapps.Preset{Server: "plain", Confirmed: true}, true
+	}
+	mux, apps, _, _, _, _, _ := newMuxWithSpawners(t, find)
+	ctx := context.Background()
+	_, err := apps.SetEntry(ctx, "res-mail", json.RawMessage(`{"command":"npx","args":["`+marker+`"]}`))
+	require.NoError(t, err)
+	_, err = apps.Upsert(ctx, repo.UpsertMCPApplicationInput{ResourceID: "res-other", ServerName: "other", Entry: json.RawMessage(`{"command":"node","args":["x.js"]}`)})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodGet, "/api/applications", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var views []map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &views))
+	isolated := map[string]any{}
+	for _, v := range views {
+		isolated[v["resourceId"].(string)] = v["isolatedHome"]
+	}
+	require.Equal(t, map[string]any{"res-mail": true, "res-other": false}, isolated)
+}
+
+func TestPatch_RejectsANewSpawnerThatDoesNotRunClaude(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	s, err := spawners.Create(context.Background(), "Ollama", "sp-ollama", "claude", nil, nil, nil, nil, "ollama", map[string]string{"host": "http://x:11434"}, false)
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{s.ID}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "allowedSpawners: spawner "+s.ID+" does not run Claude")
+
+	app, err := apps.GetByResourceID(context.Background(), "res-mail")
+	require.NoError(t, err)
+	require.Empty(t, app.AllowedSpawners)
+}
+
+func TestPatch_KeepsAStoredSpawnerIDThatNoLongerRunsClaude(t *testing.T) {
+	mux, apps, _, _, _, _, spawners := newMuxWithSpawners(t, mcpapps.FindPreset)
+	s, err := spawners.Create(context.Background(), "Ollama", "sp-ollama", "claude", nil, nil, nil, nil, "ollama", map[string]string{"host": "http://x:11434"}, false)
+	require.NoError(t, err)
+	_, err = apps.SetAllowedSpawners(context.Background(), "res-mail", []string{s.ID})
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPatch, "/api/applications/res-mail", map[string]any{"allowedSpawners": []string{s.ID}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }

@@ -3,8 +3,10 @@ import type { CreateScheduleBody, RunMode, SchedulePreview, ScheduleView, Update
 import { onMounted, ref, watch } from 'vue'
 import { useApplications } from '@/features/settings/composables/useApplications'
 import { createSchedule, previewSchedule, updateSchedule } from '../composables/useSchedules'
+import { useSpawners } from '../composables/useSpawners'
 import { formatDateTime } from '../utils/format'
 import { nextRadioGroupName } from '../utils/radioGroup'
+import { staleSpawnerLabel } from '../utils/spawnerLabel'
 import { TASK_PRIORITY_OPTIONS } from '../utils/taskOptions'
 import AppButton from './ui/AppButton.vue'
 import AppInput from './ui/AppInput.vue'
@@ -35,9 +37,16 @@ const permissionTemplate = ref(props.schedule?.permissionTemplate ?? '')
 
 const { applications, fetchApplications } = useApplications()
 const selectedApplications = ref<string[]>([...(props.schedule?.applications ?? [])])
+const { spawners, refetch: refetchSpawners } = useSpawners({ autoStart: false })
 onMounted(() => {
   void fetchApplications()
+  void refetchSpawners()
 })
+
+function limitLine(ids: string[]) {
+  const names = ids.map(id => spawners.value.find(s => s.id === id)?.name ?? staleSpawnerLabel(id))
+  return `Limited to: ${names.join(', ')}`
+}
 
 const CATCHUP_OPTIONS: Array<{ value: 'none' | 'once', label: string }> = [
   { value: 'none', label: 'None' },
@@ -274,17 +283,24 @@ async function onSubmit() {
       <p class="text-xs text-fg-mute">
         MCP servers this routine's tasks may use. Tools still run only where a grant allows them.
       </p>
-      <label v-for="app in applications" :key="app.resourceId" class="flex items-center gap-2 text-sm">
-        <input
-          v-model="selectedApplications"
-          type="checkbox"
-          :value="app.resourceId"
-          :disabled="app.attachAll"
-          :data-testid="`schedule-application-${app.resourceId}`"
-        >
-        {{ app.serverName }}
-        <span v-if="app.attachAll" class="text-xs text-fg-mute">attached to every run</span>
-      </label>
+      <div v-for="app in applications" :key="app.resourceId" class="flex flex-col">
+        <label class="flex items-center gap-2 text-sm">
+          <input
+            v-model="selectedApplications"
+            type="checkbox"
+            :value="app.resourceId"
+            :disabled="app.attachAll"
+            :data-testid="`schedule-application-${app.resourceId}`"
+          >
+          {{ app.serverName }}
+          <span v-if="app.attachAll" class="text-xs text-fg-mute">attached to every run</span>
+        </label>
+        <span
+          v-if="app.allowedSpawners.length"
+          class="text-xs text-fg-mute"
+          :data-testid="`schedule-application-limit-${app.resourceId}`"
+        >{{ limitLine(app.allowedSpawners) }}</span>
+      </div>
     </fieldset>
 
     <div

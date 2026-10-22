@@ -56,6 +56,12 @@ func (_c *MCPApplicationCreate) SetRequiredEnv(v []string) *MCPApplicationCreate
 	return _c
 }
 
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (_c *MCPApplicationCreate) SetAllowedSpawners(v []string) *MCPApplicationCreate {
+	_c.mutation.SetAllowedSpawners(v)
+	return _c
+}
+
 // SetCatalogue sets the "catalogue" field.
 func (_c *MCPApplicationCreate) SetCatalogue(v []schema.CatalogueTool) *MCPApplicationCreate {
 	_c.mutation.SetCatalogue(v)
@@ -201,6 +207,10 @@ func (_c *MCPApplicationCreate) defaults() {
 		v := mcpapplication.DefaultRequiredEnv
 		_c.mutation.SetRequiredEnv(v)
 	}
+	if _, ok := _c.mutation.AllowedSpawners(); !ok {
+		v := mcpapplication.DefaultAllowedSpawners
+		_c.mutation.SetAllowedSpawners(v)
+	}
 	if _, ok := _c.mutation.Catalogue(); !ok {
 		v := mcpapplication.DefaultCatalogue
 		_c.mutation.SetCatalogue(v)
@@ -244,6 +254,9 @@ func (_c *MCPApplicationCreate) check() error {
 	}
 	if _, ok := _c.mutation.RequiredEnv(); !ok {
 		return &ValidationError{Name: "required_env", err: errors.New(`ent: missing required field "MCPApplication.required_env"`)}
+	}
+	if _, ok := _c.mutation.AllowedSpawners(); !ok {
+		return &ValidationError{Name: "allowed_spawners", err: errors.New(`ent: missing required field "MCPApplication.allowed_spawners"`)}
 	}
 	if _, ok := _c.mutation.Catalogue(); !ok {
 		return &ValidationError{Name: "catalogue", err: errors.New(`ent: missing required field "MCPApplication.catalogue"`)}
@@ -317,6 +330,10 @@ func (_c *MCPApplicationCreate) createSpec() (*MCPApplication, *sqlgraph.CreateS
 	if value, ok := _c.mutation.RequiredEnv(); ok {
 		_spec.SetField(mcpapplication.FieldRequiredEnv, field.TypeJSON, value)
 		_node.RequiredEnv = value
+	}
+	if value, ok := _c.mutation.AllowedSpawners(); ok {
+		_spec.SetField(mcpapplication.FieldAllowedSpawners, field.TypeJSON, value)
+		_node.AllowedSpawners = value
 	}
 	if value, ok := _c.mutation.Catalogue(); ok {
 		_spec.SetField(mcpapplication.FieldCatalogue, field.TypeJSON, value)
@@ -423,6 +440,18 @@ func (u *MCPApplicationUpsert) SetRequiredEnv(v []string) *MCPApplicationUpsert 
 // UpdateRequiredEnv sets the "required_env" field to the value that was provided on create.
 func (u *MCPApplicationUpsert) UpdateRequiredEnv() *MCPApplicationUpsert {
 	u.SetExcluded(mcpapplication.FieldRequiredEnv)
+	return u
+}
+
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (u *MCPApplicationUpsert) SetAllowedSpawners(v []string) *MCPApplicationUpsert {
+	u.Set(mcpapplication.FieldAllowedSpawners, v)
+	return u
+}
+
+// UpdateAllowedSpawners sets the "allowed_spawners" field to the value that was provided on create.
+func (u *MCPApplicationUpsert) UpdateAllowedSpawners() *MCPApplicationUpsert {
+	u.SetExcluded(mcpapplication.FieldAllowedSpawners)
 	return u
 }
 
@@ -598,6 +627,20 @@ func (u *MCPApplicationUpsertOne) SetRequiredEnv(v []string) *MCPApplicationUpse
 func (u *MCPApplicationUpsertOne) UpdateRequiredEnv() *MCPApplicationUpsertOne {
 	return u.Update(func(s *MCPApplicationUpsert) {
 		s.UpdateRequiredEnv()
+	})
+}
+
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (u *MCPApplicationUpsertOne) SetAllowedSpawners(v []string) *MCPApplicationUpsertOne {
+	return u.Update(func(s *MCPApplicationUpsert) {
+		s.SetAllowedSpawners(v)
+	})
+}
+
+// UpdateAllowedSpawners sets the "allowed_spawners" field to the value that was provided on create.
+func (u *MCPApplicationUpsertOne) UpdateAllowedSpawners() *MCPApplicationUpsertOne {
+	return u.Update(func(s *MCPApplicationUpsert) {
+		s.UpdateAllowedSpawners()
 	})
 }
 
@@ -955,6 +998,20 @@ func (u *MCPApplicationUpsertBulk) SetRequiredEnv(v []string) *MCPApplicationUps
 func (u *MCPApplicationUpsertBulk) UpdateRequiredEnv() *MCPApplicationUpsertBulk {
 	return u.Update(func(s *MCPApplicationUpsert) {
 		s.UpdateRequiredEnv()
+	})
+}
+
+// SetAllowedSpawners sets the "allowed_spawners" field.
+func (u *MCPApplicationUpsertBulk) SetAllowedSpawners(v []string) *MCPApplicationUpsertBulk {
+	return u.Update(func(s *MCPApplicationUpsert) {
+		s.SetAllowedSpawners(v)
+	})
+}
+
+// UpdateAllowedSpawners sets the "allowed_spawners" field to the value that was provided on create.
+func (u *MCPApplicationUpsertBulk) UpdateAllowedSpawners() *MCPApplicationUpsertBulk {
+	return u.Update(func(s *MCPApplicationUpsert) {
+		s.UpdateAllowedSpawners()
 	})
 }
 

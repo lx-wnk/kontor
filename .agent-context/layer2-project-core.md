@@ -29,10 +29,12 @@
 | Claude model catalog + default models (Go) | `server/internal/claudemodel/catalog.go` | `IDs`, `IsKnown`, `Latest` — never pin a default model ID |
 | Server defaults (Go) | `server/internal/db/defaults.go` | `DefaultStage`, `DefaultStageTimeoutSeconds` |
 | Server validation (Go) | `server/internal/validation/slug.go` | `SlugPattern`, `SlugPatternMessage` |
+| Isolated application home (Go) | `server/internal/mcpapps/home.go` | `HomeRootUnder`, `IsolatedHomeEnv`, `WithIsolatedHome`, `RemoveIsolatedHome` |
 | Server status thresholds (Go) | `server/internal/merger/merger.go` | `activeThreshold`, `waitingThreshold` |
 | Pipeline stage labels (client) | `src/utils/stageLabels.ts` | `STAGE_LABELS`, `STAGE_DESCRIPTIONS` |
 | Shared task option lists (client) | `src/utils/taskOptions.ts` | `TASK_PRIORITY_OPTIONS`, `TASK_AUTONOMY_OPTIONS`, `TaskPriority`, `TaskAutonomy` |
 | Shared UI component types (client) | `src/components/ui/selectOption.ts` | `SelectOption<T>` |
+| Spawner label for an ID with no loaded spawner (client) | `src/utils/spawnerLabel.ts` | `staleSpawnerLabel` |
 | Workspace layout rules (client) | `src/features/workspace/layout.ts` | `GRID_COLUMNS`, `ZENTRALE_PAGE_ID`, `PAGE_ID_PATTERN`, `WIDGET_ID_PATTERN`, `DEFAULT_LAYOUT` |
 | Workspace layout rules (server, hand-kept parity with the client) | `server/internal/settings/workspace_layout.go` | `workspaceColumns`, `workspacePageID`, `workspaceWidgetID`, caps |
 | Widget catalogue (titles, spans, minimums) | `src/features/workspace/widgetSpecs.ts` | `WIDGET_SPECS`, `HUB_WIDGET` |

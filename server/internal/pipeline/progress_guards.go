@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -64,6 +65,12 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 		return nil, fmt.Errorf("orchestrator.ensureStageRun: %w", err)
 	}
 
+	if handler.RequiresAgent() && !hasLiveProcess(stageRun) {
+		if err := o.checkApplicationsUpFront(ctx, task); err != nil {
+			return o.applyTransition(ctx, task, stageRun, FailTransition{Reason: "MCP applications: " + err.Error()})
+		}
+	}
+
 	// Auto-create a git worktree before spawning the agent.
 	// Triggered when: ForceWorktrees is set (global) OR task has an explicit SourceBranch.
 	// A failure here (e.g. branch already checked out in another worktree) is recorded
@@ -96,10 +103,9 @@ func (o *PipelineOrchestrator) runProgressTaskLocked(ctx context.Context, taskID
 
 	// Re-entry guard: if the run is already running with a live PID, return without spawning.
 	if handler.RequiresAgent() {
-		pid := stageRunPid(stageRun)
-		if (stageRun.Status == "running" || stageRun.Status == "awaiting_user") && proc.IsPidAlive(pid) {
+		if hasLiveProcess(stageRun) {
 			slog.Info("orchestrator: re-entry skipped — live PID already running",
-				"stage", stageRun.Stage, "runID", stageRun.ID, "pid", pid)
+				"stage", stageRun.Stage, "runID", stageRun.ID, "pid", stageRunPid(stageRun))
 			return stageRun, nil
 		}
 	}
@@ -312,4 +318,42 @@ func (o *PipelineOrchestrator) filePermissionRequest(
 		o.opts.OnPermissionRequest(task.ID, req)
 	}
 	return req
+}
+
+func hasLiveProcess(run *ent.StageRun) bool {
+	return (run.Status == "running" || run.Status == "awaiting_user") && proc.IsPidAlive(stageRunPid(run))
+}
+
+// usesApplications reports whether a stage run on sp gets MCP applications: only the native Claude path does.
+func usesApplications(sp *ent.Spawner) bool {
+	return sp == nil || sp.AdapterType == "" || sp.AdapterType == "claude"
+}
+
+// checkApplicationsUpFront fails on the first remaining stage whose spawner may not use an attached application.
+func (o *PipelineOrchestrator) checkApplicationsUpFront(ctx context.Context, task *ent.Task) error {
+	if o.opts.ResolveApplications == nil || o.opts.ResolveSpawner == nil {
+		return nil
+	}
+	requiresAgent := func(stage string) bool {
+		h := o.resolveHandler(stage)
+		return h != nil && h.RequiresAgent()
+	}
+	for _, stage := range remainingAgentStages(task, requiresAgent) {
+		spawner, err := o.opts.ResolveSpawner(ctx, task.ID, stage)
+		if err != nil {
+			if stage == task.CurrentStage {
+				continue
+			}
+			spawner = nil
+		}
+		if !usesApplications(spawner) {
+			continue
+		}
+		_, err = o.opts.ResolveApplications(ctx, task, spawner, stage)
+		var notAllowed *mcpapps.SpawnerNotAllowedError
+		if errors.As(err, &notAllowed) {
+			return err
+		}
+	}
+	return nil
 }
