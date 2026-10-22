@@ -11,13 +11,13 @@ export interface Launcher { id: string, label: string, icon: string, kind: 'view
 export const MAX_LAUNCHERS = 8
 
 export function launchersFor(
-  items: ReadonlyArray<{ view: CoreView, label: string, icon: string }>,
+  items: ReadonlyArray<{ view: CoreView, label: string, icon: string, hub?: false }>,
   pages: ReadonlyArray<{ id: string, title: string }>,
   current: ActiveView,
   max = MAX_LAUNCHERS,
 ): Launcher[] {
   const views: Launcher[] = [
-    ...items.filter(i => i.view !== current).map(i => ({ id: i.view, label: i.label, icon: i.icon, kind: 'view' as const, view: i.view })),
+    ...items.filter(i => i.hub !== false && i.view !== current).map(i => ({ id: i.view, label: i.label, icon: i.icon, kind: 'view' as const, view: i.view })),
     ...pages
       .filter(p => pageView(p.id) !== current)
       .map(p => ({ id: pageView(p.id), label: p.title, icon: '▣', kind: 'view' as const, view: pageView(p.id) })),
