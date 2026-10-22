@@ -883,8 +883,8 @@ describe('hubWidget', () => {
   it('offers every other view and a new page as launchers, and fires the slot a digit names', async () => {
     const w = await mountHub()
     const ids = w.findAll('[data-testid^="hub-launcher-"]').map(b => b.attributes('data-testid'))
-    expect(ids).toEqual(['dashboard', 'cloud', 'pipeline', 'schedules', 'workflows', 'cost', 'eval', 'new-page'].map(id => `hub-launcher-${id}`))
-    await press(w, '3')
+    expect(ids).toEqual(['dashboard', 'pipeline', 'schedules', 'workflows', 'cost', 'eval', 'cloud', 'new-page'].map(id => `hub-launcher-${id}`))
+    await press(w, '2')
     expect(useViewState().activeView.value).toBe('pipeline')
     w.unmount()
   })

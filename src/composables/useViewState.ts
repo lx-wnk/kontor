@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { PAGE_ID_PATTERN, ZENTRALE_PAGE_ID } from '@/features/workspace/layout'
 import { AGENT_GROUP_OPTIONS, AGENT_SORT_OPTIONS, resolveGroup } from '../utils/agentGroup'
 
-export type CoreView = 'zentrale' | 'dashboard' | 'cloud' | 'workflows' | 'pipeline' | 'cost' | 'schedules' | 'eval'
+export type CoreView = 'zentrale' | 'dashboard' | 'workflows' | 'pipeline' | 'cost' | 'schedules' | 'eval' | 'cloud'
 // A page the operator created. The prefix keeps "is this one of mine?"
 // answerable in one line everywhere a view is compared.
 export type ActiveView = CoreView | `page:${string}`
@@ -11,7 +11,7 @@ export type DashboardLayout = 'cards' | 'list'
 
 // Exported: the command palette derives one navigation command per view, so
 // a view added here shows up there without a second list to keep in step.
-export const ACTIVE_VIEWS: CoreView[] = ['zentrale', 'dashboard', 'cloud', 'workflows', 'pipeline', 'cost', 'schedules', 'eval']
+export const ACTIVE_VIEWS: CoreView[] = ['zentrale', 'dashboard', 'workflows', 'pipeline', 'cost', 'schedules', 'eval', 'cloud']
 
 export function isCoreView(v: string): v is CoreView {
   return (ACTIVE_VIEWS as string[]).includes(v)
