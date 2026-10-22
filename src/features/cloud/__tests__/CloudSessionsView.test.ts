@@ -11,16 +11,19 @@ const state = vi.hoisted(() => ({
   importSession: vi.fn(),
   removeSession: vi.fn(),
   refresh: vi.fn(),
+  refetch: vi.fn(),
 }))
 
 const sessions = shallowRef<CloudSessionView[]>([])
 const accounts = shallowRef<CloudAccount[]>([])
 const spawners = shallowRef<Spawner[]>([])
 const accountsLoading = ref(false)
+const sessionsError = ref<string | null>(null)
+const accountsError = ref<string | null>(null)
 
 vi.mock('../composables/useCloudSessions', () => ({
-  useCloudSessions: () => ({ sessions, isLoading: ref(false), error: ref(null) }),
-  useCloudAccounts: () => ({ accounts, isLoading: accountsLoading, error: ref(null), refresh: state.refresh }),
+  useCloudSessions: () => ({ sessions, isLoading: ref(false), error: sessionsError, refetch: state.refetch }),
+  useCloudAccounts: () => ({ accounts, isLoading: accountsLoading, error: accountsError, refresh: state.refresh }),
   sendMessage: state.sendMessage,
   importSession: state.importSession,
   removeSession: state.removeSession,
@@ -69,6 +72,8 @@ function makeAccount(configDir: string, spawnerIds: string[], overrides: Partial
     configDir,
     spawners: spawnerIds.map(id => ({ id, name: `Spawner ${id}` })),
     auth: { loggedIn: true, authMethod: 'claude.ai', apiProvider: 'firstParty', subscriptionType: 'max' },
+    ready: true,
+    loginHint: `CLAUDE_CONFIG_DIR=${configDir} claude auth login`,
     ...overrides,
   }
 }
@@ -82,6 +87,8 @@ beforeEach(() => {
   sessions.value = []
   accounts.value = []
   accountsLoading.value = false
+  sessionsError.value = null
+  accountsError.value = null
   spawners.value = [makeSpawner('sp1', 'claude')]
 })
 
@@ -120,7 +127,7 @@ describe('cloudSessionsView', () => {
   })
 
   it('lists an account without sessions with its header and sign-in hint', () => {
-    accounts.value = [makeAccount('/home/c/.claude', ['sp3'], { auth: { loggedIn: false, authMethod: '', apiProvider: '', subscriptionType: '' } })]
+    accounts.value = [makeAccount('/home/c/.claude', ['sp3'], { ready: false, auth: { loggedIn: false, authMethod: '', apiProvider: '', subscriptionType: '' } })]
     const groups = mountView().findAll('[data-testid="cloud-account"]')
     expect(groups).toHaveLength(1)
     expect(groups[0]!.text()).toContain('/home/c/.claude')
@@ -131,7 +138,7 @@ describe('cloudSessionsView', () => {
   it('shows Ready for a claude.ai login and the login hint otherwise', () => {
     accounts.value = [
       makeAccount('/home/a/.claude', ['sp1']),
-      makeAccount('/home/b/.claude', ['sp2'], { auth: { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', subscriptionType: '' } }),
+      makeAccount('/home/b/.claude', ['sp2'], { ready: false, auth: { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', subscriptionType: '' } }),
     ]
     sessions.value = [makeSession('1', { spawnerId: 'sp1' }), makeSession('2', { spawnerId: 'sp2' })]
     const groups = mountView().findAll('[data-testid="cloud-account"]')
@@ -141,7 +148,7 @@ describe('cloudSessionsView', () => {
   })
 
   it('shows the account error and refreshes on request', async () => {
-    accounts.value = [makeAccount('/home/a/.claude', ['sp1'], { auth: null, error: 'claude not found' })]
+    accounts.value = [makeAccount('/home/a/.claude', ['sp1'], { auth: null, ready: false, loginHint: 'claude auth login', error: 'claude not found' })]
     sessions.value = [makeSession('1')]
     const wrapper = mountView()
     expect(wrapper.text()).toContain('claude not found')
@@ -176,6 +183,136 @@ describe('cloudSessionsView', () => {
     expect(wrapper.find('a').exists()).toBe(false)
     expect(wrapper.html()).not.toContain('javascript:')
     expect(wrapper.text()).toContain('Session 1')
+  })
+
+  describe('load errors', () => {
+    it('shows a sessions load error instead of the empty state', () => {
+      sessionsError.value = 'HTTP 500'
+      const wrapper = mountView()
+      expect(wrapper.find('[data-testid="sessions-error"]').attributes('role')).toBe('alert')
+      expect(wrapper.find('[data-testid="sessions-error"]').text()).toContain('HTTP 500')
+      expect(wrapper.text()).not.toContain('No cloud sessions yet')
+    })
+
+    it('shows an accounts load error and lists sessions ungrouped, not under Unknown account', () => {
+      accountsError.value = 'HTTP 502'
+      sessions.value = [makeSession('1'), makeSession('2', { spawnerId: 'sp2' })]
+      const wrapper = mountView()
+      expect(wrapper.find('[data-testid="accounts-error"]').attributes('role')).toBe('alert')
+      expect(wrapper.find('[data-testid="accounts-error"]').text()).toContain('HTTP 502')
+      expect(wrapper.text()).not.toContain('Unknown account')
+      expect(wrapper.findAll('[data-testid="cloud-session"]')).toHaveLength(2)
+    })
+
+    it('shows the lookup error without a Not signed in badge or login hint', () => {
+      accounts.value = [makeAccount('/home/a/.claude', ['sp1'], { auth: null, ready: false, error: 'claude not found' })]
+      const text = mountView().text()
+      expect(text).toContain('claude not found')
+      expect(text).not.toContain('Not signed in')
+      expect(text).not.toContain('claude auth login')
+    })
+  })
+
+  describe('account header', () => {
+    it('renders the server-built login hint verbatim', () => {
+      const hint = 'CLAUDE_CONFIG_DIR=\'/home/o brien/.claude\' claude auth login'
+      accounts.value = [makeAccount('/home/o brien/.claude', ['sp1'], { ready: false, loginHint: hint })]
+      expect(mountView().find('code').text()).toBe(hint)
+    })
+
+    it('takes readiness from the server flag, not from the auth fields', () => {
+      accounts.value = [makeAccount('/home/a/.claude', ['sp1'], { ready: false })]
+      const text = mountView().text()
+      expect(text).toContain('Not signed in')
+      expect(text).not.toContain('Ready')
+    })
+
+    it('names the default account', () => {
+      accounts.value = [makeAccount('', ['sp1'], { loginHint: 'claude auth login' })]
+      const wrapper = mountView()
+      expect(wrapper.find('[data-testid="cloud-account"]').text()).toContain('default (no CLAUDE_CONFIG_DIR)')
+      expect(wrapper.text()).not.toContain('Unknown account')
+    })
+  })
+
+  describe('refresh', () => {
+    it('is visible without any account row', () => {
+      expect(mountView().find('[data-testid="cloud-refresh"]').exists()).toBe(true)
+    })
+
+    it('is disabled and labelled while the refresh runs', async () => {
+      let resolve!: () => void
+      state.refresh.mockReturnValue(new Promise<void>(r => (resolve = r)))
+      const wrapper = mountView()
+      await wrapper.find('[data-testid="cloud-refresh"]').trigger('click')
+      expect(wrapper.find('[data-testid="cloud-refresh"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="cloud-refresh"]').text()).toBe('Refreshing…')
+      resolve()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="cloud-refresh"]').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[data-testid="cloud-refresh"]').text()).toBe('Refresh')
+    })
+
+    it('reloads the sessions as well', async () => {
+      const wrapper = mountView()
+      await wrapper.find('[data-testid="cloud-refresh"]').trigger('click')
+      expect(state.refetch).toHaveBeenCalledOnce()
+    })
+
+    it('refreshes the accounts once when a session belongs to no account row', async () => {
+      accounts.value = [makeAccount('/home/a/.claude', ['sp1'])]
+      sessions.value = [makeSession('1', { spawnerId: 'sp1' })]
+      mountView()
+      await flushPromises()
+      expect(state.refresh).not.toHaveBeenCalled()
+
+      sessions.value = [...sessions.value, makeSession('2', { spawnerId: 'sp-new' })]
+      await flushPromises()
+      expect(state.refresh).toHaveBeenCalledOnce()
+
+      sessions.value = [...sessions.value, makeSession('3', { spawnerId: 'sp-new' })]
+      await flushPromises()
+      expect(state.refresh).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('accessibility', () => {
+    beforeEach(() => {
+      accounts.value = [makeAccount('/home/a/.claude', ['sp1'])]
+      sessions.value = [makeSession('1')]
+    })
+
+    it('announces import and remove failures as alerts', async () => {
+      state.importSession.mockRejectedValue(new Error('session not found'))
+      state.removeSession.mockRejectedValue(new Error('delete failed'))
+      const wrapper = mountView()
+      await wrapper.find('[data-testid="import-url"]').setValue('https://claude.ai/code/session_x')
+      await wrapper.find('[data-testid="import-form"]').trigger('submit')
+      await wrapper.find('[data-testid="remove-1"]').trigger('click')
+      await wrapper.find('[data-testid="remove-confirm-1"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.findAll('[role="alert"]').map(e => e.text())).toEqual(['session not found', 'delete failed'])
+    })
+
+    it('announces Sending… in a live region that exists before the send starts', async () => {
+      state.sendMessage.mockReturnValue(new Promise(() => {}))
+      const wrapper = mountView()
+      const region = wrapper.find('[data-testid="send-status-1"]')
+      expect(region.attributes('aria-live') ?? region.attributes('role')).toBeDefined()
+      expect(region.text()).toBe('')
+      await wrapper.find('[data-testid="send-box-1"]').setValue('hello')
+      await wrapper.find('[data-testid="send-1"]').trigger('click')
+      expect(wrapper.find('[data-testid="send-status-1"]').text()).toBe('Sending…')
+    })
+  })
+
+  it('clamps a long last message and keeps the full text in the title', () => {
+    accounts.value = [makeAccount('/home/a/.claude', ['sp1'])]
+    const long = 'x'.repeat(5000)
+    sessions.value = [makeSession('1', { lastMessage: long })]
+    const message = mountView().find('[data-testid="last-message-1"]')
+    expect(message.classes()).toContain('line-clamp-3')
+    expect(message.attributes('title')).toBe(long)
   })
 
   describe('send', () => {
