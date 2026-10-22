@@ -35,6 +35,8 @@ type CloudSessionRepo interface {
 	// RecordSend stores the last message sent and its outcome; an empty errText
 	// clears the previous error.
 	RecordSend(ctx context.Context, id, message string, at time.Time, errText string) (*ent.CloudSession, error)
+	// RecordError stores errText as the last error without touching the last message.
+	RecordError(ctx context.Context, id, errText string) (*ent.CloudSession, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -95,6 +97,14 @@ func (r *entCloudSessionRepo) RecordSend(ctx context.Context, id, message string
 	s, err := u.Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("cloudSession.RecordSend: %w", err)
+	}
+	return s, nil
+}
+
+func (r *entCloudSessionRepo) RecordError(ctx context.Context, id, errText string) (*ent.CloudSession, error) {
+	s, err := r.client.CloudSession.UpdateOneID(id).SetLastError(errText).Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cloudSession.RecordError: %w", err)
 	}
 	return s, nil
 }
