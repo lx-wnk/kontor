@@ -15,41 +15,81 @@ import { importSession, removeSession, sendMessage, useCloudAccounts, useCloudSe
 
 interface AccountGroup {
   key: string
+  label: string
   account: CloudAccount | null
   sessions: CloudSessionView[]
 }
 
 const UNKNOWN_KEY = '__unknown__'
+const UNGROUPED_KEY = '__ungrouped__'
+const DEFAULT_ACCOUNT_LABEL = 'default (no CLAUDE_CONFIG_DIR)'
 const CLOUD_URL_PREFIX = 'https://claude.ai/code/'
 
-const { sessions } = useCloudSessions()
-const { accounts, isLoading: accountsLoading, refresh } = useCloudAccounts()
+const { sessions, error: sessionsError, refetch: refetchSessions } = useCloudSessions()
+const { accounts, isLoading: accountsLoading, error: accountsError, refresh: refreshAccounts } = useCloudAccounts()
 const { spawners } = useSpawners()
+
+const accountBySpawner = computed(() => {
+  const bySpawner = new Map<string, CloudAccount>()
+  for (const account of accounts.value) {
+    for (const spawner of account.spawners)
+      bySpawner.set(spawner.id, account)
+  }
+  return bySpawner
+})
+
+function accountLabel(account: CloudAccount): string {
+  return account.configDir || DEFAULT_ACCOUNT_LABEL
+}
 
 const groups = computed<AccountGroup[]>(() => {
   if (accountsLoading.value)
     return []
-  const accountBySpawner = new Map<string, CloudAccount>()
-  for (const account of accounts.value) {
-    for (const spawner of account.spawners)
-      accountBySpawner.set(spawner.id, account)
+  if (accountsError.value && accounts.value.length === 0) {
+    return sessions.value.length > 0
+      ? [{ key: UNGROUPED_KEY, label: 'Sessions', account: null, sessions: sessions.value }]
+      : []
   }
   const byKey = new Map<string, AccountGroup>(
-    accounts.value.map(account => [account.configDir, { key: account.configDir, account, sessions: [] }]),
+    accounts.value.map(account => [account.configDir, { key: account.configDir, label: accountLabel(account), account, sessions: [] }]),
   )
   for (const session of sessions.value) {
-    const account = accountBySpawner.get(session.spawnerId) ?? null
+    const account = accountBySpawner.value.get(session.spawnerId) ?? null
     const key = account?.configDir ?? UNKNOWN_KEY
-    const group = byKey.get(key) ?? { key, account, sessions: [] }
+    const group = byKey.get(key) ?? { key, label: 'Unknown account', account, sessions: [] }
     group.sessions.push(session)
     byKey.set(key, group)
   }
   return [...byKey.values()].sort((a, b) => Number(a.key === UNKNOWN_KEY) - Number(b.key === UNKNOWN_KEY))
 })
 
-function isReady(account: CloudAccount | null): boolean {
-  return !!account?.auth?.loggedIn && account.auth.authMethod === 'claude.ai'
+const refreshing = ref(false)
+
+async function refreshAll() {
+  if (refreshing.value)
+    return
+  refreshing.value = true
+  try {
+    await Promise.all([refreshAccounts(), refetchSessions()])
+  }
+  finally {
+    refreshing.value = false
+  }
 }
+
+const refreshedSpawnerIds = new Set<string>()
+
+watch([sessions, accounts, accountsLoading], () => {
+  if (accountsLoading.value)
+    return
+  const unmapped = sessions.value
+    .map(s => s.spawnerId)
+    .filter(id => !accountBySpawner.value.has(id) && !refreshedSpawnerIds.has(id))
+  if (unmapped.length === 0)
+    return
+  unmapped.forEach(id => refreshedSpawnerIds.add(id))
+  void refreshAll()
+}, { immediate: true })
 
 function spawnerNames(account: CloudAccount): string {
   return account.spawners.map(s => s.name).join(', ')
@@ -163,9 +203,28 @@ async function runImport() {
 
 <template>
   <div class="flex flex-col gap-4 p-4 max-w-5xl mx-auto">
-    <h1 class="text-lg font-semibold text-fg">
-      Cloud sessions
-    </h1>
+    <div class="flex items-center gap-3">
+      <h1 class="text-lg font-semibold text-fg">
+        Cloud sessions
+      </h1>
+      <AppButton
+        class="ml-auto"
+        variant="ghost"
+        size="sm"
+        :disabled="refreshing"
+        data-testid="cloud-refresh"
+        @click="refreshAll()"
+      >
+        {{ refreshing ? 'Refreshing…' : 'Refresh' }}
+      </AppButton>
+    </div>
+
+    <p v-if="sessionsError" role="alert" class="text-danger-text text-sm" data-testid="sessions-error">
+      Could not load cloud sessions: {{ sessionsError }}
+    </p>
+    <p v-if="accountsError" role="alert" class="text-danger-text text-sm" data-testid="accounts-error">
+      Could not load accounts: {{ accountsError }}
+    </p>
 
     <AppCard>
       <form class="flex flex-col gap-3 p-3" data-testid="import-form" @submit.prevent="runImport">
@@ -205,7 +264,7 @@ async function runImport() {
           >
             {{ importing ? 'Importing…' : 'Import session' }}
           </AppButton>
-          <p v-if="importError" role="status" class="text-danger-text text-sm">
+          <p v-if="importError" role="alert" class="text-danger-text text-sm">
             {{ importError }}
           </p>
         </div>
@@ -215,7 +274,7 @@ async function runImport() {
     <p v-if="accountsLoading" class="text-fg-faint text-sm">
       Loading accounts…
     </p>
-    <p v-else-if="groups.length === 0" class="text-fg-faint text-sm">
+    <p v-else-if="groups.length === 0 && !sessionsError" class="text-fg-faint text-sm">
       No cloud sessions yet. Import one by URL above.
     </p>
 
@@ -223,23 +282,21 @@ async function runImport() {
       <template #header>
         <div class="min-w-0">
           <div class="font-mono text-sm text-fg truncate">
-            {{ group.account?.configDir ?? 'Unknown account' }}
+            {{ group.label }}
           </div>
           <div v-if="group.account" class="text-xs text-fg-mute truncate">
             {{ spawnerNames(group.account) }}
           </div>
         </div>
         <div v-if="group.account" class="flex items-center gap-2 shrink-0">
-          <AppBadge v-if="isReady(group.account)" variant="active" label="Ready" />
+          <AppBadge v-if="group.account.ready" variant="active" label="Ready" />
+          <AppBadge v-else-if="group.account.error" variant="idle" label="Unknown" />
           <AppBadge v-else variant="waiting" label="Not signed in" />
-          <AppButton variant="ghost" size="sm" data-testid="cloud-refresh" @click="refresh()">
-            Refresh
-          </AppButton>
         </div>
       </template>
 
-      <div v-if="group.account && !isReady(group.account)" class="px-3 py-2 text-xs text-fg-mute border-b border-line">
-        Not signed in with claude.ai. Run: <code class="font-mono">CLAUDE_CONFIG_DIR={{ group.account.configDir }} claude auth login</code>
+      <div v-if="group.account && !group.account.ready && !group.account.error" class="px-3 py-2 text-xs text-fg-mute border-b border-line">
+        Not signed in with claude.ai. Run: <code class="font-mono">{{ group.account.loginHint }}</code>
       </div>
       <div v-if="group.account?.error" role="alert" class="px-3 py-2 text-xs text-danger-text border-b border-line">
         {{ group.account.error }}
@@ -268,10 +325,12 @@ async function runImport() {
             >Open in claude.ai</a>
           </div>
 
-          <p v-if="session.lastMessage" class="text-sm text-fg-soft">
-            {{ session.lastMessage }}
-            <span class="text-xs text-fg-faint ml-1">{{ formatRelativeThenDate(session.lastMessageAt) }}</span>
-          </p>
+          <div v-if="session.lastMessage" class="text-sm text-fg-soft">
+            <p class="line-clamp-3 break-words" :title="session.lastMessage" :data-testid="`last-message-${session.id}`">
+              {{ session.lastMessage }}
+            </p>
+            <span class="text-xs text-fg-faint">{{ formatRelativeThenDate(session.lastMessageAt) }}</span>
+          </div>
 
           <div class="flex items-start gap-2">
             <AppInput
@@ -295,6 +354,7 @@ async function runImport() {
             >
               {{ sending[session.id] ? 'Sending…' : 'Send' }}
             </AppButton>
+            <span class="sr-only" role="status" :data-testid="`send-status-${session.id}`">{{ sending[session.id] ? 'Sending…' : '' }}</span>
           </div>
 
           <div class="flex items-center gap-2">
@@ -317,7 +377,7 @@ async function runImport() {
             <AppButton v-else variant="ghost" size="sm" :aria-label="`Remove from Kontor: ${session.title}`" :data-testid="`remove-${session.id}`" @click="askRemove(session.id)">
               Remove from Kontor
             </AppButton>
-            <span v-if="removeErrors[session.id]" role="status" class="text-danger-text text-xs" :data-testid="`remove-error-${session.id}`">{{ removeErrors[session.id] }}</span>
+            <span v-if="removeErrors[session.id]" role="alert" class="text-danger-text text-xs" :data-testid="`remove-error-${session.id}`">{{ removeErrors[session.id] }}</span>
           </div>
         </li>
       </ul>
