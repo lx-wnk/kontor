@@ -5,6 +5,7 @@ import AppSelect from '@/components/ui/AppSelect.vue'
 import { RestartError, useServerReconnect } from '@/composables/useServerReconnect'
 import { toast } from '@/composables/useToast'
 import { useSettings } from '@/features/settings/composables/useSettings'
+import { SETTING_LABELS } from '@/features/settings/settingLabels'
 import { errorMessage } from '@/utils/errorMessage'
 
 const { items, loading, refetch, update } = useSettings()
@@ -68,6 +69,10 @@ function onCheckbox(item: SettingView, e: Event) {
 
 function onValue(item: SettingView, e: Event) {
   apply(item, (e.target as HTMLInputElement | HTMLSelectElement).value)
+}
+
+function ariaLabelOf(item: SettingView) {
+  return SETTING_LABELS[item.key]?.label ?? item.key
 }
 
 function enumOptions(item: SettingView) {
@@ -153,7 +158,18 @@ onMounted(refetch)
             class="flex items-center justify-between gap-3 px-3 py-2.5"
           >
             <div class="min-w-0">
-              <p class="font-medium text-fg font-mono">
+              <template v-if="SETTING_LABELS[item.key]">
+                <p class="font-medium text-fg">
+                  {{ SETTING_LABELS[item.key].label }}
+                </p>
+                <p class="text-fg-mute mt-0.5">
+                  {{ SETTING_LABELS[item.key].help }}
+                </p>
+                <p class="text-fg-faint text-[10px] font-mono mt-0.5">
+                  {{ item.key }}
+                </p>
+              </template>
+              <p v-else class="font-medium text-fg font-mono">
                 {{ item.key }}
               </p>
               <p class="text-fg-faint text-[10px] mt-0.5">
@@ -165,7 +181,7 @@ onMounted(refetch)
               v-if="item.type === 'bool'"
               type="checkbox"
               :checked="item.value === 'true'"
-              :aria-label="item.key"
+              :aria-label="ariaLabelOf(item)"
               :disabled="saving === item.key"
               class="h-4 w-4 shrink-0 cursor-pointer accent-accent"
               @change="onCheckbox(item, $event)"
@@ -174,7 +190,7 @@ onMounted(refetch)
               v-else-if="item.type === 'enum'"
               :model-value="item.value"
               :options="enumOptions(item)"
-              :aria-label="item.key"
+              :aria-label="ariaLabelOf(item)"
               :disabled="saving === item.key"
               class="w-44 shrink-0"
               @update:model-value="onSelectChange(item, $event)"
@@ -184,7 +200,7 @@ onMounted(refetch)
               type="number"
               :value="item.value"
               :step="item.type === 'float' ? 'any' : '1'"
-              :aria-label="item.key"
+              :aria-label="ariaLabelOf(item)"
               :disabled="saving === item.key"
               class="w-44 shrink-0 bg-card border border-line rounded px-2 py-1 text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent"
               @change="onValue(item, $event)"
@@ -193,7 +209,7 @@ onMounted(refetch)
               v-else
               type="text"
               :value="item.value"
-              :aria-label="item.key"
+              :aria-label="ariaLabelOf(item)"
               :disabled="saving === item.key"
               class="w-44 shrink-0 bg-card border border-line rounded px-2 py-1 text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent"
               @change="onValue(item, $event)"
