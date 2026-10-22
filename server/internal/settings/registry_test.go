@@ -47,6 +47,21 @@ func TestRegistry_DefaultsAndValidation(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestRegistry_PreviewFeaturesSwitch(t *testing.T) {
+	d, ok := Lookup("features.preview")
+	require.True(t, ok)
+	assert.Equal(t, TypeBool, d.Type)
+	assert.Equal(t, "false", d.Default)
+	assert.Equal(t, ApplyLive, d.Apply)
+	assert.Equal(t, "features", d.Category)
+
+	svc := New(newFakeRepo(), nil)
+	require.NoError(t, svc.Load(t.Context()))
+	assert.False(t, svc.Bool("features.preview"))
+	require.NoError(t, svc.Set(t.Context(), "features.preview", "true"))
+	assert.True(t, svc.Bool("features.preview"))
+}
+
 func TestValidateDefinitions_RejectsSecretWithDefault(t *testing.T) {
 	bad := map[string]Definition{
 		"bad.secret": {Key: "bad.secret", Type: TypeString, Secret: true, Default: "leaked"},
