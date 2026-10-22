@@ -832,6 +832,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 				Apps:         repo.NewMCPApplicationRepo(entClient),
 				Secrets:      repo.NewApplicationSecretRepo(entClient, box),
 				Capabilities: repo.NewCapabilityRepo(entClient),
+				HomeRoot:     appHomeRoot(),
 				Transport:    mcpapps.StdioTransport,
 				Now:          time.Now,
 			},

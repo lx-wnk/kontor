@@ -133,6 +133,12 @@ func (r Refresher) list(ctx context.Context, app *ent.MCPApplication) ([]schema.
 	if err != nil {
 		return nil, err
 	}
+	if preset, ok := FindPreset(entry); ok {
+		env, err = WithIsolatedHome(env, preset, r.HomeRoot, app.ResourceID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	transport, err := r.Transport(entry, env)
 	if err != nil {
 		return nil, err
