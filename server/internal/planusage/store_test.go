@@ -2,6 +2,8 @@ package planusage
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -125,5 +127,24 @@ func TestValidWindow(t *testing.T) {
 				t.Errorf("ValidWindow() = %v, want %v", got, tt.valid)
 			}
 		})
+	}
+}
+
+func TestGetFindsSampleSetThroughSymlink(t *testing.T) {
+	home := t.TempDir()
+	target := filepath.Join(home, ".claude-personal")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, ".claude")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewStore()
+	s.Set(link, Sample{FiveHour: &Window{UsedPct: 42}, SampledAt: time.Now()})
+
+	if _, ok := s.Get(target); !ok {
+		t.Fatalf("sample set under %s not found under its target %s", link, target)
 	}
 }
