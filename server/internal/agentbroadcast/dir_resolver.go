@@ -3,6 +3,8 @@ package agentbroadcast
 import (
 	"sync"
 	"time"
+
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 )
 
 // dirCacheTTL bounds how long a canonicalised config dir is reused. The answer
@@ -11,7 +13,7 @@ import (
 // absorb the enricher's real call rate.
 const dirCacheTTL = 30 * time.Second
 
-// dirResolver memoises canonicalDir.
+// dirResolver memoises pathutil.Canonical.
 //
 // Spawner attribution runs on every agent read — the broadcast tick plus seven
 // other call sites, one of them a hook rescan debounced at 100ms — and resolves
@@ -26,7 +28,7 @@ type dirResolver struct {
 	mu  sync.Mutex
 	ttl time.Duration
 	now func() time.Time
-	// resolve is canonicalDir; a seam so tests can count filesystem walks.
+	// resolve is pathutil.Canonical; a seam so tests can count filesystem walks.
 	resolve func(string) string
 	entries map[string]dirEntry
 }
@@ -37,10 +39,10 @@ type dirEntry struct {
 }
 
 func newDirResolver(ttl time.Duration, now func() time.Time) *dirResolver {
-	return &dirResolver{ttl: ttl, now: now, resolve: canonicalDir, entries: make(map[string]dirEntry)}
+	return &dirResolver{ttl: ttl, now: now, resolve: pathutil.Canonical, entries: make(map[string]dirEntry)}
 }
 
-// canonical is canonicalDir, answered from the cache while the entry is fresh.
+// canonical is pathutil.Canonical, answered from the cache while the entry is fresh.
 func (r *dirResolver) canonical(dir string) string {
 	if dir == "" {
 		return ""

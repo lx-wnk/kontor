@@ -48,3 +48,26 @@ func TestAllAgentConfigDirs_DefaultAlwaysVariantsOnlyWhenPresent(t *testing.T) {
 		}
 	}
 }
+
+// ~/.claude as a symlink to ~/.claude-personal is one account: listing both
+// made every per-account view count its sessions twice.
+func TestAllClaudeConfigDirs_SymlinkToVariantIsListedOnce(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("DASHBOARD_CLAUDE_CONFIG_DIRS", "")
+
+	target := filepath.Join(home, ".claude-personal")
+	if err := os.MkdirAll(filepath.Join(target, "projects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, ".claude")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	got := parser.AllClaudeConfigDirs()
+	if len(got) != 1 || got[0] != link {
+		t.Fatalf("got %v, want [%s]", got, link)
+	}
+}

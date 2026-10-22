@@ -20,6 +20,7 @@ import (
 
 	"github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 	"github.com/lx-wnk/kontor/server/internal/sanitize"
 )
 
@@ -144,8 +145,14 @@ func allClaudeConfigDirs() []string {
 	var dirs []string
 	add := func(d string) {
 		d = strings.TrimSpace(d)
-		if d != "" && !seen[d] {
-			seen[d] = true
+		if d == "" {
+			return
+		}
+		// Dedup by the resolved dir so ~/.claude -> ~/.claude-personal is one account;
+		// a dir missing on disk keeps its literal path (consumers stat lazily).
+		key := pathutil.Canonical(d)
+		if !seen[key] {
+			seen[key] = true
 			dirs = append(dirs, d)
 		}
 	}

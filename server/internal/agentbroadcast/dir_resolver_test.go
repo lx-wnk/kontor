@@ -8,6 +8,7 @@ import (
 
 	sdk "github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/pathutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func TestResolvesAConfigDirOnceWithinTheCacheWindow(t *testing.T) {
 	link := symlinkTo(t, first)
 	r := newDirResolver(time.Minute, time.Now)
 
-	require.Equal(t, canonicalDir(first), r.canonical(link))
+	require.Equal(t, pathutil.Canonical(first), r.canonical(link))
 
 	// Re-point the symlink. A resolver that walks the filesystem again would
 	// follow it; a cached one answers with what it already read.
@@ -39,7 +40,7 @@ func TestResolvesAConfigDirOnceWithinTheCacheWindow(t *testing.T) {
 	require.NoError(t, os.Remove(link))
 	require.NoError(t, os.Symlink(second, link))
 
-	assert.Equal(t, canonicalDir(first), r.canonical(link), "the resolver walked the filesystem again inside the cache window")
+	assert.Equal(t, pathutil.Canonical(first), r.canonical(link), "the resolver walked the filesystem again inside the cache window")
 }
 
 // Cached is not frozen: a profile that gets moved or re-linked must be picked up
@@ -50,7 +51,7 @@ func TestReResolvesAConfigDirOnceTheCacheWindowPasses(t *testing.T) {
 
 	now := time.Now()
 	r := newDirResolver(30*time.Second, func() time.Time { return now })
-	require.Equal(t, canonicalDir(first), r.canonical(link))
+	require.Equal(t, pathutil.Canonical(first), r.canonical(link))
 
 	second := t.TempDir()
 	require.NoError(t, os.Remove(link))
@@ -58,7 +59,7 @@ func TestReResolvesAConfigDirOnceTheCacheWindowPasses(t *testing.T) {
 
 	now = now.Add(31 * time.Second)
 
-	assert.Equal(t, canonicalDir(second), r.canonical(link), "an expired entry must be resolved again")
+	assert.Equal(t, pathutil.Canonical(second), r.canonical(link), "an expired entry must be resolved again")
 }
 
 // An entry nobody asks for again must not be kept forever: config dirs come from

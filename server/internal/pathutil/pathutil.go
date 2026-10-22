@@ -22,3 +22,18 @@ func ExpandLeadingTilde(v string) string {
 	}
 	return filepath.Join(home, v[2:])
 }
+
+// Canonical resolves a leading ~, relative segments and symlinks, so that two
+// spellings of one directory (~/.claude and the store it links to) compare
+// equal. A path that does not exist yet keeps its expanded, cleaned form.
+func Canonical(dir string) string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return ""
+	}
+	dir = ExpandLeadingTilde(dir)
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		return filepath.Clean(resolved)
+	}
+	return filepath.Clean(dir)
+}

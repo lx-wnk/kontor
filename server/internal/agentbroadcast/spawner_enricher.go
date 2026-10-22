@@ -4,7 +4,6 @@ package agentbroadcast
 import (
 	"context"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/merger"
-	"github.com/lx-wnk/kontor/server/internal/pathutil"
 )
 
 // ClaudeConfigDirEnv is the variable a Claude profile wrapper sets to point a
@@ -169,22 +167,6 @@ func indexByConfigDir(rows []*ent.Spawner, dirs *dirResolver) map[string]*ent.Sp
 // profile and lost the ones on ~/.claude.
 func userDefaultConfigDir() string {
 	return claudeconfig.DefaultDir()
-}
-
-// canonicalDir resolves ~, relative segments, and symlinks so that a spawner
-// pointing at ~/.claude and a process reporting the store it links to compare
-// equal. Tilde handling goes through pathutil so attribution expands exactly
-// what BuildSpawnEnv exported to the process in the first place.
-func canonicalDir(dir string) string {
-	dir = strings.TrimSpace(dir)
-	if dir == "" {
-		return ""
-	}
-	dir = pathutil.ExpandLeadingTilde(dir)
-	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-		return filepath.Clean(resolved)
-	}
-	return filepath.Clean(dir)
 }
 
 func taskSpawnerIDs(ctx context.Context, tasks taskLister, agents []sdk.Agent) map[string]string {
