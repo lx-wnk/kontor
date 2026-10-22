@@ -41,6 +41,7 @@ type Handler struct {
 	capabilities repo.CapabilityRepo
 	findPreset   mcpapps.PresetFinder
 	spawners     repo.SpawnerRepo
+	homeRoot     string
 }
 
 // ToolCaller runs one tool on an application's own MCP server. It is an
@@ -83,6 +84,12 @@ func NewHandler(apps repo.MCPApplicationRepo, secrets repo.ApplicationSecretRepo
 // not contain; production keeps mcpapps.FindPreset.
 func (h *Handler) WithPresetLookup(find mcpapps.PresetFinder) *Handler {
 	h.findPreset = find
+	return h
+}
+
+// WithHomeRoot sets the directory holding each isolated application's HOME.
+func (h *Handler) WithHomeRoot(root string) *Handler {
+	h.homeRoot = root
 	return h
 }
 
@@ -677,7 +684,7 @@ func (h *Handler) startSetup(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	preset, ok := mcpapps.FindPreset(entry)
+	preset, ok := h.findPreset(entry)
 	if !ok || preset.Setup == nil {
 		return apierr.NewAppError(http.StatusConflict, "this server has no setup page")
 	}

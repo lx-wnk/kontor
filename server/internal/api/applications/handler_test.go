@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -40,6 +41,11 @@ func newMuxWithPresets(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.
 
 func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
 	t.Helper()
+	return newMuxWithHome(t, find, "")
+}
+
+func newMuxWithHome(t *testing.T, find mcpapps.PresetFinder, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.GrantRepo, repo.ApplicationSecretRepo, repo.ResourceRepo, repo.TaskScheduleRepo, repo.SpawnerRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -54,7 +60,7 @@ func newMuxWithSpawners(t *testing.T, find mcpapps.PresetFinder) (*chi.Mux, repo
 	_, err = apps.Upsert(context.Background(), repo.UpsertMCPApplicationInput{ResourceID: "res-mail", ServerName: "mail"})
 	require.NoError(t, err)
 	mux := chi.NewRouter()
-	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).Mount(mux)
+	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now}, grants, resources, schedules, appsetup.NewManager(appsetup.Options{}), nil, repo.NewCapabilityRepo(bundle.Client), spawners).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, grants, secrets, resources, schedules, spawners
 }
 
@@ -343,6 +349,33 @@ func TestDeleteApplication_RemovesRowSecretsAndGrantsAndOrphansTheResource(t *te
 	res, err := resources.Get(ctx, repo.ResourceKindApplication, repo.GlobalScope(), "mcp-mail")
 	require.NoError(t, err, "the resource row must survive so grants anchored to it still resolve")
 	require.Equal(t, repo.ResourceStateOrphaned, res.State)
+}
+
+func TestDelete_RemovesIsolatedHome(t *testing.T) {
+	root := t.TempDir()
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+	home := filepath.Join(root, resID)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".imap-mcp"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".imap-mcp", "accounts.json"), []byte("{}"), 0o600))
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	require.NoDirExists(t, home, "the application's accounts and key must go with it")
+	require.DirExists(t, root)
+}
+
+func TestDelete_IsolatedAppWithoutHomeDirStillSucceeds(t *testing.T) {
+	root := t.TempDir()
+	mux, apps, grants, secrets, resources, _, _ := newMuxWithHome(t, mcpapps.FindPreset, root)
+	resID := deletableApp(t, apps, grants, secrets, resources)
+	_, err := apps.SetEntry(context.Background(), resID, json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodDelete, "/api/applications/"+resID, nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 }
 
 func TestDeleteApplication_AttachedToRoutinesIs409AndRemovesNothing(t *testing.T) {
@@ -819,6 +852,11 @@ func (f *fakeSetup) Get(string) (appsetup.Session, bool) {
 
 func newMuxWithSetup(t *testing.T, setup applications.SetupRunner) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
 	t.Helper()
+	return newMuxWithSetupHome(t, setup, mcpapps.FindPreset, t.TempDir())
+}
+
+func newMuxWithSetupHome(t *testing.T, setup applications.SetupRunner, find mcpapps.PresetFinder, homeRoot string) (*chi.Mux, repo.MCPApplicationRepo, repo.ApplicationSecretRepo) {
+	t.Helper()
 	bundle, err := db.Open(":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bundle.Client.Close() })
@@ -831,7 +869,7 @@ func newMuxWithSetup(t *testing.T, setup applications.SetupRunner) (*chi.Mux, re
 	mux := chi.NewRouter()
 	applications.NewHandler(apps, secrets, mcpapps.Refresher{Now: time.Now},
 		repo.NewGrantRepo(bundle.Client), repo.NewResourceRepo(bundle.Client),
-		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).Mount(mux)
+		repo.NewTaskScheduleRepo(bundle.Client), setup, nil, repo.NewCapabilityRepo(bundle.Client), repo.NewSpawnerRepo(bundle.Client)).WithPresetLookup(find).WithHomeRoot(homeRoot).Mount(mux)
 	return mux, apps, secrets
 }
 
@@ -863,6 +901,47 @@ func TestStartSetup_PassesTheEntryEnvAndTheSecrets(t *testing.T) {
 	require.Contains(t, setup.lastSetup.Args, "{port}", "the preset's args are passed through unsubstituted; the manager fills the port")
 	require.NotContains(t, rec.Body.String(), "hunter2", "no secret value may appear in the response")
 	require.Contains(t, rec.Body.String(), "local network", "the response carries the warning the panel shows")
+}
+
+func TestSetup_UsesIsolatedHome(t *testing.T) {
+	t.Setenv("npm_config_cache", "/real/npm-cache")
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, mcpapps.FindPreset, root)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, filepath.Join(root, "res-mail"), setup.lastEnv["HOME"], "setup must run in the same HOME a run resolves")
+	require.Equal(t, "/real/npm-cache", setup.lastEnv["npm_config_cache"])
+}
+
+func TestSetup_NonIsolatedAppGetsNoHome(t *testing.T) {
+	root := t.TempDir()
+	setup := &fakeSetup{}
+	withSetupNoIsolation := func(mcpapps.ServerEntry) (mcpapps.Preset, bool) {
+		return mcpapps.Preset{Server: "notes", Setup: &mcpapps.PresetSetup{Command: "true"}}, true
+	}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, withSetupNoIsolation, root)
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","notes-mcp"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NotContains(t, setup.lastEnv, "HOME")
+	require.NotContains(t, setup.lastEnv, "npm_config_cache")
+}
+
+func TestSetup_IsolatedWithoutHomeRootFails(t *testing.T) {
+	setup := &fakeSetup{}
+	mux, apps, _ := newMuxWithSetupHome(t, setup, mcpapps.FindPreset, "")
+	_, err := apps.SetEntry(context.Background(), "res-mail", json.RawMessage(`{"command":"npx","args":["-y","imap-mcp-server"]}`))
+	require.NoError(t, err)
+
+	rec := do(t, mux, http.MethodPost, "/api/applications/res-mail/setup", nil)
+	require.GreaterOrEqual(t, rec.Code, 500, rec.Body.String())
+	require.Equal(t, 0, setup.started, "setup must never start on the shared HOME")
 }
 
 func TestStartSetup_FailureIs502(t *testing.T) {
