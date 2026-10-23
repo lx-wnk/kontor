@@ -12,9 +12,10 @@ import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
 import { useClaudeSpawnerPicker } from './claudeSpawners'
 import { isCloudUrl } from './cloudUrl'
-import { FireFailedError, useCloudRoutines } from './composables/useCloudRoutines'
+import { FireFailedError, FireUnconfirmedError, useCloudRoutines } from './composables/useCloudRoutines'
 
 const BODY_PREVIEW_CHARS = 200
+const CHECK_CLAUDE_AI_LABEL = 'Check claude.ai before firing again'
 const TOKEN_INPUT_CLASS = 'w-full bg-app border border-line rounded-md px-3 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent font-sans'
 
 interface FireFailure { status: number, body: string }
@@ -37,7 +38,7 @@ const creating = ref(false)
 const createError = ref('')
 
 const canCreate = computed(() =>
-  !creating.value && !!createSpawnerId.value && !!newName.value.trim() && !!newFireUrl.value.trim() && !!newToken.value,
+  !creating.value && !!createSpawnerId.value && !!newName.value.trim() && !!newFireUrl.value.trim() && !!newToken.value.trim(),
 )
 
 async function runCreate() {
@@ -50,7 +51,7 @@ async function runCreate() {
       name: newName.value.trim(),
       fireUrl: newFireUrl.value.trim(),
       spawnerId: createSpawnerId.value,
-      token: newToken.value,
+      token: newToken.value.trim(),
     })
     newName.value = ''
     newFireUrl.value = ''
@@ -97,7 +98,7 @@ async function saveEdit(id: string) {
   saving.value = true
   editError.value = ''
   try {
-    await update(id, { name: edit.name.trim(), fireUrl: edit.fireUrl.trim(), token: edit.token })
+    await update(id, { name: edit.name.trim(), fireUrl: edit.fireUrl.trim(), token: edit.token.trim() })
     await closeEdit()
   }
   catch (err) {
@@ -113,6 +114,7 @@ const firing = reactive<Record<string, boolean>>({})
 const fired = reactive<Record<string, CloudSessionView>>({})
 const failures = reactive<Record<string, FireFailure>>({})
 const fireErrors = reactive<Record<string, string>>({})
+const unconfirmed = reactive<Record<string, boolean>>({})
 
 async function runFire(id: string) {
   if (firing[id])
@@ -124,12 +126,19 @@ async function runFire(id: string) {
   try {
     fired[id] = await fire(id, fireTexts[id]?.trim() || undefined)
     fireTexts[id] = ''
+    delete unconfirmed[id]
   }
   catch (err) {
-    if (err instanceof FireFailedError)
+    if (err instanceof FireFailedError) {
       failures[id] = { status: err.status, body: err.body }
-    else
+    }
+    else if (err instanceof FireUnconfirmedError) {
+      fireErrors[id] = err.message
+      unconfirmed[id] = true
+    }
+    else {
       fireErrors[id] = errorMessage(err)
+    }
   }
   finally {
     firing[id] = false
@@ -160,8 +169,10 @@ async function runDelete(id: string) {
 }
 
 watch(routines, (list) => {
+  for (const id of Object.keys(unconfirmed))
+    delete unconfirmed[id]
   const live = new Set(list.map(r => r.id))
-  for (const record of [fireTexts, firing, fired, failures, fireErrors, deleteErrors]) {
+  for (const record of [fireTexts, firing, fired, failures, fireErrors, unconfirmed, deleteErrors]) {
     for (const id of Object.keys(record)) {
       if (!live.has(id))
         delete record[id]
@@ -262,11 +273,11 @@ watch(routines, (list) => {
             size="sm"
             :class="firing[routine.id] && 'opacity-40 cursor-not-allowed'"
             :aria-disabled="firing[routine.id] || undefined"
-            :aria-label="`Fire ${routine.name}`"
+            :aria-label="unconfirmed[routine.id] ? `${CHECK_CLAUDE_AI_LABEL}: ${routine.name}` : `Fire ${routine.name}`"
             :data-testid="`fire-${routine.id}`"
             @click="runFire(routine.id)"
           >
-            {{ firing[routine.id] ? 'Firing…' : 'Fire' }}
+            {{ firing[routine.id] ? 'Firing…' : unconfirmed[routine.id] ? CHECK_CLAUDE_AI_LABEL : 'Fire' }}
           </AppButton>
           <span class="sr-only" role="status" aria-live="polite">{{ firing[routine.id] ? 'Firing…' : '' }}</span>
         </div>

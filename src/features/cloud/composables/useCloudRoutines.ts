@@ -33,6 +33,15 @@ export class FireFailedError extends Error {
   }
 }
 
+export class FireUnconfirmedError extends Error {
+  readonly mayHaveStarted = true
+
+  constructor(message: string) {
+    super(message)
+    this.name = 'FireUnconfirmedError'
+  }
+}
+
 const routines = shallowRef<CloudRoutineView[]>([])
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -83,7 +92,9 @@ async function fire(id: string, text?: string): Promise<CloudSessionView> {
   })
   if (res.ok)
     return upsertSession(await res.json() as CloudSessionView)
-  const body = await res.json().catch(() => ({})) as { error?: string, status?: number, body?: string }
+  const body = await res.json().catch(() => ({})) as { error?: string, status?: number, body?: string, mayHaveStarted?: boolean }
+  if (res.status === 502 && body.mayHaveStarted === true)
+    throw new FireUnconfirmedError(body.error || 'The routine may have started a run; check claude.ai before firing again')
   // Only a FireError carries the upstream status; other 502s have just `error`.
   if (res.status === 502 && typeof body.status === 'number')
     throw new FireFailedError(body.status, body.body ?? '')
