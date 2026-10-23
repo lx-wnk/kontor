@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -47,7 +48,7 @@ type FireResult struct {
 	URL       string
 }
 
-// RoutineClient fires routines. A zero HTTP uses a client with a 20s timeout.
+// RoutineClient fires routines with a timeout of at most 20s, also when HTTP sets none or a longer one.
 type RoutineClient struct {
 	HTTP *http.Client
 }
@@ -111,7 +112,7 @@ func (c RoutineClient) client() *http.Client {
 	if c.HTTP != nil {
 		hc = *c.HTTP
 	}
-	if hc.Timeout == 0 {
+	if hc.Timeout == 0 || hc.Timeout > routineTimeout {
 		hc.Timeout = routineTimeout
 	}
 	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -134,9 +135,24 @@ func classifyTransportError(err error) error {
 
 func readErrorBody(r io.Reader, token string) string {
 	raw, _ := io.ReadAll(io.LimitReader(r, maxFireErrorBody))
-	body := redactToken(string(raw), token)
-	if len(body) > maxFireErrorBody {
-		body = body[:maxFireErrorBody]
+	return capRedactedBody(redactToken(string(raw), token))
+}
+
+// capRedactedBody cuts body to maxFireErrorBody bytes; redaction can grow it past
+// the read cap. A rune or marker the cut would split is dropped whole.
+func capRedactedBody(body string) string {
+	if len(body) <= maxFireErrorBody {
+		return body
+	}
+	cut := maxFireErrorBody
+	for cut > 0 && !utf8.RuneStart(body[cut]) {
+		cut--
+	}
+	body = body[:cut]
+	for n := len(redactedToken) - 1; n > 0; n-- {
+		if strings.HasSuffix(body, redactedToken[:n]) {
+			return body[:len(body)-n]
+		}
 	}
 	return body
 }
