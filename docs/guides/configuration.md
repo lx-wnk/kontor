@@ -39,7 +39,7 @@ These are the only environment variables still read by the core server. They can
 | `KONTOR_PROVIDER_DIR` | — | Optional directory of user provider descriptors merged over the built-ins |
 | `KONTOR_WORKTREE_ROOT` | `~/.claude/dashboard-worktrees` | Per-task git worktree root |
 | `KONTOR_HOOKS_SECRET` | auto-generated & persisted | Shared bearer token for `/api/hooks/*`. Persisted to `~/.claude/dashboard-hooks-secret` if unset |
-| `KONTOR_SECRET_KEY` | auto-generated & persisted | Master key (64 hex chars / 32 bytes) that encrypts plugin **secret** settings at rest (AES-256-GCM). If unset, a key is generated and persisted to `~/.claude/dashboard-secret.key` (mode `0600`). Set a stable value to share encrypted secrets across machines. **Losing it makes stored plugin secrets unreadable — you must re-enter them** |
+| `KONTOR_SECRET_KEY` | auto-generated & persisted | Master key (64 hex chars / 32 bytes) that encrypts plugin **secret** settings and claude.ai routine tokens at rest (AES-256-GCM). If unset, a key is generated and persisted to `~/.claude/dashboard-secret.key` (mode `0600`). Set a stable value to share encrypted secrets across machines. **Losing it makes stored plugin secrets and routine tokens unreadable — you must re-enter them** |
 | `KONTOR_MCP_TOKEN` | — | Bearer token for dashboard MCP access |
 | `KONTOR_AUTH_PLUGIN_SECRET` | — | Shared secret between the core server and an auth plugin (`POST /api/auth/session`). Required when using an auth plugin. Min 32 chars |
 | `KONTOR_REMOTES_ENABLED` | `false` | Opt-in to binding on a non-loopback address. The dashboard reads sensitive Claude session data — only enable behind a VPN or SSH tunnel |
@@ -99,7 +99,7 @@ These keys live in the database `app_setting` table — the single source of tru
 | `eval.stddevK` | float | `3` | restart |
 | `features.preview` | bool | `false` | live |
 
-**Apply semantics:** plugin enablement (`plugins.enabled`) applies **live**. Everything else — including `auth.mode` — needs a **server restart** to take effect. The UI marks restart-only changes with a warning.
+**Apply semantics:** plugin enablement (`plugins.enabled`) and `features.preview` apply **live**. Everything else — including `auth.mode` — needs a **server restart** to take effect. The UI marks restart-only changes with a warning.
 
 **Managed keys:** `plugins.enabled` is **read-only via the generic Server panel** — it is edited through the dedicated **Plugins** panel, which starts/stops the affected plugin processes as part of the change. Provider enablement is not a settings key at all; it lives in its own `provider_setting` table and is edited through the **Providers** panel (`/api/providers`).
 
