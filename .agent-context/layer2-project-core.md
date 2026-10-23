@@ -57,13 +57,20 @@
 | Cloud account readiness (Go; the client reads the server's `ready`) | `server/internal/cloud/runner.go` | `AuthStatus.CloudReady` |
 | Cloud CLI child env allow-list + timeouts (Go) | `server/internal/cloud/runner.go` | `childEnvKeys`, `childEnvLocalePrefix`, `envNamePattern`, `DefaultSendTimeout`, `DefaultAuthTimeout` |
 | Typed SSE broadcaster + cloud event types (Go) | `server/internal/sse/typed_broadcaster.go` | `TypedBroadcaster[E]`, `CloudSessionEvent`, `CloudSessionCreated/Updated/Deleted` |
-| Cloud session API types (client; hand-kept parity with `server/internal/api/cloudsessions/handler.go` `sessionView` and `accounts.go` `accountView`) | `src/features/cloud/composables/useCloudSessions.ts` | `CloudSessionView`, `CloudAccount`, `CloudSessionEvent` |
+| Cloud session API types (client; hand-kept parity with `server/internal/api/cloudsessions/handler.go` `SessionView` and `accounts.go` `accountView`) | `src/features/cloud/composables/useCloudSessions.ts` | `CloudSessionView`, `CloudAccount`, `CloudSessionEvent` |
+| Cloud routine API types (client; hand-kept parity with `server/internal/api/cloudroutines/handler.go` `routineView`) | `src/features/cloud/composables/useCloudRoutines.ts` | `CloudRoutineView`, `FireFailedError`, `FireUnconfirmedError` |
+| Routine fire URL rule + request headers (Go) | `server/internal/cloud/routine.go` | `ValidateFireURL`, `RoutineBetaHeader`, `AnthropicVersion` |
+| Claude-spawner test + title rule for cloud sessions and routines (Go) | `server/internal/api/cloudsessions/handler.go` | `RunsClaude`, `ValidateTitle` |
+| Claude-spawner picker (client; mirrors `RunsClaude`) | `src/features/cloud/claudeSpawners.ts` | `isClaudeSpawner`, `claudeSpawnerOptions`, `useClaudeSpawnerPicker` |
+| Setting labels + preview switch key | `src/features/settings/settingLabels.ts` | `SETTING_LABELS`, `PREVIEW_FEATURES_KEY` |
+| Setting string to bool (mirrors Go `strconv.ParseBool`) | `src/utils/parseBool.ts` | `parseBool` |
+| Claude.ai session URL test (client) | `src/features/cloud/cloudUrl.ts` | `isCloudUrl` |
 | Shared 429 retry | `src/utils/fetchWithRateLimitRetry.ts` | `fetchWithRateLimitRetry` |
 | "Is the user typing" guard | `src/utils/isTypingTarget.ts` | `isTypingTarget` |
 | Nav item test id | `src/utils/navConfig.ts` | `navItemTestId`, `navItemSelector` |
 | View to page id mapping | `src/composables/useViewState.ts` | `pageIdOf`, `pageView` |
 
-**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`. The cloud session view, account and event types are the third and fourth, between `src/features/cloud/composables/useCloudSessions.ts` and `server/internal/api/cloudsessions/` (`sessionView`, `accountView`) plus `server/internal/sse/typed_broadcaster.go` (`CloudSessionEvent`).
+**Client and server are different languages — no cross-import.** The Vue client (TypeScript) and the Go server each keep their own copy of a shared rule; Go cannot import TS. Where a rule must agree on both sides (e.g. the task-slug pattern), keep `server/internal/validation/slug.go` and `src/utils/validation.ts` in parity by hand — there is no shared module. The workspace layout rules are the second hand-kept TS↔Go pair, between `src/features/workspace/layout.ts` and `server/internal/settings/workspace_layout.go`. The cloud session view, account and event types are the third and fourth, between `src/features/cloud/composables/useCloudSessions.ts` and `server/internal/api/cloudsessions/` (`SessionView`, `accountView`) plus `server/internal/sse/typed_broadcaster.go` (`CloudSessionEvent`). The cloud routine view is the fifth, between `src/features/cloud/composables/useCloudRoutines.ts` (`CloudRoutineView`) and `server/internal/api/cloudroutines/handler.go` (`routineView`).
 
 **How to apply:** Before adding any constant or utility function, grep the codebase for existing implementations. If one already exists, import it — never copy it. If adding a new shared value, put it in the canonical location first, then import everywhere.
 

@@ -11,6 +11,12 @@ import AppSelect from '../../components/ui/AppSelect.vue'
 import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
 import { formatRelativeThenDate } from '../../utils/format'
+import { parseBool } from '../../utils/parseBool'
+import { useSettings } from '../settings/composables/useSettings'
+import { PREVIEW_FEATURES_KEY } from '../settings/settingLabels'
+import { useClaudeSpawnerPicker } from './claudeSpawners'
+import CloudRoutinesSection from './CloudRoutinesSection.vue'
+import { isCloudUrl } from './cloudUrl'
 import { importSession, removeSession, sendMessage, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
 
 interface AccountGroup {
@@ -23,11 +29,15 @@ interface AccountGroup {
 const UNKNOWN_KEY = '__unknown__'
 const UNGROUPED_KEY = '__ungrouped__'
 const DEFAULT_ACCOUNT_LABEL = 'default (no CLAUDE_CONFIG_DIR)'
-const CLOUD_URL_PREFIX = 'https://claude.ai/code/'
 
 const { sessions, error: sessionsError, refetch: refetchSessions } = useCloudSessions()
 const { accounts, isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts, refresh: refreshAccounts } = useCloudAccounts()
 const { spawners } = useSpawners()
+const { items: settingItems, loading: settingsLoading, error: settingsError, refetch: refetchSettings, savedCount } = useSettings()
+const previewEnabled = computed(() => parseBool(settingItems.value.find(i => i.key === PREVIEW_FEATURES_KEY)?.value))
+const showPreviewHint = computed(() => !settingsLoading.value && !settingsError.value && !previewEnabled.value)
+void refetchSettings()
+watch(savedCount, () => void refetchSettings())
 
 const accountBySpawner = computed(() => {
   const bySpawner = new Map<string, CloudAccount>()
@@ -105,10 +115,6 @@ function spawnerNames(account: CloudAccount): string {
   return account.spawners.map(s => s.name).join(', ')
 }
 
-function isCloudUrl(url: string): boolean {
-  return url.startsWith(CLOUD_URL_PREFIX)
-}
-
 const drafts = reactive<Record<string, string>>({})
 const sending = reactive<Record<string, boolean>>({})
 const sendErrors = reactive<Record<string, string>>({})
@@ -171,18 +177,7 @@ async function remove(id: string) {
   }
 }
 
-const claudeSpawnerOptions = computed(() =>
-  spawners.value
-    .filter(s => !s.adapterType || s.adapterType === 'claude')
-    .map(s => ({ value: s.id, label: s.name })),
-)
-const chosenSpawnerId = ref('')
-const importSpawnerId = computed({
-  get: () => claudeSpawnerOptions.value.some(o => o.value === chosenSpawnerId.value)
-    ? chosenSpawnerId.value
-    : (claudeSpawnerOptions.value[0]?.value ?? ''),
-  set: (value: string) => { chosenSpawnerId.value = value },
-})
+const { options: claudeSpawnerOptions, selectedId: importSpawnerId } = useClaudeSpawnerPicker(spawners)
 const importUrl = ref('')
 const importTitle = ref('')
 const importing = ref(false)
@@ -280,6 +275,11 @@ async function runImport() {
         </div>
       </form>
     </AppCard>
+
+    <CloudRoutinesSection v-if="previewEnabled" />
+    <p v-else-if="showPreviewHint" class="text-fg-faint text-sm" data-testid="routines-preview-hint">
+      Routines are a preview feature: Settings › Server › Preview features.
+    </p>
 
     <p v-if="accountsLoading" class="text-fg-faint text-sm">
       Loading accounts…

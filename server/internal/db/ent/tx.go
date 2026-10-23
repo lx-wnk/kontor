@@ -26,6 +26,8 @@ type Tx struct {
 	Capability *CapabilityClient
 	// Checkpoint is the client for interacting with the Checkpoint builders.
 	Checkpoint *CheckpointClient
+	// CloudRoutine is the client for interacting with the CloudRoutine builders.
+	CloudRoutine *CloudRoutineClient
 	// CloudSession is the client for interacting with the CloudSession builders.
 	CloudSession *CloudSessionClient
 	// CoordLock is the client for interacting with the CoordLock builders.
@@ -228,6 +230,7 @@ func (tx *Tx) init() {
 	tx.AuditEvent = NewAuditEventClient(tx.config)
 	tx.Capability = NewCapabilityClient(tx.config)
 	tx.Checkpoint = NewCheckpointClient(tx.config)
+	tx.CloudRoutine = NewCloudRoutineClient(tx.config)
 	tx.CloudSession = NewCloudSessionClient(tx.config)
 	tx.CoordLock = NewCoordLockClient(tx.config)
 	tx.DriftAlert = NewDriftAlertClient(tx.config)

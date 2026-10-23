@@ -38,9 +38,21 @@ type CLI interface {
 	AuthStatus(ctx context.Context, sp *ent.Spawner) (cloud.AuthStatus, error)
 }
 
-// runsClaude reports whether the spawner drives the claude CLI; an empty adapter
+// ValidateTitle returns the trimmed session title, or an error when it is too long or holds control characters.
+func ValidateTitle(s string) (string, error) {
+	title := strings.TrimSpace(s)
+	if utf8.RuneCountInString(title) > maxTitleRunes {
+		return "", fmt.Errorf("title must be at most %d characters", maxTitleRunes)
+	}
+	if strings.ContainsFunc(title, unicode.IsControl) {
+		return "", errors.New("title: contains control characters")
+	}
+	return title, nil
+}
+
+// RunsClaude reports whether the spawner drives the claude CLI; an empty adapter
 // type is the schema default, claude.
-func runsClaude(sp *ent.Spawner) bool {
+func RunsClaude(sp *ent.Spawner) bool {
 	return sp.AdapterType == "" || sp.AdapterType == claudeAdapter
 }
 
@@ -157,7 +169,8 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type sessionView struct {
+// SessionView is the JSON shape of a cloud session in responses and events.
+type SessionView struct {
 	ID            string  `json:"id"`
 	SessionID     string  `json:"sessionId"`
 	URL           string  `json:"url"`
@@ -171,13 +184,14 @@ type sessionView struct {
 	UpdatedAt     string  `json:"updatedAt"`
 }
 
-func toView(s *ent.CloudSession) sessionView {
+// NewSessionView maps a stored cloud session to its JSON view.
+func NewSessionView(s *ent.CloudSession) SessionView {
 	var at *string
 	if s.LastMessageAt != nil {
 		f := s.LastMessageAt.UTC().Format(time.RFC3339)
 		at = &f
 	}
-	return sessionView{
+	return SessionView{
 		ID:            s.ID,
 		SessionID:     s.SessionID,
 		URL:           s.URL,
@@ -207,9 +221,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	out := make([]sessionView, len(rows))
+	out := make([]SessionView, len(rows))
 	for i, s := range rows {
-		out[i] = toView(s)
+		out[i] = NewSessionView(s)
 	}
 	apierr.WriteJSON(w, http.StatusOK, out)
 	return nil
@@ -232,12 +246,9 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadRequest, err.Error())
 	}
-	title := strings.TrimSpace(body.Title)
-	if utf8.RuneCountInString(title) > maxTitleRunes {
-		return apierr.NewAppError(http.StatusBadRequest, fmt.Sprintf("title must be at most %d characters", maxTitleRunes))
-	}
-	if strings.ContainsFunc(title, unicode.IsControl) {
-		return apierr.NewAppError(http.StatusBadRequest, "title: contains control characters")
+	title, err := ValidateTitle(body.Title)
+	if err != nil {
+		return apierr.NewAppError(http.StatusBadRequest, err.Error())
 	}
 	if title == "" {
 		title = sessionID
@@ -249,7 +260,7 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	if !runsClaude(sp) {
+	if !RunsClaude(sp) {
 		return apierr.NewAppError(http.StatusBadRequest, "cloud sessions need a claude spawner")
 	}
 
@@ -266,7 +277,7 @@ func (h *Handler) Import(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	v := toView(created)
+	v := NewSessionView(created)
 	h.emit(sse.CloudSessionCreated, created.ID, v)
 	apierr.WriteJSON(w, http.StatusCreated, v)
 	return nil
@@ -307,7 +318,7 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if !runsClaude(sp) {
+	if !RunsClaude(sp) {
 		return apierr.NewAppError(http.StatusConflict, "spawner "+sp.ID+" no longer runs Claude")
 	}
 
@@ -322,7 +333,7 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 			}
 			return recErr
 		}
-		h.emit(sse.CloudSessionUpdated, updated.ID, toView(updated))
+		h.emit(sse.CloudSessionUpdated, updated.ID, NewSessionView(updated))
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
 	if !st.CloudReady() {
@@ -348,7 +359,7 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 		}
 		return err
 	}
-	v := toView(updated)
+	v := NewSessionView(updated)
 	h.emit(sse.CloudSessionUpdated, updated.ID, v)
 	if sendErr != nil {
 		return apierr.NewAppError(http.StatusBadGateway, errText)

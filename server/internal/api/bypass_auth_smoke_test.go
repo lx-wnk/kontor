@@ -14,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
+	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
 	apigithub "github.com/lx-wnk/kontor/server/internal/api/github"
@@ -187,11 +188,22 @@ func buildBypassRouter(t *testing.T) http.Handler {
 	deps.KontorSessionHandler = apikontorsession.New(stubKontorSessions{})
 	// Fake CLI, never cloud.Runner: GET /api/cloud-accounts would otherwise run
 	// `claude auth status`.
+	cloudBroadcaster := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
 	deps.CloudSessionsHandler = cloudsessions.NewHandler(
 		repo.NewCloudSessionRepo(c),
 		deps.SpawnerRepo,
 		stubCloudCLI{},
-		sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster()),
+		cloudBroadcaster,
+	)
+	// Preview ON so the walk reaches the handlers; the fake firer never touches
+	// the network.
+	deps.CloudRoutinesHandler = cloudroutines.NewHandler(
+		repo.NewCloudRoutineRepo(c, nil),
+		repo.NewCloudSessionRepo(c),
+		deps.SpawnerRepo,
+		stubRoutineFirer{},
+		cloudBroadcaster,
+		func() bool { return true },
 	)
 
 	return NewRouter(deps)
@@ -205,6 +217,12 @@ func (stubCloudCLI) Send(context.Context, *ent.Spawner, string, string) (cloud.S
 
 func (stubCloudCLI) AuthStatus(context.Context, *ent.Spawner) (cloud.AuthStatus, error) {
 	return cloud.AuthStatus{}, nil
+}
+
+type stubRoutineFirer struct{}
+
+func (stubRoutineFirer) Fire(context.Context, string, string, string) (cloud.FireResult, error) {
+	return cloud.FireResult{}, nil
 }
 
 type stubKontorSessions struct{}
@@ -421,15 +439,19 @@ func TestBypassAuth_DoesNotMountThePermissionBridgeDecisions(t *testing.T) {
 	}
 }
 
-// The cloud session routes mount inside the group that applies
+// The cloud session and routine routes mount inside the group that applies
 // RequireSameOriginForMutations; a mutation without an Origin must be refused
 // before the handler runs.
-func TestBypassAuth_CloudSessionMutationsRequireSameOrigin(t *testing.T) {
+func TestBypassAuth_CloudMutationsRequireSameOrigin(t *testing.T) {
 	router := buildBypassRouter(t)
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/api/cloud-sessions/import"},
 		{http.MethodPost, "/api/cloud-sessions/smoke-test/messages"},
 		{http.MethodDelete, "/api/cloud-sessions/smoke-test"},
+		{http.MethodPost, "/api/cloud-routines"},
+		{http.MethodPatch, "/api/cloud-routines/smoke-test"},
+		{http.MethodDelete, "/api/cloud-routines/smoke-test"},
+		{http.MethodPost, "/api/cloud-routines/smoke-test/fire"},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader("{}"))
 		req.Host = "127.0.0.1"

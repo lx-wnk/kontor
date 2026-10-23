@@ -27,6 +27,9 @@ type Capability func(*sql.Selector)
 // Checkpoint is the predicate function for checkpoint builders.
 type Checkpoint func(*sql.Selector)
 
+// CloudRoutine is the predicate function for cloudroutine builders.
+type CloudRoutine func(*sql.Selector)
+
 // CloudSession is the predicate function for cloudsession builders.
 type CloudSession func(*sql.Selector)
 

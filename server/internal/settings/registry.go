@@ -177,6 +177,7 @@ var definitions = func() map[string]Definition {
 		{Key: "usageGate.fiveHourPct", Type: TypeInt, Default: "90", Apply: ApplyLive, Category: "usageGate", validate: nonNegativeInt("usageGate.fiveHourPct")},
 		{Key: "usageGate.sevenDayPct", Type: TypeInt, Default: "95", Apply: ApplyLive, Category: "usageGate", validate: nonNegativeInt("usageGate.sevenDayPct")},
 		{Key: "usageGate.staleMinutes", Type: TypeInt, Default: "15", Apply: ApplyLive, Category: "usageGate", validate: positiveInt("usageGate.staleMinutes")},
+		{Key: "features.preview", Type: TypeBool, Default: "false", Apply: ApplyLive, Category: "features"},
 	}
 	m := make(map[string]Definition, len(list))
 	for _, d := range list {

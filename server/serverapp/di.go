@@ -28,6 +28,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/agents"
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
 	apiapplications "github.com/lx-wnk/kontor/server/internal/api/applications"
+	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	coordapi "github.com/lx-wnk/kontor/server/internal/api/coord"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
@@ -1146,12 +1147,18 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	}
 
 	var cloudSessionsHandler *cloudsessions.Handler
+	var cloudRoutinesHandler *cloudroutines.Handler
 	if entClient != nil {
-		cloudSessionsHandler = cloudsessions.NewHandler(
-			repo.NewCloudSessionRepo(entClient),
+		cloudBroadcaster := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
+		cloudSessionRepo := repo.NewCloudSessionRepo(entClient)
+		cloudSessionsHandler = cloudsessions.NewHandler(cloudSessionRepo, spawnerRepo, cloud.Runner{}, cloudBroadcaster)
+		cloudRoutinesHandler = cloudroutines.NewHandler(
+			repo.NewCloudRoutineRepo(entClient, box),
+			cloudSessionRepo,
 			spawnerRepo,
-			cloud.Runner{},
-			sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster()),
+			cloud.RoutineClient{},
+			cloudBroadcaster,
+			func() bool { return settingsSvc.Bool("features.preview") },
 		)
 	}
 
@@ -1204,6 +1211,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		MCPHandler:             mcpHandler,
 		SchedulesHandler:       schedulesHandler,
 		CloudSessionsHandler:   cloudSessionsHandler,
+		CloudRoutinesHandler:   cloudRoutinesHandler,
 		ChannelReply:           agents.NewChannelReplyHandler(replyStore, apiKeyRepo, repo.NewStageRunRepo(entClient)),
 		ChannelStageOutput:     channelStageOutputHandler,
 		PluginRegistry:         pluginRegistry,

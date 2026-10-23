@@ -22,6 +22,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudroutine"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
@@ -75,6 +76,8 @@ type Client struct {
 	Capability *CapabilityClient
 	// Checkpoint is the client for interacting with the Checkpoint builders.
 	Checkpoint *CheckpointClient
+	// CloudRoutine is the client for interacting with the CloudRoutine builders.
+	CloudRoutine *CloudRoutineClient
 	// CloudSession is the client for interacting with the CloudSession builders.
 	CloudSession *CloudSessionClient
 	// CoordLock is the client for interacting with the CoordLock builders.
@@ -157,6 +160,7 @@ func (c *Client) init() {
 	c.AuditEvent = NewAuditEventClient(c.config)
 	c.Capability = NewCapabilityClient(c.config)
 	c.Checkpoint = NewCheckpointClient(c.config)
+	c.CloudRoutine = NewCloudRoutineClient(c.config)
 	c.CloudSession = NewCloudSessionClient(c.config)
 	c.CoordLock = NewCoordLockClient(c.config)
 	c.DriftAlert = NewDriftAlertClient(c.config)
@@ -288,6 +292,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
+		CloudRoutine:       NewCloudRoutineClient(cfg),
 		CloudSession:       NewCloudSessionClient(cfg),
 		CoordLock:          NewCoordLockClient(cfg),
 		DriftAlert:         NewDriftAlertClient(cfg),
@@ -346,6 +351,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
+		CloudRoutine:       NewCloudRoutineClient(cfg),
 		CloudSession:       NewCloudSessionClient(cfg),
 		CoordLock:          NewCoordLockClient(cfg),
 		DriftAlert:         NewDriftAlertClient(cfg),
@@ -408,8 +414,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CloudSession, c.CoordLock, c.DriftAlert,
-		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.Capability, c.Checkpoint, c.CloudRoutine, c.CloudSession, c.CoordLock,
+		c.DriftAlert, c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
 		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
 		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
 		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
@@ -426,8 +432,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CloudSession, c.CoordLock, c.DriftAlert,
-		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.Capability, c.Checkpoint, c.CloudRoutine, c.CloudSession, c.CoordLock,
+		c.DriftAlert, c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
 		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
 		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
 		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
@@ -456,6 +462,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Capability.mutate(ctx, m)
 	case *CheckpointMutation:
 		return c.Checkpoint.mutate(ctx, m)
+	case *CloudRoutineMutation:
+		return c.CloudRoutine.mutate(ctx, m)
 	case *CloudSessionMutation:
 		return c.CloudSession.mutate(ctx, m)
 	case *CoordLockMutation:
@@ -1453,6 +1461,139 @@ func (c *CheckpointClient) mutate(ctx context.Context, m *CheckpointMutation) (V
 		return (&CheckpointDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Checkpoint mutation op: %q", m.Op())
+	}
+}
+
+// CloudRoutineClient is a client for the CloudRoutine schema.
+type CloudRoutineClient struct {
+	config
+}
+
+// NewCloudRoutineClient returns a client for the CloudRoutine from the given config.
+func NewCloudRoutineClient(c config) *CloudRoutineClient {
+	return &CloudRoutineClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `cloudroutine.Hooks(f(g(h())))`.
+func (c *CloudRoutineClient) Use(hooks ...Hook) {
+	c.hooks.CloudRoutine = append(c.hooks.CloudRoutine, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `cloudroutine.Intercept(f(g(h())))`.
+func (c *CloudRoutineClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CloudRoutine = append(c.inters.CloudRoutine, interceptors...)
+}
+
+// Create returns a builder for creating a CloudRoutine entity.
+func (c *CloudRoutineClient) Create() *CloudRoutineCreate {
+	mutation := newCloudRoutineMutation(c.config, OpCreate)
+	return &CloudRoutineCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CloudRoutine entities.
+func (c *CloudRoutineClient) CreateBulk(builders ...*CloudRoutineCreate) *CloudRoutineCreateBulk {
+	return &CloudRoutineCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CloudRoutineClient) MapCreateBulk(slice any, setFunc func(*CloudRoutineCreate, int)) *CloudRoutineCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CloudRoutineCreateBulk{err: fmt.Errorf("calling to CloudRoutineClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CloudRoutineCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CloudRoutineCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CloudRoutine.
+func (c *CloudRoutineClient) Update() *CloudRoutineUpdate {
+	mutation := newCloudRoutineMutation(c.config, OpUpdate)
+	return &CloudRoutineUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CloudRoutineClient) UpdateOne(_m *CloudRoutine) *CloudRoutineUpdateOne {
+	mutation := newCloudRoutineMutation(c.config, OpUpdateOne, withCloudRoutine(_m))
+	return &CloudRoutineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CloudRoutineClient) UpdateOneID(id string) *CloudRoutineUpdateOne {
+	mutation := newCloudRoutineMutation(c.config, OpUpdateOne, withCloudRoutineID(id))
+	return &CloudRoutineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CloudRoutine.
+func (c *CloudRoutineClient) Delete() *CloudRoutineDelete {
+	mutation := newCloudRoutineMutation(c.config, OpDelete)
+	return &CloudRoutineDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CloudRoutineClient) DeleteOne(_m *CloudRoutine) *CloudRoutineDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CloudRoutineClient) DeleteOneID(id string) *CloudRoutineDeleteOne {
+	builder := c.Delete().Where(cloudroutine.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CloudRoutineDeleteOne{builder}
+}
+
+// Query returns a query builder for CloudRoutine.
+func (c *CloudRoutineClient) Query() *CloudRoutineQuery {
+	return &CloudRoutineQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCloudRoutine},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CloudRoutine entity by its id.
+func (c *CloudRoutineClient) Get(ctx context.Context, id string) (*CloudRoutine, error) {
+	return c.Query().Where(cloudroutine.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CloudRoutineClient) GetX(ctx context.Context, id string) *CloudRoutine {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CloudRoutineClient) Hooks() []Hook {
+	return c.hooks.CloudRoutine
+}
+
+// Interceptors returns the client interceptors.
+func (c *CloudRoutineClient) Interceptors() []Interceptor {
+	return c.inters.CloudRoutine
+}
+
+func (c *CloudRoutineClient) mutate(ctx context.Context, m *CloudRoutineMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CloudRoutineCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CloudRoutineUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CloudRoutineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CloudRoutineDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CloudRoutine mutation op: %q", m.Op())
 	}
 }
 
@@ -5908,22 +6049,22 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CloudSession, CoordLock, DriftAlert, EvalMetricSnapshot, Grant,
-		GrantUsage, MCPApplication, Materialization, MemoryEntry, MemoryInjection,
-		PermissionPreset, PermissionRequest, PipelineConfig, Plugin, PluginSetting,
-		Project, ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
-		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
-		SystemPrompt, Task, TaskDependency, TaskPermission, TaskSchedule,
-		User []ent.Hook
+		Checkpoint, CloudRoutine, CloudSession, CoordLock, DriftAlert,
+		EvalMetricSnapshot, Grant, GrantUsage, MCPApplication, Materialization,
+		MemoryEntry, MemoryInjection, PermissionPreset, PermissionRequest,
+		PipelineConfig, Plugin, PluginSetting, Project, ProjectFolder, PromptTemplate,
+		ProviderSetting, RefinementTurn, RemoteRegistration, Resource, Scratchpad,
+		Skill, Spawner, StageRun, SystemPrompt, Task, TaskDependency, TaskPermission,
+		TaskSchedule, User []ent.Hook
 	}
 	inters struct {
 		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CloudSession, CoordLock, DriftAlert, EvalMetricSnapshot, Grant,
-		GrantUsage, MCPApplication, Materialization, MemoryEntry, MemoryInjection,
-		PermissionPreset, PermissionRequest, PipelineConfig, Plugin, PluginSetting,
-		Project, ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
-		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
-		SystemPrompt, Task, TaskDependency, TaskPermission, TaskSchedule,
-		User []ent.Interceptor
+		Checkpoint, CloudRoutine, CloudSession, CoordLock, DriftAlert,
+		EvalMetricSnapshot, Grant, GrantUsage, MCPApplication, Materialization,
+		MemoryEntry, MemoryInjection, PermissionPreset, PermissionRequest,
+		PipelineConfig, Plugin, PluginSetting, Project, ProjectFolder, PromptTemplate,
+		ProviderSetting, RefinementTurn, RemoteRegistration, Resource, Scratchpad,
+		Skill, Spawner, StageRun, SystemPrompt, Task, TaskDependency, TaskPermission,
+		TaskSchedule, User []ent.Interceptor
 	}
 )

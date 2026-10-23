@@ -18,6 +18,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudroutine"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
@@ -70,6 +71,7 @@ const (
 	TypeAuditEvent         = "AuditEvent"
 	TypeCapability         = "Capability"
 	TypeCheckpoint         = "Checkpoint"
+	TypeCloudRoutine       = "CloudRoutine"
 	TypeCloudSession       = "CloudSession"
 	TypeCoordLock          = "CoordLock"
 	TypeDriftAlert         = "DriftAlert"
@@ -5405,6 +5407,662 @@ func (m *CheckpointMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *CheckpointMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Checkpoint edge %s", name)
+}
+
+// CloudRoutineMutation represents an operation that mutates the CloudRoutine nodes in the graph.
+type CloudRoutineMutation struct {
+	config
+	op               Op
+	typ              string
+	id               *string
+	created_at       *time.Time
+	updated_at       *time.Time
+	name             *string
+	fire_url         *string
+	spawner_id       *string
+	token_ciphertext *string
+	token_nonce      *string
+	clearedFields    map[string]struct{}
+	done             bool
+	oldValue         func(context.Context) (*CloudRoutine, error)
+	predicates       []predicate.CloudRoutine
+}
+
+var _ ent.Mutation = (*CloudRoutineMutation)(nil)
+
+// cloudroutineOption allows management of the mutation configuration using functional options.
+type cloudroutineOption func(*CloudRoutineMutation)
+
+// newCloudRoutineMutation creates new mutation for the CloudRoutine entity.
+func newCloudRoutineMutation(c config, op Op, opts ...cloudroutineOption) *CloudRoutineMutation {
+	m := &CloudRoutineMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCloudRoutine,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCloudRoutineID sets the ID field of the mutation.
+func withCloudRoutineID(id string) cloudroutineOption {
+	return func(m *CloudRoutineMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CloudRoutine
+		)
+		m.oldValue = func(ctx context.Context) (*CloudRoutine, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CloudRoutine.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCloudRoutine sets the old CloudRoutine of the mutation.
+func withCloudRoutine(node *CloudRoutine) cloudroutineOption {
+	return func(m *CloudRoutineMutation) {
+		m.oldValue = func(context.Context) (*CloudRoutine, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CloudRoutineMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CloudRoutineMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CloudRoutine entities.
+func (m *CloudRoutineMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CloudRoutineMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CloudRoutineMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CloudRoutine.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CloudRoutineMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CloudRoutineMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CloudRoutineMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CloudRoutineMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CloudRoutineMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CloudRoutineMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetName sets the "name" field.
+func (m *CloudRoutineMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *CloudRoutineMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *CloudRoutineMutation) ResetName() {
+	m.name = nil
+}
+
+// SetFireURL sets the "fire_url" field.
+func (m *CloudRoutineMutation) SetFireURL(s string) {
+	m.fire_url = &s
+}
+
+// FireURL returns the value of the "fire_url" field in the mutation.
+func (m *CloudRoutineMutation) FireURL() (r string, exists bool) {
+	v := m.fire_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFireURL returns the old "fire_url" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldFireURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFireURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFireURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFireURL: %w", err)
+	}
+	return oldValue.FireURL, nil
+}
+
+// ResetFireURL resets all changes to the "fire_url" field.
+func (m *CloudRoutineMutation) ResetFireURL() {
+	m.fire_url = nil
+}
+
+// SetSpawnerID sets the "spawner_id" field.
+func (m *CloudRoutineMutation) SetSpawnerID(s string) {
+	m.spawner_id = &s
+}
+
+// SpawnerID returns the value of the "spawner_id" field in the mutation.
+func (m *CloudRoutineMutation) SpawnerID() (r string, exists bool) {
+	v := m.spawner_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSpawnerID returns the old "spawner_id" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldSpawnerID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSpawnerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSpawnerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSpawnerID: %w", err)
+	}
+	return oldValue.SpawnerID, nil
+}
+
+// ResetSpawnerID resets all changes to the "spawner_id" field.
+func (m *CloudRoutineMutation) ResetSpawnerID() {
+	m.spawner_id = nil
+}
+
+// SetTokenCiphertext sets the "token_ciphertext" field.
+func (m *CloudRoutineMutation) SetTokenCiphertext(s string) {
+	m.token_ciphertext = &s
+}
+
+// TokenCiphertext returns the value of the "token_ciphertext" field in the mutation.
+func (m *CloudRoutineMutation) TokenCiphertext() (r string, exists bool) {
+	v := m.token_ciphertext
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenCiphertext returns the old "token_ciphertext" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldTokenCiphertext(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenCiphertext is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenCiphertext requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenCiphertext: %w", err)
+	}
+	return oldValue.TokenCiphertext, nil
+}
+
+// ResetTokenCiphertext resets all changes to the "token_ciphertext" field.
+func (m *CloudRoutineMutation) ResetTokenCiphertext() {
+	m.token_ciphertext = nil
+}
+
+// SetTokenNonce sets the "token_nonce" field.
+func (m *CloudRoutineMutation) SetTokenNonce(s string) {
+	m.token_nonce = &s
+}
+
+// TokenNonce returns the value of the "token_nonce" field in the mutation.
+func (m *CloudRoutineMutation) TokenNonce() (r string, exists bool) {
+	v := m.token_nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenNonce returns the old "token_nonce" field's value of the CloudRoutine entity.
+// If the CloudRoutine object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudRoutineMutation) OldTokenNonce(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenNonce: %w", err)
+	}
+	return oldValue.TokenNonce, nil
+}
+
+// ResetTokenNonce resets all changes to the "token_nonce" field.
+func (m *CloudRoutineMutation) ResetTokenNonce() {
+	m.token_nonce = nil
+}
+
+// Where appends a list predicates to the CloudRoutineMutation builder.
+func (m *CloudRoutineMutation) Where(ps ...predicate.CloudRoutine) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CloudRoutineMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CloudRoutineMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CloudRoutine, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CloudRoutineMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CloudRoutineMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CloudRoutine).
+func (m *CloudRoutineMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CloudRoutineMutation) Fields() []string {
+	fields := make([]string, 0, 7)
+	if m.created_at != nil {
+		fields = append(fields, cloudroutine.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cloudroutine.FieldUpdatedAt)
+	}
+	if m.name != nil {
+		fields = append(fields, cloudroutine.FieldName)
+	}
+	if m.fire_url != nil {
+		fields = append(fields, cloudroutine.FieldFireURL)
+	}
+	if m.spawner_id != nil {
+		fields = append(fields, cloudroutine.FieldSpawnerID)
+	}
+	if m.token_ciphertext != nil {
+		fields = append(fields, cloudroutine.FieldTokenCiphertext)
+	}
+	if m.token_nonce != nil {
+		fields = append(fields, cloudroutine.FieldTokenNonce)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CloudRoutineMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cloudroutine.FieldCreatedAt:
+		return m.CreatedAt()
+	case cloudroutine.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cloudroutine.FieldName:
+		return m.Name()
+	case cloudroutine.FieldFireURL:
+		return m.FireURL()
+	case cloudroutine.FieldSpawnerID:
+		return m.SpawnerID()
+	case cloudroutine.FieldTokenCiphertext:
+		return m.TokenCiphertext()
+	case cloudroutine.FieldTokenNonce:
+		return m.TokenNonce()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CloudRoutineMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cloudroutine.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cloudroutine.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cloudroutine.FieldName:
+		return m.OldName(ctx)
+	case cloudroutine.FieldFireURL:
+		return m.OldFireURL(ctx)
+	case cloudroutine.FieldSpawnerID:
+		return m.OldSpawnerID(ctx)
+	case cloudroutine.FieldTokenCiphertext:
+		return m.OldTokenCiphertext(ctx)
+	case cloudroutine.FieldTokenNonce:
+		return m.OldTokenNonce(ctx)
+	}
+	return nil, fmt.Errorf("unknown CloudRoutine field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CloudRoutineMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cloudroutine.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cloudroutine.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cloudroutine.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case cloudroutine.FieldFireURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFireURL(v)
+		return nil
+	case cloudroutine.FieldSpawnerID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSpawnerID(v)
+		return nil
+	case cloudroutine.FieldTokenCiphertext:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenCiphertext(v)
+		return nil
+	case cloudroutine.FieldTokenNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenNonce(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CloudRoutine field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CloudRoutineMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CloudRoutineMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CloudRoutineMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CloudRoutine numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CloudRoutineMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CloudRoutineMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CloudRoutineMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CloudRoutine nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CloudRoutineMutation) ResetField(name string) error {
+	switch name {
+	case cloudroutine.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cloudroutine.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cloudroutine.FieldName:
+		m.ResetName()
+		return nil
+	case cloudroutine.FieldFireURL:
+		m.ResetFireURL()
+		return nil
+	case cloudroutine.FieldSpawnerID:
+		m.ResetSpawnerID()
+		return nil
+	case cloudroutine.FieldTokenCiphertext:
+		m.ResetTokenCiphertext()
+		return nil
+	case cloudroutine.FieldTokenNonce:
+		m.ResetTokenNonce()
+		return nil
+	}
+	return fmt.Errorf("unknown CloudRoutine field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CloudRoutineMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CloudRoutineMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CloudRoutineMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CloudRoutineMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CloudRoutineMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CloudRoutineMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CloudRoutineMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CloudRoutine unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CloudRoutineMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CloudRoutine edge %s", name)
 }
 
 // CloudSessionMutation represents an operation that mutates the CloudSession nodes in the graph.

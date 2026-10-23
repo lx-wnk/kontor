@@ -73,4 +73,40 @@ describe('appSettings', () => {
     expect(output.text()).toContain('src/main.go:12: syntax error')
     expect(toastMod.toast.error).toHaveBeenCalled()
   })
+
+  describe('setting labels', () => {
+    const settings = [
+      { key: 'features.preview', type: 'bool', value: 'false', default: 'false', apply: 'live', category: 'features' },
+      { key: 'git.allowPush', type: 'bool', value: 'false', default: 'false', apply: 'live', category: 'git' },
+    ]
+
+    async function mountWithSettings() {
+      globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => settings })
+      const w = mount(AppSettings)
+      await flushPromises()
+      return w
+    }
+
+    it('shows the label, help text and raw key for a mapped setting', async () => {
+      const w = await mountWithSettings()
+      const row = w.findAll('li').find(li => li.text().includes('features.preview'))!
+      expect(row.text()).toContain('Preview features')
+      expect(row.text()).toContain('features.preview')
+      expect(row.text()).toContain('Turns on features that may change or go away.')
+    })
+
+    it('uses the label as the aria-label of a mapped switch', async () => {
+      const w = await mountWithSettings()
+      expect(w.find('input[aria-label="Preview features"]').exists()).toBe(true)
+      expect(w.find('input[aria-label="features.preview"]').exists()).toBe(false)
+    })
+
+    it('renders an unmapped key as the raw key only', async () => {
+      const w = await mountWithSettings()
+      const row = w.findAll('li').find(li => li.text().includes('git.allowPush'))!
+      expect(row.get('p').text()).toBe('git.allowPush')
+      expect(row.findAll('p')).toHaveLength(2)
+      expect(row.get('input').attributes('aria-label')).toBe('git.allowPush')
+    })
+  })
 })

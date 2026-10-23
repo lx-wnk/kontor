@@ -11,6 +11,9 @@ export interface SettingView {
   enum?: string[]
 }
 
+// Bumped on every saved setting so views that read settings elsewhere can refetch.
+const savedCount = ref(0)
+
 export function useSettings() {
   const items = ref<SettingView[]>([])
   const loading = ref(true)
@@ -46,8 +49,9 @@ export function useSettings() {
     }
     const saved = await res.json() as { key: string, value: string, applied: 'live' | 'restart' }
     items.value = items.value.map(i => (i.key === saved.key ? { ...i, value: saved.value } : i))
+    savedCount.value++
     return saved.applied
   }
 
-  return { items, loading, error, refetch, update }
+  return { items, loading, error, refetch, update, savedCount }
 }

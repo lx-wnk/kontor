@@ -45,7 +45,7 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) error {
 	first := map[string]*ent.Spawner{}
 	rows := []*accountView{}
 	for _, sp := range spawners {
-		if !runsClaude(sp) {
+		if !RunsClaude(sp) {
 			continue
 		}
 		key := cloud.AccountDir(sp)
