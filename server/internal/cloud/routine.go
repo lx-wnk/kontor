@@ -9,9 +9,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -31,6 +33,7 @@ const (
 var (
 	fireURLPattern = regexp.MustCompile(`^https://api\.anthropic\.com/v1/claude_code/routines/trig_[A-Za-z0-9]+/fire$`)
 
+	ErrUnconfirmed    = errors.New("the routine may have started a run")
 	ErrInvalidFireURL = errors.New("not a routine fire URL: https://api.anthropic.com/v1/claude_code/routines/trig_<id>/fire")
 )
 
@@ -75,6 +78,9 @@ func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (F
 			return FireResult{}, fmt.Errorf("encode routine text: %w", err)
 		}
 	}
+	// GotConn runs in Do's goroutine before any request byte leaves; WroteRequest can fire after Do returns (HTTP/2).
+	var connected atomic.Bool
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { connected.Store(true) }})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fireURL, bytes.NewReader(payload))
 	if err != nil {
 		return FireResult{}, errors.New("build routine request")
@@ -86,6 +92,9 @@ func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (F
 
 	resp, err := c.client().Do(req)
 	if err != nil {
+		if connected.Load() {
+			return FireResult{}, fmt.Errorf("%w: %w", classifyTransportError(err), ErrUnconfirmed)
+		}
 		return FireResult{}, classifyTransportError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -99,10 +108,10 @@ func (c RoutineClient) Fire(ctx context.Context, fireURL, token, text string) (F
 		SessionURL string `json:"claude_code_session_url"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFireResponse)).Decode(&decoded); err != nil {
-		return FireResult{}, errors.New("routine fire response is not valid JSON")
+		return FireResult{}, fmt.Errorf("routine fire response is not valid JSON: %w", ErrUnconfirmed)
 	}
 	if decoded.SessionID == "" {
-		return FireResult{}, errors.New("routine fire response has no session id")
+		return FireResult{}, fmt.Errorf("routine fire response has no session id: %w", ErrUnconfirmed)
 	}
 	return FireResult{SessionID: decoded.SessionID, URL: decoded.SessionURL}, nil
 }

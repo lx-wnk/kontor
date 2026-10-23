@@ -38,8 +38,8 @@ const (
 )
 
 var (
-	unconfirmedTimeout = fmt.Errorf("routine fire timed out: %w: %w", context.DeadlineExceeded, cloud.ErrUnconfirmed)
-	unconfirmedCancel  = fmt.Errorf("routine fire canceled: %w: %w", context.Canceled, cloud.ErrUnconfirmed)
+	errUnconfirmedTimeout = fmt.Errorf("routine fire timed out: %w: %w", context.DeadlineExceeded, cloud.ErrUnconfirmed)
+	errUnconfirmedCancel  = fmt.Errorf("routine fire canceled: %w: %w", context.Canceled, cloud.ErrUnconfirmed)
 )
 
 type fakeFirer struct {
@@ -511,8 +511,8 @@ func TestFireErrorIs502WithStatusAndBodyAndNoRow(t *testing.T) {
 
 func TestFireThatMayHaveStartedARunIs502WithAWarning(t *testing.T) {
 	cases := map[string]func(f *fixture){
-		"timeout after send": func(f *fixture) { f.firer.err = unconfirmedTimeout },
-		"cancel after send":  func(f *fixture) { f.firer.err = unconfirmedCancel },
+		"timeout after send": func(f *fixture) { f.firer.err = errUnconfirmedTimeout },
+		"cancel after send":  func(f *fixture) { f.firer.err = errUnconfirmedCancel },
 		"unusable 2xx body": func(f *fixture) {
 			f.firer.err = fmt.Errorf("routine fire response is not valid JSON: %w", cloud.ErrUnconfirmed)
 		},
@@ -677,8 +677,8 @@ func TestFireGuardIsPerRoutine(t *testing.T) {
 func TestFireLogsRunsThatMayHaveStartedUnrecorded(t *testing.T) {
 	cases := map[string]func(f *fixture){
 		"invalid session id": func(f *fixture) { f.firer.result.SessionID = "bad" },
-		"timeout":            func(f *fixture) { f.firer.err = unconfirmedTimeout },
-		"cancel":             func(f *fixture) { f.firer.err = unconfirmedCancel },
+		"timeout":            func(f *fixture) { f.firer.err = errUnconfirmedTimeout },
+		"cancel":             func(f *fixture) { f.firer.err = errUnconfirmedCancel },
 		"unusable 2xx body": func(f *fixture) {
 			f.firer.err = fmt.Errorf("routine fire response has no session id: %w", cloud.ErrUnconfirmed)
 		},

@@ -183,6 +183,11 @@ func warnUnrecorded(routineID, reason string) {
 	slog.Warn("routine run may have started without a Kontor session record", "routineId", routineID, "reason", reason)
 }
 
+func writeMayHaveStarted(w http.ResponseWriter) error {
+	apierr.WriteJSON(w, http.StatusBadGateway, map[string]any{"error": mayHaveStarted, "mayHaveStarted": true})
+	return nil
+}
+
 func mapRepoError(err error) error {
 	switch {
 	case errors.Is(err, repo.ErrSecretsUnavailable):
@@ -353,16 +358,16 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 			})
 			return nil
 		}
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			warnUnrecorded(id, "fire timed out or was canceled")
-			return apierr.NewAppError(http.StatusBadGateway, "routine fire did not finish; "+mayHaveStarted)
+		if errors.Is(err, cloud.ErrUnconfirmed) {
+			warnUnrecorded(id, "fire outcome is unconfirmed")
+			return writeMayHaveStarted(w)
 		}
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
 	sessionID, err := cloud.ParseSessionRef(result.SessionID)
 	if err != nil {
 		warnUnrecorded(id, "fire result has an invalid session id")
-		return apierr.NewAppError(http.StatusBadGateway, "routine fire returned an invalid session id")
+		return writeMayHaveStarted(w)
 	}
 
 	created, err := h.sessions.Create(ctx, repo.CreateCloudSessionInput{
@@ -378,7 +383,7 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 			return apierr.NewAppError(http.StatusConflict, "cloud session already recorded")
 		}
 		slog.Error("record routine session", "routineId", id, "err", err)
-		return apierr.NewAppError(http.StatusBadGateway, "routine session could not be recorded; "+mayHaveStarted)
+		return writeMayHaveStarted(w)
 	}
 	view := cloudsessions.NewSessionView(created)
 	h.broadcaster.Broadcast(sse.CloudSessionEvent{Type: sse.CloudSessionCreated, CloudSessionID: created.ID, Payload: view})
