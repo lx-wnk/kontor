@@ -11,7 +11,9 @@ import AppSelect from '../../components/ui/AppSelect.vue'
 import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
 import { formatRelativeThenDate } from '../../utils/format'
+import { parseBool } from '../../utils/parseBool'
 import { useSettings } from '../settings/composables/useSettings'
+import { PREVIEW_FEATURES_KEY } from '../settings/settingLabels'
 import { useClaudeSpawnerPicker } from './claudeSpawners'
 import CloudRoutinesSection from './CloudRoutinesSection.vue'
 import { isCloudUrl } from './cloudUrl'
@@ -31,9 +33,11 @@ const DEFAULT_ACCOUNT_LABEL = 'default (no CLAUDE_CONFIG_DIR)'
 const { sessions, error: sessionsError, refetch: refetchSessions } = useCloudSessions()
 const { accounts, isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts, refresh: refreshAccounts } = useCloudAccounts()
 const { spawners } = useSpawners()
-const { items: settingItems, refetch: refetchSettings } = useSettings()
-const previewEnabled = computed(() => settingItems.value.find(i => i.key === 'features.preview')?.value === 'true')
+const { items: settingItems, loading: settingsLoading, error: settingsError, refetch: refetchSettings, savedCount } = useSettings()
+const previewEnabled = computed(() => parseBool(settingItems.value.find(i => i.key === PREVIEW_FEATURES_KEY)?.value))
+const showPreviewHint = computed(() => !settingsLoading.value && !settingsError.value && !previewEnabled.value)
 void refetchSettings()
+watch(savedCount, () => void refetchSettings())
 
 const accountBySpawner = computed(() => {
   const bySpawner = new Map<string, CloudAccount>()
@@ -273,6 +277,9 @@ async function runImport() {
     </AppCard>
 
     <CloudRoutinesSection v-if="previewEnabled" />
+    <p v-else-if="showPreviewHint" class="text-fg-faint text-sm" data-testid="routines-preview-hint">
+      Routines are a preview feature: Settings › Server › Preview features.
+    </p>
 
     <p v-if="accountsLoading" class="text-fg-faint text-sm">
       Loading accounts…

@@ -3,8 +3,10 @@ export interface SettingLabel {
   help: string
 }
 
+export const PREVIEW_FEATURES_KEY = 'features.preview'
+
 export const SETTING_LABELS: Readonly<Record<string, SettingLabel>> = {
-  'features.preview': {
+  [PREVIEW_FEATURES_KEY]: {
     label: 'Preview features',
     help: 'Turns on features that may change or go away.',
   },
