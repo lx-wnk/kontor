@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -59,6 +60,8 @@ func TestValidateFireURL(t *testing.T) {
 	invalid := map[string]string{
 		"http scheme":           "http://api.anthropic.com/v1/claude_code/routines/trig_01AbC9/fire",
 		"other host":            "https://example.com/v1/claude_code/routines/trig_01AbC9/fire",
+		"host dot as letter":    "https://apixanthropic.com/v1/claude_code/routines/trig_01AbC9/fire",
+		"host dot as dash":      "https://api-anthropic.com/v1/claude_code/routines/trig_01AbC9/fire",
 		"suffix host":           "https://api.anthropic.com.evil.com/v1/claude_code/routines/trig_01AbC9/fire",
 		"userinfo":              "https://x@api.anthropic.com/v1/claude_code/routines/trig_01AbC9/fire",
 		"userinfo lookalike":    "https://api.anthropic.com@evil.com/v1/claude_code/routines/trig_01AbC9/fire",
@@ -202,15 +205,21 @@ func TestFire_RejectsInvalidURLWithoutSending(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
 	defer srv.Close()
 
-	_, err := clientFor(t, srv).Fire(context.Background(), "https://evil.example/v1/claude_code/routines/trig_a/fire", testToken, "x")
-	if err == nil {
-		t.Fatal("want error")
+	// Both hosts are api.anthropic.com, so the rewrite transport would deliver them.
+	for _, u := range []string{
+		"http://api.anthropic.com/v1/claude_code/routines/trig_a/fire",
+		validFireURL + "/extra",
+	} {
+		_, err := clientFor(t, srv).Fire(context.Background(), u, testToken, "x")
+		if !errors.Is(err, ErrInvalidFireURL) {
+			t.Errorf("%s: err = %v, want ErrInvalidFireURL", u, err)
+		}
+		if err != nil && strings.Contains(err.Error(), testToken) {
+			t.Errorf("%s: error contains the token", u)
+		}
 	}
-	if hits.Load() != 0 {
-		t.Error("request was sent for an invalid URL")
-	}
-	if strings.Contains(err.Error(), testToken) {
-		t.Error("error contains the token")
+	if n := hits.Load(); n != 0 {
+		t.Errorf("%d requests were sent for invalid URLs", n)
 	}
 }
 
@@ -294,8 +303,32 @@ func TestFire_TokenNeverInErrors(t *testing.T) {
 }
 
 func TestFire_RejectsEmptyToken(t *testing.T) {
-	if _, err := (RoutineClient{}).Fire(context.Background(), validFireURL, "", "x"); err == nil {
+	var hits atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hits.Add(1) }))
+	defer srv.Close()
+
+	if _, err := clientFor(t, srv).Fire(context.Background(), validFireURL, "", "x"); err == nil {
 		t.Fatal("want error for empty token")
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("%d requests were sent with an empty token", n)
+	}
+}
+
+func TestFire_SuccessBodyOver1MiBIsCut(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"claude_code_session_id":"session_01ABC","pad":"`+strings.Repeat("a", maxFireResponse)+`"}`)
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := clientFor(t, srv).Fire(ctx, validFireURL, testToken, "x")
+	if err == nil {
+		t.Fatal("want a decode error for a success body over 1 MiB")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want a decode error, not a hang", err)
 	}
 }
 
@@ -376,6 +409,39 @@ func TestFire_BodyNeverHoldsTokenFragments(t *testing.T) {
 	}
 }
 
+func TestFire_MasksATokenPrefixLeftAtTheEnd(t *testing.T) {
+	cases := map[string]struct{ token, body, want string }{
+		"prefix shorter than the leak window": {testToken, "echo: " + testToken[:5], "echo: [redacted]"},
+		"short token missing its last byte":   {"abc123", "x abc12", "x [redacted]"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := fireWithBody(t, tc.token, tc.body).Body; got != tc.want {
+				t.Errorf("body = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFire_RedactedBodyIsCutBeforeAPartialMarkerOrRune(t *testing.T) {
+	// Each unit grows from 10 to 12 bytes once redacted; the pads move the 4096-byte cut through every offset of a unit.
+	unit := testToken[:minLeakWindow] + "é"
+	for pad := range len(redactedToken) + len("é") {
+		body := strings.Repeat("a", pad) + strings.Repeat(unit, maxFireErrorBody/len(unit)+1)
+		got := fireWithBody(t, testToken, body).Body
+		tail := got[max(0, len(got)-16):]
+		if !utf8.ValidString(got) {
+			t.Errorf("pad %d: body ends in a split rune: %q", pad, tail)
+		}
+		if strings.Count(got, "[") != strings.Count(got, redactedToken) {
+			t.Errorf("pad %d: body ends in a partial marker: %q", pad, tail)
+		}
+		if len(got) <= maxFireErrorBody-len(redactedToken) {
+			t.Errorf("pad %d: body length = %d, want the cut close to %d", pad, len(got), maxFireErrorBody)
+		}
+	}
+}
+
 func TestFire_SecondCopyStraddlingTheCutNeverLeaks(t *testing.T) {
 	for pad := 4096 - 4*len(testToken); pad <= 4096+len(testToken); pad++ {
 		body := testToken + strings.Repeat("a", pad) + testToken
@@ -396,6 +462,9 @@ func TestFire_ForcesDefaultTimeoutOnSuppliedClient(t *testing.T) {
 	}
 	if got := (RoutineClient{HTTP: &http.Client{Timeout: 3 * time.Second}}).client().Timeout; got != 3*time.Second {
 		t.Errorf("explicit timeout became %v, want 3s", got)
+	}
+	if got := (RoutineClient{HTTP: &http.Client{Timeout: time.Minute}}).client().Timeout; got != routineTimeout {
+		t.Errorf("longer timeout became %v, want it capped to %v", got, routineTimeout)
 	}
 }
 
