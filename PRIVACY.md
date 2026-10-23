@@ -134,8 +134,8 @@ The notification-config API accepts and persists `webhook_url` (with HMAC authen
 
 ### Cloud routines (`api.anthropic.com`)
 
-- Only when **Preview features** is on (Settings; off by default). While it is off, no routine route responds and nothing is sent.
-- When you fire a routine in **Cloud sessions**, Kontor itself (not the `claude` CLI) sends one HTTPS POST to the routine's stored fire URL, which must be `https://api.anthropic.com/v1/claude_code/routines/trig_<id>/fire`. The request carries the optional text you typed as the body and the routine's token as a bearer `Authorization` header, plus fixed `anthropic-beta` and `anthropic-version` headers. Nothing else is sent. Redirects are not followed.
+- Only when **Preview features** is on (Settings; off by default). While it is off, the routine routes answer 404 and nothing is sent.
+- When you fire a routine in **Cloud sessions**, Kontor itself (not the `claude` CLI) sends one HTTPS POST to the routine's stored fire URL, which must be `https://api.anthropic.com/v1/claude_code/routines/trig_<id>/fire`. The request carries the routine's token as a bearer `Authorization` header, the `anthropic-beta`, `anthropic-version` and `Content-Type` headers, the Go HTTP client's default `User-Agent` and `Accept-Encoding`, and a JSON body holding the optional text you typed (`{"text": "…"}`; empty when you typed none). Redirects are not followed.
 - Anthropic's reply is used for the new session's ID only; Kontor stores a claude.ai session URL it builds from that ID. On an error, the upstream status and at most 4096 bytes of the reply body, with the token redacted, are shown to you and are not stored.
 - The token is stored encrypted at rest (see section 2). It is decrypted in memory for the call.
 - **Transfer basis:** Anthropic PBC is a US entity covered by the EU–US Data Privacy Framework (DPF) where applicable.
