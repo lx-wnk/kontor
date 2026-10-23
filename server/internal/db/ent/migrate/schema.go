@@ -202,6 +202,26 @@ var (
 			},
 		},
 	}
+	// CloudSessionsColumns holds the columns for the "cloud_sessions" table.
+	CloudSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "session_id", Type: field.TypeString, Unique: true},
+		{Name: "url", Type: field.TypeString},
+		{Name: "spawner_id", Type: field.TypeString},
+		{Name: "title", Type: field.TypeString},
+		{Name: "origin", Type: field.TypeEnum, Enums: []string{"started", "imported", "routine"}},
+		{Name: "last_message", Type: field.TypeString, Nullable: true},
+		{Name: "last_message_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true},
+	}
+	// CloudSessionsTable holds the schema information for the "cloud_sessions" table.
+	CloudSessionsTable = &schema.Table{
+		Name:       "cloud_sessions",
+		Columns:    CloudSessionsColumns,
+		PrimaryKey: []*schema.Column{CloudSessionsColumns[0]},
+	}
 	// CoordLocksColumns holds the columns for the "coord_locks" table.
 	CoordLocksColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -1155,6 +1175,7 @@ var (
 		AuditEventsTable,
 		CapabilitiesTable,
 		CheckpointsTable,
+		CloudSessionsTable,
 		CoordLocksTable,
 		DriftAlertsTable,
 		EvalMetricSnapshotsTable,

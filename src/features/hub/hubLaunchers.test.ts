@@ -9,7 +9,8 @@ import { CONTROLS_BUTTON_COUNT, CONTROLS_BUTTON_PX, CONTROLS_GAP_PX, CONTROLS_RI
 describe('launchersFor', () => {
   it('lists the other core views and ends with New page', () => {
     const l = launchersFor(NAV_ITEMS, [], 'zentrale')
-    expect(l.map(x => x.id)).toEqual([...NAV_ITEMS.filter(i => i.view !== 'zentrale').map(i => i.view), 'new-page'])
+    expect(l.map(x => x.id)).toEqual([...NAV_ITEMS.filter(i => i.view !== 'zentrale' && i.view !== 'cloud').map(i => i.view), 'new-page'])
+    expect(l.map(x => x.id)).not.toContain('cloud')
     expect(l.at(-1)!.kind).toBe('new-page')
   })
   it('adds own pages after the core views', () => {

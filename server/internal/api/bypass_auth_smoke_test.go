@@ -14,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
+	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
 	apigithub "github.com/lx-wnk/kontor/server/internal/api/github"
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
@@ -31,6 +32,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/tasks"
 	"github.com/lx-wnk/kontor/server/internal/api/visualizations"
 	apiwp "github.com/lx-wnk/kontor/server/internal/api/wphandler"
+	"github.com/lx-wnk/kontor/server/internal/cloud"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/rawrepo"
@@ -183,8 +185,26 @@ func buildBypassRouter(t *testing.T) http.Handler {
 	// Stub, never the real service: the route walk must not be able to spawn a
 	// process.
 	deps.KontorSessionHandler = apikontorsession.New(stubKontorSessions{})
+	// Fake CLI, never cloud.Runner: GET /api/cloud-accounts would otherwise run
+	// `claude auth status`.
+	deps.CloudSessionsHandler = cloudsessions.NewHandler(
+		repo.NewCloudSessionRepo(c),
+		deps.SpawnerRepo,
+		stubCloudCLI{},
+		sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster()),
+	)
 
 	return NewRouter(deps)
+}
+
+type stubCloudCLI struct{}
+
+func (stubCloudCLI) Send(context.Context, *ent.Spawner, string, string) (cloud.SendResult, error) {
+	return cloud.SendResult{OK: true}, nil
+}
+
+func (stubCloudCLI) AuthStatus(context.Context, *ent.Spawner) (cloud.AuthStatus, error) {
+	return cloud.AuthStatus{}, nil
 }
 
 type stubKontorSessions struct{}
@@ -212,7 +232,8 @@ func bypassSkip(method, pattern string) bool {
 	case strings.HasSuffix(pattern, "/replies"): // channel-reply read, bearer auth
 		return true
 	case pattern == "/api/agents/stream", pattern == "/api/tasks/stream",
-		pattern == "/api/spawners/stream", pattern == "/api/projects/stream": // long-lived SSE
+		pattern == "/api/spawners/stream", pattern == "/api/projects/stream",
+		pattern == "/api/cloud-sessions/stream": // long-lived SSE
 		return true
 	case method == http.MethodDelete && pattern == "/api/me": // account deletion disabled in bypass mode (by design)
 		return true
@@ -397,5 +418,25 @@ func TestBypassAuth_DoesNotMountThePermissionBridgeDecisions(t *testing.T) {
 	// dashboard still reports.
 	if !mounted["POST /api/hooks/permission"] {
 		t.Error("the PreToolUse ingress was removed too; the bridge must degrade, not disappear")
+	}
+}
+
+// The cloud session routes mount inside the group that applies
+// RequireSameOriginForMutations; a mutation without an Origin must be refused
+// before the handler runs.
+func TestBypassAuth_CloudSessionMutationsRequireSameOrigin(t *testing.T) {
+	router := buildBypassRouter(t)
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPost, "/api/cloud-sessions/import"},
+		{http.MethodPost, "/api/cloud-sessions/smoke-test/messages"},
+		{http.MethodDelete, "/api/cloud-sessions/smoke-test"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader("{}"))
+		req.Host = "127.0.0.1"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("%s %s without Origin = %d, want 403", tc.method, tc.path, rec.Code)
+		}
 	}
 }

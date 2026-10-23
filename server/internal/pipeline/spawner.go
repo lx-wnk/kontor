@@ -457,12 +457,14 @@ var allowedEnvKeys = map[string]struct{}{
 // package-internal use. Callers outside pipeline should import pathutil directly.
 var expandLeadingTilde = pathutil.ExpandLeadingTilde
 
-func BuildSpawnEnv(opts SpawnAgentOptions) []string {
+// BaseSpawnEnv is the env a spawner's child runs on before any stage-run
+// identifiers are added, so it works for callers that have no stage run.
+func BaseSpawnEnv(spawner *ent.Spawner) map[string]string {
 	// Stage 1: spawner-declared env (lowest precedence). Each entry is
 	// subject to the global deny list before reaching the merged map.
 	merged := make(map[string]string)
-	if opts.Spawner != nil {
-		for k, v := range opts.Spawner.Env {
+	if spawner != nil {
+		for k, v := range spawner.Env {
 			if _, denied := deniedEnvKeys[k]; denied {
 				continue
 			}
@@ -501,11 +503,17 @@ func BuildSpawnEnv(opts SpawnAgentOptions) []string {
 
 	// A spawner's own profile outranks the server's; without one the child runs
 	// on the dir the server reads (setting, else inherited env).
-	if opts.Spawner != nil && opts.Spawner.Env[claudeconfig.EnvVar] != "" {
-		merged[claudeconfig.EnvVar] = expandLeadingTilde(opts.Spawner.Env[claudeconfig.EnvVar])
+	if spawner != nil && spawner.Env[claudeconfig.EnvVar] != "" {
+		merged[claudeconfig.EnvVar] = expandLeadingTilde(spawner.Env[claudeconfig.EnvVar])
 	} else if dir := claudeconfig.ExplicitDir(); dir != "" {
 		merged[claudeconfig.EnvVar] = dir
 	}
+
+	return merged
+}
+
+func BuildSpawnEnv(opts SpawnAgentOptions) []string {
+	merged := BaseSpawnEnv(opts.Spawner)
 
 	// Stage 3: dashboard-controlled identifiers (highest precedence).
 	merged["DASHBOARD_STAGE_RUN_ID"] = opts.StageRun.ID

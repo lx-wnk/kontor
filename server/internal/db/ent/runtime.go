@@ -12,6 +12,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/evalmetricsnapshot"
@@ -172,6 +173,21 @@ func init() {
 	checkpointDescCreatedAt := checkpointFields[8].Descriptor()
 	// checkpoint.DefaultCreatedAt holds the default value on creation for the created_at field.
 	checkpoint.DefaultCreatedAt = checkpointDescCreatedAt.Default.(func() time.Time)
+	cloudsessionMixin := schema.CloudSession{}.Mixin()
+	cloudsessionMixinFields0 := cloudsessionMixin[0].Fields()
+	_ = cloudsessionMixinFields0
+	cloudsessionFields := schema.CloudSession{}.Fields()
+	_ = cloudsessionFields
+	// cloudsessionDescCreatedAt is the schema descriptor for created_at field.
+	cloudsessionDescCreatedAt := cloudsessionMixinFields0[1].Descriptor()
+	// cloudsession.DefaultCreatedAt holds the default value on creation for the created_at field.
+	cloudsession.DefaultCreatedAt = cloudsessionDescCreatedAt.Default.(func() time.Time)
+	// cloudsessionDescUpdatedAt is the schema descriptor for updated_at field.
+	cloudsessionDescUpdatedAt := cloudsessionMixinFields0[2].Descriptor()
+	// cloudsession.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	cloudsession.DefaultUpdatedAt = cloudsessionDescUpdatedAt.Default.(func() time.Time)
+	// cloudsession.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	cloudsession.UpdateDefaultUpdatedAt = cloudsessionDescUpdatedAt.UpdateDefault.(func() time.Time)
 	coordlockFields := schema.CoordLock{}.Fields()
 	_ = coordlockFields
 	// coordlockDescAcquiredAt is the schema descriptor for acquired_at field.

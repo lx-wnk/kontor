@@ -18,6 +18,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/evalmetricsnapshot"
@@ -69,6 +70,7 @@ const (
 	TypeAuditEvent         = "AuditEvent"
 	TypeCapability         = "Capability"
 	TypeCheckpoint         = "Checkpoint"
+	TypeCloudSession       = "CloudSession"
 	TypeCoordLock          = "CoordLock"
 	TypeDriftAlert         = "DriftAlert"
 	TypeEvalMetricSnapshot = "EvalMetricSnapshot"
@@ -5403,6 +5405,884 @@ func (m *CheckpointMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *CheckpointMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Checkpoint edge %s", name)
+}
+
+// CloudSessionMutation represents an operation that mutates the CloudSession nodes in the graph.
+type CloudSessionMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *string
+	created_at      *time.Time
+	updated_at      *time.Time
+	session_id      *string
+	url             *string
+	spawner_id      *string
+	title           *string
+	origin          *cloudsession.Origin
+	last_message    *string
+	last_message_at *time.Time
+	last_error      *string
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*CloudSession, error)
+	predicates      []predicate.CloudSession
+}
+
+var _ ent.Mutation = (*CloudSessionMutation)(nil)
+
+// cloudsessionOption allows management of the mutation configuration using functional options.
+type cloudsessionOption func(*CloudSessionMutation)
+
+// newCloudSessionMutation creates new mutation for the CloudSession entity.
+func newCloudSessionMutation(c config, op Op, opts ...cloudsessionOption) *CloudSessionMutation {
+	m := &CloudSessionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCloudSession,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCloudSessionID sets the ID field of the mutation.
+func withCloudSessionID(id string) cloudsessionOption {
+	return func(m *CloudSessionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CloudSession
+		)
+		m.oldValue = func(ctx context.Context) (*CloudSession, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CloudSession.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCloudSession sets the old CloudSession of the mutation.
+func withCloudSession(node *CloudSession) cloudsessionOption {
+	return func(m *CloudSessionMutation) {
+		m.oldValue = func(context.Context) (*CloudSession, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CloudSessionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CloudSessionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CloudSession entities.
+func (m *CloudSessionMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CloudSessionMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CloudSessionMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CloudSession.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CloudSessionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CloudSessionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CloudSessionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CloudSessionMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CloudSessionMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CloudSessionMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetSessionID sets the "session_id" field.
+func (m *CloudSessionMutation) SetSessionID(s string) {
+	m.session_id = &s
+}
+
+// SessionID returns the value of the "session_id" field in the mutation.
+func (m *CloudSessionMutation) SessionID() (r string, exists bool) {
+	v := m.session_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionID returns the old "session_id" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldSessionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionID: %w", err)
+	}
+	return oldValue.SessionID, nil
+}
+
+// ResetSessionID resets all changes to the "session_id" field.
+func (m *CloudSessionMutation) ResetSessionID() {
+	m.session_id = nil
+}
+
+// SetURL sets the "url" field.
+func (m *CloudSessionMutation) SetURL(s string) {
+	m.url = &s
+}
+
+// URL returns the value of the "url" field in the mutation.
+func (m *CloudSessionMutation) URL() (r string, exists bool) {
+	v := m.url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldURL returns the old "url" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldURL(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldURL: %w", err)
+	}
+	return oldValue.URL, nil
+}
+
+// ResetURL resets all changes to the "url" field.
+func (m *CloudSessionMutation) ResetURL() {
+	m.url = nil
+}
+
+// SetSpawnerID sets the "spawner_id" field.
+func (m *CloudSessionMutation) SetSpawnerID(s string) {
+	m.spawner_id = &s
+}
+
+// SpawnerID returns the value of the "spawner_id" field in the mutation.
+func (m *CloudSessionMutation) SpawnerID() (r string, exists bool) {
+	v := m.spawner_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSpawnerID returns the old "spawner_id" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldSpawnerID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSpawnerID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSpawnerID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSpawnerID: %w", err)
+	}
+	return oldValue.SpawnerID, nil
+}
+
+// ResetSpawnerID resets all changes to the "spawner_id" field.
+func (m *CloudSessionMutation) ResetSpawnerID() {
+	m.spawner_id = nil
+}
+
+// SetTitle sets the "title" field.
+func (m *CloudSessionMutation) SetTitle(s string) {
+	m.title = &s
+}
+
+// Title returns the value of the "title" field in the mutation.
+func (m *CloudSessionMutation) Title() (r string, exists bool) {
+	v := m.title
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTitle returns the old "title" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldTitle(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTitle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTitle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTitle: %w", err)
+	}
+	return oldValue.Title, nil
+}
+
+// ResetTitle resets all changes to the "title" field.
+func (m *CloudSessionMutation) ResetTitle() {
+	m.title = nil
+}
+
+// SetOrigin sets the "origin" field.
+func (m *CloudSessionMutation) SetOrigin(c cloudsession.Origin) {
+	m.origin = &c
+}
+
+// Origin returns the value of the "origin" field in the mutation.
+func (m *CloudSessionMutation) Origin() (r cloudsession.Origin, exists bool) {
+	v := m.origin
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrigin returns the old "origin" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldOrigin(ctx context.Context) (v cloudsession.Origin, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrigin is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrigin requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrigin: %w", err)
+	}
+	return oldValue.Origin, nil
+}
+
+// ResetOrigin resets all changes to the "origin" field.
+func (m *CloudSessionMutation) ResetOrigin() {
+	m.origin = nil
+}
+
+// SetLastMessage sets the "last_message" field.
+func (m *CloudSessionMutation) SetLastMessage(s string) {
+	m.last_message = &s
+}
+
+// LastMessage returns the value of the "last_message" field in the mutation.
+func (m *CloudSessionMutation) LastMessage() (r string, exists bool) {
+	v := m.last_message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastMessage returns the old "last_message" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldLastMessage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastMessage: %w", err)
+	}
+	return oldValue.LastMessage, nil
+}
+
+// ClearLastMessage clears the value of the "last_message" field.
+func (m *CloudSessionMutation) ClearLastMessage() {
+	m.last_message = nil
+	m.clearedFields[cloudsession.FieldLastMessage] = struct{}{}
+}
+
+// LastMessageCleared returns if the "last_message" field was cleared in this mutation.
+func (m *CloudSessionMutation) LastMessageCleared() bool {
+	_, ok := m.clearedFields[cloudsession.FieldLastMessage]
+	return ok
+}
+
+// ResetLastMessage resets all changes to the "last_message" field.
+func (m *CloudSessionMutation) ResetLastMessage() {
+	m.last_message = nil
+	delete(m.clearedFields, cloudsession.FieldLastMessage)
+}
+
+// SetLastMessageAt sets the "last_message_at" field.
+func (m *CloudSessionMutation) SetLastMessageAt(t time.Time) {
+	m.last_message_at = &t
+}
+
+// LastMessageAt returns the value of the "last_message_at" field in the mutation.
+func (m *CloudSessionMutation) LastMessageAt() (r time.Time, exists bool) {
+	v := m.last_message_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastMessageAt returns the old "last_message_at" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldLastMessageAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastMessageAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastMessageAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastMessageAt: %w", err)
+	}
+	return oldValue.LastMessageAt, nil
+}
+
+// ClearLastMessageAt clears the value of the "last_message_at" field.
+func (m *CloudSessionMutation) ClearLastMessageAt() {
+	m.last_message_at = nil
+	m.clearedFields[cloudsession.FieldLastMessageAt] = struct{}{}
+}
+
+// LastMessageAtCleared returns if the "last_message_at" field was cleared in this mutation.
+func (m *CloudSessionMutation) LastMessageAtCleared() bool {
+	_, ok := m.clearedFields[cloudsession.FieldLastMessageAt]
+	return ok
+}
+
+// ResetLastMessageAt resets all changes to the "last_message_at" field.
+func (m *CloudSessionMutation) ResetLastMessageAt() {
+	m.last_message_at = nil
+	delete(m.clearedFields, cloudsession.FieldLastMessageAt)
+}
+
+// SetLastError sets the "last_error" field.
+func (m *CloudSessionMutation) SetLastError(s string) {
+	m.last_error = &s
+}
+
+// LastError returns the value of the "last_error" field in the mutation.
+func (m *CloudSessionMutation) LastError() (r string, exists bool) {
+	v := m.last_error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastError returns the old "last_error" field's value of the CloudSession entity.
+// If the CloudSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CloudSessionMutation) OldLastError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastError: %w", err)
+	}
+	return oldValue.LastError, nil
+}
+
+// ClearLastError clears the value of the "last_error" field.
+func (m *CloudSessionMutation) ClearLastError() {
+	m.last_error = nil
+	m.clearedFields[cloudsession.FieldLastError] = struct{}{}
+}
+
+// LastErrorCleared returns if the "last_error" field was cleared in this mutation.
+func (m *CloudSessionMutation) LastErrorCleared() bool {
+	_, ok := m.clearedFields[cloudsession.FieldLastError]
+	return ok
+}
+
+// ResetLastError resets all changes to the "last_error" field.
+func (m *CloudSessionMutation) ResetLastError() {
+	m.last_error = nil
+	delete(m.clearedFields, cloudsession.FieldLastError)
+}
+
+// Where appends a list predicates to the CloudSessionMutation builder.
+func (m *CloudSessionMutation) Where(ps ...predicate.CloudSession) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CloudSessionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CloudSessionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CloudSession, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CloudSessionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CloudSessionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CloudSession).
+func (m *CloudSessionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CloudSessionMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.created_at != nil {
+		fields = append(fields, cloudsession.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, cloudsession.FieldUpdatedAt)
+	}
+	if m.session_id != nil {
+		fields = append(fields, cloudsession.FieldSessionID)
+	}
+	if m.url != nil {
+		fields = append(fields, cloudsession.FieldURL)
+	}
+	if m.spawner_id != nil {
+		fields = append(fields, cloudsession.FieldSpawnerID)
+	}
+	if m.title != nil {
+		fields = append(fields, cloudsession.FieldTitle)
+	}
+	if m.origin != nil {
+		fields = append(fields, cloudsession.FieldOrigin)
+	}
+	if m.last_message != nil {
+		fields = append(fields, cloudsession.FieldLastMessage)
+	}
+	if m.last_message_at != nil {
+		fields = append(fields, cloudsession.FieldLastMessageAt)
+	}
+	if m.last_error != nil {
+		fields = append(fields, cloudsession.FieldLastError)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CloudSessionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case cloudsession.FieldCreatedAt:
+		return m.CreatedAt()
+	case cloudsession.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case cloudsession.FieldSessionID:
+		return m.SessionID()
+	case cloudsession.FieldURL:
+		return m.URL()
+	case cloudsession.FieldSpawnerID:
+		return m.SpawnerID()
+	case cloudsession.FieldTitle:
+		return m.Title()
+	case cloudsession.FieldOrigin:
+		return m.Origin()
+	case cloudsession.FieldLastMessage:
+		return m.LastMessage()
+	case cloudsession.FieldLastMessageAt:
+		return m.LastMessageAt()
+	case cloudsession.FieldLastError:
+		return m.LastError()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CloudSessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case cloudsession.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case cloudsession.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case cloudsession.FieldSessionID:
+		return m.OldSessionID(ctx)
+	case cloudsession.FieldURL:
+		return m.OldURL(ctx)
+	case cloudsession.FieldSpawnerID:
+		return m.OldSpawnerID(ctx)
+	case cloudsession.FieldTitle:
+		return m.OldTitle(ctx)
+	case cloudsession.FieldOrigin:
+		return m.OldOrigin(ctx)
+	case cloudsession.FieldLastMessage:
+		return m.OldLastMessage(ctx)
+	case cloudsession.FieldLastMessageAt:
+		return m.OldLastMessageAt(ctx)
+	case cloudsession.FieldLastError:
+		return m.OldLastError(ctx)
+	}
+	return nil, fmt.Errorf("unknown CloudSession field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CloudSessionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case cloudsession.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case cloudsession.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case cloudsession.FieldSessionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionID(v)
+		return nil
+	case cloudsession.FieldURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetURL(v)
+		return nil
+	case cloudsession.FieldSpawnerID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSpawnerID(v)
+		return nil
+	case cloudsession.FieldTitle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTitle(v)
+		return nil
+	case cloudsession.FieldOrigin:
+		v, ok := value.(cloudsession.Origin)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrigin(v)
+		return nil
+	case cloudsession.FieldLastMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastMessage(v)
+		return nil
+	case cloudsession.FieldLastMessageAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastMessageAt(v)
+		return nil
+	case cloudsession.FieldLastError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastError(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CloudSession field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CloudSessionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CloudSessionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CloudSessionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CloudSession numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CloudSessionMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(cloudsession.FieldLastMessage) {
+		fields = append(fields, cloudsession.FieldLastMessage)
+	}
+	if m.FieldCleared(cloudsession.FieldLastMessageAt) {
+		fields = append(fields, cloudsession.FieldLastMessageAt)
+	}
+	if m.FieldCleared(cloudsession.FieldLastError) {
+		fields = append(fields, cloudsession.FieldLastError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CloudSessionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CloudSessionMutation) ClearField(name string) error {
+	switch name {
+	case cloudsession.FieldLastMessage:
+		m.ClearLastMessage()
+		return nil
+	case cloudsession.FieldLastMessageAt:
+		m.ClearLastMessageAt()
+		return nil
+	case cloudsession.FieldLastError:
+		m.ClearLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown CloudSession nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CloudSessionMutation) ResetField(name string) error {
+	switch name {
+	case cloudsession.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case cloudsession.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case cloudsession.FieldSessionID:
+		m.ResetSessionID()
+		return nil
+	case cloudsession.FieldURL:
+		m.ResetURL()
+		return nil
+	case cloudsession.FieldSpawnerID:
+		m.ResetSpawnerID()
+		return nil
+	case cloudsession.FieldTitle:
+		m.ResetTitle()
+		return nil
+	case cloudsession.FieldOrigin:
+		m.ResetOrigin()
+		return nil
+	case cloudsession.FieldLastMessage:
+		m.ResetLastMessage()
+		return nil
+	case cloudsession.FieldLastMessageAt:
+		m.ResetLastMessageAt()
+		return nil
+	case cloudsession.FieldLastError:
+		m.ResetLastError()
+		return nil
+	}
+	return fmt.Errorf("unknown CloudSession field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CloudSessionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CloudSessionMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CloudSessionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CloudSessionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CloudSessionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CloudSessionMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CloudSessionMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CloudSession unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CloudSessionMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CloudSession edge %s", name)
 }
 
 // CoordLockMutation represents an operation that mutates the CoordLock nodes in the graph.

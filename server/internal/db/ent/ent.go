@@ -19,6 +19,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/cloudsession"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/coordlock"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/driftalert"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/evalmetricsnapshot"
@@ -117,6 +118,7 @@ func checkColumn(t, c string) error {
 			auditevent.Table:         auditevent.ValidColumn,
 			capability.Table:         capability.ValidColumn,
 			checkpoint.Table:         checkpoint.ValidColumn,
+			cloudsession.Table:       cloudsession.ValidColumn,
 			coordlock.Table:          coordlock.ValidColumn,
 			driftalert.Table:         driftalert.ValidColumn,
 			evalmetricsnapshot.Table: evalmetricsnapshot.ValidColumn,

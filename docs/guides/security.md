@@ -41,6 +41,8 @@ On a default install, any local process that reaches the loopback port with a ma
 | `POST/PATCH /api/spawners` | Define the command a spawner executes — the code calls this "RCE-equivalent" (`server/internal/pipeline/spawner.go`, `server/internal/llmadapter/llm_custom.go`) |
 | `PATCH /api/settings/{key}` | Change `auth.mode`, `git.allowPush`, `worktree.force` |
 | `POST /api/grants` | Write the `grants` rows the capability gate reads |
+| `POST /api/cloud-sessions/{id}/messages` | Run the `claude` CLI under a spawner's Claude account and send the text to Anthropic; no other cloud-sessions route sends text |
+| `GET /api/cloud-accounts` | Run `claude auth status --json` under each spawner's Claude account that is not cached as signed in (`?refresh=1` bypasses the cache). A GET carries no `Origin` check, so browser requests that send `Sec-Fetch-Site: cross-site` are refused with 403; the cost is bounded by a singleflight per account and the per-IP rate limiter on all protected routes |
 
 The third entry is worth stating plainly, because it bounds what the capability gate
 in [Capabilities and the permission gate](#capabilities-and-the-permission-gate) is

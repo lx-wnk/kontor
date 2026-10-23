@@ -28,6 +28,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/agents"
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
 	apiapplications "github.com/lx-wnk/kontor/server/internal/api/applications"
+	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	coordapi "github.com/lx-wnk/kontor/server/internal/api/coord"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
 	apieval "github.com/lx-wnk/kontor/server/internal/api/eval"
@@ -66,6 +67,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/checkpoint"
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/claudesettings"
+	"github.com/lx-wnk/kontor/server/internal/cloud"
 	"github.com/lx-wnk/kontor/server/internal/config"
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -1143,6 +1145,16 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		}
 	}
 
+	var cloudSessionsHandler *cloudsessions.Handler
+	if entClient != nil {
+		cloudSessionsHandler = cloudsessions.NewHandler(
+			repo.NewCloudSessionRepo(entClient),
+			spawnerRepo,
+			cloud.Runner{},
+			sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster()),
+		)
+	}
+
 	routerDeps := api.RouterDeps{
 		Ctx:                    ctx,
 		Config:                 routerConfig,
@@ -1191,6 +1203,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		VisualizationsHandler:  apivisualizations.NewHandler(),
 		MCPHandler:             mcpHandler,
 		SchedulesHandler:       schedulesHandler,
+		CloudSessionsHandler:   cloudSessionsHandler,
 		ChannelReply:           agents.NewChannelReplyHandler(replyStore, apiKeyRepo, repo.NewStageRunRepo(entClient)),
 		ChannelStageOutput:     channelStageOutputHandler,
 		PluginRegistry:         pluginRegistry,
