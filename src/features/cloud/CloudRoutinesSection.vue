@@ -10,6 +10,7 @@ import AppInput from '../../components/ui/AppInput.vue'
 import AppSelect from '../../components/ui/AppSelect.vue'
 import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
+import { useClaudeSpawnerPicker } from './claudeSpawners'
 import { isCloudUrl } from './cloudUrl'
 import { FireFailedError, useCloudRoutines } from './composables/useCloudRoutines'
 
@@ -23,18 +24,7 @@ const { spawners } = useSpawners()
 
 onMounted(refetch)
 
-const spawnerOptions = computed(() =>
-  spawners.value
-    .filter(s => !s.adapterType || s.adapterType === 'claude')
-    .map(s => ({ value: s.id, label: s.name })),
-)
-const chosenSpawnerId = ref('')
-const createSpawnerId = computed({
-  get: () => spawnerOptions.value.some(o => o.value === chosenSpawnerId.value)
-    ? chosenSpawnerId.value
-    : (spawnerOptions.value[0]?.value ?? ''),
-  set: (value: string) => { chosenSpawnerId.value = value },
-})
+const { options: spawnerOptions, selectedId: createSpawnerId } = useClaudeSpawnerPicker(spawners)
 
 function spawnerName(id: string): string {
   return spawners.value.find(s => s.id === id)?.name ?? id

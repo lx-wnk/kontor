@@ -12,6 +12,7 @@ import { useSpawners } from '../../composables/useSpawners'
 import { errorMessage } from '../../utils/errorMessage'
 import { formatRelativeThenDate } from '../../utils/format'
 import { useSettings } from '../settings/composables/useSettings'
+import { useClaudeSpawnerPicker } from './claudeSpawners'
 import CloudRoutinesSection from './CloudRoutinesSection.vue'
 import { isCloudUrl } from './cloudUrl'
 import { importSession, removeSession, sendMessage, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
@@ -172,18 +173,7 @@ async function remove(id: string) {
   }
 }
 
-const claudeSpawnerOptions = computed(() =>
-  spawners.value
-    .filter(s => !s.adapterType || s.adapterType === 'claude')
-    .map(s => ({ value: s.id, label: s.name })),
-)
-const chosenSpawnerId = ref('')
-const importSpawnerId = computed({
-  get: () => claudeSpawnerOptions.value.some(o => o.value === chosenSpawnerId.value)
-    ? chosenSpawnerId.value
-    : (claudeSpawnerOptions.value[0]?.value ?? ''),
-  set: (value: string) => { chosenSpawnerId.value = value },
-})
+const { options: claudeSpawnerOptions, selectedId: importSpawnerId } = useClaudeSpawnerPicker(spawners)
 const importUrl = ref('')
 const importTitle = ref('')
 const importing = ref(false)
