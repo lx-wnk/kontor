@@ -77,6 +77,7 @@ function jsonResponse(status: number, body: unknown) {
 type Responder = (url: string, init?: RequestInit) => ReturnType<typeof jsonResponse> | null
 
 let preview = true
+let previewRaw: string | null = null
 let routines: CloudRoutineView[] = []
 let override: Responder | null = null
 
@@ -85,7 +86,12 @@ function respond(url: string, init?: RequestInit) {
   if (custom)
     return custom
   if (url === '/api/settings')
-    return jsonResponse(200, [{ key: 'features.preview', type: 'bool', value: String(preview), default: 'false', apply: 'live', category: 'features' }])
+    return jsonResponse(200, [{ key: 'features.preview', type: 'bool', value: previewRaw ?? String(preview), default: 'false', apply: 'live', category: 'features' }])
+  if (url === '/api/settings/features.preview' && init?.method === 'PATCH') {
+    const value = (JSON.parse(String(init.body)) as { value: string }).value
+    preview = value === 'true'
+    return jsonResponse(200, { key: 'features.preview', value, applied: 'live' })
+  }
   if (url === '/api/cloud-routines')
     return jsonResponse(200, routines)
   return jsonResponse(200, [])
@@ -111,8 +117,15 @@ async function mountView() {
   return wrapper
 }
 
+async function switchPreview(value: 'true' | 'false') {
+  const { useSettings } = await import('@/features/settings/composables/useSettings')
+  await useSettings().update('features.preview', value)
+  await flushPromises()
+}
+
 beforeEach(() => {
   preview = true
+  previewRaw = null
   routines = [makeRoutine('r1')]
   override = null
   spawners.value = [makeSpawner('sp1', 'claude'), makeSpawner('sp2', 'ollama')]
@@ -401,5 +414,78 @@ describe('cloud routines section', () => {
     const details = wrapper.get('[data-testid="fire-error-r1"] details')
     expect(details.get('summary').text()).toBe('Show full response')
     expect(details.text()).toContain(longBody)
+  })
+})
+
+describe('cloud routines preview switch', () => {
+  const HINT = 'Routines are a preview feature: Settings › Server › Preview features.'
+
+  it('points to the preview switch with one muted line while preview is off', async () => {
+    preview = false
+
+    const wrapper = await mountView()
+
+    const hint = wrapper.get('[data-testid="routines-preview-hint"]')
+    expect(hint.text()).toBe(HINT)
+    expect(hint.classes()).toContain('text-fg-faint')
+    wrapper.unmount()
+  })
+
+  it('shows no hint while preview is on', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="routines-preview-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows no hint before the settings have loaded', async () => {
+    const pending = new Promise<ReturnType<typeof jsonResponse>>(() => {})
+    override = url => (url === '/api/settings' ? (pending as unknown as ReturnType<typeof jsonResponse>) : null)
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="routines-preview-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows the section as soon as preview is switched on while the view is open', async () => {
+    preview = false
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(false)
+
+    await switchPreview('true')
+
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="routines-preview-hint"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('hides the section and shows the hint when preview is switched off while the view is open', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(true)
+
+    await switchPreview('false')
+
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="routines-preview-hint"]').text()).toBe(HINT)
+    wrapper.unmount()
+  })
+
+  it.each(['1', 't', 'T', 'TRUE', 'true', 'True'])('counts "%s" as on', async (raw) => {
+    previewRaw = raw
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it.each(['0', 'f', 'false', 'yes', ''])('counts "%s" as off', async (raw) => {
+    previewRaw = raw
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="routines-section"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })
