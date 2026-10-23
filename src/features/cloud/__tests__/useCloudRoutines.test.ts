@@ -153,6 +153,34 @@ describe('fire', () => {
     expect((err as Error).message).toBe('routine fire returned an invalid session id')
   })
 
+  it('throws FireUnconfirmedError with the server message when the flag says a run may have started', async () => {
+    const message = 'the routine may have started a run; check claude.ai before firing again'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error: message, mayHaveStarted: true })))
+
+    const err = await mod.useCloudRoutines().fire('r1').catch((e: unknown) => e)
+
+    expect(err).toBeInstanceOf(mod.FireUnconfirmedError)
+    expect(err).not.toBeInstanceOf(mod.FireFailedError)
+    expect((err as Error).message).toBe(message)
+  })
+
+  it.each([false, 'true', 1, null])('treats mayHaveStarted %j as a plain error', async (flag) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error: 'may have started', mayHaveStarted: flag })))
+
+    const err = await mod.useCloudRoutines().fire('r1').catch((e: unknown) => e)
+
+    expect(err).not.toBeInstanceOf(mod.FireUnconfirmedError)
+    expect((err as Error).message).toBe('may have started')
+  })
+
+  it('ignores the flag on a status other than 502', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(500, { error: 'boom', mayHaveStarted: true })))
+
+    const err = await mod.useCloudRoutines().fire('r1').catch((e: unknown) => e)
+
+    expect(err).not.toBeInstanceOf(mod.FireUnconfirmedError)
+  })
+
   it('surfaces the 409 message', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(409, { error: 'routine is already firing' })))
 
