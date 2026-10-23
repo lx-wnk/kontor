@@ -34,6 +34,12 @@ const (
 	testSessionID = "session_01ABCdef2345"
 	otherSession  = "session_01ZZZdef9999"
 	waitLimit     = 5 * time.Second
+	warningText   = "the routine may have started a run; check claude.ai before firing again"
+)
+
+var (
+	unconfirmedTimeout = fmt.Errorf("routine fire timed out: %w: %w", context.DeadlineExceeded, cloud.ErrUnconfirmed)
+	unconfirmedCancel  = fmt.Errorf("routine fire canceled: %w: %w", context.Canceled, cloud.ErrUnconfirmed)
 )
 
 type fakeFirer struct {
@@ -498,15 +504,21 @@ func TestFireErrorIs502WithStatusAndBodyAndNoRow(t *testing.T) {
 	got := decodeMap(t, rr.Body.Bytes())
 	assert.EqualValues(t, 429, got["status"])
 	assert.Equal(t, "slow down", got["body"])
+	assert.NotContains(t, got, "mayHaveStarted", "an upstream refusal did not start a run")
 	f.requireNoSessions(t)
 	f.requireNoEvent(t)
 }
 
 func TestFireThatMayHaveStartedARunIs502WithAWarning(t *testing.T) {
 	cases := map[string]func(f *fixture){
-		"timeout": func(f *fixture) { f.firer.err = fmt.Errorf("routine fire timed out: %w", context.DeadlineExceeded) },
-		"cancel":  func(f *fixture) { f.firer.err = fmt.Errorf("routine fire canceled: %w", context.Canceled) },
-		"session row not created": func(f *fixture) {
+		"timeout after send": func(f *fixture) { f.firer.err = unconfirmedTimeout },
+		"cancel after send":  func(f *fixture) { f.firer.err = unconfirmedCancel },
+		"unusable 2xx body": func(f *fixture) {
+			f.firer.err = fmt.Errorf("routine fire response is not valid JSON: %w", cloud.ErrUnconfirmed)
+		},
+		"connection lost":    func(f *fixture) { f.firer.err = fmt.Errorf("routine fire request failed: %w", cloud.ErrUnconfirmed) },
+		"invalid session id": func(f *fixture) { f.firer.result.SessionID = "not-a-session" },
+		"row save failed": func(f *fixture) {
 			f.handler.sessions = failingSessions{CloudSessionRepo: f.sessions, err: errors.New("disk I/O error")}
 		},
 	}
@@ -518,10 +530,29 @@ func TestFireThatMayHaveStartedARunIs502WithAWarning(t *testing.T) {
 
 			rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
 			require.Equal(t, http.StatusBadGateway, rr.Code, rr.Body.String())
-			assert.Contains(t, decodeMap(t, rr.Body.Bytes())["error"],
-				"the routine may have started a run; check claude.ai before firing again")
+			assert.Equal(t, map[string]any{"error": warningText, "mayHaveStarted": true}, decodeMap(t, rr.Body.Bytes()))
 			f.requireNoSessions(t)
 			f.requireNoEvent(t)
+		})
+	}
+}
+
+func TestFireThatCannotHaveStartedHasNoWarning(t *testing.T) {
+	for name, err := range map[string]error{
+		"failure before send": errors.New("routine fire request failed"),
+		"timeout before send": fmt.Errorf("routine fire timed out: %w", context.DeadlineExceeded),
+		"cancel before send":  fmt.Errorf("routine fire canceled: %w", context.Canceled),
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t, newBox(t))
+			id := f.create(t)["id"].(string)
+			f.firer.err = err
+
+			rr := f.do("POST", "/api/cloud-routines/"+id+"/fire", `{}`)
+			require.Equal(t, http.StatusBadGateway, rr.Code, rr.Body.String())
+			got := decodeMap(t, rr.Body.Bytes())
+			assert.Equal(t, err.Error(), got["error"])
+			assert.NotContains(t, got, "mayHaveStarted")
 		})
 	}
 }
@@ -646,8 +677,11 @@ func TestFireGuardIsPerRoutine(t *testing.T) {
 func TestFireLogsRunsThatMayHaveStartedUnrecorded(t *testing.T) {
 	cases := map[string]func(f *fixture){
 		"invalid session id": func(f *fixture) { f.firer.result.SessionID = "bad" },
-		"timeout":            func(f *fixture) { f.firer.err = fmt.Errorf("routine fire timed out: %w", context.DeadlineExceeded) },
-		"cancel":             func(f *fixture) { f.firer.err = fmt.Errorf("routine fire canceled: %w", context.Canceled) },
+		"timeout":            func(f *fixture) { f.firer.err = unconfirmedTimeout },
+		"cancel":             func(f *fixture) { f.firer.err = unconfirmedCancel },
+		"unusable 2xx body": func(f *fixture) {
+			f.firer.err = fmt.Errorf("routine fire response has no session id: %w", cloud.ErrUnconfirmed)
+		},
 		"session row not created": func(f *fixture) {
 			f.handler.sessions = failingSessions{CloudSessionRepo: f.sessions, err: errors.New("disk I/O error")}
 		},

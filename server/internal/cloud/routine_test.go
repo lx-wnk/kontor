@@ -171,6 +171,9 @@ func TestFire_429IsFireError(t *testing.T) {
 	if fe.Status != http.StatusTooManyRequests || fe.Body != `{"error":"rate limited"}` {
 		t.Errorf("FireError = %+v", fe)
 	}
+	if errors.Is(err, ErrUnconfirmed) {
+		t.Error("an upstream refusal is reported as unconfirmed")
+	}
 }
 
 func TestFire_DoesNotFollowRedirects(t *testing.T) {
@@ -329,6 +332,108 @@ func TestFire_SuccessBodyOver1MiBIsCut(t *testing.T) {
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want a decode error, not a hang", err)
+	}
+	if !errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("err = %v, want ErrUnconfirmed", err)
+	}
+}
+
+func TestFire_UnconfirmedAfterTheRequestWasSent(t *testing.T) {
+	respond := func(body string) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, body) }
+	}
+	cases := map[string]http.HandlerFunc{
+		"2xx body not JSON":        respond("not json"),
+		"2xx body without session": respond(`{"claude_code_session_url":"https://claude.ai/code/session_01ABC"}`),
+		"connection dropped": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = io.ReadAll(r.Body)
+			conn, _, err := http.NewResponseController(w).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+		},
+	}
+	for name, handler := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewTLSServer(handler)
+			defer srv.Close()
+			_, err := clientFor(t, srv).Fire(context.Background(), validFireURL, testToken, "x")
+			if !errors.Is(err, ErrUnconfirmed) {
+				t.Errorf("err = %v, want ErrUnconfirmed", err)
+			}
+			if err != nil && strings.Contains(err.Error(), testToken) {
+				t.Error("error contains the token")
+			}
+		})
+	}
+
+	t.Run("timeout", func(t *testing.T) {
+		release := make(chan struct{})
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+		defer srv.Close()
+		defer close(release)
+		c := clientFor(t, srv)
+		c.HTTP.Timeout = 50 * time.Millisecond
+		_, err := c.Fire(context.Background(), validFireURL, testToken, "x")
+		if !errors.Is(err, ErrUnconfirmed) || !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, os.ErrDeadlineExceeded) {
+			t.Errorf("err = %v, want ErrUnconfirmed and both deadline errors", err)
+		}
+	})
+
+	t.Run("cancel", func(t *testing.T) {
+		received, release := make(chan struct{}), make(chan struct{})
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			close(received)
+			<-release
+		}))
+		defer srv.Close()
+		defer close(release)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			select {
+			case <-received:
+			case <-time.After(5 * time.Second):
+			}
+			cancel()
+		}()
+		_, err := clientFor(t, srv).Fire(ctx, validFireURL, testToken, "x")
+		if !errors.Is(err, ErrUnconfirmed) || !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want ErrUnconfirmed and Canceled", err)
+		}
+	})
+}
+
+func TestFire_NotUnconfirmedBeforeAConnection(t *testing.T) {
+	closed := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	unreachable := clientFor(t, closed)
+	closed.Close()
+
+	cases := map[string]struct {
+		client RoutineClient
+		want   error
+	}{
+		"dial refused":        {client: unreachable},
+		"transport failure":   {client: RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: errors.New("boom")}}}},
+		"timeout before send": {client: RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: context.DeadlineExceeded}}}, want: context.DeadlineExceeded},
+		"cancel before send":  {client: RoutineClient{HTTP: &http.Client{Transport: failingTransport{err: context.Canceled}}}, want: context.Canceled},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := tc.client.Fire(context.Background(), validFireURL, testToken, "x")
+			if err == nil || errors.Is(err, ErrUnconfirmed) {
+				t.Errorf("err = %v, want a failure that is not ErrUnconfirmed", err)
+			}
+			if tc.want != nil && !errors.Is(err, tc.want) {
+				t.Errorf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+
+	if _, err := unreachable.Fire(context.Background(), validFireURL+"/extra", testToken, "x"); err == nil || errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("invalid URL: err = %v, want a failure that is not ErrUnconfirmed", err)
+	}
+	if _, err := unreachable.Fire(context.Background(), validFireURL, "", "x"); err == nil || errors.Is(err, ErrUnconfirmed) {
+		t.Errorf("empty token: err = %v, want a failure that is not ErrUnconfirmed", err)
 	}
 }
 
