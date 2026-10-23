@@ -28,6 +28,8 @@ const (
 	maxTokenBytes = 4096
 	maxTextBytes  = 100000
 	maxBodyBytes  = 1 << 20
+
+	mayHaveStarted = "the routine may have started a run; check claude.ai before firing again"
 )
 
 // Firer starts a routine run; cloud.RoutineClient satisfies it.
@@ -353,6 +355,7 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 		}
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			warnUnrecorded(id, "fire timed out or was canceled")
+			return apierr.NewAppError(http.StatusBadGateway, "routine fire did not finish; "+mayHaveStarted)
 		}
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
@@ -374,7 +377,8 @@ func (h *Handler) Fire(w http.ResponseWriter, r *http.Request) error {
 		if errors.Is(err, repo.ErrCloudSessionExists) {
 			return apierr.NewAppError(http.StatusConflict, "cloud session already recorded")
 		}
-		return err
+		slog.Error("record routine session", "routineId", id, "err", err)
+		return apierr.NewAppError(http.StatusBadGateway, "routine session could not be recorded; "+mayHaveStarted)
 	}
 	view := cloudsessions.NewSessionView(created)
 	h.broadcaster.Broadcast(sse.CloudSessionEvent{Type: sse.CloudSessionCreated, CloudSessionID: created.ID, Payload: view})
