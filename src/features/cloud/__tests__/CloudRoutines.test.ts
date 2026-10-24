@@ -679,7 +679,6 @@ describe('cloud routines spawners and fire form', () => {
 
 describe('cloud routines unconfirmed fire', () => {
   const STARTED_MESSAGE = 'the routine may have started a run; check claude.ai before firing again'
-  const CHECK_LABEL = 'Check claude.ai before firing again'
 
   function unconfirmedFor(id: string) {
     return (url: string, init?: RequestInit) => url === `/api/cloud-routines/${id}/fire` && init?.method === 'POST'
@@ -702,23 +701,13 @@ describe('cloud routines unconfirmed fire', () => {
     const alert = wrapper.get('[data-testid="fire-error-r1"]')
     expect(alert.attributes('role')).toBe('alert')
     expect(alert.text()).toBe(STARTED_MESSAGE)
-    const button = wrapper.get('[data-testid="fire-r1"]')
-    expect(button.text()).toBe(CHECK_LABEL)
-    expect(button.attributes('aria-label')).toContain(CHECK_LABEL)
-    expect(button.attributes('aria-label')).toContain('Routine r1')
+    const link = wrapper.get('[data-testid="fire-r1"]')
+    expect(link.text()).toBe('Open claude.ai')
+    expect(link.attributes('href')).toBe('https://claude.ai/code')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    expect(wrapper.get('[data-testid="fire-anyway-r1"]').attributes('aria-label')).toBe('Fire Routine r1 anyway')
     expect(wrapper.get('[data-testid="fire-r2"]').text()).toBe('Fire')
-    wrapper.unmount()
-  })
-
-  it('keeps the button usable so the user can still fire on purpose', async () => {
-    override = unconfirmedFor('r1')
-    const wrapper = await mountView()
-
-    await fireRoutine(wrapper, 'r1')
-    await fireRoutine(wrapper, 'r1')
-
-    expect(wrapper.get('[data-testid="fire-r1"]').attributes('aria-disabled')).toBeUndefined()
-    expect(vi.mocked(fetch).mock.calls.filter(([u]) => u === '/api/cloud-routines/r1/fire')).toHaveLength(2)
     wrapper.unmount()
   })
 
@@ -783,7 +772,7 @@ describe('cloud routines unconfirmed fire', () => {
     override = unconfirmedFor('r1')
     const wrapper = await mountView()
     await fireRoutine(wrapper, 'r1')
-    expect(wrapper.get('[data-testid="fire-r1"]').text()).toBe(CHECK_LABEL)
+    expect(wrapper.get('[data-testid="fire-r1"]').text()).toBe('Open claude.ai')
 
     await wrapper.get('[data-testid="edit-r2"]').trigger('click')
     await wrapper.get('[data-testid="edit-form-r2"]').trigger('submit')
@@ -804,8 +793,9 @@ describe('cloud routines unconfirmed fire', () => {
     const wrapper = await mountView()
 
     await fireRoutine(wrapper, 'r1')
-    expect(wrapper.get('[data-testid="fire-r1"]').text()).toBe(CHECK_LABEL)
-    await fireRoutine(wrapper, 'r1')
+    expect(wrapper.get('[data-testid="fire-r1"]').text()).toBe('Open claude.ai')
+    await wrapper.get('[data-testid="fire-anyway-r1"]').trigger('click')
+    await flushPromises()
 
     expect(wrapper.get('[data-testid="fire-r1"]').text()).toBe('Fire')
     wrapper.unmount()
