@@ -1151,7 +1151,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	if entClient != nil {
 		cloudBroadcaster := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
 		cloudSessionRepo := repo.NewCloudSessionRepo(entClient)
-		cloudSessionsHandler = cloudsessions.NewHandler(cloudSessionRepo, spawnerRepo, cloud.Runner{}, cloudBroadcaster)
+		cloudSessionsHandler = cloudsessions.NewHandler(cloudSessionRepo, spawnerRepo, projectFolderRepo, cloud.Runner{}, cloudBroadcaster)
 		cloudRoutinesHandler = cloudroutines.NewHandler(
 			repo.NewCloudRoutineRepo(entClient, box),
 			cloudSessionRepo,
