@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/lx-wnk/kontor/server/internal/envsec"
 	"github.com/lx-wnk/kontor/server/internal/services"
 	"github.com/lx-wnk/kontor/server/internal/validation"
 )
@@ -179,6 +180,9 @@ func ValidateEnv(env map[string]string) (string, bool) {
 		}
 		if envKeyForbidden.MatchString(k) {
 			return "env key contains forbidden characters", false
+		}
+		if !envsec.IsValidName(k) {
+			return "env key must be a variable name (letters, digits, underscore; not starting with a digit)", false
 		}
 		if len(v) > envValueMaxLen {
 			return "env value exceeds 4096 chars", false
