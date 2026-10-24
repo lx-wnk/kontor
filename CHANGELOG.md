@@ -904,6 +904,7 @@ Preparing the first public release.
 
 ### Security
 
+- **A spawner env key must be a variable name.** A key such as `ANTHROPIC_API_KEY=x` was saved and reached the child as `ANTHROPIC_API_KEY`, past the deny lists that check the key. Saving a spawner now refuses any key that is not letters, digits and underscores (not starting with a digit), and pipeline, refine and agent spawns skip such keys stored before this release, with a warning that names the spawner but not the value.
 - **Go toolchain 1.26.10.** `.go-version` moves from 1.26.6 to 1.26.10, which fixes GO-2026-6617 in `net/http` (the server's HTTP listener calls the affected code; govulncheck reported it for every module) and GO-2026-6809 in `crypto/x509`, which now distrusts compromised intermediate certificates (web push delivery verifies TLS certificates through it).
 - **A stage run's MCP credentials now end when its agent does, on every path that ends it.** Per-stage-run keys are revoked on the transitions that end a run (done, fail, next, both iterate branches), but three paths ended an agent without ending its run, leaving a usable key until `expires_at`:
   - **Cancelling a task** wrote the terminal stage only on the task row, so the abandoned agent's stage run stayed `running` and kept its credential. Both cancel routes — `DELETE`-style cancel on the HTTP handler and the `task_cancel` MCP control tool — funnel through `NotifyTaskTerminated`, which now ends every non-terminal stage run of the task as `cancelled`. A run that already reached its own outcome is left untouched.
