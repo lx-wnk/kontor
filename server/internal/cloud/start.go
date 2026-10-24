@@ -30,6 +30,10 @@ const (
 	startPtyCols        = 1024
 	startPtyRows        = 50
 	trustPromptFragment = "Quick safety check"
+	// The title line can echo the description, so only the View line is
+	// trusted to carry the session URL.
+	startTitlePrefix = "Created cloud session:"
+	startURLPrefix   = "View:"
 )
 
 var (
@@ -102,6 +106,11 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 	select {
 	case scan = <-scanc:
 	case <-runCtx.Done():
+		// A URL printed right at the deadline is a session that exists.
+		select {
+		case scan = <-scanc:
+		default:
+		}
 	}
 	if scan.sessionID != "" {
 		select {
@@ -146,11 +155,15 @@ func scanStartOutput(r io.Reader) startScan {
 			return startScan{err: errStartOutputTooLong}
 		}
 		line := ansiEscape.ReplaceAllString(sc.Text(), "")
-		if strings.Contains(line, trustPromptFragment) {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, startTitlePrefix):
+		case strings.HasPrefix(trimmed, startURLPrefix):
+			if id := sessionIDInLine(trimmed); id != "" {
+				return startScan{sessionID: id}
+			}
+		case strings.Contains(line, trustPromptFragment):
 			return startScan{err: ErrFolderNotTrusted}
-		}
-		if id := sessionIDInLine(line); id != "" {
-			return startScan{sessionID: id}
 		}
 		out.WriteString(line)
 		out.WriteByte('\n')
