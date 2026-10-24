@@ -84,6 +84,21 @@ func TestStart_WaitsForTheWholeURLLine(t *testing.T) {
 	wantStarted(t, res, err)
 }
 
+func TestStart_IgnoresTheTitleLine(t *testing.T) {
+	for name, title := range map[string]string{
+		"another session URL":       "see https://claude.ai/code/session_wrongwrongwrong",
+		"the trust prompt fragment": "Quick safety check: is the login flaky",
+	} {
+		t.Run(name, func(t *testing.T) {
+			fakeStartClaude(t, fmt.Sprintf("echo 'Created cloud session: %s'\necho 'View: %s?from=cli&m=0'", title, SessionURL(startSessionID)))
+
+			res, err := Runner{}.Start(t.Context(), &ent.Spawner{}, t.TempDir(), startDescription)
+
+			wantStarted(t, res, err)
+		})
+	}
+}
+
 func TestStart_UntrustedFolderKillsProcessGroup(t *testing.T) {
 	rec := fakeStartClaude(t, `sleep 30 & echo $! > "$R/grandchild"
 echo 'Quick safety check: Is this a project you created or one you trust?'
