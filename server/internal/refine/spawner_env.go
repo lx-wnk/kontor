@@ -2,9 +2,11 @@
 package refine
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/envsec"
 )
 
 // blockedKeys are never forwarded to spawned processes regardless of what a
@@ -21,6 +23,10 @@ func mergeEnv(sp *ent.Spawner) []string {
 	if sp != nil {
 		for k, v := range sp.Env {
 			if _, blocked := blockedKeys[k]; blocked {
+				continue
+			}
+			if !envsec.IsValidName(k) {
+				slog.Warn("spawner env key skipped: not a variable name", "spawner", sp.ID)
 				continue
 			}
 			merged[k] = v
