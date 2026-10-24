@@ -722,6 +722,38 @@ describe('cloud routines unconfirmed fire', () => {
     wrapper.unmount()
   })
 
+  const fireCalls = (id: string) => vi.mocked(fetch).mock.calls.filter(([u]) => u === `/api/cloud-routines/${id}/fire`)
+
+  it('offers no Fire anyway before an unconfirmed fire', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="fire-anyway-r1"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not fire again when the primary control is clicked after an unconfirmed fire', async () => {
+    override = unconfirmedFor('r1')
+    const wrapper = await mountView()
+    await fireRoutine(wrapper, 'r1')
+
+    await fireRoutine(wrapper, 'r1')
+
+    expect(fireCalls('r1')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('fires exactly once more on Fire anyway after an unconfirmed fire', async () => {
+    override = unconfirmedFor('r1')
+    const wrapper = await mountView()
+    await fireRoutine(wrapper, 'r1')
+
+    await wrapper.get('[data-testid="fire-anyway-r1"]').trigger('click')
+    await flushPromises()
+
+    expect(fireCalls('r1')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
   it('detects the warning by the mayHaveStarted flag, not by the message text', async () => {
     override = url => url === '/api/cloud-routines/r1/fire' ? jsonResponse(502, { error: STARTED_MESSAGE }) : null
     const wrapper = await mountView()
