@@ -513,6 +513,19 @@ func TestMergeEnv_NilSpawner_StripsSecrets(t *testing.T) {
 	}
 }
 
+func TestResolveSpawnEnv_SkipsKeysThatAreNotVariableNames(t *testing.T) {
+	s := &ent.Spawner{ID: "spwn_badkey", Env: map[string]string{
+		"ANTHROPIC_API_KEY=x": "y",
+		"OK_KEY":              "v",
+	}}
+	env := resolveSpawnEnv(s)
+	assert.Equal(t, "v", envValue(env, "OK_KEY"))
+	assert.Equal(t, "", envValue(env, "ANTHROPIC_API_KEY"))
+	for _, kv := range env {
+		assert.NotContains(t, kv, "ANTHROPIC_API_KEY=x", "malformed key must not reach the child env")
+	}
+}
+
 func TestMergeEnv_NilSpawner_StripsInheritedSessionIdentity(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_CHILD_SESSION", "abc")
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "def")
