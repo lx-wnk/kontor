@@ -46,6 +46,12 @@ export interface ImportCloudSessionInput {
   title?: string
 }
 
+export interface StartCloudSessionInput {
+  spawnerId: string
+  folderId: string
+  description: string
+}
+
 const sessions = shallowRef<CloudSessionView[]>([])
 const isLoading = ref(true)
 const error = ref<string | null>(null)
@@ -127,6 +133,10 @@ async function postJson(url: string, body: unknown): Promise<CloudSessionView> {
 
 export function importSession(input: ImportCloudSessionInput): Promise<CloudSessionView> {
   return postJson('/api/cloud-sessions/import', input).then(upsertSession)
+}
+
+export function startSession(input: StartCloudSessionInput): Promise<CloudSessionView> {
+  return postJson('/api/cloud-sessions', input).then(upsertSession)
 }
 
 export function sendMessage(id: string, text: string): Promise<CloudSessionView> {
