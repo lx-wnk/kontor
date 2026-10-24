@@ -417,7 +417,7 @@ async function runImport() {
       Loading accounts…
     </p>
     <p v-else-if="groups.length === 0 && !sessionsError" class="text-fg-faint text-sm">
-      No cloud sessions yet. Import one by URL above.
+      No cloud sessions yet. Start one or import one by URL above.
     </p>
 
     <AppCard v-for="group in groups" :key="group.key" data-testid="cloud-account">
