@@ -193,6 +193,63 @@ describe('cloud session actions', () => {
   })
 })
 
+describe('startSession', () => {
+  const input = { spawnerId: 'sp1', folderId: 'f1', description: 'Fix it' }
+
+  it('POSTs exactly spawnerId, folderId and description and returns the view', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, makeSession('c9', { origin: 'started' })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const view = await mod.startSession(input)
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/cloud-sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    expect(view.id).toBe('c9')
+  })
+
+  it('throws StartUnconfirmedError with the url when the server could not record a started session', async () => {
+    const url = 'https://claude.ai/code/session_abc'
+    const error = `the cloud session started but Kontor could not record it; import it by URL: ${url}`
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error, mayHaveStarted: true, url })))
+
+    const thrown = await mod.startSession(input).catch((e: unknown) => e)
+
+    expect(thrown).toBeInstanceOf(mod.StartUnconfirmedError)
+    expect(thrown).toMatchObject({ message: error, mayHaveStarted: true, url })
+  })
+
+  it('throws StartUnconfirmedError without a url when the start is only unconfirmed', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error: 'claude timed out', mayHaveStarted: true })))
+
+    const thrown = await mod.startSession(input).catch((e: unknown) => e)
+
+    expect(thrown).toBeInstanceOf(mod.StartUnconfirmedError)
+    expect(thrown).toMatchObject({ message: 'claude timed out', mayHaveStarted: true })
+    expect((thrown as { url?: string }).url).toBeUndefined()
+  })
+
+  it('throws a plain error for a 502 that did not flag mayHaveStarted', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(502, { error: 'claude CLI failed: exit 1' })))
+
+    const thrown = await mod.startSession(input).catch((e: unknown) => e)
+
+    expect(thrown).not.toBeInstanceOf(mod.StartUnconfirmedError)
+    expect((thrown as Error).message).toBe('claude CLI failed: exit 1')
+  })
+
+  it('throws a plain error for a non-502 status even with mayHaveStarted', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(409, { error: 'folder is not trusted', mayHaveStarted: true })))
+
+    const thrown = await mod.startSession(input).catch((e: unknown) => e)
+
+    expect(thrown).not.toBeInstanceOf(mod.StartUnconfirmedError)
+    expect((thrown as Error).message).toBe('folder is not trusted')
+  })
+})
+
 describe('applying action results to the shared list', () => {
   async function mountLoaded() {
     const mounted = withSetup(() => mod.useCloudSessions())
