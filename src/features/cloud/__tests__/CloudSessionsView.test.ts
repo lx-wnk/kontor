@@ -16,6 +16,8 @@ const state = vi.hoisted(() => ({
   refresh: vi.fn(),
   refetchAccounts: vi.fn(),
   refetch: vi.fn(),
+  useProjects: vi.fn(),
+  refetchProjects: vi.fn(),
 }))
 
 const sessions = shallowRef<CloudSessionView[]>([])
@@ -37,7 +39,10 @@ vi.mock('../composables/useCloudSessions', async importOriginal => ({
 }))
 
 vi.mock('@/composables/useProjects', () => ({
-  useProjects: () => ({ projects }),
+  useProjects: (options?: { autoStart?: boolean }) => {
+    state.useProjects(options)
+    return { projects, refetch: state.refetchProjects }
+  },
 }))
 
 vi.mock('@/composables/useProjectFolders', () => ({
@@ -562,6 +567,18 @@ describe('cloudSessionsView', () => {
       await pickProject(wrapper)
       await wrapper.get('[data-testid="start-description"]').setValue(description)
     }
+
+    it('fills the project picker through refetch without opening the projects stream', async () => {
+      projects.value = []
+      state.refetchProjects.mockImplementationOnce(async () => {
+        projects.value = [makeProject('p1', 'Project One')]
+      })
+      const wrapper = mountView()
+      await flushPromises()
+      expect(state.useProjects).toHaveBeenCalledWith({ autoStart: false })
+      expect(state.refetchProjects).toHaveBeenCalledOnce()
+      expect(selectOptionsById(wrapper, 'cloud-start-project').map(o => o.label)).toEqual(['Project One'])
+    })
 
     it('loads the folders of the chosen project, labelled by label or path, with the default preselected', async () => {
       const wrapper = mountView()
