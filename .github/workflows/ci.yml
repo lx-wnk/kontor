@@ -89,7 +89,7 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
 
       - name: Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@v2201
         with:
           config: ${{ matrix.module }}/.testcoverage.yml
           profile: ${{ matrix.module }}/coverage.out
@@ -128,7 +128,7 @@ jobs:
         run: GOWORK=off go test -race -coverprofile=coverage.out ./...
 
       - name: Coverage
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@v2201
         with:
           config: plugins/${{ matrix.plugin }}/.testcoverage.yml
           profile: plugins/${{ matrix.plugin }}/coverage.out
