@@ -302,15 +302,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 		return startFailure(w, sp, folder.Path, err)
 	}
 
-	title := startTitle(description)
-	if title == "" {
-		title = res.SessionID
-	}
 	created, err := h.sessions.Create(ctx, repo.CreateCloudSessionInput{
 		SessionID: res.SessionID,
 		URL:       res.URL,
 		SpawnerID: sp.ID,
-		Title:     title,
+		Title:     startTitle(description),
 		Origin:    cloudsession.OriginStarted,
 	})
 	if err != nil {
