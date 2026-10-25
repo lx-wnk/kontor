@@ -15,7 +15,6 @@ import { isCloudUrl } from './cloudUrl'
 import { FireFailedError, FireUnconfirmedError, useCloudRoutines } from './composables/useCloudRoutines'
 
 const BODY_PREVIEW_CHARS = 200
-const CHECK_CLAUDE_AI_LABEL = 'Check claude.ai before firing again'
 const TOKEN_INPUT_CLASS = 'w-full bg-app border border-line rounded-md px-3 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:border-accent font-sans'
 
 interface FireFailure { status: number, body: string }
@@ -268,16 +267,38 @@ watch(routines, (list) => {
             :disabled="firing[routine.id]"
             :data-testid="`fire-text-${routine.id}`"
           />
+          <template v-if="unconfirmed[routine.id]">
+            <a
+              href="https://claude.ai/code"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="self-center text-sm text-accent hover:underline"
+              :aria-label="`Open claude.ai to check ${routine.name} before firing again`"
+              :data-testid="`fire-${routine.id}`"
+            >Open claude.ai</a>
+            <AppButton
+              variant="secondary"
+              size="sm"
+              :class="firing[routine.id] && 'opacity-40 cursor-not-allowed'"
+              :aria-disabled="firing[routine.id] || undefined"
+              :aria-label="`Fire ${routine.name} anyway`"
+              :data-testid="`fire-anyway-${routine.id}`"
+              @click="runFire(routine.id)"
+            >
+              {{ firing[routine.id] ? 'Firing…' : 'Fire anyway' }}
+            </AppButton>
+          </template>
           <AppButton
+            v-else
             variant="primary"
             size="sm"
             :class="firing[routine.id] && 'opacity-40 cursor-not-allowed'"
             :aria-disabled="firing[routine.id] || undefined"
-            :aria-label="unconfirmed[routine.id] ? `${CHECK_CLAUDE_AI_LABEL}: ${routine.name}` : `Fire ${routine.name}`"
+            :aria-label="`Fire ${routine.name}`"
             :data-testid="`fire-${routine.id}`"
             @click="runFire(routine.id)"
           >
-            {{ firing[routine.id] ? 'Firing…' : unconfirmed[routine.id] ? CHECK_CLAUDE_AI_LABEL : 'Fire' }}
+            {{ firing[routine.id] ? 'Firing…' : 'Fire' }}
           </AppButton>
           <span class="sr-only" role="status" aria-live="polite">{{ firing[routine.id] ? 'Firing…' : '' }}</span>
         </div>
