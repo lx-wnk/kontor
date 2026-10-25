@@ -3,6 +3,7 @@ package cloud
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -128,7 +129,7 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 			if err := killGroup(cmd.Process.Pid); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				slog.Warn("cloud start: leftover claude process group not killed", "pid", cmd.Process.Pid, "error", err)
 			}
-		case <-time.After(startExitGrace):
+		case <-time.After(cmp.Or(r.exitGrace, startExitGrace)):
 			cancel()
 			<-waitc
 		}

@@ -161,6 +161,19 @@ echo $! > "$R/grandchild"
 	requireDead(t, recordedPid(t, rec, "grandchild"))
 }
 
+func TestStart_StopsAChildThatLingersPastTheExitGrace(t *testing.T) {
+	rec := fakeStartClaude(t, "echo $$ > \"$R/pid\"\n"+startCreated+"\nsleep 30")
+
+	start := time.Now()
+	res, err := Runner{exitGrace: 200 * time.Millisecond}.Start(t.Context(), &ent.Spawner{}, t.TempDir(), startDescription)
+
+	wantStarted(t, res, err)
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("took %v: the lingering child was not stopped after the exit grace", elapsed)
+	}
+	requireDead(t, recordedPid(t, rec, "pid"))
+}
+
 func TestStart_Timeout(t *testing.T) {
 	fakeStartClaude(t, `sleep 5`)
 
