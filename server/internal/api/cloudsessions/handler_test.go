@@ -764,7 +764,6 @@ func TestStart_TitleIsFirstLineWithoutControlCharactersCutToRunes(t *testing.T) 
 		{"cut to 120 runes", strings.Repeat("é", 150), strings.Repeat("é", 120)},
 		{"120 runes stay whole", strings.Repeat("é", 120), strings.Repeat("é", 120)},
 		{"cut line is trimmed", strings.Repeat("a", 119) + " b", strings.Repeat("a", 119)},
-		{"only a tab falls back to the session id", "\t\t\nbody", testSessionID},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -21,5 +21,19 @@ func LoginHint(sp *ent.Spawner) string {
 	if dir == "" {
 		return "claude auth login"
 	}
-	return claudeconfig.EnvVar + "='" + strings.ReplaceAll(dir, "'", `'\''`) + "' claude auth login"
+	return claudeconfig.EnvVar + "=" + shellQuote(dir) + " claude auth login"
+}
+
+// TrustHint is the shell command that opens dir in claude under the spawner's
+// account; claude stores folder trust per CLAUDE_CONFIG_DIR.
+func TrustHint(sp *ent.Spawner, dir string) string {
+	hint := "cd " + shellQuote(dir) + " && "
+	if account := AccountDir(sp); account != "" {
+		hint += claudeconfig.EnvVar + "=" + shellQuote(account) + " "
+	}
+	return hint + "claude"
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
