@@ -114,20 +114,46 @@ const sse = createSseResource({
   onConnected: fetchSessions,
 })
 
+interface ErrorBody {
+  error?: string
+  mayHaveStarted?: boolean
+  url?: string
+}
+
+export class StartUnconfirmedError extends Error {
+  readonly mayHaveStarted = true
+
+  constructor(message: string, readonly url?: string) {
+    super(message)
+    this.name = 'StartUnconfirmedError'
+  }
+}
+
+function readErrorBody(res: Response): Promise<ErrorBody> {
+  return res.json().catch(() => ({})) as Promise<ErrorBody>
+}
+
 // Surfaces the server's `{error}` text so the view can show it verbatim.
 async function throwServerError(res: Response): Promise<never> {
-  const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` })) as { error?: string }
+  const body = await readErrorBody(res)
   throw new Error(body.error || `HTTP ${res.status}`)
 }
 
-async function postJson(url: string, body: unknown): Promise<CloudSessionView> {
+async function throwStartError(res: Response): Promise<never> {
+  const body = await readErrorBody(res)
+  if (res.status === 502 && body.mayHaveStarted === true)
+    throw new StartUnconfirmedError(body.error || 'The session may have started; check claude.ai before starting again', body.url)
+  throw new Error(body.error || `HTTP ${res.status}`)
+}
+
+async function postJson(url: string, body: unknown, fail = throwServerError): Promise<CloudSessionView> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   if (!res.ok)
-    return throwServerError(res)
+    return fail(res)
   return res.json() as Promise<CloudSessionView>
 }
 
@@ -136,7 +162,7 @@ export function importSession(input: ImportCloudSessionInput): Promise<CloudSess
 }
 
 export function startSession(input: StartCloudSessionInput): Promise<CloudSessionView> {
-  return postJson('/api/cloud-sessions', input).then(upsertSession)
+  return postJson('/api/cloud-sessions', input, throwStartError).then(upsertSession)
 }
 
 export function sendMessage(id: string, text: string): Promise<CloudSessionView> {

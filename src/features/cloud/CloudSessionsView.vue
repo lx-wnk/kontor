@@ -20,7 +20,7 @@ import { PREVIEW_FEATURES_KEY } from '../settings/settingLabels'
 import { useClaudeSpawnerPicker } from './claudeSpawners'
 import CloudRoutinesSection from './CloudRoutinesSection.vue'
 import { isCloudUrl } from './cloudUrl'
-import { importSession, removeSession, sendMessage, startSession, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
+import { importSession, removeSession, sendMessage, startSession, StartUnconfirmedError, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
 
 interface AccountGroup {
   key: string
@@ -191,6 +191,7 @@ const startFolderId = ref('')
 const startDescription = ref('')
 const starting = ref(false)
 const startError = ref('')
+const startUnconfirmed = ref<StartUnconfirmedError | null>(null)
 const canStart = computed(() => !!startSpawnerId.value && !!startFolderId.value && !!startDescription.value.trim() && !starting.value)
 
 watch(startProjectId, async (projectId) => {
@@ -217,6 +218,7 @@ async function runStart() {
     return
   starting.value = true
   startError.value = ''
+  startUnconfirmed.value = null
   try {
     await startSession({
       spawnerId: startSpawnerId.value,
@@ -226,7 +228,10 @@ async function runStart() {
     startDescription.value = ''
   }
   catch (err) {
-    startError.value = errorMessage(err)
+    if (err instanceof StartUnconfirmedError)
+      startUnconfirmed.value = err
+    else
+      startError.value = errorMessage(err)
   }
   finally {
     starting.value = false
@@ -357,8 +362,15 @@ async function runImport() {
             {{ startError }}
           </p>
         </div>
+        <div v-if="startUnconfirmed" role="alert" class="text-danger-text text-sm" data-testid="start-unconfirmed">
+          <p>{{ startUnconfirmed.message }}</p>
+          <p v-if="startUnconfirmed.url && isCloudUrl(startUnconfirmed.url)">
+            <a :href="startUnconfirmed.url" target="_blank" rel="noopener noreferrer" class="underline">{{ startUnconfirmed.url }}</a>
+          </p>
+          <p>Import it by URL above if it is not listed.</p>
+        </div>
         <p class="text-fg-faint text-xs">
-          Claude must trust this folder: open it once with claude and accept the trust prompt.
+          Claude must trust this folder under the spawner's account. If it does not, the error shows the command to run once.
         </p>
       </form>
     </AppCard>

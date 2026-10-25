@@ -196,7 +196,7 @@ describe('cloud session actions', () => {
 describe('startSession', () => {
   const input = { spawnerId: 'sp1', folderId: 'f1', description: 'Fix it' }
 
-  it('POSTs exactly spawnerId, folderId and description and returns the view', async () => {
+  it('posts exactly spawnerId, folderId and description and returns the view', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(201, makeSession('c9', { origin: 'started' })))
     vi.stubGlobal('fetch', fetchMock)
 
