@@ -688,7 +688,7 @@ describe('cloudSessionsView', () => {
         const warning = wrapper.get('[data-testid="start-unconfirmed"]')
         expect(warning.attributes('role')).toBe('alert')
         expect(warning.text()).toContain(message)
-        expect(warning.text()).toContain('Import it by URL above if it is not listed.')
+        expect(warning.text()).toContain('Import it by URL below if it is not listed.')
         const link = warning.get('a')
         expect(link.attributes('href')).toBe(url)
         expect(link.attributes('target')).toBe('_blank')

@@ -367,7 +367,7 @@ async function runImport() {
           <p v-if="startUnconfirmed.url && isCloudUrl(startUnconfirmed.url)">
             <a :href="startUnconfirmed.url" target="_blank" rel="noopener noreferrer" class="underline">{{ startUnconfirmed.url }}</a>
           </p>
-          <p>Import it by URL above if it is not listed.</p>
+          <p>Import it by URL below if it is not listed.</p>
         </div>
         <p class="text-fg-faint text-xs">
           Claude must trust this folder under the spawner's account. If it does not, the error shows the command to run once.
