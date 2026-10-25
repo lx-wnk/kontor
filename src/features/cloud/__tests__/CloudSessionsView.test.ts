@@ -1,33 +1,52 @@
 import type { CloudAccount, CloudSessionView } from '../composables/useCloudSessions'
-import type { Spawner } from '@/types'
+import type { Project, ProjectFolder, Spawner } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, ref, shallowRef } from 'vue'
-import { selectOptionsById } from '@/utils/testSelect'
+import { selectByLabel, selectOptionsById } from '@/utils/testSelect'
 import CloudSessionsView from '../CloudSessionsView.vue'
+import { StartUnconfirmedError } from '../composables/useCloudSessions'
 
 const state = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   importSession: vi.fn(),
+  startSession: vi.fn(),
+  fetchProjectFolders: vi.fn(),
   removeSession: vi.fn(),
   refresh: vi.fn(),
   refetchAccounts: vi.fn(),
   refetch: vi.fn(),
+  useProjects: vi.fn(),
+  refetchProjects: vi.fn(),
 }))
 
 const sessions = shallowRef<CloudSessionView[]>([])
 const accounts = shallowRef<CloudAccount[]>([])
 const spawners = shallowRef<Spawner[]>([])
+const projects = shallowRef<Project[]>([])
 const accountsLoading = ref(false)
 const sessionsError = ref<string | null>(null)
 const accountsError = ref<string | null>(null)
 
-vi.mock('../composables/useCloudSessions', () => ({
+vi.mock('../composables/useCloudSessions', async importOriginal => ({
+  StartUnconfirmedError: (await importOriginal<typeof import('../composables/useCloudSessions')>()).StartUnconfirmedError,
   useCloudSessions: () => ({ sessions, isLoading: ref(false), error: sessionsError, refetch: state.refetch }),
   useCloudAccounts: () => ({ accounts, isLoading: accountsLoading, error: accountsError, refresh: state.refresh, refetch: state.refetchAccounts }),
   sendMessage: state.sendMessage,
   importSession: state.importSession,
+  startSession: state.startSession,
   removeSession: state.removeSession,
+}))
+
+vi.mock('@/composables/useProjects', () => ({
+  useProjects: (options?: { autoStart?: boolean }) => {
+    state.useProjects(options)
+    return { projects, refetch: state.refetchProjects }
+  },
+}))
+
+vi.mock('@/composables/useProjectFolders', () => ({
+  fetchProjectFolders: state.fetchProjectFolders,
 }))
 
 vi.mock('@/composables/useSpawners', () => ({
@@ -68,6 +87,14 @@ function makeSpawner(id: string, adapterType: Spawner['adapterType']): Spawner {
   }
 }
 
+function makeProject(id: string, name: string): Project {
+  return { id, slug: id, name, createdAt: '', updatedAt: '' }
+}
+
+function makeFolder(id: string, overrides: Partial<ProjectFolder> = {}): ProjectFolder {
+  return { id, projectId: 'p1', path: `/work/${id}`, isDefault: false, createdAt: '', ...overrides }
+}
+
 function makeAccount(configDir: string, spawnerIds: string[], overrides: Partial<CloudAccount> = {}): CloudAccount {
   return {
     configDir,
@@ -91,6 +118,15 @@ beforeEach(() => {
   sessionsError.value = null
   accountsError.value = null
   spawners.value = [makeSpawner('sp1', 'claude')]
+  projects.value = [makeProject('p1', 'Project One')]
+  state.fetchProjectFolders.mockResolvedValue([
+    makeFolder('f1', { label: 'Docs' }),
+    makeFolder('f2', { isDefault: true }),
+  ])
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('cloudSessionsView', () => {
@@ -520,6 +556,231 @@ describe('cloudSessionsView', () => {
         title: 'My title',
       })
       expect(wrapper.text()).toContain('session not found')
+    })
+  })
+  describe('start', () => {
+    async function pickProject(wrapper: ReturnType<typeof mountView>) {
+      await selectByLabel(wrapper.get('[data-testid="start-project"]').element, 'Project One')
+    }
+
+    async function fillStartForm(wrapper: ReturnType<typeof mountView>, description = 'Fix the flaky test') {
+      await pickProject(wrapper)
+      await wrapper.get('[data-testid="start-description"]').setValue(description)
+    }
+
+    it('fills the project picker through refetch without opening the projects stream', async () => {
+      projects.value = []
+      state.refetchProjects.mockImplementationOnce(async () => {
+        projects.value = [makeProject('p1', 'Project One')]
+      })
+      const wrapper = mountView()
+      await flushPromises()
+      expect(state.useProjects).toHaveBeenCalledWith({ autoStart: false })
+      expect(state.refetchProjects).toHaveBeenCalledOnce()
+      expect(selectOptionsById(wrapper, 'cloud-start-project').map(o => o.label)).toEqual(['Project One'])
+    })
+
+    it('loads the folders of the chosen project, labelled by label or path, with the default preselected', async () => {
+      const wrapper = mountView()
+      await pickProject(wrapper)
+      expect(state.fetchProjectFolders).toHaveBeenCalledWith('p1')
+      const options = selectOptionsById(wrapper, 'cloud-start-folder')
+      expect(options.map(o => o.label)).toEqual(['Docs', '/work/f2'])
+      expect(wrapper.get('[data-testid="start-folder"]').text()).toContain('/work/f2')
+    })
+
+    it('starts the session with the default folder and exactly the three fields', async () => {
+      state.startSession.mockResolvedValue(makeSession('9', { origin: 'started' }))
+      const wrapper = mountView()
+      await fillStartForm(wrapper)
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      await flushPromises()
+      expect(state.startSession).toHaveBeenCalledOnce()
+      expect(state.startSession).toHaveBeenCalledWith({ spawnerId: 'sp1', folderId: 'f2', description: 'Fix the flaky test' })
+    })
+
+    it('posts the three fields to /api/cloud-sessions and upserts the created session', async () => {
+      const created = makeSession('9', { origin: 'started' })
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(created) })
+      vi.stubGlobal('fetch', fetchMock)
+      const actual = await vi.importActual<typeof import('../composables/useCloudSessions')>('../composables/useCloudSessions')
+      const input = { spawnerId: 'sp1', folderId: 'f2', description: 'Fix the flaky test' }
+      await expect(actual.startSession(input)).resolves.toEqual(created)
+      expect(actual.useCloudSessions({ autoStart: false }).sessions.value).toContainEqual(created)
+      expect(fetchMock).toHaveBeenCalledWith('/api/cloud-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+    })
+
+    it('disables Start until a description is typed', async () => {
+      const wrapper = mountView()
+      await pickProject(wrapper)
+      const submit = wrapper.get('[data-testid="start-submit"]')
+      expect(submit.attributes('disabled')).toBeDefined()
+      await wrapper.get('[data-testid="start-description"]').setValue('   ')
+      expect(submit.attributes('disabled')).toBeDefined()
+      await wrapper.get('[data-testid="start-description"]').setValue('Do the thing')
+      expect(submit.attributes('disabled')).toBeUndefined()
+    })
+
+    it('disables Start while no project is chosen', async () => {
+      const wrapper = mountView()
+      await wrapper.get('[data-testid="start-description"]').setValue('Do the thing')
+      expect(wrapper.get('[data-testid="start-submit"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('shows the server error and keeps the description', async () => {
+      state.startSession.mockRejectedValue(new Error('folder is not trusted'))
+      const wrapper = mountView()
+      await fillStartForm(wrapper)
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      await flushPromises()
+      expect(wrapper.get('[data-testid="start-error"]').text()).toBe('folder is not trusted')
+      expect(wrapper.get<HTMLTextAreaElement>('[data-testid="start-description"]').element.value).toBe('Fix the flaky test')
+    })
+
+    it('shows a folder load failure', async () => {
+      state.fetchProjectFolders.mockRejectedValue(new Error('HTTP 500'))
+      const wrapper = mountView()
+      await pickProject(wrapper)
+      expect(wrapper.get('[data-testid="start-error"]').text()).toBe('HTTP 500')
+    })
+
+    it('clears only the description after a successful start', async () => {
+      state.startSession.mockResolvedValue(makeSession('9', { origin: 'started' }))
+      const wrapper = mountView()
+      await fillStartForm(wrapper)
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      await flushPromises()
+      expect(wrapper.get<HTMLTextAreaElement>('[data-testid="start-description"]').element.value).toBe('')
+      expect(wrapper.get('[data-testid="start-folder"]').text()).toContain('/work/f2')
+    })
+
+    it('shows Starting… and stays disabled while the POST is pending', async () => {
+      state.startSession.mockReturnValue(new Promise(() => {}))
+      const wrapper = mountView()
+      await fillStartForm(wrapper)
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      const submit = wrapper.get('[data-testid="start-submit"]')
+      expect(submit.text()).toBe('Starting…')
+      expect(submit.attributes('disabled')).toBeDefined()
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      expect(state.startSession).toHaveBeenCalledOnce()
+    })
+
+    it('tells the user claude must trust the folder under the spawner\'s account', () => {
+      const text = mountView().text()
+      expect(text).toContain('Claude must trust this folder under the spawner\'s account. If it does not, the error shows the command to run once.')
+      expect(text).not.toContain('open it once with claude')
+    })
+
+    it('posts the selected spawner and the trimmed description', async () => {
+      spawners.value = [makeSpawner('sp1', 'claude'), makeSpawner('sp2', 'claude')]
+      state.startSession.mockResolvedValue(makeSession('9', { origin: 'started' }))
+      const wrapper = mountView()
+      await selectByLabel(wrapper.get('#cloud-start-spawner').element, 'Spawner sp2')
+      await fillStartForm(wrapper, '  Fix the flaky test \n')
+      await wrapper.get('[data-testid="start-form"]').trigger('submit')
+      await flushPromises()
+      expect(state.startSession).toHaveBeenCalledWith({ spawnerId: 'sp2', folderId: 'f2', description: 'Fix the flaky test' })
+    })
+
+    describe('unconfirmed start', () => {
+      const url = 'https://claude.ai/code/session_abc'
+
+      async function submitUnconfirmed(error: StartUnconfirmedError) {
+        state.startSession.mockRejectedValue(error)
+        const wrapper = mountView()
+        await fillStartForm(wrapper)
+        await wrapper.get('[data-testid="start-form"]').trigger('submit')
+        await flushPromises()
+        return wrapper
+      }
+
+      it('warns with the server text, links the session and keeps the description', async () => {
+        const message = `the cloud session started but Kontor could not record it; import it by URL: ${url}`
+        const wrapper = await submitUnconfirmed(new StartUnconfirmedError(message, url))
+        const warning = wrapper.get('[data-testid="start-unconfirmed"]')
+        expect(warning.attributes('role')).toBe('alert')
+        expect(warning.text()).toContain(message)
+        expect(warning.text()).toContain('Import it by URL below if it is not listed.')
+        const link = warning.get('a')
+        expect(link.attributes('href')).toBe(url)
+        expect(link.attributes('target')).toBe('_blank')
+        expect(link.attributes('rel')).toBe('noopener noreferrer')
+        expect(wrapper.find('[data-testid="start-error"]').exists()).toBe(false)
+        expect(wrapper.get<HTMLTextAreaElement>('[data-testid="start-description"]').element.value).toBe('Fix the flaky test')
+      })
+
+      it('shows no link when the server sent no url', async () => {
+        const wrapper = await submitUnconfirmed(new StartUnconfirmedError('claude timed out'))
+        const warning = wrapper.get('[data-testid="start-unconfirmed"]')
+        expect(warning.text()).toContain('claude timed out')
+        expect(warning.find('a').exists()).toBe(false)
+      })
+
+      it('renders no link for a url outside https://claude.ai/code/', async () => {
+        const wrapper = await submitUnconfirmed(new StartUnconfirmedError('may have started', 'javascript:alert(1)'))
+        expect(wrapper.get('[data-testid="start-unconfirmed"]').find('a').exists()).toBe(false)
+        expect(wrapper.html()).not.toContain('javascript:')
+      })
+
+      it('clears the warning on the next start', async () => {
+        const wrapper = await submitUnconfirmed(new StartUnconfirmedError('claude timed out'))
+        state.startSession.mockResolvedValue(makeSession('9', { origin: 'started' }))
+        await wrapper.get('[data-testid="start-form"]').trigger('submit')
+        await flushPromises()
+        expect(wrapper.find('[data-testid="start-unconfirmed"]').exists()).toBe(false)
+      })
+    })
+
+    describe('stale folder answers', () => {
+      function deferred<T>() {
+        let resolve!: (value: T) => void
+        let reject!: (reason: unknown) => void
+        const promise = new Promise<T>((res, rej) => {
+          resolve = res
+          reject = rej
+        })
+        return { promise, resolve, reject }
+      }
+
+      async function pickBothProjects() {
+        projects.value = [makeProject('p1', 'Project One'), makeProject('p2', 'Project Two')]
+        const a = deferred<ProjectFolder[]>()
+        const b = deferred<ProjectFolder[]>()
+        state.fetchProjectFolders.mockImplementation((id: string) => (id === 'p1' ? a : b).promise)
+        const wrapper = mountView()
+        const trigger = wrapper.get('[data-testid="start-project"]').element
+        await selectByLabel(trigger, 'Project One')
+        await selectByLabel(trigger, 'Project Two')
+        return { wrapper, a, b }
+      }
+
+      it('ignores a late folder list of an earlier project', async () => {
+        const { wrapper, a, b } = await pickBothProjects()
+        b.resolve([makeFolder('fb', { projectId: 'p2', isDefault: true })])
+        await flushPromises()
+        a.resolve([makeFolder('fa', { projectId: 'p1', isDefault: true })])
+        await flushPromises()
+        expect(selectOptionsById(wrapper, 'cloud-start-folder').map(o => o.value)).toEqual(['fb'])
+        state.startSession.mockResolvedValue(makeSession('9', { origin: 'started' }))
+        await wrapper.get('[data-testid="start-description"]').setValue('Go')
+        await wrapper.get('[data-testid="start-form"]').trigger('submit')
+        await flushPromises()
+        expect(state.startSession).toHaveBeenCalledWith({ spawnerId: 'sp1', folderId: 'fb', description: 'Go' })
+      })
+
+      it('shows no error for a late failure of an earlier project', async () => {
+        const { wrapper, a, b } = await pickBothProjects()
+        b.resolve([makeFolder('fb', { projectId: 'p2', isDefault: true })])
+        await flushPromises()
+        a.reject(new Error('HTTP 500'))
+        await flushPromises()
+        expect(wrapper.find('[data-testid="start-error"]').exists()).toBe(false)
+      })
     })
   })
 })

@@ -130,6 +130,7 @@ POST /api/auth/logout
 POST /api/auth/session
 POST /api/cloud-routines
 POST /api/cloud-routines/{id}/fire
+POST /api/cloud-sessions
 POST /api/cloud-sessions/import
 POST /api/cloud-sessions/{id}/messages
 POST /api/github/comment

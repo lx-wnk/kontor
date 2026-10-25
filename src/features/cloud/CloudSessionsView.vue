@@ -16,6 +16,7 @@ import { useSettings } from '../settings/composables/useSettings'
 import { PREVIEW_FEATURES_KEY } from '../settings/settingLabels'
 import { useClaudeSpawnerPicker } from './claudeSpawners'
 import CloudRoutinesSection from './CloudRoutinesSection.vue'
+import CloudStartForm from './CloudStartForm.vue'
 import { isCloudUrl } from './cloudUrl'
 import { importSession, removeSession, sendMessage, useCloudAccounts, useCloudSessions } from './composables/useCloudSessions'
 
@@ -231,6 +232,8 @@ async function runImport() {
       Could not load accounts: {{ accountsError }}
     </p>
 
+    <CloudStartForm :spawners="spawners" />
+
     <AppCard>
       <form class="flex flex-col gap-3 p-3" data-testid="import-form" @submit.prevent="runImport">
         <div class="grid gap-3 sm:grid-cols-[14rem_1fr_14rem]">
@@ -285,7 +288,7 @@ async function runImport() {
       Loading accounts…
     </p>
     <p v-else-if="groups.length === 0 && !sessionsError" class="text-fg-faint text-sm">
-      No cloud sessions yet. Import one by URL above.
+      No cloud sessions yet. Start one or import one by URL above.
     </p>
 
     <AppCard v-for="group in groups" :key="group.key" data-testid="cloud-account">

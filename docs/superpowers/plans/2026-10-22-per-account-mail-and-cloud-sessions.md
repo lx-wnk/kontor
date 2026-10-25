@@ -316,6 +316,8 @@
 
 ## Slice 3 — Start a cloud session from Kontor (PR 3)
 
+**Outcome (2026-10-24):** the probe showed that `claude -p --cloud` is refused (`--cloud cannot be combined with --print`) and that `--cloud` without a terminal prints `Error: --cloud requires an interactive terminal.` Task 13 was built anyway, running `claude --cloud "<description>"` under a pseudo-terminal in a stored project folder (`folderId`).
+
 ### Task 12: Probe (needs the user's go-ahead; creates a real cloud session)
 
 - [ ] **Step 1: Ask the user.** Name the throwaway GitHub repo and say that one cloud session will be created on the private account. Wait for `lgtm`.

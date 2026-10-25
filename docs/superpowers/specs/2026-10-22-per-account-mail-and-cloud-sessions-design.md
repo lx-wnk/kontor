@@ -163,8 +163,9 @@ New entity `cloud_session`:
 
 API (all write routes behind the existing Origin/CSRF check):
 
-- `POST /api/cloud-sessions` `{spawnerId, cwd, description}`: start. Runs `claude --cloud "<description>"`
-  in `cwd` (a project folder) with the spawner's env, non-interactively, and records the returned session ID.
+- `POST /api/cloud-sessions` `{spawnerId, folderId, description}`: start. Runs `claude --cloud "<description>"`
+  in the stored project folder `folderId` with the spawner's env, under a pseudo-terminal, and records the session
+  ID from the CLI's `View:` line. (Updated 2026-10-24: `cwd` became `folderId`; non-interactive became a pty.)
 - `POST /api/cloud-sessions/import` `{spawnerId, url}`: accept a claude.ai/code URL or bare ID; validate the
   ID shape; no network call.
 - `POST /api/cloud-sessions/{id}/messages` `{text}`: runs `claude -p --cloud <session_id>
@@ -264,7 +265,7 @@ There is no preview mechanism in Kontor today (only a cosmetic label at
 
 ## 7. Open for the first plan step
 
-- **Non-interactive start (HYPOTHESIS).** The docs show `claude --cloud "<task>"` as interactive and print
+- **Non-interactive start (settled 2026-10-24: refused without a terminal, works under a pty; the original hypothesis follows).** The docs show `claude --cloud "<task>"` as interactive and print
   the session ID only for follow-ups. Probe once in a throwaway GitHub repo:
   `claude -p --cloud "echo hi" --output-format json`. If it returns the session ID, use it. If not, slice 3
   falls back to "start on claude.ai, then import", and the plan says so.

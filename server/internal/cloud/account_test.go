@@ -106,3 +106,52 @@ func TestLoginHint_ShellRoundTrip(t *testing.T) {
 		t.Fatalf("shell saw %q, want %q", got, dir)
 	}
 }
+
+func TestTrustHint(t *testing.T) {
+	tests := []struct {
+		name    string
+		account string
+		dir     string
+		want    string
+	}{
+		{"no account dir", "", "/work/app", "cd '/work/app' && claude"},
+		{"own account dir", "/Users/a/.claude-work", "/work/app", "cd '/work/app' && CLAUDE_CONFIG_DIR='/Users/a/.claude-work' claude"},
+		{"quotes in both", "/Users/a/it's", "/work/it's app", `cd '/work/it'\''s app' && CLAUDE_CONFIG_DIR='/Users/a/it'\''s' claude`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sp := &ent.Spawner{}
+			if tt.account == "" {
+				unsetConfigDir(t)
+			} else {
+				sp.Env = map[string]string{claudeconfig.EnvVar: tt.account}
+			}
+			if got := TrustHint(sp, tt.dir); got != tt.want {
+				t.Fatalf("TrustHint = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The quoted hint must land the shell in exactly the folder with exactly the account dir.
+func TestTrustHint_ShellRoundTrip(t *testing.T) {
+	folder := filepath.Join(t.TempDir(), "a b", "it's $HOME `x`")
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const account = "/tmp/a b/it's $HOME `y`"
+	hint := TrustHint(&ent.Spawner{Env: map[string]string{claudeconfig.EnvVar: account}}, folder)
+	line := strings.TrimSuffix(hint, " claude") + ` sh -c 'pwd -P; printenv ` + claudeconfig.EnvVar + `'`
+
+	out, err := exec.Command("/bin/sh", "-c", line).Output() //nolint:gosec // test-built shell line
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFolder, err := filepath.EvalSymlinks(folder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := wantFolder + "\n" + account + "\n"; string(out) != want {
+		t.Fatalf("shell saw %q, want %q", out, want)
+	}
+}

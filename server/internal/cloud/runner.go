@@ -60,6 +60,9 @@ type Runner struct {
 	// Timeout bounds one CLI call; zero means DefaultSendTimeout or
 	// DefaultAuthTimeout.
 	Timeout time.Duration
+	// exitGrace is how long Start lets the CLI linger after the session URL;
+	// zero means startExitGrace.
+	exitGrace time.Duration
 }
 
 // SendResult is the CLI's answer to a message sent to a cloud session.

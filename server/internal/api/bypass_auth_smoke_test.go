@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	obsidianapp "github.com/lx-wnk/kontor/server/internal/apps/obsidian"
 	"net/http"
 	"net/http/httptest"
@@ -192,6 +193,7 @@ func buildBypassRouter(t *testing.T) http.Handler {
 	deps.CloudSessionsHandler = cloudsessions.NewHandler(
 		repo.NewCloudSessionRepo(c),
 		deps.SpawnerRepo,
+		repo.NewProjectFolderRepo(c),
 		stubCloudCLI{},
 		cloudBroadcaster,
 	)
@@ -217,6 +219,10 @@ func (stubCloudCLI) Send(context.Context, *ent.Spawner, string, string) (cloud.S
 
 func (stubCloudCLI) AuthStatus(context.Context, *ent.Spawner) (cloud.AuthStatus, error) {
 	return cloud.AuthStatus{}, nil
+}
+
+func (stubCloudCLI) Start(context.Context, *ent.Spawner, string, string) (cloud.StartResult, error) {
+	return cloud.StartResult{}, errors.New("stub cloud CLI never starts a session")
 }
 
 type stubRoutineFirer struct{}
