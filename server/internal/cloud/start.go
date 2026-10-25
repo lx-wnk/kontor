@@ -7,9 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/creack/pty"
@@ -27,8 +31,10 @@ const (
 	// maxStartOutput bounds the CLI output scanned for the session URL.
 	maxStartOutput = 64 << 10
 	// startPtyCols is wide enough that the CLI never wraps the URL onto a second line.
-	startPtyCols        = 1024
-	startPtyRows        = 50
+	startPtyCols = 1024
+	startPtyRows = 50
+	// startDefaultTerm stands in when the server has no TERM, e.g. under launchd.
+	startDefaultTerm    = "xterm-256color"
 	trustPromptFragment = "Quick safety check"
 	// The title line can echo the description, so only the View line is
 	// trusted to carry the session URL.
@@ -41,6 +47,8 @@ var (
 	ErrInvalidDescription = errors.New(`the task description must not be blank or start with "-"`)
 	// ErrFolderNotTrusted reports that claude stopped at its folder trust prompt.
 	ErrFolderNotTrusted = errors.New("claude does not trust this folder yet; open it once with claude and accept the trust prompt")
+	// ErrStartUnconfirmed reports a failure after claude printed the session title: the session may exist.
+	ErrStartUnconfirmed = errors.New("claude may have created the cloud session; check claude.ai before starting again")
 
 	errStartOutputTooLong = fmt.Errorf("claude --cloud printed more than %d bytes without a session URL", maxStartOutput)
 )
@@ -78,7 +86,7 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 	// above) and exec.CommandContext passes argv without a shell. The
 	// description cannot start with "-", so claude never reads it as a flag.
 	cmd := exec.CommandContext(runCtx, claudeCommand, "--cloud", description)
-	cmd.Env = childEnv(sp)
+	cmd.Env = startEnv(sp)
 	cmd.Dir = dir
 	// pty.Start forces Setsid, which already makes the child a process group
 	// leader; Setpgid on top of it fails with EPERM.
@@ -96,8 +104,9 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 	waitc := make(chan error, 1)
 	go func() { waitc <- cmd.Wait() }()
 	scanc := make(chan startScan, 1)
+	var titleSeen atomic.Bool
 	go func() {
-		scanc <- scanStartOutput(ptmx)
+		scanc <- scanStartOutput(ptmx, &titleSeen)
 		// Keep draining so the child never blocks on a full pty.
 		_, _ = io.Copy(io.Discard, ptmx)
 	}()
@@ -106,15 +115,19 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 	select {
 	case scan = <-scanc:
 	case <-runCtx.Done():
-		// A URL printed right at the deadline is a session that exists.
+		// A URL printed right at the deadline is a session that exists; the
+		// kill closes the pty, so the scan ends within killGrace.
 		select {
 		case scan = <-scanc:
-		default:
+		case <-time.After(killGrace):
 		}
 	}
 	if scan.sessionID != "" {
 		select {
 		case <-waitc:
+			if err := killGroup(cmd.Process.Pid); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				slog.Warn("cloud start: leftover claude process group not killed", "pid", cmd.Process.Pid, "error", err)
+			}
 		case <-time.After(startExitGrace):
 			cancel()
 			<-waitc
@@ -124,27 +137,50 @@ func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description str
 
 	cancel()
 	waitErr := <-waitc
+	err = startFailure(ctx, runCtx, scan, waitErr)
+	if titleSeen.Load() {
+		err = fmt.Errorf("%w: %w", ErrStartUnconfirmed, err)
+	}
+	return StartResult{}, err
+}
+
+// startEnv is the child env plus a TERM the pty-bound CLI can use.
+func startEnv(sp *ent.Spawner) []string {
+	env := childEnv(sp)
+	if slices.ContainsFunc(env, func(e string) bool { v, ok := strings.CutPrefix(e, "TERM="); return ok && v != "" }) {
+		return env
+	}
+	// exec keeps the last of duplicate keys, so this also replaces an empty TERM=.
+	return append(env, "TERM="+startDefaultTerm)
+}
+
+func startFailure(ctx, runCtx context.Context, scan startScan, waitErr error) error {
+	tail := outputTail(scan.output)
 	switch {
 	case scan.err != nil:
-		return StartResult{}, scan.err
+		return scan.err
 	case ctx.Err() != nil:
-		return StartResult{}, fmt.Errorf("claude --cloud: %w", ctx.Err())
+		return fmt.Errorf("claude --cloud: %w", ctx.Err())
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
-		return StartResult{}, ErrTimeout
+		if tail == "" {
+			return ErrTimeout
+		}
+		return fmt.Errorf("%w: %s", ErrTimeout, tail)
+	case tail != "":
+		return fmt.Errorf("claude --cloud failed: %s", tail)
+	case waitErr != nil:
+		return fmt.Errorf("claude --cloud failed: %s", waitErr)
 	}
-	detail := cleanStderr([]byte(strings.ToValidUTF8(scan.output[max(0, len(scan.output)-maxStderrBytes):], "")))
-	if detail == "" && waitErr != nil {
-		detail = waitErr.Error()
-	}
-	if detail == "" {
-		detail = "it exited without printing a session URL"
-	}
-	return StartResult{}, fmt.Errorf("claude --cloud failed: %s", detail)
+	return errors.New("claude --cloud failed: it exited without printing a session URL")
+}
+
+func outputTail(output string) string {
+	return cleanStderr([]byte(strings.ToValidUTF8(output[max(0, len(output)-maxStderrBytes):], "")))
 }
 
 // scanStartOutput reads terminal lines until one holds the session URL or the
 // trust prompt, the pty closes, or maxStartOutput bytes were read.
-func scanStartOutput(r io.Reader) startScan {
+func scanStartOutput(r io.Reader, titleSeen *atomic.Bool) startScan {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(nil, maxStartOutput)
 	sc.Split(splitTerminalLines)
@@ -158,6 +194,7 @@ func scanStartOutput(r io.Reader) startScan {
 		trimmed := strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(trimmed, startTitlePrefix):
+			titleSeen.Store(true)
 		case strings.HasPrefix(trimmed, startURLPrefix):
 			if id := sessionIDInLine(trimmed); id != "" {
 				return startScan{sessionID: id}
