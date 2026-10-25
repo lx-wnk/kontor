@@ -262,6 +262,18 @@ func TestBaseSpawnEnv_NoStageRun(t *testing.T) {
 	require.NotContains(t, env, "DASHBOARD_TASK_ID")
 }
 
+func TestBaseSpawnEnv_SkipsKeysThatAreNotVariableNames(t *testing.T) {
+	spawner := &ent.Spawner{ID: "sp1", Env: map[string]string{"ANTHROPIC_API_KEY=x": "y", "OK_KEY": "v"}}
+
+	env := pipeline.BaseSpawnEnv(spawner)
+
+	require.Equal(t, "v", env["OK_KEY"])
+	require.NotContains(t, env, "ANTHROPIC_API_KEY")
+	for k := range env {
+		require.NotContains(t, k, "=")
+	}
+}
+
 func TestBuildSpawnEnv_DenyListExcludesSecrets(t *testing.T) {
 	t.Setenv("DASHBOARD_SECRET_KEY", "master-key-value")
 	t.Setenv("DASHBOARD_JWT_SECRET", "super-secret-value")

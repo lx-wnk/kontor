@@ -59,3 +59,23 @@ func TestInheritedSessionEnvKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestIsValidName(t *testing.T) {
+	cases := map[string]bool{
+		"PATH": true,
+		"_X":   true,
+		"a1":   true,
+		"":     false,
+		"1A":   false,
+		"A=B":  false,
+		"A B":  false,
+		"A-B":  false,
+		"A;B":  false,
+		"Ä":    false,
+	}
+	for name, want := range cases {
+		if got := envsec.IsValidName(name); got != want {
+			t.Errorf("IsValidName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

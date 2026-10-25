@@ -55,7 +55,8 @@
 | Cloud account identity + login hint (Go) | `server/internal/cloud/account.go` | `AccountDir` (the exact `CLAUDE_CONFIG_DIR` the CLI child gets, never resolved), `LoginHint` |
 | Cloud session ID / URL rule (Go) | `server/internal/cloud/sessionref.go` | `sessionIDPattern`, `ParseSessionRef`, `SessionURL` |
 | Cloud account readiness (Go; the client reads the server's `ready`) | `server/internal/cloud/runner.go` | `AuthStatus.CloudReady` |
-| Cloud CLI child env allow-list + timeouts (Go) | `server/internal/cloud/runner.go` | `childEnvKeys`, `childEnvLocalePrefix`, `envNamePattern`, `DefaultSendTimeout`, `DefaultAuthTimeout` |
+| Env variable name rule (Go) | `server/internal/envsec/envsec.go` | `IsValidName` — every spawner env key is checked with it on save and at spawn |
+| Cloud CLI child env allow-list + timeouts (Go) | `server/internal/cloud/runner.go` | `childEnvKeys`, `childEnvLocalePrefix`, `DefaultSendTimeout`, `DefaultAuthTimeout` |
 | Typed SSE broadcaster + cloud event types (Go) | `server/internal/sse/typed_broadcaster.go` | `TypedBroadcaster[E]`, `CloudSessionEvent`, `CloudSessionCreated/Updated/Deleted` |
 | Cloud session API types (client; hand-kept parity with `server/internal/api/cloudsessions/handler.go` `SessionView` and `accounts.go` `accountView`) | `src/features/cloud/composables/useCloudSessions.ts` | `CloudSessionView`, `CloudAccount`, `CloudSessionEvent` |
 | Cloud routine API types (client; hand-kept parity with `server/internal/api/cloudroutines/handler.go` `routineView`) | `src/features/cloud/composables/useCloudRoutines.ts` | `CloudRoutineView`, `FireFailedError`, `FireUnconfirmedError` |
