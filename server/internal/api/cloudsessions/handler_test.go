@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -655,4 +656,32 @@ func TestImport_TitleWithControlCharactersIs400(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rr.Code, title)
 		require.Equal(t, "title: contains control characters", decodeMap(t, rr.Body.Bytes())["error"])
 	}
+}
+
+func TestSend_OneInFlightPerSession(t *testing.T) {
+	f := newFixture(t)
+	first := f.importSession(t, testSessionID)["id"].(string)
+	second := f.importSession(t, "session_01ZZZdef9999")["id"].(string)
+
+	entered, release := make(chan struct{}), make(chan struct{})
+	var blocked atomic.Bool
+	f.cli.sendHook = func() {
+		if blocked.CompareAndSwap(false, true) {
+			close(entered)
+			<-release
+		}
+	}
+
+	done := make(chan *httptest.ResponseRecorder)
+	go func() { done <- f.send(first, "one") }()
+	<-entered
+
+	busy := f.send(first, "two")
+	require.Equal(t, http.StatusConflict, busy.Code, busy.Body.String())
+	require.Equal(t, "a message to this cloud session is still being sent", decodeMap(t, busy.Body.Bytes())["error"])
+	require.Equal(t, http.StatusOK, f.send(second, "other").Code)
+
+	close(release)
+	require.Equal(t, http.StatusOK, (<-done).Code)
+	require.Equal(t, http.StatusOK, f.send(first, "three").Code)
 }

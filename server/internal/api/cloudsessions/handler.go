@@ -113,6 +113,8 @@ type Handler struct {
 	cli         CLI
 	auth        *authCache
 	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]
+	sendingMu   sync.Mutex
+	sending     map[string]struct{}
 }
 
 // NewHandler returns a Handler. It panics on a nil broadcaster.
@@ -126,7 +128,24 @@ func NewHandler(sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, cli C
 		cli:         cli,
 		auth:        newAuthCache(cli, time.Now),
 		broadcaster: broadcaster,
+		sending:     map[string]struct{}{},
 	}
+}
+
+func (h *Handler) acquireSend(id string) bool {
+	h.sendingMu.Lock()
+	defer h.sendingMu.Unlock()
+	if _, busy := h.sending[id]; busy {
+		return false
+	}
+	h.sending[id] = struct{}{}
+	return true
+}
+
+func (h *Handler) releaseSend(id string) {
+	h.sendingMu.Lock()
+	defer h.sendingMu.Unlock()
+	delete(h.sending, id)
 }
 
 func (h *Handler) emit(eventType, id string, payload any) {
@@ -321,6 +340,11 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 	if !RunsClaude(sp) {
 		return apierr.NewAppError(http.StatusConflict, "spawner "+sp.ID+" no longer runs Claude")
 	}
+
+	if !h.acquireSend(session.ID) {
+		return apierr.NewAppError(http.StatusConflict, "a message to this cloud session is still being sent")
+	}
+	defer h.releaseSend(session.ID)
 
 	// A client that hangs up mid-send must not skip recording the outcome.
 	ctx := context.WithoutCancel(r.Context())
