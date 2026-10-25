@@ -259,7 +259,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	// of a panic.
 	var box *secretbox.Box
 	if entClient != nil {
-		masterKey, keyErr := secretbox.LoadOrGenerateMasterKey(os.Getenv("DASHBOARD_SECRET_KEY"))
+		masterKey, keyErr := secretbox.MasterKeyFromEnv()
 		if keyErr != nil {
 			return nil, fmt.Errorf("secret master key: %w", keyErr)
 		}

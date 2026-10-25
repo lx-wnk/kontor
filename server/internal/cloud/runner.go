@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/lx-wnk/kontor/server/internal/claudeconfig"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
+	"github.com/lx-wnk/kontor/server/internal/envsec"
 	"github.com/lx-wnk/kontor/server/internal/pipeline"
 	"github.com/lx-wnk/kontor/server/internal/sanitize"
 	"github.com/lx-wnk/kontor/server/internal/services"
@@ -35,11 +35,6 @@ const (
 	// maxStderrBytes bounds the CLI stderr copied into an error.
 	maxStderrBytes = 4096
 )
-
-// envNamePattern is a plain env var name. A spawner env key that holds "=" or
-// whitespace would otherwise turn into a different variable than the one the
-// allow-list checks.
-var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 var (
 	// ErrClaudeNotFound reports that the claude CLI is not on PATH.
@@ -177,7 +172,7 @@ func (r Runner) timeout(def time.Duration) time.Duration {
 func childEnvVars(sp *ent.Spawner) map[string]string {
 	vars := make(map[string]string)
 	for k, v := range pipeline.BaseSpawnEnv(sp) {
-		if _, ok := childEnvKeys[k]; ok || (strings.HasPrefix(k, childEnvLocalePrefix) && envNamePattern.MatchString(k)) {
+		if _, ok := childEnvKeys[k]; ok || (strings.HasPrefix(k, childEnvLocalePrefix) && envsec.IsValidName(k)) {
 			vars[k] = v
 		}
 	}

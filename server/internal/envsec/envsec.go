@@ -4,6 +4,17 @@
 // spawner, and the plugin registry so the deny-set is declared once.
 package envsec
 
+import "regexp"
+
+var namePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// IsValidName reports whether name is a plain environment variable name. A key
+// holding "=" or whitespace would otherwise become a different variable than
+// the one a deny- or allow-list checked.
+func IsValidName(name string) bool {
+	return namePattern.MatchString(name)
+}
+
 // DeniedSecretEnvKeys are pure server secrets — consumed only by
 // secretbox.go (plugin master key), the JWT signer, config.go's auth
 // bypass, and the hooks HMAC. No spawned agent or plugin has any

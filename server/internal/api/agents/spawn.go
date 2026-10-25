@@ -1032,6 +1032,10 @@ func resolveSpawnEnv(s *ent.Spawner) []string {
 	}
 	if s != nil {
 		for k, v := range s.Env {
+			if !envsec.IsValidName(k) {
+				slog.Warn("spawner env key skipped: not a variable name", "spawner", s.ID)
+				continue
+			}
 			merged[k] = v
 		}
 	}

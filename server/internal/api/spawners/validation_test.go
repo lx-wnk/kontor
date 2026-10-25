@@ -128,3 +128,17 @@ func TestValidateAdapterConfig_AcpAcceptsEmptyArgs(t *testing.T) {
 	msg, ok := ValidateAdapterConfig("acp", map[string]string{"args": ""})
 	require.True(t, ok, "an empty args value must stay valid, got %q", msg)
 }
+
+func TestValidateEnv_RejectsKeyThatIsNotAVariableName(t *testing.T) {
+	for _, key := range []string{"ANTHROPIC_API_KEY=x", "1A", "A-B", "Ä"} {
+		msg, ok := ValidateEnv(map[string]string{key: "v"})
+		require.False(t, ok, key)
+		require.Equal(t, "env key must be a variable name (letters, digits, underscore; not starting with a digit)", msg, key)
+	}
+}
+
+func TestValidateEnv_AcceptsVariableName(t *testing.T) {
+	msg, ok := ValidateEnv(map[string]string{"OK_KEY": "v", "_x": "1"})
+	require.True(t, ok)
+	require.Empty(t, msg)
+}

@@ -136,3 +136,44 @@ func TestLoadOrGenerateMasterKey_MigratesTheRenamedKeyFile(t *testing.T) {
 		t.Errorf("the old key file must survive as the backup: %v", err)
 	}
 }
+
+const legacyMasterKeyEnv = "DASHBOARD_SECRET_KEY"
+
+func TestMasterKeyFromEnv_OldNameOnlyFailsWithoutWritingKeyFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", dir)
+	t.Setenv(MasterKeyEnv, "")
+	t.Setenv(legacyMasterKeyEnv, hex.EncodeToString(make([]byte, 32)))
+
+	key, err := MasterKeyFromEnv()
+
+	require.EqualError(t, err, "DASHBOARD_SECRET_KEY is no longer read; rename it to KONTOR_SECRET_KEY")
+	assert.Nil(t, key)
+	entries, rerr := os.ReadDir(dir)
+	require.NoError(t, rerr)
+	assert.Empty(t, entries)
+}
+
+func TestMasterKeyFromEnv_ReadsKontorName(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	want := bytes.Repeat([]byte{7}, 32)
+	t.Setenv(MasterKeyEnv, hex.EncodeToString(want))
+	t.Setenv(legacyMasterKeyEnv, "")
+
+	key, err := MasterKeyFromEnv()
+
+	require.NoError(t, err)
+	assert.Equal(t, want, key)
+}
+
+func TestMasterKeyFromEnv_KontorWinsOverOldName(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	want := bytes.Repeat([]byte{7}, 32)
+	t.Setenv(MasterKeyEnv, hex.EncodeToString(want))
+	t.Setenv(legacyMasterKeyEnv, hex.EncodeToString(bytes.Repeat([]byte{9}, 32)))
+
+	key, err := MasterKeyFromEnv()
+
+	require.NoError(t, err)
+	assert.Equal(t, want, key)
+}

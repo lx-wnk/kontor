@@ -468,6 +468,10 @@ func BaseSpawnEnv(spawner *ent.Spawner) map[string]string {
 			if _, denied := deniedEnvKeys[k]; denied {
 				continue
 			}
+			if !envsec.IsValidName(k) {
+				slog.Warn("spawner env key skipped: not a variable name", "spawner", spawner.ID)
+				continue
+			}
 			// Spawner env is user-authored config, not a shell expansion, so a
 			// leading `~` is taken literally by exec — `CLAUDE_CONFIG_DIR=~/x`
 			// would make claude create a bogus `./~/x` dir under the cwd. Expand

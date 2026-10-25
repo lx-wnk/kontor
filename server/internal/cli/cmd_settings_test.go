@@ -216,12 +216,12 @@ func TestDBStore_SetValidated_RejectsMaskSentinelForSecret(t *testing.T) {
 
 // TestDBStore_SetValidated_RefusesSecretWithoutMasterKey pins Finding A's
 // second half: a secret write must never fall back to plaintext when the
-// master key cannot be resolved. DASHBOARD_SECRET_KEY set to invalid hex
+// master key cannot be resolved. KONTOR_SECRET_KEY set to invalid hex
 // forces the real resolution path in openDBStore to fail, exactly as it
 // would if an operator misconfigured the env var during recovery.
 func TestDBStore_SetValidated_RefusesSecretWithoutMasterKey(t *testing.T) {
 	isolateMasterKeyPaths(t)
-	t.Setenv("DASHBOARD_SECRET_KEY", "not-valid-hex")
+	t.Setenv(secretbox.MasterKeyEnv, "not-valid-hex")
 	store, err := openDBStore(t.TempDir() + "/test.db")
 	require.NoError(t, err)
 	defer store.Close()
@@ -234,6 +234,20 @@ func TestDBStore_SetValidated_RefusesSecretWithoutMasterKey(t *testing.T) {
 	require.NoError(t, listErr)
 	_, exists := all["obsidian.apiKey"]
 	assert.False(t, exists, "a refused write must not persist any row")
+}
+
+func TestDBStore_SetValidated_RefusesSecretWhenOnlyRetiredKeyNameIsSet(t *testing.T) {
+	isolateMasterKeyPaths(t)
+	t.Setenv(secretbox.MasterKeyEnv, "")
+	t.Setenv("DASHBOARD_SECRET_KEY", "not-valid-hex")
+	store, err := openDBStore(t.TempDir() + "/test.db")
+	require.NoError(t, err)
+	defer store.Close()
+
+	err = store.SetValidated(context.Background(), "obsidian.apiKey", "sk-live-000")
+
+	require.ErrorIs(t, err, ErrNoMasterKey)
+	assert.ErrorContains(t, err, "DASHBOARD_SECRET_KEY is no longer read; rename it to KONTOR_SECRET_KEY")
 }
 
 // captureStdout redirects os.Stdout for the duration of fn and returns
