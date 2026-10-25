@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
@@ -42,7 +41,7 @@ type dbStore struct {
 
 // openDBStore opens (and migrates) the dashboard DB at path. It does not
 // touch the secretbox master key: list/get/grants/caps and a non-secret set
-// never need it, and LoadOrGenerateMasterKey persists a new key file when
+// never need it, and the key loader persists a new key file when
 // none exists — a read-only command (or one run under a different HOME, e.g.
 // via sudo) must not have that side effect. SetValidated resolves the key
 // lazily, only for an actual secret write.
@@ -63,7 +62,7 @@ func openDBStore(path string) (*dbStore, error) {
 // loadSecretBox resolves the secretbox master key exactly as the server does
 // (serverapp/di.go) and builds a Box from it.
 func loadSecretBox() (*secretbox.Box, error) {
-	masterKey, err := secretbox.LoadOrGenerateMasterKey(os.Getenv("DASHBOARD_SECRET_KEY"))
+	masterKey, err := secretbox.MasterKeyFromEnv()
 	if err != nil {
 		return nil, fmt.Errorf("resolve master key: %w", err)
 	}

@@ -100,5 +100,14 @@
     "context": "ADR-0015 left agents whose project matches no vault folder outside the map and folded the idle ones into a `+N other` badge regardless of free space, so their names and states were hidden even with room around them. A category name click also flew to the sector's planSectors angle, not to its packed circle.",
     "decision": "The Other sector is packed like any category: packHub gives it a circle sized by AGENT_WEIGHT x its agents, and only while it holds agents. Its agents sit on that rim; overlap is left to the existing label culler (dots always drawn, colliding labels hidden, reachable via hover, focus and the list). The badge and the outside fan are removed. A project whose rim reaches its category's top keeps a 70 degree arc there free of agents, where the category name sits. The Other name counts its agents (sectorCount). A category name click flies to its circle centre.",
     "consequences": "Supersedes the Other badge and the outside placement described in ADR-0014 and ADR-0015. The Other circle takes angular room from the note categories while it exists. A rim agent of a circle next to another category can still sit near that category's name at small zoom; the culler handles only labels, not dots."
+  },
+  {
+    "id": "ADR-0017",
+    "title": "The secret master key is read only from KONTOR_SECRET_KEY",
+    "status": "accepted",
+    "date": "2026-10-24",
+    "context": "Every configuration variable is read under KONTOR_ and its pre-rename DASHBOARD_ name (config.go). The secretbox master key bypassed config and read only DASHBOARD_SECRET_KEY, while the docs named KONTOR_SECRET_KEY.",
+    "decision": "The owner chose KONTOR_SECRET_KEY as the only name, as an explicit exception to the dual-name rule. secretbox.MasterKeyFromEnv resolves it for the server and the settings CLI; if only DASHBOARD_SECRET_KEY is set, it fails instead of falling through to the key file or generating a key.",
+    "consequences": "Installations that set DASHBOARD_SECRET_KEY must rename it before upgrading or they will not start; none can silently lose their stored secrets. The child-env strip rule still removes both names."
   }
 ]

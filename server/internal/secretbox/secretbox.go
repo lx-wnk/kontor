@@ -76,15 +76,30 @@ func (b *Box) Decrypt(ciphertextB64, nonceB64 string) (string, error) {
 	return string(pt), nil
 }
 
+// MasterKeyEnv is the only environment variable the master key is read from.
+const MasterKeyEnv = "KONTOR_SECRET_KEY"
+
+const retiredMasterKeyEnv = "DASHBOARD_SECRET_KEY"
+
+// MasterKeyFromEnv resolves the master key from MasterKeyEnv. A key left only
+// under the retired name fails instead of falling through to the key file,
+// which would orphan every stored secret.
+func MasterKeyFromEnv() ([]byte, error) {
+	if os.Getenv(MasterKeyEnv) == "" && os.Getenv(retiredMasterKeyEnv) != "" {
+		return nil, fmt.Errorf("%s is no longer read; rename it to %s", retiredMasterKeyEnv, MasterKeyEnv)
+	}
+	return LoadOrGenerateMasterKey(os.Getenv(MasterKeyEnv))
+}
+
 // LoadOrGenerateMasterKey resolves the 32-byte master key: from `existing`
-// (DASHBOARD_SECRET_KEY hex) if set; else the persisted file; else generated +
+// (KONTOR_SECRET_KEY hex) if set; else the persisted file; else generated +
 // persisted to $CLAUDE_CONFIG_DIR/dashboard-secret.key (0600). Mirrors the
 // hooks-secret bootstrap.
 func LoadOrGenerateMasterKey(existing string) ([]byte, error) {
 	if existing != "" {
 		key, err := hex.DecodeString(strings.TrimSpace(existing))
 		if err != nil || len(key) != 32 {
-			return nil, fmt.Errorf("secretbox: DASHBOARD_SECRET_KEY must be 64 hex chars (32 bytes)")
+			return nil, fmt.Errorf("secretbox: KONTOR_SECRET_KEY must be 64 hex chars (32 bytes)")
 		}
 		return key, nil
 	}
@@ -143,7 +158,7 @@ func LoadOrGenerateMasterKey(existing string) ([]byte, error) {
 	if err := os.WriteFile(path, []byte(hex.EncodeToString(key)+"\n"), 0o600); err != nil {
 		return nil, err
 	}
-	slog.Info("Generated plugin secret master key — set DASHBOARD_SECRET_KEY to use across machines", "path", path)
+	slog.Info("Generated plugin secret master key — set KONTOR_SECRET_KEY to use across machines", "path", path)
 	return key, nil
 }
 

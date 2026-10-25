@@ -20,7 +20,7 @@ variables below are read from `.env`/env; runtime settings live in the database.
 
 These are the only environment variables still read by the core server. They cannot be set through the Settings UI because they are needed before (or independently of) the database.
 
-> **Renamed from `DASHBOARD_*`.** Every variable below is also read under its
+> **Renamed from `DASHBOARD_*`.** Every variable below except `KONTOR_SECRET_KEY` is also read under its
 > old `DASHBOARD_` name; when both are set the `KONTOR_` one wins, and the server
 > warns once at boot when it found only old ones. The same applies to the files:
 > a new installation writes `~/.claude/kontor-tasks.db` and `kontor-secret.key`,
@@ -28,6 +28,8 @@ These are the only environment variables still read by the core server. They can
 > encryption key is the exception — it is copied to the new name on first boot and
 > the old file is kept as a backup, because a key that cannot be found is replaced
 > rather than reported, and every stored plugin secret would become unreadable.
+> `DASHBOARD_SECRET_KEY` is no longer read: if it is set and `KONTOR_SECRET_KEY` is
+> not, the server and the settings CLI refuse to start until you rename it.
 
 | Variable | Default | Description |
 |---|---|---|
