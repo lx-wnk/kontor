@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
@@ -91,7 +92,7 @@ const MaxLastMessageRunes = 2000
 
 func (r *entCloudSessionRepo) RecordSend(ctx context.Context, id, message string, at time.Time, errText string) (*ent.CloudSession, error) {
 	u := r.client.CloudSession.UpdateOneID(id).
-		SetLastMessage(message).
+		SetLastMessage(capRunes(message, MaxLastMessageRunes)).
 		SetLastMessageAt(at)
 	if errText == "" {
 		u = u.ClearLastError()
@@ -118,4 +119,11 @@ func (r *entCloudSessionRepo) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("cloudSession.Delete: %w", err)
 	}
 	return nil
+}
+
+func capRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return string([]rune(s)[:n])
 }
