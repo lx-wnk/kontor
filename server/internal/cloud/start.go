@@ -44,8 +44,9 @@ const (
 )
 
 var (
-	// ErrInvalidDescription reports a task description that is blank or would read as a CLI flag.
-	ErrInvalidDescription = errors.New(`the task description must not be blank or start with "-"`)
+	// ErrInvalidDescription reports a task description that is blank, would read
+	// as a CLI flag, or carries a line the output scanner would trust.
+	ErrInvalidDescription = errors.New(`the task description must not be blank, start with "-", or contain a line starting with "View:" or "Created cloud session:"`)
 	// ErrFolderNotTrusted reports that claude stopped at its folder trust prompt.
 	ErrFolderNotTrusted = errors.New("claude does not trust this folder yet; open it once with claude and accept the trust prompt")
 	// ErrStartUnconfirmed reports a failure after claude printed the session title: the session may exist.
@@ -74,7 +75,7 @@ type startScan struct {
 // Start creates a cloud session for description from dir. `claude --cloud`
 // refuses to run without a terminal, so it gets a pseudo-terminal.
 func (r Runner) Start(ctx context.Context, sp *ent.Spawner, dir, description string) (StartResult, error) {
-	if strings.TrimSpace(description) == "" || strings.HasPrefix(description, "-") {
+	if !validDescription(description) {
 		return StartResult{}, ErrInvalidDescription
 	}
 	if ok, reason := services.ValidateSpawnerCommand(claudeCommand); !ok {
@@ -181,6 +182,19 @@ func outputTail(output string) string {
 
 // scanStartOutput reads terminal lines until one holds the session URL or the
 // trust prompt, the pty closes, or maxStartOutput bytes were read.
+func validDescription(description string) bool {
+	if strings.TrimSpace(description) == "" || strings.HasPrefix(description, "-") {
+		return false
+	}
+	for _, line := range strings.FieldsFunc(description, func(r rune) bool { return r == '\n' || r == '\r' }) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, startTitlePrefix) || strings.HasPrefix(trimmed, startURLPrefix) {
+			return false
+		}
+	}
+	return true
+}
+
 func scanStartOutput(r io.Reader, titleSeen *atomic.Bool) startScan {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(nil, maxStartOutput)
