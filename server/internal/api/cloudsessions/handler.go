@@ -66,18 +66,26 @@ type authEntry struct {
 	fetched time.Time
 }
 
+// detachedUntil returns a context that ignores parent's cancellation but ends with life.
+func detachedUntil(parent, life context.Context) (context.Context, context.CancelFunc) {
+	c, cancel := context.WithCancel(context.WithoutCancel(parent))
+	stop := context.AfterFunc(life, cancel)
+	return c, func() { stop(); cancel() }
+}
+
 // authCache memoises `claude auth status` per account dir.
 type authCache struct {
 	cli     CLI
 	now     func() time.Time
+	life    context.Context
 	flight  singleflight.Group
 	mu      sync.Mutex
 	entries map[string]authEntry
 }
 
-// newAuthCache returns a cache with a 60 s TTL; now is the clock.
-func newAuthCache(cli CLI, now func() time.Time) *authCache {
-	return &authCache{cli: cli, now: now, entries: map[string]authEntry{}}
+// newAuthCache returns a cache with a 60 s TTL; now is the clock, life ends in-flight lookups.
+func newAuthCache(cli CLI, now func() time.Time, life context.Context) *authCache {
+	return &authCache{cli: cli, now: now, life: life, entries: map[string]authEntry{}}
 }
 
 // Status returns the cached status for the spawner's config dir, asking the CLI
@@ -94,7 +102,9 @@ func (c *authCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (
 	}
 	// The shared call must not die with the first caller's request.
 	v, err, _ := c.flight.Do(key, func() (any, error) {
-		st, err := c.cli.AuthStatus(context.WithoutCancel(ctx), sp)
+		probe, cancel := detachedUntil(ctx, c.life)
+		defer cancel()
+		st, err := c.cli.AuthStatus(probe, sp)
 		if err != nil {
 			return nil, err
 		}
@@ -113,6 +123,7 @@ func (c *authCache) Status(ctx context.Context, sp *ent.Spawner, refresh bool) (
 
 // Handler serves the cloud session routes.
 type Handler struct {
+	life        context.Context
 	sessions    repo.CloudSessionRepo
 	spawners    repo.SpawnerRepo
 	folders     repo.ProjectFolderRepo
@@ -126,22 +137,32 @@ type Handler struct {
 	sending    map[string]struct{}
 }
 
-// NewHandler returns a Handler. It panics on a nil broadcaster.
-func NewHandler(sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, folders repo.ProjectFolderRepo, cli CLI,
-	broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]) *Handler {
+// NewHandler returns a Handler. life is the app lifetime: cancelling it stops running CLI calls.
+// It panics on a nil life context or broadcaster.
+func NewHandler(life context.Context, sessions repo.CloudSessionRepo, spawners repo.SpawnerRepo, folders repo.ProjectFolderRepo,
+	cli CLI, broadcaster *sse.TypedBroadcaster[sse.CloudSessionEvent]) *Handler {
+	if life == nil {
+		panic("cloudsessions.Handler requires a life context")
+	}
 	if broadcaster == nil {
 		panic("cloudsessions.Handler requires a broadcaster")
 	}
 	return &Handler{
+		life:        life,
 		sessions:    sessions,
 		spawners:    spawners,
 		folders:     folders,
 		cli:         cli,
-		auth:        newAuthCache(cli, time.Now),
+		auth:        newAuthCache(cli, time.Now, life),
 		broadcaster: broadcaster,
 		starting:    map[string]struct{}{},
 		sending:     map[string]struct{}{},
 	}
+}
+
+// cliContext outlives a client hang-up but ends when Kontor shuts down.
+func (h *Handler) cliContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return detachedUntil(r.Context(), h.life)
 }
 
 func (h *Handler) acquireSend(id string) bool {
@@ -307,7 +328,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 
 	// A client that hangs up mid-start must not skip recording the session it started.
 	ctx := context.WithoutCancel(r.Context())
-	st, err := h.auth.Status(ctx, sp, false)
+	cliCtx, cancelCLI := h.cliContext(r)
+	defer cancelCLI()
+	st, err := h.auth.Status(cliCtx, sp, false)
 	if err != nil {
 		return apierr.NewAppError(http.StatusBadGateway, err.Error())
 	}
@@ -316,7 +339,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
 			"account is not signed in with claude.ai; run: "+cloud.LoginHint(sp))
 	}
 
-	res, err := h.cli.Start(ctx, sp, folder.Path, description)
+	res, err := h.cli.Start(cliCtx, sp, folder.Path, description)
 	if err != nil {
 		return startFailure(w, sp, folder.Path, err)
 	}
@@ -518,7 +541,9 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 
 	// A client that hangs up mid-send must not skip recording the outcome.
 	ctx := context.WithoutCancel(r.Context())
-	st, err := h.auth.Status(ctx, sp, false)
+	cliCtx, cancelCLI := h.cliContext(r)
+	defer cancelCLI()
+	st, err := h.auth.Status(cliCtx, sp, false)
 	if err != nil {
 		updated, recErr := h.sessions.RecordError(ctx, session.ID, err.Error())
 		if recErr != nil {
@@ -535,7 +560,7 @@ func (h *Handler) Send(w http.ResponseWriter, r *http.Request) error {
 			"account is not signed in with claude.ai; run: "+cloud.LoginHint(sp))
 	}
 
-	result, sendErr := h.cli.Send(ctx, sp, session.SessionID, body.Text)
+	result, sendErr := h.cli.Send(cliCtx, sp, session.SessionID, body.Text)
 	errText := ""
 	switch {
 	case sendErr != nil:

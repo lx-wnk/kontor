@@ -191,6 +191,7 @@ func buildBypassRouter(t *testing.T) http.Handler {
 	// `claude auth status`.
 	cloudBroadcaster := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
 	deps.CloudSessionsHandler = cloudsessions.NewHandler(
+		t.Context(),
 		repo.NewCloudSessionRepo(c),
 		deps.SpawnerRepo,
 		repo.NewProjectFolderRepo(c),
