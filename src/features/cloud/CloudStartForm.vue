@@ -94,7 +94,8 @@ async function runStart() {
             class="w-full"
           />
         </div>
-        <div>
+        <!-- focusin, not focus: WebKit does not focus a clicked button, only the search input it opens. -->
+        <div @focusin="refetchProjects">
           <AppFieldLabel for="cloud-start-project">
             Project
           </AppFieldLabel>

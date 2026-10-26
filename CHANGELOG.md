@@ -548,6 +548,7 @@ Preparing the first public release.
 
 ### Fixed
 
+- **The cloud start form sees projects created after it opened.** Its project picker reloads the project list when it takes focus, without holding a projects stream open next to a start that can run for about 105 s.
 - **Quitting Kontor stops a running cloud start or send.** The `claude --cloud` child used to outlive Kontor for up to 90 s and could create a cloud session Kontor never recorded; quitting or restarting now ends it (a session the CLI had already created stays on claude.ai), while a browser hang-up still lets it finish and be recorded.
 - **A cloud session keeps only the first 2,000 characters of its last message.** A send of up to 100 KB no longer rides along in full on every list call and live update; the full text stays on claude.ai.
 - **A cloud session start cannot be pointed at another session.** A description line starting with `View:` or `Created cloud session:` is now refused with a 400, so the CLI echoing the description can no longer make Kontor record a different session than the one it started.
