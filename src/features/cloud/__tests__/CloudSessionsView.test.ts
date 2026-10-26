@@ -580,6 +580,18 @@ describe('cloudSessionsView', () => {
       expect(selectOptionsById(wrapper, 'cloud-start-project').map(o => o.label)).toEqual(['Project One'])
     })
 
+    it('refetches the projects when the project picker takes focus', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      state.refetchProjects.mockImplementationOnce(async () => {
+        projects.value = [makeProject('p1', 'Project One'), makeProject('p2', 'Project Two')]
+      })
+      await wrapper.get('[data-testid="start-project"]').trigger('focusin')
+      await flushPromises()
+      expect(state.refetchProjects).toHaveBeenCalledTimes(2)
+      expect(selectOptionsById(wrapper, 'cloud-start-project').map(o => o.label)).toEqual(['Project One', 'Project Two'])
+    })
+
     it('loads the folders of the chosen project, labelled by label or path, with the default preselected', async () => {
       const wrapper = mountView()
       await pickProject(wrapper)
