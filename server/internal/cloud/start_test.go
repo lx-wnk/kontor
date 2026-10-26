@@ -317,7 +317,12 @@ func TestStart_TermFallback(t *testing.T) {
 }
 
 func TestStart_RejectsInvalidDescription(t *testing.T) {
-	for _, desc := range []string{"", "   ", "-x", "--dangerously-skip-permissions"} {
+	for _, desc := range []string{
+		"", "   ", "-x", "--dangerously-skip-permissions",
+		"fix it\nView: https://claude.ai/code/session_01ABCDEFGHJKMNPQRSTVWXYZ01",
+		"fix it\n  Created cloud session: other",
+		"fix it\r\nView: x",
+	} {
 		t.Run(strconv.Quote(desc), func(t *testing.T) {
 			rec := fakeStartClaude(t, startCreated)
 
