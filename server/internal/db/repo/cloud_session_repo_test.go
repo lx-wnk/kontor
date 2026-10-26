@@ -1,6 +1,7 @@
 package repo_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -144,4 +145,15 @@ func TestCloudSessionRepo_RecordErrorUnknownID(t *testing.T) {
 
 	_, err := r.RecordError(t.Context(), "missing", "boom")
 	require.True(t, ent.IsNotFound(err))
+}
+
+func TestCloudSessionRepo_RecordSendCapsLastMessage(t *testing.T) {
+	r := repo.NewCloudSessionRepo(openTestDB(t))
+	created, err := r.Create(t.Context(), newCloudSessionInput("session_a"))
+	require.NoError(t, err)
+
+	long := strings.Repeat("ä", repo.MaxLastMessageRunes+10)
+	got, err := r.RecordSend(t.Context(), created.ID, long, time.Now(), "")
+	require.NoError(t, err)
+	require.Equal(t, strings.Repeat("ä", repo.MaxLastMessageRunes), got.LastMessage)
 }

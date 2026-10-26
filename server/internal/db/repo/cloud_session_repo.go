@@ -85,6 +85,10 @@ func (r *entCloudSessionRepo) Get(ctx context.Context, id string) (*ent.CloudSes
 	return s, nil
 }
 
+// MaxLastMessageRunes caps the stored last message: the view shows three lines
+// of it, and every list call and SSE event carries it.
+const MaxLastMessageRunes = 2000
+
 func (r *entCloudSessionRepo) RecordSend(ctx context.Context, id, message string, at time.Time, errText string) (*ent.CloudSession, error) {
 	u := r.client.CloudSession.UpdateOneID(id).
 		SetLastMessage(message).
