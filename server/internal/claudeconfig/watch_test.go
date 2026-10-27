@@ -26,16 +26,10 @@ func configPath(t *testing.T) string {
 	return path
 }
 
-// writeConfig swaps the file in by rename: os.WriteFile truncates first, and a
-// poll that lands between truncate and write reports one write twice.
 func writeConfig(t *testing.T, path string) {
 	t.Helper()
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(`{}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		t.Fatalf("rename config: %v", err)
 	}
 }
 
