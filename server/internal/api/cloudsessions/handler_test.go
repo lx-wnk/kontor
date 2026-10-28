@@ -46,6 +46,9 @@ type fakeCLI struct {
 	sendCtxErr  error
 	authHook    func()
 	sendHook    func()
+	authCtxErr  error
+	lastAuthCtx context.Context
+	lastSendCtx context.Context
 
 	startResult      cloud.StartResult
 	startErr         error
@@ -55,6 +58,7 @@ type fakeCLI struct {
 	lastStartText    string
 	startHook        func(spawnerID string)
 	startCtxErr      error
+	lastStartCtx     context.Context
 }
 
 func (f *fakeCLI) Start(ctx context.Context, sp *ent.Spawner, dir, description string) (cloud.StartResult, error) {
@@ -63,6 +67,7 @@ func (f *fakeCLI) Start(ctx context.Context, sp *ent.Spawner, dir, description s
 	f.lastStartSpawner = sp.ID
 	f.lastStartDir = dir
 	f.lastStartText = description
+	f.lastStartCtx = ctx
 	result, err, hook := f.startResult, f.startErr, f.startHook
 	f.mu.Unlock()
 	if hook != nil {
@@ -85,6 +90,7 @@ func (f *fakeCLI) Send(ctx context.Context, _ *ent.Spawner, sessionID, text stri
 	f.sendCalls++
 	f.lastText = text
 	f.lastSession = sessionID
+	f.lastSendCtx = ctx
 	hook := f.sendHook
 	f.mu.Unlock()
 	if hook != nil {
@@ -96,9 +102,10 @@ func (f *fakeCLI) Send(ctx context.Context, _ *ent.Spawner, sessionID, text stri
 	return f.sendResult, f.sendErr
 }
 
-func (f *fakeCLI) AuthStatus(_ context.Context, _ *ent.Spawner) (cloud.AuthStatus, error) {
+func (f *fakeCLI) AuthStatus(ctx context.Context, _ *ent.Spawner) (cloud.AuthStatus, error) {
 	f.mu.Lock()
 	f.authCalls++
+	f.lastAuthCtx = ctx
 	hook := f.authHook
 	f.mu.Unlock()
 	if hook != nil {
@@ -106,6 +113,7 @@ func (f *fakeCLI) AuthStatus(_ context.Context, _ *ent.Spawner) (cloud.AuthStatu
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.authCtxErr = ctx.Err()
 	return f.auth, f.authErr
 }
 
@@ -126,6 +134,8 @@ type fixture struct {
 	folder  *ent.ProjectFolder
 	dir     string
 	clock   *time.Time
+
+	cancelLife context.CancelFunc
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -153,16 +163,18 @@ func newFixture(t *testing.T) *fixture {
 	}
 	raw := sse.NewBroadcaster()
 	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](raw)
-	h := NewHandler(repo.NewCloudSessionRepo(bundle.Client), spawners, folders, cli, bc)
+	life, cancelLife := context.WithCancel(t.Context())
+	t.Cleanup(cancelLife)
+	h := NewHandler(life, repo.NewCloudSessionRepo(bundle.Client), spawners, folders, cli, bc)
 	clock := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	h.auth = newAuthCache(cli, func() time.Time { return clock })
+	h.auth = newAuthCache(cli, func() time.Time { return clock }, life)
 
 	events := bc.Subscribe()
 	t.Cleanup(func() { bc.Unsubscribe(events) })
 
 	r := chi.NewRouter()
 	h.Mount(r)
-	return &fixture{h: h, cli: cli, raw: raw, router: r, events: events, spawner: sp, project: project, folder: folder, dir: dir, clock: &clock}
+	return &fixture{h: h, cli: cli, raw: raw, router: r, events: events, spawner: sp, project: project, folder: folder, dir: dir, clock: &clock, cancelLife: cancelLife}
 }
 
 func (f *fixture) do(method, path, body string) *httptest.ResponseRecorder {
@@ -633,7 +645,14 @@ func TestSend_SpawnerNoLongerClaudeIs409BeforeAuth(t *testing.T) {
 
 func TestNewHandler_RequiresBroadcaster(t *testing.T) {
 	require.PanicsWithValue(t, "cloudsessions.Handler requires a broadcaster", func() {
-		NewHandler(nil, nil, nil, &fakeCLI{}, nil)
+		NewHandler(t.Context(), nil, nil, nil, &fakeCLI{}, nil)
+	})
+}
+
+func TestNewHandler_RequiresLifeContext(t *testing.T) {
+	bc := sse.NewTypedBroadcaster[sse.CloudSessionEvent](sse.NewBroadcaster())
+	require.PanicsWithValue(t, "cloudsessions.Handler requires a life context", func() {
+		NewHandler(nil, nil, nil, nil, &fakeCLI{}, bc) //nolint:staticcheck // nil is the case under test
 	})
 }
 
@@ -1007,6 +1026,100 @@ func TestStart_ClientHangUpStillRecordsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, sse.CloudSessionCreated, f.nextEvent(t)["type"])
+}
+
+// awaitCancel returns once ctx is cancelled, or after a second so a missing
+// cancellation fails an assertion instead of hanging the suite.
+func awaitCancel(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+	}
+}
+
+// serveUntilShutdown serves req, cancels the handler's life context once the
+// fake CLI signals entered, and returns the response after the handler is done.
+func (f *fixture) serveUntilShutdown(t *testing.T, req *http.Request, entered <-chan struct{}) *httptest.ResponseRecorder {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f.router.ServeHTTP(rr, req)
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("the request never reached the CLI")
+	}
+	f.cancelLife()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the request never finished")
+	}
+	return rr
+}
+
+func TestStart_ShutdownCancelsTheCLICall(t *testing.T) {
+	f := newFixture(t)
+	entered := make(chan struct{})
+	f.cli.startErr = context.Canceled
+	f.cli.startHook = func(string) {
+		close(entered)
+		awaitCancel(f.cli.lastStartCtx)
+	}
+	body, _ := json.Marshal(map[string]string{"spawnerId": f.spawner.ID, "folderId": f.folder.ID, "description": "task"})
+	req := httptest.NewRequest("POST", "/api/cloud-sessions", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := f.serveUntilShutdown(t, req, entered)
+
+	f.cli.mu.Lock()
+	defer f.cli.mu.Unlock()
+	require.ErrorIs(t, f.cli.startCtxErr, context.Canceled, "shutting Kontor down must stop the claude --cloud child")
+	require.Equal(t, http.StatusBadGateway, rr.Code, rr.Body.String())
+}
+
+func TestSend_ShutdownCancelsTheCLICall(t *testing.T) {
+	f := newFixture(t)
+	id := f.importSession(t, testSessionID)["id"].(string)
+	f.nextEvent(t)
+	entered := make(chan struct{})
+	f.cli.sendHook = func() {
+		close(entered)
+		awaitCancel(f.cli.lastSendCtx)
+	}
+	body, _ := json.Marshal(map[string]string{"text": "hi"})
+	req := httptest.NewRequest("POST", "/api/cloud-sessions/"+id+"/messages", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	f.serveUntilShutdown(t, req, entered)
+
+	f.cli.mu.Lock()
+	defer f.cli.mu.Unlock()
+	require.ErrorIs(t, f.cli.sendCtxErr, context.Canceled, "shutting Kontor down must stop the claude --cloud child")
+}
+
+func TestStart_ShutdownCancelsTheSignInCheck(t *testing.T) {
+	f := newFixture(t)
+	entered := make(chan struct{})
+	f.cli.authErr = context.Canceled
+	f.cli.authHook = func() {
+		close(entered)
+		awaitCancel(f.cli.lastAuthCtx)
+	}
+	body, _ := json.Marshal(map[string]string{"spawnerId": f.spawner.ID, "folderId": f.folder.ID, "description": "task"})
+	req := httptest.NewRequest("POST", "/api/cloud-sessions", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := f.serveUntilShutdown(t, req, entered)
+
+	f.cli.mu.Lock()
+	defer f.cli.mu.Unlock()
+	require.ErrorIs(t, f.cli.authCtxErr, context.Canceled)
+	require.Equal(t, http.StatusBadGateway, rr.Code, rr.Body.String())
+	require.Zero(t, f.cli.startCalls)
 }
 
 func TestStart_CLIFailureIs502AndRecordsNothing(t *testing.T) {

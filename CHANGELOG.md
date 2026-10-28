@@ -548,6 +548,10 @@ Preparing the first public release.
 
 ### Fixed
 
+- **The cloud start form sees projects created after it opened.** Its project picker reloads the project list when it takes focus, without holding a projects stream open next to a start that can run for about 105 s.
+- **Quitting Kontor stops a running cloud start or send.** The `claude --cloud` child used to outlive Kontor for up to 90 s and could create a cloud session Kontor never recorded; quitting or restarting now ends it (a session the CLI had already created stays on claude.ai), while a browser hang-up still lets it finish and be recorded.
+- **A cloud session keeps only the first 2,000 characters of its last message.** A send of up to 100 KB no longer rides along in full on every list call and live update; the full text stays on claude.ai.
+- **A cloud session start cannot be pointed at another session.** A description line starting with `View:` or `Created cloud session:` is now refused with a 400, so the CLI echoing the description can no longer make Kontor record a different session than the one it started.
 - **Firing a routine again after an unconfirmed fire takes a second step.** Once a fire may have started a run, the routine's Fire button is replaced by an *Open claude.ai* link plus a separate *Fire anyway* button, because the claude.ai routine API has no idempotency key and a single click could start a second run.
 - **One message at a time per cloud session.** A second message sent while one is still in flight now gets a 409 instead of reaching the session twice.
 - **A Claude config dir reached through a symlink counts as one account.** With `~/.claude` linked to `~/.claude-personal`, both were listed as separate accounts, so the status bar showed the same usage twice and the per-account totals doubled it, and a plan-usage sample reported under one path was not found under the other. Config dirs are now compared by their resolved path.
