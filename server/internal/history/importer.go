@@ -208,8 +208,7 @@ func (imp *Importer) runImport(ctx context.Context, onProgress func(ImportProgre
 		// safely skip parsing — the content has not changed since the last import.
 		sessionID := sessionIDFromPath(filePath)
 		if stored, ok := storedMtimes[sessionID]; ok && stored != 0 {
-			info, statErr := os.Stat(filePath)
-			if statErr == nil && info.ModTime().UnixNano() == stored {
+			if newestMtime(filePath, subagentFiles(filePath)) == stored {
 				progress.Processed++
 				reportProgress(false)
 				continue
@@ -314,8 +313,8 @@ func collectJSONLFiles(projectsDir string) ([]string, error) {
 	return files, nil
 }
 
-// extractCostRow reads filePath, parses JSONL, and returns an AgentCostRow.
-// Returns (nil, nil) when the file has no usable token data.
+// extractCostRow parses filePath plus its subagent files into one AgentCostRow.
+// Returns (nil, nil) when the session has no usable token data.
 func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo.AgentCostRow, error) {
 	info, err := os.Stat(filePath)
 	if err != nil {
@@ -324,30 +323,36 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 	if info.Size() > maxFileSizeBytes {
 		return nil, fmt.Errorf("file too large (%d bytes)", info.Size())
 	}
-	f, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("open: %w", err)
-	}
-	defer f.Close()
-	sourceMtime := info.ModTime().UnixNano()
-
-	sessionID := sessionIDFromPath(filePath)
-	stats, err := parseSession(f)
+	stats, err := parseFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	usage, model, lastActivity, cwd := stats.Usage, stats.Model, stats.LastActivity, stats.Cwd
+
+	usage := stats.Usage
+	estimate := parser.EstimateCost(stats.Usage, stats.Model)
+	subs := subagentFiles(filePath)
+	for _, sub := range subs {
+		subStats, err := parseFile(sub)
+		if err != nil {
+			slog.Debug("history.import: skip subagent file", "path", sub, "err", err)
+			continue
+		}
+		usage.InputTokens += subStats.Usage.InputTokens
+		usage.OutputTokens += subStats.Usage.OutputTokens
+		usage.CacheReadTokens += subStats.Usage.CacheReadTokens
+		usage.CacheCreationTokens += subStats.Usage.CacheCreationTokens
+		estimate += parser.EstimateCost(subStats.Usage, subStats.Model)
+	}
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
-		return nil, nil // no usable data
+		return nil, nil
 	}
 
-	// Recorded-at fallback: use file mtime when no timestamp was parsed.
-	recordedAt := lastActivity
+	recordedAt := stats.LastActivity
 	if recordedAt.IsZero() {
 		recordedAt = info.ModTime()
 	}
 
-	// Resolve project grouping.
+	cwd := stats.Cwd
 	projectPath, projectName := cwd, filepath.Base(cwd)
 	if cwd == "" {
 		projectName = ""
@@ -356,19 +361,78 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 		projectPath, projectName = imp.resolver.Resolve(ctx, cwd)
 	}
 
-	cost := parser.EstimateCost(usage, model)
-	return &repo.AgentCostRow{
-		SessionID:    sessionID,
-		Model:        model,
-		InputTokens:  usage.InputTokens,
-		OutputTokens: usage.OutputTokens,
-		CostUSD:      cost,
-		RecordedAt:   recordedAt,
-		Cwd:          cwd,
-		ProjectPath:  projectPath,
-		ProjectName:  projectName,
-		SourceMtime:  sourceMtime,
-	}, nil
+	row := &repo.AgentCostRow{
+		SessionID:           sessionIDFromPath(filePath),
+		Model:               stats.Model,
+		InputTokens:         usage.InputTokens,
+		OutputTokens:        usage.OutputTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CostUSD:             estimate,
+		CostSource:          repo.SourceEstimate,
+		AgentMs:             stats.EstimateMs,
+		AgentTimeSource:     repo.SourceEstimate,
+		RecordedAt:          recordedAt,
+		StartedAt:           stats.StartedAt,
+		Title:               stats.Title,
+		Turns:               stats.Turns,
+		Cwd:                 cwd,
+		ProjectPath:         projectPath,
+		ProjectName:         projectName,
+		SourceMtime:         newestMtime(filePath, subs),
+	}
+	if cs := stats.CostState; cs != nil {
+		row.CostUSD, row.CostSource = cs.TotalCostUSD, repo.SourceCostState
+		row.AgentMs, row.AgentTimeSource = cs.APIDurationMs+cs.ToolDurationMs, repo.SourceCostState
+		row.LinesAdded, row.LinesRemoved = cs.LinesAdded, cs.LinesRemoved
+		row.CostUnknownModel = cs.UnknownModelCost
+		row.ModelCosts = cs.ModelCosts
+	}
+	return row, nil
+}
+
+func parseFile(path string) (sessionStats, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return sessionStats{}, fmt.Errorf("open: %w", err)
+	}
+	defer f.Close()
+	return parseSession(f)
+}
+
+// subagentFiles returns the *.jsonl files in <dir>/<sessionId>/subagents/ next to parentPath.
+func subagentFiles(parentPath string) []string {
+	dir := filepath.Join(strings.TrimSuffix(parentPath, ".jsonl"), "subagents")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+			continue
+		}
+		if info, err := entry.Info(); err != nil || info.Size() > maxFileSizeBytes {
+			continue
+		}
+		files = append(files, filepath.Join(dir, entry.Name()))
+	}
+	return files
+}
+
+// newestMtime returns the latest mtime (unix nanoseconds) of parentPath and subs; 0 when the parent cannot be stat'ed.
+func newestMtime(parentPath string, subs []string) int64 {
+	info, err := os.Stat(parentPath)
+	if err != nil {
+		return 0
+	}
+	newest := info.ModTime().UnixNano()
+	for _, sub := range subs {
+		if info, err := os.Stat(sub); err == nil && info.ModTime().UnixNano() > newest {
+			newest = info.ModTime().UnixNano()
+		}
+	}
+	return newest
 }
 
 // sessionIDFromPath extracts the session UUID from a JSONL filename.

@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // ---- stub repo ----
@@ -584,4 +586,159 @@ func TestParseSession_LongLine(t *testing.T) {
 	require.Equal(t, 22, stats.Usage.OutputTokens)
 	require.Equal(t, "claude-opus-4", stats.Model)
 	require.Equal(t, "/work/proj", stats.Cwd)
+}
+
+// ---- subagent roll-up and row fill ----
+
+func usageLine(ts, model string, in, out int) string {
+	return fmt.Sprintf(`{"type":"assistant","timestamp":%q,"message":{"role":"assistant","model":%q,"usage":{"input_tokens":%d,"output_tokens":%d}}}`, ts, model, in, out)
+}
+
+func writeParentWithSub(t *testing.T, parent, sub string) (parentPath, subPath string) {
+	t.Helper()
+	dir := t.TempDir()
+	parentPath = writeSession(t, dir, "session-roll", parent)
+	subDir := filepath.Join(dir, "session-roll", "subagents")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	subPath = filepath.Join(subDir, "agent-a.jsonl")
+	require.NoError(t, os.WriteFile(subPath, []byte(sub), 0o644))
+	return parentPath, subPath
+}
+
+func runImportSync(t *testing.T, costRepo *stubCostRepo, files ...string) {
+	t.Helper()
+	t.Setenv("DASHBOARD_CLAUDE_CONFIG_DIRS", "/fake/acct")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/fake/nonexistent")
+	imp := NewImporter(costRepo).WithCollectFn(func(string) ([]string, error) { return files, nil })
+	imp.runImport(t.Context(), func(ImportProgress) {})
+}
+
+func TestImporter_RollsUpSubagents(t *testing.T) {
+	opus, haiku := "claude-opus-4", "claude-haiku-4-5"
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "first"),
+		usageLine("2025-01-15T10:00:05Z", opus, 60, 6),
+		promptLine("2025-01-15T10:01:00Z", "second"),
+		usageLine("2025-01-15T10:01:05Z", opus, 40, 4),
+	}, "\n")
+	sub := strings.Join([]string{
+		promptLine("2025-01-15T10:00:01Z", "sub task"),
+		usageLine("2025-01-15T10:00:02Z", haiku, 50, 5),
+	}, "\n")
+	parentPath, _ := writeParentWithSub(t, parent, sub)
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.Equal(t, 150, row.InputTokens)
+	assert.Equal(t, 15, row.OutputTokens)
+	want := parser.EstimateCost(sdk.TokenUsage{InputTokens: 100, OutputTokens: 10}, opus) +
+		parser.EstimateCost(sdk.TokenUsage{InputTokens: 50, OutputTokens: 5}, haiku)
+	assert.InDelta(t, want, row.CostUSD, 1e-12)
+	assert.Equal(t, repo.SourceEstimate, row.CostSource)
+	assert.Equal(t, repo.SourceEstimate, row.AgentTimeSource)
+	assert.Equal(t, 2, row.Turns, "only the parent's turns count")
+	assert.Equal(t, opus, row.Model)
+	assert.Equal(t, "first", row.Title)
+	assert.Equal(t, int64(10_000), row.AgentMs, "subagent time is not added on the estimate path")
+}
+
+func TestImporter_CostStateWins(t *testing.T) {
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "hi"),
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2,"hasUnknownModelCost":true,"modelUsage":{"claude-opus-4":{"costUSD":3.0},"claude-haiku-4-5":{"costUSD":0.2}}}`,
+	}, "\n")
+	parentPath, _ := writeParentWithSub(t, parent, usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.InDelta(t, 3.2, row.CostUSD, 1e-12)
+	assert.Equal(t, repo.SourceCostState, row.CostSource)
+	assert.Equal(t, int64(1500), row.AgentMs)
+	assert.Equal(t, repo.SourceCostState, row.AgentTimeSource)
+	assert.Equal(t, 7, row.LinesAdded)
+	assert.Equal(t, 2, row.LinesRemoved)
+	assert.True(t, row.CostUnknownModel)
+	assert.Equal(t, map[string]float64{"claude-opus-4": 3.0, "claude-haiku-4-5": 0.2}, row.ModelCosts)
+	assert.Equal(t, 150, row.InputTokens, "tokens are summed even when cost-state wins")
+}
+
+func TestImporter_StaleCostStateFallsBack(t *testing.T) {
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "hi"),
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2}`,
+		usageLine("2025-01-15T10:00:09Z", "claude-opus-4", 1, 1),
+	}, "\n")
+	stats := mustParse(t, parent)
+	p := writeSession(t, t.TempDir(), "session-stale", parent)
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), p)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.Equal(t, repo.SourceEstimate, row.CostSource)
+	assert.Equal(t, repo.SourceEstimate, row.AgentTimeSource)
+	assert.Equal(t, stats.EstimateMs, row.AgentMs)
+	assert.InDelta(t, parser.EstimateCost(stats.Usage, stats.Model), row.CostUSD, 1e-12)
+	assert.Zero(t, row.LinesAdded)
+	assert.Nil(t, row.ModelCosts)
+}
+
+func TestImporter_ReparsesWhenOnlySubagentChanged(t *testing.T) {
+	parentPath, subPath := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	info, err := os.Stat(parentPath)
+	require.NoError(t, err)
+	require.NoError(t, os.Chtimes(subPath, info.ModTime(), info.ModTime()))
+
+	first := &stubCostRepo{mtimes: map[string]int64{"session-roll": info.ModTime().UnixNano()}}
+	runImportSync(t, first, parentPath)
+	assert.Empty(t, first.all(), "unchanged parent and subagent are skipped")
+
+	later := info.ModTime().Add(time.Second)
+	require.NoError(t, os.Chtimes(subPath, later, later))
+	second := &stubCostRepo{mtimes: first.mtimes}
+	runImportSync(t, second, parentPath)
+	rows := second.all()
+	require.Len(t, rows, 1)
+	assert.Equal(t, later.UnixNano(), rows[0].SourceMtime)
+}
+
+func TestImporter_SubagentFilesAreNotRows(t *testing.T) {
+	projects := t.TempDir()
+	enc := filepath.Join(projects, "-repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(enc, "s1", "subagents"), 0o755))
+	parentPath := writeSession(t, enc, "s1", makeJSONLContent(1, 1))
+	require.NoError(t, os.WriteFile(filepath.Join(enc, "s1", "subagents", "agent-a.jsonl"), []byte(makeJSONLContent(1, 1)), 0o644))
+
+	files, err := collectJSONLFiles(projects)
+	require.NoError(t, err)
+	assert.Equal(t, []string{parentPath}, files)
+}
+
+func TestSubagentFiles_AbsentDirIsNil(t *testing.T) {
+	p := writeSession(t, t.TempDir(), "lonely", makeJSONLContent(1, 1))
+	assert.Nil(t, subagentFiles(p))
+}
+
+func TestImporter_UnreadableSubagentIsSkipped(t *testing.T) {
+	parentPath, subPath := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	require.NoError(t, os.Chmod(subPath, 0o000))
+	if f, err := os.Open(subPath); err == nil {
+		_ = f.Close()
+		t.Skip("running with privileges that ignore file modes")
+	}
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, 100, row.InputTokens)
 }
