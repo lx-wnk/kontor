@@ -4,8 +4,8 @@ import AppTopbar from './AppTopbar.vue'
 
 describe('appTopbar', () => {
   it('renders the view title', () => {
-    const w = mount(AppTopbar, { props: { activeView: 'cost' } })
-    expect(w.text()).toContain('Cost')
+    const w = mount(AppTopbar, { props: { activeView: 'insights' } })
+    expect(w.text()).toContain('Insights')
   })
 
   it('renders the cta slot', () => {

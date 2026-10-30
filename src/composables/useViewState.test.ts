@@ -34,9 +34,37 @@ describe('useViewState', () => {
     expect(useViewState().activeView.value).toBe('pipeline')
   })
 
-  it('migrates legacy "cost-analytics" to activeView=cost', async () => {
+  it('migrates legacy "cost-analytics" to insights + cost tab', async () => {
     localStorage.setItem('agent-view-mode', 'cost-analytics')
-    expect((await freshModule()).useViewState().activeView.value).toBe('cost')
+    expect((await freshModule()).useViewState().activeView.value).toBe('insights')
+    expect(localStorage.getItem('insights-tab')).toBe('cost')
+  })
+
+  it('migrates legacy "workflows" to insights + workflows tab', async () => {
+    localStorage.setItem('agent-view-mode', 'workflows')
+    expect((await freshModule()).useViewState().activeView.value).toBe('insights')
+    expect(localStorage.getItem('insights-tab')).toBe('workflows')
+  })
+
+  it.each([['cost', 'cost'], ['eval', 'quality'], ['workflows', 'workflows']])('migrates stored %s view to insights + %s tab', async (stored, tab) => {
+    localStorage.setItem('agent-active-view', stored)
+    expect((await freshModule()).useViewState().activeView.value).toBe('insights')
+    expect(localStorage.getItem('insights-tab')).toBe(tab)
+    expect(localStorage.getItem('agent-active-view')).toBe('insights')
+  })
+
+  it('migrates stored cost view when setItem throws', async () => {
+    localStorage.setItem('agent-active-view', 'cost')
+    const real = globalThis.localStorage
+    globalThis.localStorage = { ...real, setItem: () => {
+      throw new Error('denied')
+    } } as Storage
+    try {
+      expect((await freshModule()).useViewState().activeView.value).toBe('insights')
+    }
+    finally {
+      globalThis.localStorage = real
+    }
   })
 
   it('migrates legacy "list" to dashboard view + list layout', async () => {
@@ -49,8 +77,8 @@ describe('useViewState', () => {
 
   it('persists activeView changes to localStorage', async () => {
     const { useViewState } = await freshModule()
-    useViewState().activeView.value = 'workflows'
-    expect(localStorage.getItem('agent-active-view')).toBe('workflows')
+    useViewState().activeView.value = 'insights'
+    expect(localStorage.getItem('agent-active-view')).toBe('insights')
   })
 
   it('persists dashboardLayout changes', async () => {

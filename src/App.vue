@@ -55,9 +55,7 @@ const WorkspacePage = defineAsyncComponent({
 // in the entry chunk, which has a size budget CI enforces.
 const DashboardView = defineAsyncComponent(() => import('@/features/cockpit/components/DashboardView.vue'))
 const CostAnalyticsView = defineAsyncComponent(() => import('@/features/analytics/components/CostAnalyticsView.vue'))
-const EvalView = defineAsyncComponent(() => import('@/features/analytics/components/EvalView.vue'))
 const PipelineBoard = defineAsyncComponent(() => import('@/features/pipeline/components/PipelineBoard.vue'))
-const WorkflowsView = defineAsyncComponent(() => import('@/features/workflows/components/WorkflowsView.vue'))
 const SchedulesView = defineAsyncComponent(() => import('./components/SchedulesView.vue'))
 const CloudSessionsView = defineAsyncComponent(() => import('@/features/cloud/CloudSessionsView.vue'))
 // Heavy modal loaded on demand — split into its own chunk (includes DependencyGraph + StageCostWaterfall).
@@ -418,14 +416,9 @@ onMounted(() => usageComposable.start())
           @open-chat="(t) => { activeConceptTask = t; showRefinementChat = true }"
           @navigate-agent="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
         />
-        <CostAnalyticsView v-else-if="activeView === 'cost'" />
+        <CostAnalyticsView v-else-if="activeView === 'insights'" />
         <SchedulesView v-else-if="activeView === 'schedules'" />
         <CloudSessionsView v-else-if="activeView === 'cloud'" />
-        <EvalView v-else-if="activeView === 'eval'" />
-        <WorkflowsView
-          v-else-if="activeView === 'workflows'"
-          @navigate="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
-        />
       </div>
 
       <template #statusbar>

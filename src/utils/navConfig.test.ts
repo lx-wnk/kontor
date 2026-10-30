@@ -30,9 +30,9 @@ describe('navConfig', () => {
     expect(NAV_GROUPS).toEqual(['Monitor', 'Build', 'Insights'])
   })
 
-  it('groups Workflows, Cost and Eval under Insights', () => {
+  it('groups the single Insights view under Insights', () => {
     const insights = NAV_ITEMS.filter(i => i.group === 'Insights').map(i => i.view)
-    expect(insights).toEqual(['workflows', 'cost', 'eval'])
+    expect(insights).toEqual(['insights'])
   })
 
   it('every item belongs to a known group', () => {
@@ -47,7 +47,7 @@ describe('navConfig', () => {
 
   it('viewTitle returns the label for a view', () => {
     expect(viewTitle('dashboard')).toBe('Dashboard')
-    expect(viewTitle('cost')).toBe('Cost')
+    expect(viewTitle('insights')).toBe('Insights')
   })
 
   it('viewTitle returns a page\'s own title, and no core title for an unknown page', () => {
