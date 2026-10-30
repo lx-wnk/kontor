@@ -54,10 +54,10 @@ func BenchmarkExtractCostRow(b *testing.B) {
 	}
 }
 
-// BenchmarkParseTokensFromRaw isolates the pure in-memory parse loop,
+// BenchmarkParseSession isolates the pure in-memory parse loop,
 // removing disk I/O from the measurement so allocations from JSON decoding
 // and string splitting can be profiled independently.
-func BenchmarkParseTokensFromRaw(b *testing.B) {
+func BenchmarkParseSession(b *testing.B) {
 	const (
 		fillerCount    = 5000
 		assistantCount = 50
@@ -81,6 +81,6 @@ func BenchmarkParseTokensFromRaw(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, _, _, _, _ = parseTokensFromRaw(raw)
+		_, _ = parseSession(strings.NewReader(raw))
 	}
 }

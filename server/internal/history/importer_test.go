@@ -68,134 +68,134 @@ func itoa(n int) string {
 	return string(s)
 }
 
-func TestParseTokensFromRaw_ValidJSONLWithUsage(t *testing.T) {
+func TestParseSession_ValidJSONLWithUsage(t *testing.T) {
 	ts := "2024-01-15T10:30:00.000Z"
 	line := buildJSONLLine(100, 50, "claude-opus-4", ts)
 
-	usage, model, lastActivity, _, err := parseTokensFromRaw(line)
+	stats, err := parseSession(strings.NewReader(line))
 	require.NoError(t, err)
 
-	assert.Equal(t, 100, usage.InputTokens)
-	assert.Equal(t, 50, usage.OutputTokens)
-	assert.Equal(t, "claude-opus-4", model)
-	// lastActivity should be the parsed timestamp.
+	assert.Equal(t, 100, stats.Usage.InputTokens)
+	assert.Equal(t, 50, stats.Usage.OutputTokens)
+	assert.Equal(t, "claude-opus-4", stats.Model)
+	// LastActivity should be the parsed timestamp.
 	expected, _ := time.Parse(time.RFC3339Nano, ts)
-	assert.True(t, lastActivity.Equal(expected) || lastActivity.After(expected),
+	assert.True(t, stats.LastActivity.Equal(expected) || stats.LastActivity.After(expected),
 		"lastActivity should be at or after the parsed timestamp")
 }
 
-func TestParseTokensFromRaw_MultipleEntriesAccumulatesTokens(t *testing.T) {
+func TestParseSession_MultipleEntriesAccumulatesTokens(t *testing.T) {
 	ts1 := "2024-01-15T10:00:00.000Z"
 	ts2 := "2024-01-15T11:00:00.000Z"
 	line1 := buildJSONLLine(100, 50, "claude-sonnet-4-5", ts1)
 	line2 := buildJSONLLine(200, 80, "claude-sonnet-4-5", ts2)
 	raw := line1 + "\n" + line2
 
-	usage, model, lastActivity, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
 
-	assert.Equal(t, 300, usage.InputTokens, "input tokens should be summed")
-	assert.Equal(t, 130, usage.OutputTokens, "output tokens should be summed")
-	assert.Equal(t, "claude-sonnet-4-5", model)
+	assert.Equal(t, 300, stats.Usage.InputTokens, "input tokens should be summed")
+	assert.Equal(t, 130, stats.Usage.OutputTokens, "output tokens should be summed")
+	assert.Equal(t, "claude-sonnet-4-5", stats.Model)
 
-	// lastActivity should be ts2 (the later one).
+	// LastActivity should be ts2 (the later one).
 	expected, _ := time.Parse(time.RFC3339Nano, ts2)
-	assert.True(t, lastActivity.Equal(expected) || lastActivity.After(expected))
+	assert.True(t, stats.LastActivity.Equal(expected) || stats.LastActivity.After(expected))
 }
 
-func TestParseTokensFromRaw_MissingUsageField(t *testing.T) {
+func TestParseSession_MissingUsageField(t *testing.T) {
 	// Assistant message without "usage" field — should not panic and return zero tokens.
 	raw := `{"type":"message","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-sonnet-4-5"}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_NonAssistantRoleSkipped(t *testing.T) {
+func TestParseSession_NonAssistantRoleSkipped(t *testing.T) {
 	// User messages should be ignored.
 	raw := `{"type":"message","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"user","usage":{"input_tokens":999,"output_tokens":999}}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_NonMessageTypeSkipped(t *testing.T) {
+func TestParseSession_NonMessageTypeSkipped(t *testing.T) {
 	// Non-turn entries (tool_result, attachment, …) must not contribute usage,
 	// even when they carry an assistant role + usage block.
 	raw := `{"type":"tool_result","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","usage":{"input_tokens":999,"output_tokens":999}}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-// TestParseTokensFromRaw_AssistantType is the regression guard for the bug that
+// TestParseSession_AssistantType is the regression guard for the bug that
 // left the cost table empty: real Claude Code logs write assistant turns with a
 // top-level type of "assistant" (not "message"), and those entries carry the
 // token usage. They must be counted.
-func TestParseTokensFromRaw_AssistantType(t *testing.T) {
+func TestParseSession_AssistantType(t *testing.T) {
 	raw := `{"type":"assistant","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-7","usage":{"input_tokens":120,"output_tokens":45}}}`
 
-	usage, model, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 120, usage.InputTokens)
-	assert.Equal(t, 45, usage.OutputTokens)
-	assert.Equal(t, "claude-opus-4-7", model)
+	assert.Equal(t, 120, stats.Usage.InputTokens)
+	assert.Equal(t, 45, stats.Usage.OutputTokens)
+	assert.Equal(t, "claude-opus-4-7", stats.Model)
 }
 
-func TestParseTokensFromRaw_MalformedJSONLineSkipped(t *testing.T) {
+func TestParseSession_MalformedJSONLineSkipped(t *testing.T) {
 	// Malformed line followed by a valid line — the bad one is skipped, not an error.
 	ts := "2024-01-15T12:00:00.000Z"
 	validLine := buildJSONLLine(42, 21, "claude-opus-4", ts)
 	raw := "THIS IS NOT JSON\n" + validLine
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err, "malformed JSON should be skipped, not cause an error")
-	assert.Equal(t, 42, usage.InputTokens)
-	assert.Equal(t, 21, usage.OutputTokens)
+	assert.Equal(t, 42, stats.Usage.InputTokens)
+	assert.Equal(t, 21, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_EmptyInput(t *testing.T) {
-	usage, model, _, _, err := parseTokensFromRaw("")
+func TestParseSession_EmptyInput(t *testing.T) {
+	stats, err := parseSession(strings.NewReader(""))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 	// Default model should be set.
-	assert.NotEmpty(t, model)
+	assert.NotEmpty(t, stats.Model)
 }
 
-func TestParseTokensFromRaw_AllBlankLines(t *testing.T) {
+func TestParseSession_AllBlankLines(t *testing.T) {
 	raw := strings.Repeat("\n", 10)
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_ModelUpdatedToLatestEntry(t *testing.T) {
+func TestParseSession_ModelUpdatedToLatestEntry(t *testing.T) {
 	ts1 := "2024-01-15T10:00:00.000Z"
 	ts2 := "2024-01-15T11:00:00.000Z"
 	line1 := buildJSONLLine(10, 5, "claude-sonnet-4-5", ts1)
 	line2 := buildJSONLLine(10, 5, "claude-opus-4", ts2)
 	raw := line1 + "\n" + line2
 
-	_, model, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
 	// The last assistant entry's model wins.
-	assert.Equal(t, "claude-opus-4", model)
+	assert.Equal(t, "claude-opus-4", stats.Model)
 }
 
-func TestParseTokensFromRaw_AllMalformedLines(t *testing.T) {
+func TestParseSession_AllMalformedLines(t *testing.T) {
 	raw := "not json\nalso not json\n{broken"
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
 // ---- multi-dir importer tests ----
@@ -568,41 +568,20 @@ func TestImporter_SkipsUnchangedFiles(t *testing.T) {
 		"unchanged file must be skipped — no rows upserted")
 }
 
-// TestParseTokensFromReader_EquivalentToRaw verifies the streaming reader path
-// returns identical results to the string-based wrapper.
-func TestParseTokensFromReader_EquivalentToRaw(t *testing.T) {
-	ts1 := "2025-01-15T10:30:00.000Z"
-	ts2 := "2025-01-15T10:31:00.000Z"
-	raw := buildJSONLLine(100, 50, "claude-opus-4", ts1) + "\n" +
-		buildJSONLLine(200, 80, "claude-opus-4", ts2)
-
-	rawUsage, rawModel, rawActivity, rawCwd, rawErr := parseTokensFromRaw(raw)
-	rdUsage, rdModel, rdActivity, rdCwd, rdErr := parseTokensFromReader(strings.NewReader(raw))
-
-	require.NoError(t, rawErr)
-	require.NoError(t, rdErr)
-	require.Equal(t, rawUsage, rdUsage)
-	require.Equal(t, rawModel, rdModel)
-	require.True(t, rawActivity.Equal(rdActivity))
-	require.Equal(t, rawCwd, rdCwd)
-	require.Equal(t, 300, rdUsage.InputTokens)
-	require.Equal(t, 130, rdUsage.OutputTokens)
-}
-
-// TestParseTokensFromReader_LongLine exercises a single JSONL line far larger than
+// TestParseSession_LongLine exercises a single JSONL line far larger than
 // bufio.Scanner's default 64 KB token limit, proving the enlarged buffer keeps the
 // row instead of dropping it with bufio.ErrTooLong.
-func TestParseTokensFromReader_LongLine(t *testing.T) {
+func TestParseSession_LongLine(t *testing.T) {
 	ts := "2025-01-15T10:30:00.000Z"
 	// ~512 KB of filler embedded in a valid assistant entry's text content.
 	filler := strings.Repeat("x", 512*1024)
 	line := `{"type":"assistant","timestamp":"` + ts + `","cwd":"/work/proj","message":{"role":"assistant","model":"claude-opus-4","content":[{"type":"text","text":"` +
 		filler + `"}],"usage":{"input_tokens":111,"output_tokens":22,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`
 
-	usage, model, _, cwd, err := parseTokensFromReader(strings.NewReader(line))
+	stats, err := parseSession(strings.NewReader(line))
 	require.NoError(t, err)
-	require.Equal(t, 111, usage.InputTokens)
-	require.Equal(t, 22, usage.OutputTokens)
-	require.Equal(t, "claude-opus-4", model)
-	require.Equal(t, "/work/proj", cwd)
+	require.Equal(t, 111, stats.Usage.InputTokens)
+	require.Equal(t, 22, stats.Usage.OutputTokens)
+	require.Equal(t, "claude-opus-4", stats.Model)
+	require.Equal(t, "/work/proj", stats.Cwd)
 }

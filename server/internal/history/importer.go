@@ -2,11 +2,8 @@
 package history
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/kontor/sdk"
-	"github.com/lx-wnk/kontor/server/internal/claudemodel"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/parser"
 )
@@ -337,10 +332,11 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 	sourceMtime := info.ModTime().UnixNano()
 
 	sessionID := sessionIDFromPath(filePath)
-	usage, model, lastActivity, cwd, err := parseTokensFromReader(f)
+	stats, err := parseSession(f)
 	if err != nil {
 		return nil, err
 	}
+	usage, model, lastActivity, cwd := stats.Usage, stats.Model, stats.LastActivity, stats.Cwd
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
 		return nil, nil // no usable data
 	}
@@ -379,93 +375,4 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 func sessionIDFromPath(path string) string {
 	base := filepath.Base(path)
 	return strings.TrimSuffix(base, ".jsonl")
-}
-
-// jsonlEntry is the minimal structure of a JSONL session log entry.
-type jsonlEntry struct {
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	// cwd is a top-level field present on every line in modern Claude Code logs.
-	Cwd     string `json:"cwd"`
-	Message struct {
-		Role  string `json:"role"`
-		Model string `json:"model"`
-		Usage *struct {
-			InputTokens         int `json:"input_tokens"`
-			OutputTokens        int `json:"output_tokens"`
-			CacheCreationTokens int `json:"cache_creation_input_tokens"`
-			CacheReadTokens     int `json:"cache_read_input_tokens"`
-		} `json:"usage"`
-	} `json:"message"`
-}
-
-// parseTokensFromRaw is a thin wrapper over parseTokensFromReader retained for
-// tests that already hold the file content as a string.
-func parseTokensFromRaw(raw string) (sdk.TokenUsage, string, time.Time, string, error) {
-	return parseTokensFromReader(strings.NewReader(raw))
-}
-
-// parseTokensFromReader extracts cumulative token usage, model, last activity, and
-// cwd by streaming JSONL line-by-line from r. lastActivity is zero when no
-// timestamp could be parsed; the caller falls back to file mtime in that case.
-//
-// Streaming (rather than reading the whole file into a []byte and Split-ing it)
-// keeps memory flat at one line regardless of session size. The scanner buffer is
-// enlarged to match the parser package so a single long line (large tool output)
-// does not trip bufio.ErrTooLong and silently drop the row.
-func parseTokensFromReader(r io.Reader) (sdk.TokenUsage, string, time.Time, string, error) {
-	var (
-		total        sdk.TokenUsage
-		model        = claudemodel.Latest(claudemodel.Sonnet)
-		lastActivity time.Time // zero → no timestamp parsed
-		cwd          string
-	)
-
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 256*1024), 4*1024*1024)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var e jsonlEntry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			continue
-		}
-		// Capture cwd from any line — it is stable within a session; last non-empty wins.
-		if e.Cwd != "" {
-			cwd = e.Cwd
-		}
-		// Token usage lives on assistant turns. Claude Code writes these with a
-		// top-level type of "assistant"; older logs used "message". Accept both
-		// shapes (but not tool_result/attachment/etc.) and require the assistant
-		// role. Filtering on type=="message" alone silently dropped every modern
-		// session and left the cost table empty.
-		if e.Type != "assistant" && e.Type != "message" {
-			continue
-		}
-		if e.Message.Role != "assistant" {
-			continue
-		}
-		if e.Message.Model != "" {
-			model = e.Message.Model
-		}
-		if e.Message.Usage != nil {
-			total.InputTokens += e.Message.Usage.InputTokens
-			total.OutputTokens += e.Message.Usage.OutputTokens
-			total.CacheCreationTokens += e.Message.Usage.CacheCreationTokens
-			total.CacheReadTokens += e.Message.Usage.CacheReadTokens
-		}
-		if ts, err := time.Parse(time.RFC3339Nano, e.Timestamp); err == nil {
-			if lastActivity.IsZero() || ts.After(lastActivity) {
-				lastActivity = ts
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return total, model, lastActivity, cwd, fmt.Errorf("scan: %w", err)
-	}
-
-	return total, model, lastActivity, cwd, nil
 }
