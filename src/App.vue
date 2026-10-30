@@ -54,7 +54,7 @@ const WorkspacePage = defineAsyncComponent({
 // longer on the first-paint path, and a static import keeps its whole subtree
 // in the entry chunk, which has a size budget CI enforces.
 const DashboardView = defineAsyncComponent(() => import('@/features/cockpit/components/DashboardView.vue'))
-const CostAnalyticsView = defineAsyncComponent(() => import('@/features/analytics/components/CostAnalyticsView.vue'))
+const InsightsView = defineAsyncComponent(() => import('@/features/insights/components/InsightsView.vue'))
 const PipelineBoard = defineAsyncComponent(() => import('@/features/pipeline/components/PipelineBoard.vue'))
 const SchedulesView = defineAsyncComponent(() => import('./components/SchedulesView.vue'))
 const CloudSessionsView = defineAsyncComponent(() => import('@/features/cloud/CloudSessionsView.vue'))
@@ -416,7 +416,10 @@ onMounted(() => usageComposable.start())
           @open-chat="(t) => { activeConceptTask = t; showRefinementChat = true }"
           @navigate-agent="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
         />
-        <CostAnalyticsView v-else-if="activeView === 'insights'" />
+        <InsightsView
+          v-else-if="activeView === 'insights'"
+          @navigate="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
+        />
         <SchedulesView v-else-if="activeView === 'schedules'" />
         <CloudSessionsView v-else-if="activeView === 'cloud'" />
       </div>
