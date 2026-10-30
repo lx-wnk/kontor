@@ -34,6 +34,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
 	"github.com/lx-wnk/kontor/server/internal/api/hooks"
+	apiinsights "github.com/lx-wnk/kontor/server/internal/api/insights"
 	apikontorsession "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
@@ -191,6 +192,7 @@ type RouterDeps struct {
 	PlanHandler            *planapi.Handler
 	AnalyticsHandler       *apianalytics.Handler
 	CostHandler            *apicost.Handler
+	InsightsHandler        *apiinsights.Handler
 	EvalHandler            *apieval.Handler
 	VisualizationsHandler  *visualizations.Handler
 	AdapterHandler         *adapters.Handler
@@ -511,6 +513,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 		// Cost analytics — aggregated spend by model, day, and week.
 		if deps.CostHandler != nil {
 			deps.CostHandler.Mount(r)
+		}
+		if deps.InsightsHandler != nil {
+			deps.InsightsHandler.Mount(r)
 		}
 
 		// Eval metrics and drift alerts.

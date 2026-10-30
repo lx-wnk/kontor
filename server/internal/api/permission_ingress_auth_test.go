@@ -15,6 +15,7 @@ import (
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
+	apiinsights "github.com/lx-wnk/kontor/server/internal/api/insights"
 	"github.com/lx-wnk/kontor/server/internal/api/presets"
 	refineapi "github.com/lx-wnk/kontor/server/internal/api/refine"
 	"github.com/lx-wnk/kontor/server/internal/api/remotes"
@@ -107,6 +108,7 @@ func buildIngressRouter(t *testing.T, rawToken string) http.Handler {
 		}),
 		AnalyticsHandler:      apianalytics.NewHandler(rawrepo.NewAnalyticsRepo(rawDB), rawDB, repo.NewPipelineConfigRepo(c)),
 		CostHandler:           apicost.NewHandler(rawDB),
+		InsightsHandler:       apiinsights.NewHandler(rawDB),
 		VisualizationsHandler: visualizations.NewHandler(),
 	}
 

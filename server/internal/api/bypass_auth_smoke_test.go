@@ -21,6 +21,7 @@ import (
 	apigithub "github.com/lx-wnk/kontor/server/internal/api/github"
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
+	apiinsights "github.com/lx-wnk/kontor/server/internal/api/insights"
 	apikontorsession "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
@@ -177,6 +178,7 @@ func buildBypassRouter(t *testing.T) http.Handler {
 		}),
 		AnalyticsHandler:      apianalytics.NewHandler(rawrepo.NewAnalyticsRepo(rawDB), rawDB, repo.NewPipelineConfigRepo(c)),
 		CostHandler:           apicost.NewHandler(rawDB),
+		InsightsHandler:       apiinsights.NewHandler(rawDB),
 		VisualizationsHandler: visualizations.NewHandler(),
 		// Wire the plugin route surface so the route-golden and the bypass-auth
 		// smoke both cover it. The registry is empty and the controller is a stub —
