@@ -123,6 +123,166 @@ func (_c *AgentCostTrendCreate) SetNillableSourceMtime(v *int64) *AgentCostTrend
 	return _c
 }
 
+// SetStartedAt sets the "started_at" field.
+func (_c *AgentCostTrendCreate) SetStartedAt(v time.Time) *AgentCostTrendCreate {
+	_c.mutation.SetStartedAt(v)
+	return _c
+}
+
+// SetNillableStartedAt sets the "started_at" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableStartedAt(v *time.Time) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetStartedAt(*v)
+	}
+	return _c
+}
+
+// SetTitle sets the "title" field.
+func (_c *AgentCostTrendCreate) SetTitle(v string) *AgentCostTrendCreate {
+	_c.mutation.SetTitle(v)
+	return _c
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableTitle(v *string) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetTitle(*v)
+	}
+	return _c
+}
+
+// SetTurns sets the "turns" field.
+func (_c *AgentCostTrendCreate) SetTurns(v int) *AgentCostTrendCreate {
+	_c.mutation.SetTurns(v)
+	return _c
+}
+
+// SetNillableTurns sets the "turns" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableTurns(v *int) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetTurns(*v)
+	}
+	return _c
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (_c *AgentCostTrendCreate) SetAgentMs(v int64) *AgentCostTrendCreate {
+	_c.mutation.SetAgentMs(v)
+	return _c
+}
+
+// SetNillableAgentMs sets the "agent_ms" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableAgentMs(v *int64) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetAgentMs(*v)
+	}
+	return _c
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (_c *AgentCostTrendCreate) SetAgentTimeSource(v string) *AgentCostTrendCreate {
+	_c.mutation.SetAgentTimeSource(v)
+	return _c
+}
+
+// SetNillableAgentTimeSource sets the "agent_time_source" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableAgentTimeSource(v *string) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetAgentTimeSource(*v)
+	}
+	return _c
+}
+
+// SetCostSource sets the "cost_source" field.
+func (_c *AgentCostTrendCreate) SetCostSource(v string) *AgentCostTrendCreate {
+	_c.mutation.SetCostSource(v)
+	return _c
+}
+
+// SetNillableCostSource sets the "cost_source" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableCostSource(v *string) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetCostSource(*v)
+	}
+	return _c
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (_c *AgentCostTrendCreate) SetCostUnknownModel(v bool) *AgentCostTrendCreate {
+	_c.mutation.SetCostUnknownModel(v)
+	return _c
+}
+
+// SetNillableCostUnknownModel sets the "cost_unknown_model" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableCostUnknownModel(v *bool) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetCostUnknownModel(*v)
+	}
+	return _c
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (_c *AgentCostTrendCreate) SetCacheReadTokens(v int) *AgentCostTrendCreate {
+	_c.mutation.SetCacheReadTokens(v)
+	return _c
+}
+
+// SetNillableCacheReadTokens sets the "cache_read_tokens" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableCacheReadTokens(v *int) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetCacheReadTokens(*v)
+	}
+	return _c
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (_c *AgentCostTrendCreate) SetCacheCreationTokens(v int) *AgentCostTrendCreate {
+	_c.mutation.SetCacheCreationTokens(v)
+	return _c
+}
+
+// SetNillableCacheCreationTokens sets the "cache_creation_tokens" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableCacheCreationTokens(v *int) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetCacheCreationTokens(*v)
+	}
+	return _c
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (_c *AgentCostTrendCreate) SetLinesAdded(v int) *AgentCostTrendCreate {
+	_c.mutation.SetLinesAdded(v)
+	return _c
+}
+
+// SetNillableLinesAdded sets the "lines_added" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableLinesAdded(v *int) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetLinesAdded(*v)
+	}
+	return _c
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (_c *AgentCostTrendCreate) SetLinesRemoved(v int) *AgentCostTrendCreate {
+	_c.mutation.SetLinesRemoved(v)
+	return _c
+}
+
+// SetNillableLinesRemoved sets the "lines_removed" field if the given value is not nil.
+func (_c *AgentCostTrendCreate) SetNillableLinesRemoved(v *int) *AgentCostTrendCreate {
+	if v != nil {
+		_c.SetLinesRemoved(*v)
+	}
+	return _c
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (_c *AgentCostTrendCreate) SetModelCosts(v map[string]float64) *AgentCostTrendCreate {
+	_c.mutation.SetModelCosts(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AgentCostTrendCreate) SetID(v string) *AgentCostTrendCreate {
 	_c.mutation.SetID(v)
@@ -183,6 +343,46 @@ func (_c *AgentCostTrendCreate) defaults() {
 	if _, ok := _c.mutation.SourceMtime(); !ok {
 		v := agentcosttrend.DefaultSourceMtime
 		_c.mutation.SetSourceMtime(v)
+	}
+	if _, ok := _c.mutation.Title(); !ok {
+		v := agentcosttrend.DefaultTitle
+		_c.mutation.SetTitle(v)
+	}
+	if _, ok := _c.mutation.Turns(); !ok {
+		v := agentcosttrend.DefaultTurns
+		_c.mutation.SetTurns(v)
+	}
+	if _, ok := _c.mutation.AgentMs(); !ok {
+		v := agentcosttrend.DefaultAgentMs
+		_c.mutation.SetAgentMs(v)
+	}
+	if _, ok := _c.mutation.AgentTimeSource(); !ok {
+		v := agentcosttrend.DefaultAgentTimeSource
+		_c.mutation.SetAgentTimeSource(v)
+	}
+	if _, ok := _c.mutation.CostSource(); !ok {
+		v := agentcosttrend.DefaultCostSource
+		_c.mutation.SetCostSource(v)
+	}
+	if _, ok := _c.mutation.CostUnknownModel(); !ok {
+		v := agentcosttrend.DefaultCostUnknownModel
+		_c.mutation.SetCostUnknownModel(v)
+	}
+	if _, ok := _c.mutation.CacheReadTokens(); !ok {
+		v := agentcosttrend.DefaultCacheReadTokens
+		_c.mutation.SetCacheReadTokens(v)
+	}
+	if _, ok := _c.mutation.CacheCreationTokens(); !ok {
+		v := agentcosttrend.DefaultCacheCreationTokens
+		_c.mutation.SetCacheCreationTokens(v)
+	}
+	if _, ok := _c.mutation.LinesAdded(); !ok {
+		v := agentcosttrend.DefaultLinesAdded
+		_c.mutation.SetLinesAdded(v)
+	}
+	if _, ok := _c.mutation.LinesRemoved(); !ok {
+		v := agentcosttrend.DefaultLinesRemoved
+		_c.mutation.SetLinesRemoved(v)
 	}
 }
 
@@ -281,6 +481,54 @@ func (_c *AgentCostTrendCreate) createSpec() (*AgentCostTrend, *sqlgraph.CreateS
 	if value, ok := _c.mutation.SourceMtime(); ok {
 		_spec.SetField(agentcosttrend.FieldSourceMtime, field.TypeInt64, value)
 		_node.SourceMtime = value
+	}
+	if value, ok := _c.mutation.StartedAt(); ok {
+		_spec.SetField(agentcosttrend.FieldStartedAt, field.TypeTime, value)
+		_node.StartedAt = &value
+	}
+	if value, ok := _c.mutation.Title(); ok {
+		_spec.SetField(agentcosttrend.FieldTitle, field.TypeString, value)
+		_node.Title = value
+	}
+	if value, ok := _c.mutation.Turns(); ok {
+		_spec.SetField(agentcosttrend.FieldTurns, field.TypeInt, value)
+		_node.Turns = value
+	}
+	if value, ok := _c.mutation.AgentMs(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentMs, field.TypeInt64, value)
+		_node.AgentMs = value
+	}
+	if value, ok := _c.mutation.AgentTimeSource(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentTimeSource, field.TypeString, value)
+		_node.AgentTimeSource = value
+	}
+	if value, ok := _c.mutation.CostSource(); ok {
+		_spec.SetField(agentcosttrend.FieldCostSource, field.TypeString, value)
+		_node.CostSource = value
+	}
+	if value, ok := _c.mutation.CostUnknownModel(); ok {
+		_spec.SetField(agentcosttrend.FieldCostUnknownModel, field.TypeBool, value)
+		_node.CostUnknownModel = value
+	}
+	if value, ok := _c.mutation.CacheReadTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheReadTokens, field.TypeInt, value)
+		_node.CacheReadTokens = value
+	}
+	if value, ok := _c.mutation.CacheCreationTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt, value)
+		_node.CacheCreationTokens = value
+	}
+	if value, ok := _c.mutation.LinesAdded(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesAdded, field.TypeInt, value)
+		_node.LinesAdded = value
+	}
+	if value, ok := _c.mutation.LinesRemoved(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesRemoved, field.TypeInt, value)
+		_node.LinesRemoved = value
+	}
+	if value, ok := _c.mutation.ModelCosts(); ok {
+		_spec.SetField(agentcosttrend.FieldModelCosts, field.TypeJSON, value)
+		_node.ModelCosts = value
 	}
 	return _node, _spec
 }
@@ -499,6 +747,258 @@ func (u *AgentCostTrendUpsert) AddSourceMtime(v int64) *AgentCostTrendUpsert {
 // ClearSourceMtime clears the value of the "source_mtime" field.
 func (u *AgentCostTrendUpsert) ClearSourceMtime() *AgentCostTrendUpsert {
 	u.SetNull(agentcosttrend.FieldSourceMtime)
+	return u
+}
+
+// SetStartedAt sets the "started_at" field.
+func (u *AgentCostTrendUpsert) SetStartedAt(v time.Time) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldStartedAt, v)
+	return u
+}
+
+// UpdateStartedAt sets the "started_at" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateStartedAt() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldStartedAt)
+	return u
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (u *AgentCostTrendUpsert) ClearStartedAt() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldStartedAt)
+	return u
+}
+
+// SetTitle sets the "title" field.
+func (u *AgentCostTrendUpsert) SetTitle(v string) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldTitle, v)
+	return u
+}
+
+// UpdateTitle sets the "title" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateTitle() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldTitle)
+	return u
+}
+
+// ClearTitle clears the value of the "title" field.
+func (u *AgentCostTrendUpsert) ClearTitle() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldTitle)
+	return u
+}
+
+// SetTurns sets the "turns" field.
+func (u *AgentCostTrendUpsert) SetTurns(v int) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldTurns, v)
+	return u
+}
+
+// UpdateTurns sets the "turns" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateTurns() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldTurns)
+	return u
+}
+
+// AddTurns adds v to the "turns" field.
+func (u *AgentCostTrendUpsert) AddTurns(v int) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldTurns, v)
+	return u
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (u *AgentCostTrendUpsert) ClearTurns() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldTurns)
+	return u
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (u *AgentCostTrendUpsert) SetAgentMs(v int64) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldAgentMs, v)
+	return u
+}
+
+// UpdateAgentMs sets the "agent_ms" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateAgentMs() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldAgentMs)
+	return u
+}
+
+// AddAgentMs adds v to the "agent_ms" field.
+func (u *AgentCostTrendUpsert) AddAgentMs(v int64) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldAgentMs, v)
+	return u
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (u *AgentCostTrendUpsert) ClearAgentMs() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldAgentMs)
+	return u
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (u *AgentCostTrendUpsert) SetAgentTimeSource(v string) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldAgentTimeSource, v)
+	return u
+}
+
+// UpdateAgentTimeSource sets the "agent_time_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateAgentTimeSource() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldAgentTimeSource)
+	return u
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (u *AgentCostTrendUpsert) ClearAgentTimeSource() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldAgentTimeSource)
+	return u
+}
+
+// SetCostSource sets the "cost_source" field.
+func (u *AgentCostTrendUpsert) SetCostSource(v string) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldCostSource, v)
+	return u
+}
+
+// UpdateCostSource sets the "cost_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateCostSource() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldCostSource)
+	return u
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (u *AgentCostTrendUpsert) ClearCostSource() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldCostSource)
+	return u
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsert) SetCostUnknownModel(v bool) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldCostUnknownModel, v)
+	return u
+}
+
+// UpdateCostUnknownModel sets the "cost_unknown_model" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateCostUnknownModel() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldCostUnknownModel)
+	return u
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsert) ClearCostUnknownModel() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldCostUnknownModel)
+	return u
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsert) SetCacheReadTokens(v int) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldCacheReadTokens, v)
+	return u
+}
+
+// UpdateCacheReadTokens sets the "cache_read_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateCacheReadTokens() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldCacheReadTokens)
+	return u
+}
+
+// AddCacheReadTokens adds v to the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsert) AddCacheReadTokens(v int) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldCacheReadTokens, v)
+	return u
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsert) ClearCacheReadTokens() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldCacheReadTokens)
+	return u
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsert) SetCacheCreationTokens(v int) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldCacheCreationTokens, v)
+	return u
+}
+
+// UpdateCacheCreationTokens sets the "cache_creation_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateCacheCreationTokens() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldCacheCreationTokens)
+	return u
+}
+
+// AddCacheCreationTokens adds v to the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsert) AddCacheCreationTokens(v int) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldCacheCreationTokens, v)
+	return u
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsert) ClearCacheCreationTokens() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldCacheCreationTokens)
+	return u
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (u *AgentCostTrendUpsert) SetLinesAdded(v int) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldLinesAdded, v)
+	return u
+}
+
+// UpdateLinesAdded sets the "lines_added" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateLinesAdded() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldLinesAdded)
+	return u
+}
+
+// AddLinesAdded adds v to the "lines_added" field.
+func (u *AgentCostTrendUpsert) AddLinesAdded(v int) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldLinesAdded, v)
+	return u
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (u *AgentCostTrendUpsert) ClearLinesAdded() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldLinesAdded)
+	return u
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (u *AgentCostTrendUpsert) SetLinesRemoved(v int) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldLinesRemoved, v)
+	return u
+}
+
+// UpdateLinesRemoved sets the "lines_removed" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateLinesRemoved() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldLinesRemoved)
+	return u
+}
+
+// AddLinesRemoved adds v to the "lines_removed" field.
+func (u *AgentCostTrendUpsert) AddLinesRemoved(v int) *AgentCostTrendUpsert {
+	u.Add(agentcosttrend.FieldLinesRemoved, v)
+	return u
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (u *AgentCostTrendUpsert) ClearLinesRemoved() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldLinesRemoved)
+	return u
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (u *AgentCostTrendUpsert) SetModelCosts(v map[string]float64) *AgentCostTrendUpsert {
+	u.Set(agentcosttrend.FieldModelCosts, v)
+	return u
+}
+
+// UpdateModelCosts sets the "model_costs" field to the value that was provided on create.
+func (u *AgentCostTrendUpsert) UpdateModelCosts() *AgentCostTrendUpsert {
+	u.SetExcluded(agentcosttrend.FieldModelCosts)
+	return u
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (u *AgentCostTrendUpsert) ClearModelCosts() *AgentCostTrendUpsert {
+	u.SetNull(agentcosttrend.FieldModelCosts)
 	return u
 }
 
@@ -743,6 +1243,300 @@ func (u *AgentCostTrendUpsertOne) UpdateSourceMtime() *AgentCostTrendUpsertOne {
 func (u *AgentCostTrendUpsertOne) ClearSourceMtime() *AgentCostTrendUpsertOne {
 	return u.Update(func(s *AgentCostTrendUpsert) {
 		s.ClearSourceMtime()
+	})
+}
+
+// SetStartedAt sets the "started_at" field.
+func (u *AgentCostTrendUpsertOne) SetStartedAt(v time.Time) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetStartedAt(v)
+	})
+}
+
+// UpdateStartedAt sets the "started_at" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateStartedAt() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateStartedAt()
+	})
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (u *AgentCostTrendUpsertOne) ClearStartedAt() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearStartedAt()
+	})
+}
+
+// SetTitle sets the "title" field.
+func (u *AgentCostTrendUpsertOne) SetTitle(v string) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetTitle(v)
+	})
+}
+
+// UpdateTitle sets the "title" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateTitle() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateTitle()
+	})
+}
+
+// ClearTitle clears the value of the "title" field.
+func (u *AgentCostTrendUpsertOne) ClearTitle() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearTitle()
+	})
+}
+
+// SetTurns sets the "turns" field.
+func (u *AgentCostTrendUpsertOne) SetTurns(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetTurns(v)
+	})
+}
+
+// AddTurns adds v to the "turns" field.
+func (u *AgentCostTrendUpsertOne) AddTurns(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddTurns(v)
+	})
+}
+
+// UpdateTurns sets the "turns" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateTurns() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateTurns()
+	})
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (u *AgentCostTrendUpsertOne) ClearTurns() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearTurns()
+	})
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (u *AgentCostTrendUpsertOne) SetAgentMs(v int64) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetAgentMs(v)
+	})
+}
+
+// AddAgentMs adds v to the "agent_ms" field.
+func (u *AgentCostTrendUpsertOne) AddAgentMs(v int64) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddAgentMs(v)
+	})
+}
+
+// UpdateAgentMs sets the "agent_ms" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateAgentMs() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateAgentMs()
+	})
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (u *AgentCostTrendUpsertOne) ClearAgentMs() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearAgentMs()
+	})
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (u *AgentCostTrendUpsertOne) SetAgentTimeSource(v string) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetAgentTimeSource(v)
+	})
+}
+
+// UpdateAgentTimeSource sets the "agent_time_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateAgentTimeSource() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateAgentTimeSource()
+	})
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (u *AgentCostTrendUpsertOne) ClearAgentTimeSource() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearAgentTimeSource()
+	})
+}
+
+// SetCostSource sets the "cost_source" field.
+func (u *AgentCostTrendUpsertOne) SetCostSource(v string) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCostSource(v)
+	})
+}
+
+// UpdateCostSource sets the "cost_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateCostSource() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCostSource()
+	})
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (u *AgentCostTrendUpsertOne) ClearCostSource() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCostSource()
+	})
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsertOne) SetCostUnknownModel(v bool) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCostUnknownModel(v)
+	})
+}
+
+// UpdateCostUnknownModel sets the "cost_unknown_model" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateCostUnknownModel() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCostUnknownModel()
+	})
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsertOne) ClearCostUnknownModel() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCostUnknownModel()
+	})
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertOne) SetCacheReadTokens(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCacheReadTokens(v)
+	})
+}
+
+// AddCacheReadTokens adds v to the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertOne) AddCacheReadTokens(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddCacheReadTokens(v)
+	})
+}
+
+// UpdateCacheReadTokens sets the "cache_read_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateCacheReadTokens() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCacheReadTokens()
+	})
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertOne) ClearCacheReadTokens() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCacheReadTokens()
+	})
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertOne) SetCacheCreationTokens(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCacheCreationTokens(v)
+	})
+}
+
+// AddCacheCreationTokens adds v to the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertOne) AddCacheCreationTokens(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddCacheCreationTokens(v)
+	})
+}
+
+// UpdateCacheCreationTokens sets the "cache_creation_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateCacheCreationTokens() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCacheCreationTokens()
+	})
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertOne) ClearCacheCreationTokens() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCacheCreationTokens()
+	})
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (u *AgentCostTrendUpsertOne) SetLinesAdded(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetLinesAdded(v)
+	})
+}
+
+// AddLinesAdded adds v to the "lines_added" field.
+func (u *AgentCostTrendUpsertOne) AddLinesAdded(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddLinesAdded(v)
+	})
+}
+
+// UpdateLinesAdded sets the "lines_added" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateLinesAdded() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateLinesAdded()
+	})
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (u *AgentCostTrendUpsertOne) ClearLinesAdded() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearLinesAdded()
+	})
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (u *AgentCostTrendUpsertOne) SetLinesRemoved(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetLinesRemoved(v)
+	})
+}
+
+// AddLinesRemoved adds v to the "lines_removed" field.
+func (u *AgentCostTrendUpsertOne) AddLinesRemoved(v int) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddLinesRemoved(v)
+	})
+}
+
+// UpdateLinesRemoved sets the "lines_removed" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateLinesRemoved() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateLinesRemoved()
+	})
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (u *AgentCostTrendUpsertOne) ClearLinesRemoved() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearLinesRemoved()
+	})
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (u *AgentCostTrendUpsertOne) SetModelCosts(v map[string]float64) *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetModelCosts(v)
+	})
+}
+
+// UpdateModelCosts sets the "model_costs" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertOne) UpdateModelCosts() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateModelCosts()
+	})
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (u *AgentCostTrendUpsertOne) ClearModelCosts() *AgentCostTrendUpsertOne {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearModelCosts()
 	})
 }
 
@@ -1154,6 +1948,300 @@ func (u *AgentCostTrendUpsertBulk) UpdateSourceMtime() *AgentCostTrendUpsertBulk
 func (u *AgentCostTrendUpsertBulk) ClearSourceMtime() *AgentCostTrendUpsertBulk {
 	return u.Update(func(s *AgentCostTrendUpsert) {
 		s.ClearSourceMtime()
+	})
+}
+
+// SetStartedAt sets the "started_at" field.
+func (u *AgentCostTrendUpsertBulk) SetStartedAt(v time.Time) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetStartedAt(v)
+	})
+}
+
+// UpdateStartedAt sets the "started_at" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateStartedAt() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateStartedAt()
+	})
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (u *AgentCostTrendUpsertBulk) ClearStartedAt() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearStartedAt()
+	})
+}
+
+// SetTitle sets the "title" field.
+func (u *AgentCostTrendUpsertBulk) SetTitle(v string) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetTitle(v)
+	})
+}
+
+// UpdateTitle sets the "title" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateTitle() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateTitle()
+	})
+}
+
+// ClearTitle clears the value of the "title" field.
+func (u *AgentCostTrendUpsertBulk) ClearTitle() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearTitle()
+	})
+}
+
+// SetTurns sets the "turns" field.
+func (u *AgentCostTrendUpsertBulk) SetTurns(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetTurns(v)
+	})
+}
+
+// AddTurns adds v to the "turns" field.
+func (u *AgentCostTrendUpsertBulk) AddTurns(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddTurns(v)
+	})
+}
+
+// UpdateTurns sets the "turns" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateTurns() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateTurns()
+	})
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (u *AgentCostTrendUpsertBulk) ClearTurns() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearTurns()
+	})
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (u *AgentCostTrendUpsertBulk) SetAgentMs(v int64) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetAgentMs(v)
+	})
+}
+
+// AddAgentMs adds v to the "agent_ms" field.
+func (u *AgentCostTrendUpsertBulk) AddAgentMs(v int64) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddAgentMs(v)
+	})
+}
+
+// UpdateAgentMs sets the "agent_ms" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateAgentMs() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateAgentMs()
+	})
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (u *AgentCostTrendUpsertBulk) ClearAgentMs() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearAgentMs()
+	})
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (u *AgentCostTrendUpsertBulk) SetAgentTimeSource(v string) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetAgentTimeSource(v)
+	})
+}
+
+// UpdateAgentTimeSource sets the "agent_time_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateAgentTimeSource() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateAgentTimeSource()
+	})
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (u *AgentCostTrendUpsertBulk) ClearAgentTimeSource() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearAgentTimeSource()
+	})
+}
+
+// SetCostSource sets the "cost_source" field.
+func (u *AgentCostTrendUpsertBulk) SetCostSource(v string) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCostSource(v)
+	})
+}
+
+// UpdateCostSource sets the "cost_source" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateCostSource() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCostSource()
+	})
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (u *AgentCostTrendUpsertBulk) ClearCostSource() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCostSource()
+	})
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsertBulk) SetCostUnknownModel(v bool) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCostUnknownModel(v)
+	})
+}
+
+// UpdateCostUnknownModel sets the "cost_unknown_model" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateCostUnknownModel() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCostUnknownModel()
+	})
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (u *AgentCostTrendUpsertBulk) ClearCostUnknownModel() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCostUnknownModel()
+	})
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertBulk) SetCacheReadTokens(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCacheReadTokens(v)
+	})
+}
+
+// AddCacheReadTokens adds v to the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertBulk) AddCacheReadTokens(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddCacheReadTokens(v)
+	})
+}
+
+// UpdateCacheReadTokens sets the "cache_read_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateCacheReadTokens() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCacheReadTokens()
+	})
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (u *AgentCostTrendUpsertBulk) ClearCacheReadTokens() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCacheReadTokens()
+	})
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertBulk) SetCacheCreationTokens(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetCacheCreationTokens(v)
+	})
+}
+
+// AddCacheCreationTokens adds v to the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertBulk) AddCacheCreationTokens(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddCacheCreationTokens(v)
+	})
+}
+
+// UpdateCacheCreationTokens sets the "cache_creation_tokens" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateCacheCreationTokens() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateCacheCreationTokens()
+	})
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (u *AgentCostTrendUpsertBulk) ClearCacheCreationTokens() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearCacheCreationTokens()
+	})
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (u *AgentCostTrendUpsertBulk) SetLinesAdded(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetLinesAdded(v)
+	})
+}
+
+// AddLinesAdded adds v to the "lines_added" field.
+func (u *AgentCostTrendUpsertBulk) AddLinesAdded(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddLinesAdded(v)
+	})
+}
+
+// UpdateLinesAdded sets the "lines_added" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateLinesAdded() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateLinesAdded()
+	})
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (u *AgentCostTrendUpsertBulk) ClearLinesAdded() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearLinesAdded()
+	})
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (u *AgentCostTrendUpsertBulk) SetLinesRemoved(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetLinesRemoved(v)
+	})
+}
+
+// AddLinesRemoved adds v to the "lines_removed" field.
+func (u *AgentCostTrendUpsertBulk) AddLinesRemoved(v int) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.AddLinesRemoved(v)
+	})
+}
+
+// UpdateLinesRemoved sets the "lines_removed" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateLinesRemoved() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateLinesRemoved()
+	})
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (u *AgentCostTrendUpsertBulk) ClearLinesRemoved() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearLinesRemoved()
+	})
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (u *AgentCostTrendUpsertBulk) SetModelCosts(v map[string]float64) *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.SetModelCosts(v)
+	})
+}
+
+// UpdateModelCosts sets the "model_costs" field to the value that was provided on create.
+func (u *AgentCostTrendUpsertBulk) UpdateModelCosts() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.UpdateModelCosts()
+	})
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (u *AgentCostTrendUpsertBulk) ClearModelCosts() *AgentCostTrendUpsertBulk {
+	return u.Update(func(s *AgentCostTrendUpsert) {
+		s.ClearModelCosts()
 	})
 }
 

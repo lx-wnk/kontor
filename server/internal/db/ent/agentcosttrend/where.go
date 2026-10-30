@@ -114,6 +114,61 @@ func SourceMtime(v int64) predicate.AgentCostTrend {
 	return predicate.AgentCostTrend(sql.FieldEQ(FieldSourceMtime, v))
 }
 
+// StartedAt applies equality check predicate on the "started_at" field. It's identical to StartedAtEQ.
+func StartedAt(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldStartedAt, v))
+}
+
+// Title applies equality check predicate on the "title" field. It's identical to TitleEQ.
+func Title(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldTitle, v))
+}
+
+// Turns applies equality check predicate on the "turns" field. It's identical to TurnsEQ.
+func Turns(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldTurns, v))
+}
+
+// AgentMs applies equality check predicate on the "agent_ms" field. It's identical to AgentMsEQ.
+func AgentMs(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldAgentMs, v))
+}
+
+// AgentTimeSource applies equality check predicate on the "agent_time_source" field. It's identical to AgentTimeSourceEQ.
+func AgentTimeSource(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldAgentTimeSource, v))
+}
+
+// CostSource applies equality check predicate on the "cost_source" field. It's identical to CostSourceEQ.
+func CostSource(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCostSource, v))
+}
+
+// CostUnknownModel applies equality check predicate on the "cost_unknown_model" field. It's identical to CostUnknownModelEQ.
+func CostUnknownModel(v bool) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCostUnknownModel, v))
+}
+
+// CacheReadTokens applies equality check predicate on the "cache_read_tokens" field. It's identical to CacheReadTokensEQ.
+func CacheReadTokens(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCacheReadTokens, v))
+}
+
+// CacheCreationTokens applies equality check predicate on the "cache_creation_tokens" field. It's identical to CacheCreationTokensEQ.
+func CacheCreationTokens(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCacheCreationTokens, v))
+}
+
+// LinesAdded applies equality check predicate on the "lines_added" field. It's identical to LinesAddedEQ.
+func LinesAdded(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldLinesAdded, v))
+}
+
+// LinesRemoved applies equality check predicate on the "lines_removed" field. It's identical to LinesRemovedEQ.
+func LinesRemoved(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldLinesRemoved, v))
+}
+
 // SessionIDEQ applies the EQ predicate on the "session_id" field.
 func SessionIDEQ(v string) predicate.AgentCostTrend {
 	return predicate.AgentCostTrend(sql.FieldEQ(FieldSessionID, v))
@@ -677,6 +732,611 @@ func SourceMtimeIsNil() predicate.AgentCostTrend {
 // SourceMtimeNotNil applies the NotNil predicate on the "source_mtime" field.
 func SourceMtimeNotNil() predicate.AgentCostTrend {
 	return predicate.AgentCostTrend(sql.FieldNotNull(FieldSourceMtime))
+}
+
+// StartedAtEQ applies the EQ predicate on the "started_at" field.
+func StartedAtEQ(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldStartedAt, v))
+}
+
+// StartedAtNEQ applies the NEQ predicate on the "started_at" field.
+func StartedAtNEQ(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldStartedAt, v))
+}
+
+// StartedAtIn applies the In predicate on the "started_at" field.
+func StartedAtIn(vs ...time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldStartedAt, vs...))
+}
+
+// StartedAtNotIn applies the NotIn predicate on the "started_at" field.
+func StartedAtNotIn(vs ...time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldStartedAt, vs...))
+}
+
+// StartedAtGT applies the GT predicate on the "started_at" field.
+func StartedAtGT(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldStartedAt, v))
+}
+
+// StartedAtGTE applies the GTE predicate on the "started_at" field.
+func StartedAtGTE(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldStartedAt, v))
+}
+
+// StartedAtLT applies the LT predicate on the "started_at" field.
+func StartedAtLT(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldStartedAt, v))
+}
+
+// StartedAtLTE applies the LTE predicate on the "started_at" field.
+func StartedAtLTE(v time.Time) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldStartedAt, v))
+}
+
+// StartedAtIsNil applies the IsNil predicate on the "started_at" field.
+func StartedAtIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldStartedAt))
+}
+
+// StartedAtNotNil applies the NotNil predicate on the "started_at" field.
+func StartedAtNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldStartedAt))
+}
+
+// TitleEQ applies the EQ predicate on the "title" field.
+func TitleEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldTitle, v))
+}
+
+// TitleNEQ applies the NEQ predicate on the "title" field.
+func TitleNEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldTitle, v))
+}
+
+// TitleIn applies the In predicate on the "title" field.
+func TitleIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldTitle, vs...))
+}
+
+// TitleNotIn applies the NotIn predicate on the "title" field.
+func TitleNotIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldTitle, vs...))
+}
+
+// TitleGT applies the GT predicate on the "title" field.
+func TitleGT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldTitle, v))
+}
+
+// TitleGTE applies the GTE predicate on the "title" field.
+func TitleGTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldTitle, v))
+}
+
+// TitleLT applies the LT predicate on the "title" field.
+func TitleLT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldTitle, v))
+}
+
+// TitleLTE applies the LTE predicate on the "title" field.
+func TitleLTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldTitle, v))
+}
+
+// TitleContains applies the Contains predicate on the "title" field.
+func TitleContains(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContains(FieldTitle, v))
+}
+
+// TitleHasPrefix applies the HasPrefix predicate on the "title" field.
+func TitleHasPrefix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasPrefix(FieldTitle, v))
+}
+
+// TitleHasSuffix applies the HasSuffix predicate on the "title" field.
+func TitleHasSuffix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasSuffix(FieldTitle, v))
+}
+
+// TitleIsNil applies the IsNil predicate on the "title" field.
+func TitleIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldTitle))
+}
+
+// TitleNotNil applies the NotNil predicate on the "title" field.
+func TitleNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldTitle))
+}
+
+// TitleEqualFold applies the EqualFold predicate on the "title" field.
+func TitleEqualFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEqualFold(FieldTitle, v))
+}
+
+// TitleContainsFold applies the ContainsFold predicate on the "title" field.
+func TitleContainsFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContainsFold(FieldTitle, v))
+}
+
+// TurnsEQ applies the EQ predicate on the "turns" field.
+func TurnsEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldTurns, v))
+}
+
+// TurnsNEQ applies the NEQ predicate on the "turns" field.
+func TurnsNEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldTurns, v))
+}
+
+// TurnsIn applies the In predicate on the "turns" field.
+func TurnsIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldTurns, vs...))
+}
+
+// TurnsNotIn applies the NotIn predicate on the "turns" field.
+func TurnsNotIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldTurns, vs...))
+}
+
+// TurnsGT applies the GT predicate on the "turns" field.
+func TurnsGT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldTurns, v))
+}
+
+// TurnsGTE applies the GTE predicate on the "turns" field.
+func TurnsGTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldTurns, v))
+}
+
+// TurnsLT applies the LT predicate on the "turns" field.
+func TurnsLT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldTurns, v))
+}
+
+// TurnsLTE applies the LTE predicate on the "turns" field.
+func TurnsLTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldTurns, v))
+}
+
+// TurnsIsNil applies the IsNil predicate on the "turns" field.
+func TurnsIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldTurns))
+}
+
+// TurnsNotNil applies the NotNil predicate on the "turns" field.
+func TurnsNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldTurns))
+}
+
+// AgentMsEQ applies the EQ predicate on the "agent_ms" field.
+func AgentMsEQ(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldAgentMs, v))
+}
+
+// AgentMsNEQ applies the NEQ predicate on the "agent_ms" field.
+func AgentMsNEQ(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldAgentMs, v))
+}
+
+// AgentMsIn applies the In predicate on the "agent_ms" field.
+func AgentMsIn(vs ...int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldAgentMs, vs...))
+}
+
+// AgentMsNotIn applies the NotIn predicate on the "agent_ms" field.
+func AgentMsNotIn(vs ...int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldAgentMs, vs...))
+}
+
+// AgentMsGT applies the GT predicate on the "agent_ms" field.
+func AgentMsGT(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldAgentMs, v))
+}
+
+// AgentMsGTE applies the GTE predicate on the "agent_ms" field.
+func AgentMsGTE(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldAgentMs, v))
+}
+
+// AgentMsLT applies the LT predicate on the "agent_ms" field.
+func AgentMsLT(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldAgentMs, v))
+}
+
+// AgentMsLTE applies the LTE predicate on the "agent_ms" field.
+func AgentMsLTE(v int64) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldAgentMs, v))
+}
+
+// AgentMsIsNil applies the IsNil predicate on the "agent_ms" field.
+func AgentMsIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldAgentMs))
+}
+
+// AgentMsNotNil applies the NotNil predicate on the "agent_ms" field.
+func AgentMsNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldAgentMs))
+}
+
+// AgentTimeSourceEQ applies the EQ predicate on the "agent_time_source" field.
+func AgentTimeSourceEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceNEQ applies the NEQ predicate on the "agent_time_source" field.
+func AgentTimeSourceNEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceIn applies the In predicate on the "agent_time_source" field.
+func AgentTimeSourceIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldAgentTimeSource, vs...))
+}
+
+// AgentTimeSourceNotIn applies the NotIn predicate on the "agent_time_source" field.
+func AgentTimeSourceNotIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldAgentTimeSource, vs...))
+}
+
+// AgentTimeSourceGT applies the GT predicate on the "agent_time_source" field.
+func AgentTimeSourceGT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceGTE applies the GTE predicate on the "agent_time_source" field.
+func AgentTimeSourceGTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceLT applies the LT predicate on the "agent_time_source" field.
+func AgentTimeSourceLT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceLTE applies the LTE predicate on the "agent_time_source" field.
+func AgentTimeSourceLTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceContains applies the Contains predicate on the "agent_time_source" field.
+func AgentTimeSourceContains(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContains(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceHasPrefix applies the HasPrefix predicate on the "agent_time_source" field.
+func AgentTimeSourceHasPrefix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasPrefix(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceHasSuffix applies the HasSuffix predicate on the "agent_time_source" field.
+func AgentTimeSourceHasSuffix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasSuffix(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceIsNil applies the IsNil predicate on the "agent_time_source" field.
+func AgentTimeSourceIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldAgentTimeSource))
+}
+
+// AgentTimeSourceNotNil applies the NotNil predicate on the "agent_time_source" field.
+func AgentTimeSourceNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldAgentTimeSource))
+}
+
+// AgentTimeSourceEqualFold applies the EqualFold predicate on the "agent_time_source" field.
+func AgentTimeSourceEqualFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEqualFold(FieldAgentTimeSource, v))
+}
+
+// AgentTimeSourceContainsFold applies the ContainsFold predicate on the "agent_time_source" field.
+func AgentTimeSourceContainsFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContainsFold(FieldAgentTimeSource, v))
+}
+
+// CostSourceEQ applies the EQ predicate on the "cost_source" field.
+func CostSourceEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCostSource, v))
+}
+
+// CostSourceNEQ applies the NEQ predicate on the "cost_source" field.
+func CostSourceNEQ(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldCostSource, v))
+}
+
+// CostSourceIn applies the In predicate on the "cost_source" field.
+func CostSourceIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldCostSource, vs...))
+}
+
+// CostSourceNotIn applies the NotIn predicate on the "cost_source" field.
+func CostSourceNotIn(vs ...string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldCostSource, vs...))
+}
+
+// CostSourceGT applies the GT predicate on the "cost_source" field.
+func CostSourceGT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldCostSource, v))
+}
+
+// CostSourceGTE applies the GTE predicate on the "cost_source" field.
+func CostSourceGTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldCostSource, v))
+}
+
+// CostSourceLT applies the LT predicate on the "cost_source" field.
+func CostSourceLT(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldCostSource, v))
+}
+
+// CostSourceLTE applies the LTE predicate on the "cost_source" field.
+func CostSourceLTE(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldCostSource, v))
+}
+
+// CostSourceContains applies the Contains predicate on the "cost_source" field.
+func CostSourceContains(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContains(FieldCostSource, v))
+}
+
+// CostSourceHasPrefix applies the HasPrefix predicate on the "cost_source" field.
+func CostSourceHasPrefix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasPrefix(FieldCostSource, v))
+}
+
+// CostSourceHasSuffix applies the HasSuffix predicate on the "cost_source" field.
+func CostSourceHasSuffix(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldHasSuffix(FieldCostSource, v))
+}
+
+// CostSourceIsNil applies the IsNil predicate on the "cost_source" field.
+func CostSourceIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldCostSource))
+}
+
+// CostSourceNotNil applies the NotNil predicate on the "cost_source" field.
+func CostSourceNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldCostSource))
+}
+
+// CostSourceEqualFold applies the EqualFold predicate on the "cost_source" field.
+func CostSourceEqualFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEqualFold(FieldCostSource, v))
+}
+
+// CostSourceContainsFold applies the ContainsFold predicate on the "cost_source" field.
+func CostSourceContainsFold(v string) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldContainsFold(FieldCostSource, v))
+}
+
+// CostUnknownModelEQ applies the EQ predicate on the "cost_unknown_model" field.
+func CostUnknownModelEQ(v bool) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCostUnknownModel, v))
+}
+
+// CostUnknownModelNEQ applies the NEQ predicate on the "cost_unknown_model" field.
+func CostUnknownModelNEQ(v bool) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldCostUnknownModel, v))
+}
+
+// CostUnknownModelIsNil applies the IsNil predicate on the "cost_unknown_model" field.
+func CostUnknownModelIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldCostUnknownModel))
+}
+
+// CostUnknownModelNotNil applies the NotNil predicate on the "cost_unknown_model" field.
+func CostUnknownModelNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldCostUnknownModel))
+}
+
+// CacheReadTokensEQ applies the EQ predicate on the "cache_read_tokens" field.
+func CacheReadTokensEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensNEQ applies the NEQ predicate on the "cache_read_tokens" field.
+func CacheReadTokensNEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensIn applies the In predicate on the "cache_read_tokens" field.
+func CacheReadTokensIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldCacheReadTokens, vs...))
+}
+
+// CacheReadTokensNotIn applies the NotIn predicate on the "cache_read_tokens" field.
+func CacheReadTokensNotIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldCacheReadTokens, vs...))
+}
+
+// CacheReadTokensGT applies the GT predicate on the "cache_read_tokens" field.
+func CacheReadTokensGT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensGTE applies the GTE predicate on the "cache_read_tokens" field.
+func CacheReadTokensGTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensLT applies the LT predicate on the "cache_read_tokens" field.
+func CacheReadTokensLT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensLTE applies the LTE predicate on the "cache_read_tokens" field.
+func CacheReadTokensLTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldCacheReadTokens, v))
+}
+
+// CacheReadTokensIsNil applies the IsNil predicate on the "cache_read_tokens" field.
+func CacheReadTokensIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldCacheReadTokens))
+}
+
+// CacheReadTokensNotNil applies the NotNil predicate on the "cache_read_tokens" field.
+func CacheReadTokensNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldCacheReadTokens))
+}
+
+// CacheCreationTokensEQ applies the EQ predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensNEQ applies the NEQ predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensNEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensIn applies the In predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldCacheCreationTokens, vs...))
+}
+
+// CacheCreationTokensNotIn applies the NotIn predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensNotIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldCacheCreationTokens, vs...))
+}
+
+// CacheCreationTokensGT applies the GT predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensGT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensGTE applies the GTE predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensGTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensLT applies the LT predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensLT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensLTE applies the LTE predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensLTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldCacheCreationTokens, v))
+}
+
+// CacheCreationTokensIsNil applies the IsNil predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldCacheCreationTokens))
+}
+
+// CacheCreationTokensNotNil applies the NotNil predicate on the "cache_creation_tokens" field.
+func CacheCreationTokensNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldCacheCreationTokens))
+}
+
+// LinesAddedEQ applies the EQ predicate on the "lines_added" field.
+func LinesAddedEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldLinesAdded, v))
+}
+
+// LinesAddedNEQ applies the NEQ predicate on the "lines_added" field.
+func LinesAddedNEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldLinesAdded, v))
+}
+
+// LinesAddedIn applies the In predicate on the "lines_added" field.
+func LinesAddedIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldLinesAdded, vs...))
+}
+
+// LinesAddedNotIn applies the NotIn predicate on the "lines_added" field.
+func LinesAddedNotIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldLinesAdded, vs...))
+}
+
+// LinesAddedGT applies the GT predicate on the "lines_added" field.
+func LinesAddedGT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldLinesAdded, v))
+}
+
+// LinesAddedGTE applies the GTE predicate on the "lines_added" field.
+func LinesAddedGTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldLinesAdded, v))
+}
+
+// LinesAddedLT applies the LT predicate on the "lines_added" field.
+func LinesAddedLT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldLinesAdded, v))
+}
+
+// LinesAddedLTE applies the LTE predicate on the "lines_added" field.
+func LinesAddedLTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldLinesAdded, v))
+}
+
+// LinesAddedIsNil applies the IsNil predicate on the "lines_added" field.
+func LinesAddedIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldLinesAdded))
+}
+
+// LinesAddedNotNil applies the NotNil predicate on the "lines_added" field.
+func LinesAddedNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldLinesAdded))
+}
+
+// LinesRemovedEQ applies the EQ predicate on the "lines_removed" field.
+func LinesRemovedEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldEQ(FieldLinesRemoved, v))
+}
+
+// LinesRemovedNEQ applies the NEQ predicate on the "lines_removed" field.
+func LinesRemovedNEQ(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNEQ(FieldLinesRemoved, v))
+}
+
+// LinesRemovedIn applies the In predicate on the "lines_removed" field.
+func LinesRemovedIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIn(FieldLinesRemoved, vs...))
+}
+
+// LinesRemovedNotIn applies the NotIn predicate on the "lines_removed" field.
+func LinesRemovedNotIn(vs ...int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotIn(FieldLinesRemoved, vs...))
+}
+
+// LinesRemovedGT applies the GT predicate on the "lines_removed" field.
+func LinesRemovedGT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGT(FieldLinesRemoved, v))
+}
+
+// LinesRemovedGTE applies the GTE predicate on the "lines_removed" field.
+func LinesRemovedGTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldGTE(FieldLinesRemoved, v))
+}
+
+// LinesRemovedLT applies the LT predicate on the "lines_removed" field.
+func LinesRemovedLT(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLT(FieldLinesRemoved, v))
+}
+
+// LinesRemovedLTE applies the LTE predicate on the "lines_removed" field.
+func LinesRemovedLTE(v int) predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldLTE(FieldLinesRemoved, v))
+}
+
+// LinesRemovedIsNil applies the IsNil predicate on the "lines_removed" field.
+func LinesRemovedIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldLinesRemoved))
+}
+
+// LinesRemovedNotNil applies the NotNil predicate on the "lines_removed" field.
+func LinesRemovedNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldLinesRemoved))
+}
+
+// ModelCostsIsNil applies the IsNil predicate on the "model_costs" field.
+func ModelCostsIsNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldIsNull(FieldModelCosts))
+}
+
+// ModelCostsNotNil applies the NotNil predicate on the "model_costs" field.
+func ModelCostsNotNil() predicate.AgentCostTrend {
+	return predicate.AgentCostTrend(sql.FieldNotNull(FieldModelCosts))
 }
 
 // And groups predicates with the AND operator between them.

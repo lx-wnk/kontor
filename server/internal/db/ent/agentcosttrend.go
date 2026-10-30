@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -36,7 +37,31 @@ type AgentCostTrend struct {
 	// ProjectName holds the value of the "project_name" field.
 	ProjectName string `json:"project_name,omitempty"`
 	// SourceMtime holds the value of the "source_mtime" field.
-	SourceMtime  int64 `json:"source_mtime,omitempty"`
+	SourceMtime int64 `json:"source_mtime,omitempty"`
+	// StartedAt holds the value of the "started_at" field.
+	StartedAt *time.Time `json:"started_at,omitempty"`
+	// Title holds the value of the "title" field.
+	Title string `json:"title,omitempty"`
+	// Turns holds the value of the "turns" field.
+	Turns int `json:"turns,omitempty"`
+	// AgentMs holds the value of the "agent_ms" field.
+	AgentMs int64 `json:"agent_ms,omitempty"`
+	// AgentTimeSource holds the value of the "agent_time_source" field.
+	AgentTimeSource string `json:"agent_time_source,omitempty"`
+	// CostSource holds the value of the "cost_source" field.
+	CostSource string `json:"cost_source,omitempty"`
+	// CostUnknownModel holds the value of the "cost_unknown_model" field.
+	CostUnknownModel bool `json:"cost_unknown_model,omitempty"`
+	// CacheReadTokens holds the value of the "cache_read_tokens" field.
+	CacheReadTokens int `json:"cache_read_tokens,omitempty"`
+	// CacheCreationTokens holds the value of the "cache_creation_tokens" field.
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
+	// LinesAdded holds the value of the "lines_added" field.
+	LinesAdded int `json:"lines_added,omitempty"`
+	// LinesRemoved holds the value of the "lines_removed" field.
+	LinesRemoved int `json:"lines_removed,omitempty"`
+	// ModelCosts holds the value of the "model_costs" field.
+	ModelCosts   map[string]float64 `json:"model_costs,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -45,13 +70,17 @@ func (*AgentCostTrend) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case agentcosttrend.FieldModelCosts:
+			values[i] = new([]byte)
+		case agentcosttrend.FieldCostUnknownModel:
+			values[i] = new(sql.NullBool)
 		case agentcosttrend.FieldCostUsd:
 			values[i] = new(sql.NullFloat64)
-		case agentcosttrend.FieldInputTokens, agentcosttrend.FieldOutputTokens, agentcosttrend.FieldSourceMtime:
+		case agentcosttrend.FieldInputTokens, agentcosttrend.FieldOutputTokens, agentcosttrend.FieldSourceMtime, agentcosttrend.FieldTurns, agentcosttrend.FieldAgentMs, agentcosttrend.FieldCacheReadTokens, agentcosttrend.FieldCacheCreationTokens, agentcosttrend.FieldLinesAdded, agentcosttrend.FieldLinesRemoved:
 			values[i] = new(sql.NullInt64)
-		case agentcosttrend.FieldID, agentcosttrend.FieldSessionID, agentcosttrend.FieldModel, agentcosttrend.FieldCwd, agentcosttrend.FieldProjectPath, agentcosttrend.FieldProjectName:
+		case agentcosttrend.FieldID, agentcosttrend.FieldSessionID, agentcosttrend.FieldModel, agentcosttrend.FieldCwd, agentcosttrend.FieldProjectPath, agentcosttrend.FieldProjectName, agentcosttrend.FieldTitle, agentcosttrend.FieldAgentTimeSource, agentcosttrend.FieldCostSource:
 			values[i] = new(sql.NullString)
-		case agentcosttrend.FieldRecordedAt:
+		case agentcosttrend.FieldRecordedAt, agentcosttrend.FieldStartedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -134,6 +163,81 @@ func (_m *AgentCostTrend) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SourceMtime = value.Int64
 			}
+		case agentcosttrend.FieldStartedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field started_at", values[i])
+			} else if value.Valid {
+				_m.StartedAt = new(time.Time)
+				*_m.StartedAt = value.Time
+			}
+		case agentcosttrend.FieldTitle:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field title", values[i])
+			} else if value.Valid {
+				_m.Title = value.String
+			}
+		case agentcosttrend.FieldTurns:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field turns", values[i])
+			} else if value.Valid {
+				_m.Turns = int(value.Int64)
+			}
+		case agentcosttrend.FieldAgentMs:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field agent_ms", values[i])
+			} else if value.Valid {
+				_m.AgentMs = value.Int64
+			}
+		case agentcosttrend.FieldAgentTimeSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field agent_time_source", values[i])
+			} else if value.Valid {
+				_m.AgentTimeSource = value.String
+			}
+		case agentcosttrend.FieldCostSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field cost_source", values[i])
+			} else if value.Valid {
+				_m.CostSource = value.String
+			}
+		case agentcosttrend.FieldCostUnknownModel:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field cost_unknown_model", values[i])
+			} else if value.Valid {
+				_m.CostUnknownModel = value.Bool
+			}
+		case agentcosttrend.FieldCacheReadTokens:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field cache_read_tokens", values[i])
+			} else if value.Valid {
+				_m.CacheReadTokens = int(value.Int64)
+			}
+		case agentcosttrend.FieldCacheCreationTokens:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field cache_creation_tokens", values[i])
+			} else if value.Valid {
+				_m.CacheCreationTokens = int(value.Int64)
+			}
+		case agentcosttrend.FieldLinesAdded:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field lines_added", values[i])
+			} else if value.Valid {
+				_m.LinesAdded = int(value.Int64)
+			}
+		case agentcosttrend.FieldLinesRemoved:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field lines_removed", values[i])
+			} else if value.Valid {
+				_m.LinesRemoved = int(value.Int64)
+			}
+		case agentcosttrend.FieldModelCosts:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field model_costs", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ModelCosts); err != nil {
+					return fmt.Errorf("unmarshal field model_costs: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -199,6 +303,44 @@ func (_m *AgentCostTrend) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("source_mtime=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SourceMtime))
+	builder.WriteString(", ")
+	if v := _m.StartedAt; v != nil {
+		builder.WriteString("started_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("title=")
+	builder.WriteString(_m.Title)
+	builder.WriteString(", ")
+	builder.WriteString("turns=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Turns))
+	builder.WriteString(", ")
+	builder.WriteString("agent_ms=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AgentMs))
+	builder.WriteString(", ")
+	builder.WriteString("agent_time_source=")
+	builder.WriteString(_m.AgentTimeSource)
+	builder.WriteString(", ")
+	builder.WriteString("cost_source=")
+	builder.WriteString(_m.CostSource)
+	builder.WriteString(", ")
+	builder.WriteString("cost_unknown_model=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CostUnknownModel))
+	builder.WriteString(", ")
+	builder.WriteString("cache_read_tokens=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CacheReadTokens))
+	builder.WriteString(", ")
+	builder.WriteString("cache_creation_tokens=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CacheCreationTokens))
+	builder.WriteString(", ")
+	builder.WriteString("lines_added=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LinesAdded))
+	builder.WriteString(", ")
+	builder.WriteString("lines_removed=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LinesRemoved))
+	builder.WriteString(", ")
+	builder.WriteString("model_costs=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ModelCosts))
 	builder.WriteByte(')')
 	return builder.String()
 }

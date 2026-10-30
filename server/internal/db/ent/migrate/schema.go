@@ -22,6 +22,18 @@ var (
 		{Name: "project_path", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "project_name", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "source_mtime", Type: field.TypeInt64, Nullable: true, Default: 0},
+		{Name: "started_at", Type: field.TypeTime, Nullable: true},
+		{Name: "title", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "turns", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "agent_ms", Type: field.TypeInt64, Nullable: true, Default: 0},
+		{Name: "agent_time_source", Type: field.TypeString, Nullable: true, Default: "estimate"},
+		{Name: "cost_source", Type: field.TypeString, Nullable: true, Default: "estimate"},
+		{Name: "cost_unknown_model", Type: field.TypeBool, Nullable: true, Default: false},
+		{Name: "cache_read_tokens", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "cache_creation_tokens", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "lines_added", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "lines_removed", Type: field.TypeInt, Nullable: true, Default: 0},
+		{Name: "model_costs", Type: field.TypeJSON, Nullable: true},
 	}
 	// AgentCostTrendsTable holds the schema information for the "agent_cost_trends" table.
 	AgentCostTrendsTable = &schema.Table{

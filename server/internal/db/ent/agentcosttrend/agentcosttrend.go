@@ -33,6 +33,30 @@ const (
 	FieldProjectName = "project_name"
 	// FieldSourceMtime holds the string denoting the source_mtime field in the database.
 	FieldSourceMtime = "source_mtime"
+	// FieldStartedAt holds the string denoting the started_at field in the database.
+	FieldStartedAt = "started_at"
+	// FieldTitle holds the string denoting the title field in the database.
+	FieldTitle = "title"
+	// FieldTurns holds the string denoting the turns field in the database.
+	FieldTurns = "turns"
+	// FieldAgentMs holds the string denoting the agent_ms field in the database.
+	FieldAgentMs = "agent_ms"
+	// FieldAgentTimeSource holds the string denoting the agent_time_source field in the database.
+	FieldAgentTimeSource = "agent_time_source"
+	// FieldCostSource holds the string denoting the cost_source field in the database.
+	FieldCostSource = "cost_source"
+	// FieldCostUnknownModel holds the string denoting the cost_unknown_model field in the database.
+	FieldCostUnknownModel = "cost_unknown_model"
+	// FieldCacheReadTokens holds the string denoting the cache_read_tokens field in the database.
+	FieldCacheReadTokens = "cache_read_tokens"
+	// FieldCacheCreationTokens holds the string denoting the cache_creation_tokens field in the database.
+	FieldCacheCreationTokens = "cache_creation_tokens"
+	// FieldLinesAdded holds the string denoting the lines_added field in the database.
+	FieldLinesAdded = "lines_added"
+	// FieldLinesRemoved holds the string denoting the lines_removed field in the database.
+	FieldLinesRemoved = "lines_removed"
+	// FieldModelCosts holds the string denoting the model_costs field in the database.
+	FieldModelCosts = "model_costs"
 	// Table holds the table name of the agentcosttrend in the database.
 	Table = "agent_cost_trends"
 )
@@ -50,6 +74,18 @@ var Columns = []string{
 	FieldProjectPath,
 	FieldProjectName,
 	FieldSourceMtime,
+	FieldStartedAt,
+	FieldTitle,
+	FieldTurns,
+	FieldAgentMs,
+	FieldAgentTimeSource,
+	FieldCostSource,
+	FieldCostUnknownModel,
+	FieldCacheReadTokens,
+	FieldCacheCreationTokens,
+	FieldLinesAdded,
+	FieldLinesRemoved,
+	FieldModelCosts,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -73,6 +109,26 @@ var (
 	DefaultProjectName string
 	// DefaultSourceMtime holds the default value on creation for the "source_mtime" field.
 	DefaultSourceMtime int64
+	// DefaultTitle holds the default value on creation for the "title" field.
+	DefaultTitle string
+	// DefaultTurns holds the default value on creation for the "turns" field.
+	DefaultTurns int
+	// DefaultAgentMs holds the default value on creation for the "agent_ms" field.
+	DefaultAgentMs int64
+	// DefaultAgentTimeSource holds the default value on creation for the "agent_time_source" field.
+	DefaultAgentTimeSource string
+	// DefaultCostSource holds the default value on creation for the "cost_source" field.
+	DefaultCostSource string
+	// DefaultCostUnknownModel holds the default value on creation for the "cost_unknown_model" field.
+	DefaultCostUnknownModel bool
+	// DefaultCacheReadTokens holds the default value on creation for the "cache_read_tokens" field.
+	DefaultCacheReadTokens int
+	// DefaultCacheCreationTokens holds the default value on creation for the "cache_creation_tokens" field.
+	DefaultCacheCreationTokens int
+	// DefaultLinesAdded holds the default value on creation for the "lines_added" field.
+	DefaultLinesAdded int
+	// DefaultLinesRemoved holds the default value on creation for the "lines_removed" field.
+	DefaultLinesRemoved int
 )
 
 // OrderOption defines the ordering options for the AgentCostTrend queries.
@@ -131,4 +187,59 @@ func ByProjectName(opts ...sql.OrderTermOption) OrderOption {
 // BySourceMtime orders the results by the source_mtime field.
 func BySourceMtime(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSourceMtime, opts...).ToFunc()
+}
+
+// ByStartedAt orders the results by the started_at field.
+func ByStartedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStartedAt, opts...).ToFunc()
+}
+
+// ByTitle orders the results by the title field.
+func ByTitle(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTitle, opts...).ToFunc()
+}
+
+// ByTurns orders the results by the turns field.
+func ByTurns(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTurns, opts...).ToFunc()
+}
+
+// ByAgentMs orders the results by the agent_ms field.
+func ByAgentMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAgentMs, opts...).ToFunc()
+}
+
+// ByAgentTimeSource orders the results by the agent_time_source field.
+func ByAgentTimeSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAgentTimeSource, opts...).ToFunc()
+}
+
+// ByCostSource orders the results by the cost_source field.
+func ByCostSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCostSource, opts...).ToFunc()
+}
+
+// ByCostUnknownModel orders the results by the cost_unknown_model field.
+func ByCostUnknownModel(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCostUnknownModel, opts...).ToFunc()
+}
+
+// ByCacheReadTokens orders the results by the cache_read_tokens field.
+func ByCacheReadTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCacheReadTokens, opts...).ToFunc()
+}
+
+// ByCacheCreationTokens orders the results by the cache_creation_tokens field.
+func ByCacheCreationTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCacheCreationTokens, opts...).ToFunc()
+}
+
+// ByLinesAdded orders the results by the lines_added field.
+func ByLinesAdded(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLinesAdded, opts...).ToFunc()
+}
+
+// ByLinesRemoved orders the results by the lines_removed field.
+func ByLinesRemoved(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLinesRemoved, opts...).ToFunc()
 }

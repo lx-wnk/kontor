@@ -1052,3 +1052,36 @@ func TestOpen_BackfillsWaitReasonOutOfStageRunOutput(t *testing.T) {
 		`SELECT json_extract(output, '$.wait_reason') FROM stage_runs WHERE id = 'awaiting'`).Scan(&restored))
 	require.Equal(t, "edited after migration", restored, "the down path must put the reason back where the previous binary reads it")
 }
+
+func TestMigrateRescanCostTrends_RunsOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rescan.db")
+	const marker = "rescan-cost-trends-insights-v1"
+
+	first, err := db.Open(path)
+	require.NoError(t, err)
+	_, err = first.DB.Exec(`DELETE FROM applied_migrations WHERE name = ?`, marker)
+	require.NoError(t, err)
+	_, err = first.DB.Exec(`INSERT INTO agent_cost_trends
+		(id, session_id, model, input_tokens, output_tokens, cost_usd, recorded_at, source_mtime)
+		VALUES ('a', 's1', 'm', 1, 1, 0.1, datetime('now'), 42)`)
+	require.NoError(t, err)
+	require.NoError(t, first.Close())
+
+	sourceMtime := func(b *db.DBBundle) int64 {
+		var v int64
+		require.NoError(t, b.DB.QueryRow(`SELECT source_mtime FROM agent_cost_trends WHERE id = 'a'`).Scan(&v))
+		return v
+	}
+
+	second, err := db.Open(path)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), sourceMtime(second))
+	_, err = second.DB.Exec(`UPDATE agent_cost_trends SET source_mtime = 42`)
+	require.NoError(t, err)
+	require.NoError(t, second.Close())
+
+	third, err := db.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = third.Close() }()
+	require.Equal(t, int64(42), sourceMtime(third))
+}
