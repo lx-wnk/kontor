@@ -6,6 +6,7 @@ import ChartDataTable from '@/components/ui/ChartDataTable.vue'
 import { useCostAnalytics, useEvalMetrics } from '@/features/analytics'
 import { metricLabel } from '@/utils/evalMetrics'
 import { formatCost } from '@/utils/format'
+import { estimateMark } from '../estimateMark'
 import { fetchSessions } from '../insightsApi'
 
 const props = defineProps<{ filters: InsightsFilters }>()
@@ -96,7 +97,7 @@ defineExpose({ perDay })
             @click="emit('open', row, $event.currentTarget as HTMLElement)"
           >
             <span class="truncate">{{ row.title || row.sessionId }}</span>
-            <span class="font-mono shrink-0">{{ row.costSource === 'estimate' ? '~' : '' }}{{ formatCost(row.costUsd) }}</span>
+            <span class="font-mono shrink-0" data-testid="top-session-cost" :title="estimateMark(row.costSource, row.costUnknownModel).title">{{ estimateMark(row.costSource, row.costUnknownModel).prefix }}{{ formatCost(row.costUsd) }}</span>
           </button>
         </li>
       </ol>

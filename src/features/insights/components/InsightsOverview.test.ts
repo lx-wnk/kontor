@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowRef } from 'vue'
+import { sessionRow } from './fixtures'
 import InsightsOverview from './InsightsOverview.vue'
 
 const byDay = shallowRef([
@@ -36,5 +37,29 @@ describe('insightsOverview', () => {
     expect(url).toContain('sort=cost')
     expect(url).toContain('order=desc')
     expect(url).toContain('limit=5')
+  })
+
+  it('marks estimated and unknown-model costs in the top 5', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        rows: [
+          sessionRow({ sessionId: 'a', costSource: 'estimate' }),
+          sessionRow({ sessionId: 'b', costUnknownModel: true }),
+          sessionRow({ sessionId: 'c' }),
+        ],
+        total: 3,
+        limit: 5,
+        offset: 0,
+      }),
+    })
+    const w = mount(InsightsOverview, { props: { filters: { preset: '30d', to: '2026-10-29' } } })
+    await flushPromises()
+    const costs = w.findAll('[data-testid="top-session-cost"]')
+    expect(costs[0].text()).toContain('≈')
+    expect(costs[0].attributes('title')).toContain('estimate')
+    expect(costs[1].text()).toContain('≈')
+    expect(costs[1].attributes('title')).toContain('no known price')
+    expect(costs[2].text()).not.toContain('≈')
   })
 })
