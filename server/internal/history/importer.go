@@ -323,6 +323,9 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 	if info.Size() > maxFileSizeBytes {
 		return nil, fmt.Errorf("file too large (%d bytes)", info.Size())
 	}
+	subs := subagentFiles(filePath)
+	// Captured before parsing so a write during the import triggers a re-parse next run.
+	sourceMtime := newestMtime(filePath, subs)
 	stats, err := parseFile(filePath)
 	if err != nil {
 		return nil, err
@@ -330,7 +333,6 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 
 	usage := stats.Usage
 	estimate := parser.EstimateCost(stats.Usage, stats.Model)
-	subs := subagentFiles(filePath)
 	for _, sub := range subs {
 		subStats, err := parseFile(sub)
 		if err != nil {
@@ -379,7 +381,7 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 		Cwd:                 cwd,
 		ProjectPath:         projectPath,
 		ProjectName:         projectName,
-		SourceMtime:         newestMtime(filePath, subs),
+		SourceMtime:         sourceMtime,
 	}
 	if cs := stats.CostState; cs != nil {
 		row.CostUSD, row.CostSource = cs.TotalCostUSD, repo.SourceCostState

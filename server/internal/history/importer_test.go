@@ -742,3 +742,28 @@ func TestImporter_UnreadableSubagentIsSkipped(t *testing.T) {
 	require.NotNil(t, row)
 	assert.Equal(t, 100, row.InputTokens)
 }
+
+type touchingResolver struct {
+	t    *testing.T
+	path string
+	at   time.Time
+}
+
+func (r touchingResolver) Resolve(_ context.Context, cwd string) (string, string) {
+	require.NoError(r.t, os.Chtimes(r.path, r.at, r.at))
+	return cwd, filepath.Base(cwd)
+}
+
+func TestExtractCostRow_SourceMtimeCapturedBeforeParse(t *testing.T) {
+	line := `{"type":"assistant","timestamp":"2025-02-02T02:02:02.000Z","cwd":"/w/app","message":{"role":"assistant","model":"claude-opus-4","usage":{"input_tokens":3,"output_tokens":2}}}`
+	parentPath, subPath := writeParentWithSub(t, line, usageLine("2025-02-02T02:02:03Z", "claude-haiku-4-5", 1, 1))
+	before := time.Date(2025, 2, 2, 3, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(parentPath, before, before))
+	require.NoError(t, os.Chtimes(subPath, before, before))
+
+	imp := NewImporter(&stubCostRepo{}).WithProjectResolver(touchingResolver{t: t, path: subPath, at: before.Add(time.Hour)})
+	row, err := imp.extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, before.UnixNano(), row.SourceMtime, "a write during the import must not be marked as imported")
+}
