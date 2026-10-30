@@ -73,10 +73,13 @@ test.describe('README screenshots', () => {
     const guard = installNetworkGuard(page, new URL(baseURL!).origin)
     await installDemoRoutes(page)
     await page.clock.setFixedTime(DEMO_NOW)
-    await pinView(page, 'cost')
+    await pinView(page, 'insights')
+    await page.addInitScript(() => {
+      localStorage.setItem('insights-tab', 'cost')
+    })
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: 'Cost Analytics' })).toBeVisible()
+    await expect(page.getByTestId('insights-view').getByRole('heading', { level: 1 })).toHaveText('Insights')
     await expect(page.getByText('Spend by Model')).toBeVisible()
     await expect(page.getByText('Spend by Project')).toBeVisible()
 

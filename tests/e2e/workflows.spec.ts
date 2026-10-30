@@ -19,6 +19,8 @@ async function stubEmptyWorkflowsData(page: import('@playwright/test').Page) {
   await stubJson(page, '/api/visualizations/co-occurrence', { tools: [], matrix: [], lift: [], meta: { sessionCount: 0, truncated: false } })
   await stubJson(page, '/api/sessions', [])
   await stubJson(page, '/api/analytics/patterns', { patterns: [] })
+  await stubJson(page, '/api/insights/summary', { from: '', to: '', current: { costUsd: 0, agentMs: 0, tokens: 0, sessions: 0, estimated: 0 }, previous: null })
+  await stubJson(page, '/api/insights/projects', [])
 }
 
 test('workflows view toggle opens the four chart tabs', async ({ page }) => {
@@ -33,7 +35,8 @@ test('workflows view toggle opens the four chart tabs', async ({ page }) => {
 
   // The sidebar item, by test id: the hub's launcher for the same view carries the same
   // accessible name, so a role+name query matches both.
-  await page.getByTestId('nav-item-workflows').click()
+  await page.getByTestId('nav-item-insights').click()
+  await page.getByRole('tab', { name: 'Workflows' }).click()
 
   // The three session-independent tab buttons must be present (Session DAG
   // only renders once a session id is selected — asserted absent below).

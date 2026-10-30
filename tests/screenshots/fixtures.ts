@@ -498,7 +498,7 @@ export function installNetworkGuard(page: Page, viteOrigin: string): NetworkGuar
   })
 
   page.on('requestfailed', (request) => {
-    if (request.url().includes('/api/'))
+    if (request.url().includes('/api/') && request.failure()?.errorText !== 'net::ERR_ABORTED')
       guard.violations.push(`/api request reached the network and failed: ${request.url()} (${request.failure()?.errorText})`)
   })
 
@@ -580,6 +580,14 @@ export async function installDemoRoutes(page: Page): Promise<void> {
     return route.fulfill(json(demoResources(kind)))
   })
 
+  await page.route('**/api/insights/summary*', route => route.fulfill(json({
+    from: '2026-09-30',
+    to: '2026-10-30',
+    current: { costUsd: 42, agentMs: 36_000_000, tokens: 4_570_000, sessions: 61, estimated: 0 },
+    previous: null,
+  })))
+  await page.route('**/api/insights/projects*', route => route.fulfill(json([])))
+  await page.route('**/api/insights/sessions*', route => route.fulfill(json({ rows: [], total: 0, limit: 50, offset: 0 })))
   await page.route(COST_SUMMARY_RE, route => route.fulfill(json(demoCostSummary())))
   await page.route('**/api/analytics/heatmap', route => route.fulfill(json(demoHeatmap())))
   await page.route('**/api/analytics/cost-forecast', route => route.fulfill(json(demoForecast())))

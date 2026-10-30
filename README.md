@@ -73,8 +73,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 |---|---|
 | ![Dashboard view](docs/assets/dashboard.png) | ![Pipeline view](docs/assets/pipeline.png) |
 | Dashboard — live agent roster with the needs-you band | Pipeline — tasks across stages, each in its own worktree |
-| ![Cost tracking](docs/assets/cost.png) | ![Agent detail](docs/assets/agent-detail.png) |
-| Cost insights — token usage and spend by session | Agent detail — transcript, tasks, and permissions |
+| ![Insights — cost tab](docs/assets/cost.png) | ![Agent detail](docs/assets/agent-detail.png) |
+| Insights — spend by model and project, with per-session metrics | Agent detail — transcript, tasks, and permissions |
 
 *Images generated from demo data. Regenerate with `pnpm screenshots`.*
 
@@ -94,7 +94,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Pipeline & schedules** — tasks move through backlog, optional plan review, implementation, self-review and finalization, each stage a `claude` process in its own git worktree behind permission gates; per-stage engine, model and reasoning effort. A plan-usage gate blocks spawns when Claude's five-hour or seven-day rate-limit window exceeds a configurable threshold, resuming automatically after the window resets. A task whose work landed outside the pipeline (a hand-made PR or commit) is closed with **Mark Done** in its footer or `kontor tasks done <id> --ref owner/repo#123`; the reference lands in the audit log. Schedules fire recurring tasks from a cron expression (written in plain language, translated once).
 
-**Insights** — workflow patterns, cost by project and session, and eval drift detection over past stage runs.
+**Insights** — one page with a KPI header (cost, agent time, tokens, sessions, with the change against the previous period), a period and project filter, and the tabs Overview, Sessions, Cost, Quality and Workflows. Sessions is a sortable table of every session with its title (the first prompt, or a custom or AI title; whitespace-collapsed, secrets scrubbed, at most 120 characters), cost, agent time, tokens, turns and lines changed; a row opens a drawer with the model split and the session's tool DAG. Cost uses the real total from Claude Code's `cost-state` records and falls back to a token estimate, shown with a `≈` prefix; usage of a session's subagents counts toward the session. Quality shows eval drift over past stage runs and Workflows the Sankey, spawn tree and co-occurrence charts (the project filter does not apply to those two tabs). The former Cost, Eval and Workflows views now live here.
 
 **Integrations** — MCP endpoint with scoped tokens, MCP applications such as mail that can be [limited to chosen spawners](docs/guides/mcp.md#limiting-an-application-to-spawners) (Claude accounts), Obsidian vault ([guide](docs/guides/obsidian.md)), GitHub pull requests ([guide](docs/guides/github.md)), pluggable LLM adapters (OpenAI-compatible, Ollama, `anthropic`), Web Push, webhook and email notifications. Codex, Gemini and Junie CLI agents can be monitored opt-in.
 

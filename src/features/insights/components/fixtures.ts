@@ -6,7 +6,7 @@ export function sessionRow(over: Partial<InsightsSessionRow> = {}): InsightsSess
     title: 'Fix the login bug',
     projectPath: '/code/app',
     projectName: 'app',
-    model: 'claude-opus-4',
+    model: 'fixture-model',
     startedAt: '2026-10-01T10:00:00Z',
     recordedAt: '2026-10-01T11:00:00Z',
     costUsd: 1.5,
