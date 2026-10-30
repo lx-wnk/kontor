@@ -235,4 +235,14 @@ describe('evalView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('sp1 / claude-opus-4 / implementation')
   })
+
+  it('follows the hours prop: fetches hours=720 and hides the range select', async () => {
+    const mockFetch = mockFetchWithMetrics()
+    vi.stubGlobal('fetch', mockFetch)
+    const wrapper = mount(EvalView, { props: { hours: 720 } })
+    await flushPromises()
+    const urls = (mockFetch.mock.calls as [string][]).map(([u]) => String(u))
+    expect(urls.some(u => u.includes('hours=720'))).toBe(true)
+    expect(wrapper.find('#eval-range-select').exists()).toBe(false)
+  })
 })

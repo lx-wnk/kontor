@@ -196,4 +196,23 @@ describe('workflowsView', () => {
     expect(sankeyButton).toBeTruthy()
     expect(sankeyButton!.classes()).toContain('bg-blue-600')
   })
+
+  it('follows from/to props: writes them to the request URL and hides the date inputs', async () => {
+    const mockFetch = makeFetchMock()
+    vi.stubGlobal('fetch', mockFetch)
+    const wrapper = mount(WorkflowsView, { props: { from: '2026-10-01', to: '2026-10-30' } })
+    await flushPromises()
+    const url = (mockFetch.mock.calls as [string][]).map(([u]) => String(u)).find(u => u.includes('/api/visualizations/sankey'))!
+    const params = new URL(url, 'http://localhost').searchParams
+    expect(params.get('from')).toBe(new Date('2026-10-01T00:00').toISOString())
+    expect(params.get('to')).toBe(new Date('2026-10-30T23:59:59').toISOString())
+    expect(wrapper.find('input[type="datetime-local"]').exists()).toBe(false)
+  })
+
+  it('without props keeps the date inputs', async () => {
+    vi.stubGlobal('fetch', makeFetchMock())
+    const wrapper = mount(WorkflowsView)
+    await flushPromises()
+    expect(wrapper.findAll('input[type="datetime-local"]')).toHaveLength(2)
+  })
 })

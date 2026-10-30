@@ -74,6 +74,7 @@ export function useCostAnalytics() {
   const error = ref<string | null>(null)
   const from = ref<string>('')
   const to = ref<string>('')
+  const project = ref<string>('')
 
   let intervalId: ReturnType<typeof setInterval> | null = null
   let aborter: AbortController | null = null
@@ -90,6 +91,8 @@ export function useCostAnalytics() {
         params.set('from', from.value)
       if (to.value)
         params.set('to', to.value)
+      if (project.value)
+        params.set('project', project.value)
       const qs = params.toString()
       const url = qs ? `/api/cost/summary?${qs}` : '/api/cost/summary'
       const res = await fetch(url, { signal: aborter.signal })
@@ -109,9 +112,10 @@ export function useCostAnalytics() {
     }
   }
 
-  function setRange(newFrom: string, newTo: string) {
+  function setRange(newFrom: string, newTo: string, newProject = '') {
     from.value = newFrom
     to.value = newTo
+    project.value = newProject
     void fetchOnce()
   }
 

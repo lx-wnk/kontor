@@ -11,11 +11,23 @@ import SessionDagChart from '@/features/workflows/components/visualizations/Sess
 import SpawnTreeChart from '@/features/workflows/components/visualizations/SpawnTreeChart.vue'
 import { defaultWorkflowsFilters, useWorkflows } from '@/features/workflows/composables/useWorkflows'
 
+const props = defineProps<{ from?: string, to?: string }>()
 defineEmits<{ navigate: [sessionId: string] }>()
 const TOOL_ARGS_RE = /\(.*$/
 const TOOL_SPLIT_RE = / → /
 
 const filters = ref<WorkflowsFilters>(defaultWorkflowsFilters())
+const followsPage = computed(() => props.to !== undefined)
+
+// Date-only props widen to the whole day: the filter inputs are datetime-local.
+function applyPageRange() {
+  if (props.to === undefined)
+    return
+  filters.value.from = props.from ? `${props.from}T00:00` : undefined
+  filters.value.to = `${props.to}T23:59:59`
+}
+applyPageRange()
+watch(() => [props.from, props.to], applyPageRange)
 
 const { sankey, dag, spawnTree, coOccurrence, activeTab, setActiveTab } = useWorkflows(filters)
 const { sessions, refetch: refetchSessions } = useSessions()
@@ -61,6 +73,7 @@ function onReset() {
     setActiveTab('sankey')
   }
   filters.value = defaultWorkflowsFilters()
+  applyPageRange()
 }
 
 interface TabDescriptor {
@@ -239,7 +252,7 @@ const maxToolFreq = computed(() => Math.max(0, ...toolFrequency.value.map(f => f
           placeholder="Session ID"
         >
       </label>
-      <label class="text-xs text-fg-mute flex items-center gap-1">
+      <label v-if="!followsPage" class="text-xs text-fg-mute flex items-center gap-1">
         From
         <input
           v-model="filters.from"
@@ -247,7 +260,7 @@ const maxToolFreq = computed(() => Math.max(0, ...toolFrequency.value.map(f => f
           class="bg-raised border border-line rounded-md px-2 py-1 text-[12px] text-fg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
         >
       </label>
-      <label class="text-xs text-fg-mute flex items-center gap-1">
+      <label v-if="!followsPage" class="text-xs text-fg-mute flex items-center gap-1">
         To
         <input
           v-model="filters.to"

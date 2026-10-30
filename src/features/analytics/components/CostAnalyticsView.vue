@@ -13,6 +13,8 @@ import { useCostAnalytics } from '@/features/analytics/composables/useCostAnalyt
 import { chartColors, chartPalette } from '@/utils/chartColors'
 import { formatCost, formatTokens } from '@/utils/format'
 
+const props = defineProps<{ from?: string, to?: string, project?: string }>()
+
 const { summary, isLoading, error, from, to, setRange, start, refresh } = useCostAnalytics()
 
 // Surface async load failures as toasts; the view keeps its empty/loading state.
@@ -282,9 +284,16 @@ function renderWeeklyTrend() {
 // Local alias to satisfy TS in the line generic above.
 interface WeekPoint { week: string, costUsd: number }
 
+const followsPage = computed(() => props.to !== undefined)
+
 onMounted(() => {
   start()
 })
+
+watch(() => [props.from, props.to, props.project], () => {
+  if (props.to)
+    setRange(props.from ?? '2000-01-01', props.to, props.project)
+}, { immediate: true })
 
 watch([summary, theme], () => {
   // nextTick is what the comment here always meant: a microtask can run before
@@ -323,7 +332,7 @@ watch([summary, theme], () => {
     </header>
 
     <!-- Time-range controls -->
-    <div class="flex flex-wrap items-center gap-2 text-xs">
+    <div v-if="!followsPage" class="flex flex-wrap items-center gap-2 text-xs">
       <span class="text-fg-mute mr-1">Range:</span>
       <button
         v-for="preset in (['7d', '30d', '90d', 'all'] as const)"
