@@ -1,7 +1,7 @@
 import { MAX_LOOKBACK_HOURS } from '@/utils/evalMetrics'
 
 // Hand-kept parity with server/internal/api/insights/handler.go.
-export type CostSource = 'cost_state' | 'estimate'
+export type CostSource = 'cost_state' | 'estimate' | 'legacy'
 export type Preset = '7d' | '30d' | '90d' | 'all'
 export type InsightsSort = 'cost' | 'agent_ms' | 'tokens' | 'turns' | 'started_at' | 'recorded_at' | 'lines'
 
@@ -18,6 +18,7 @@ export interface InsightsTotals {
   tokens: number
   sessions: number
   estimated: number
+  legacy: number
 }
 
 export interface InsightsSummary {

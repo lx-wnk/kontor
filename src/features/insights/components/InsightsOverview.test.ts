@@ -53,7 +53,7 @@ describe('insightsOverview', () => {
 
   it('marks the cost-per-day heading when estimated', () => {
     const w = mount(InsightsOverview, { props: { ...props, estimated: true } })
-    expect(w.text()).toContain('≈Cost per day')
+    expect(w.text()).toContain('≈estimatedCost per day')
   })
 
   it('never requests eval metrics', async () => {

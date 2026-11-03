@@ -18,6 +18,11 @@ function mountTable(p = page(), sort = 'cost' as const) {
 }
 
 describe('insightsSessionsTable', () => {
+  it('renders sr-only text beside the ≈ of an estimate row', () => {
+    const w = mountTable()
+    expect(w.findAll('.sr-only').map(e => e.text())).toContain('estimated')
+  })
+
   it('emits sort on header click', async () => {
     const w = mountTable()
     await w.find('[data-testid="sort-agent_ms"]').trigger('click')

@@ -95,7 +95,7 @@ const tableRows = computed(() => perDay.value.map(d => ({ day: d.day, cost: form
             @click="emit('open', row, $event.currentTarget as HTMLElement)"
           >
             <span class="truncate">{{ row.title || row.sessionId }}</span>
-            <span class="font-mono shrink-0" data-testid="top-session-cost" :title="estimateMark(row.costSource, row.costUnknownModel).title">{{ estimateMark(row.costSource, row.costUnknownModel).prefix }}{{ formatCost(row.costUsd) }}</span>
+            <span class="font-mono shrink-0" data-testid="top-session-cost" :title="estimateMark(row.costSource, row.costUnknownModel).title">{{ estimateMark(row.costSource, row.costUnknownModel).prefix }}<span v-if="estimateMark(row.costSource, row.costUnknownModel).srLabel" class="sr-only">{{ estimateMark(row.costSource, row.costUnknownModel).srLabel }}</span>{{ formatCost(row.costUsd) }}</span>
           </button>
         </li>
       </ol>
@@ -103,7 +103,7 @@ const tableRows = computed(() => perDay.value.map(d => ({ day: d.day, cost: form
 
     <AppCard>
       <h2 class="text-sm font-semibold mb-3 text-fg-soft">
-        <span :title="estimated ? estimateMark('estimate').title : undefined">{{ estimated ? estimateMark('estimate').prefix : '' }}Cost per day</span>
+        <span :title="estimated ? estimateMark('estimate').title : undefined">{{ estimated ? estimateMark('estimate').prefix : '' }}<span v-if="estimated" class="sr-only">{{ estimateMark('estimate').srLabel }}</span>Cost per day</span>
       </h2>
       <p v-if="costError" role="alert" class="text-sm text-danger-text">
         {{ costError }}

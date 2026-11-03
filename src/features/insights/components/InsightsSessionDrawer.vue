@@ -90,7 +90,7 @@ const stamp = (iso: string | null) => iso ? iso.replace('T', ' ').slice(0, 16) :
               Cost
             </dt>
             <dd data-testid="drawer-cost" :title="costMark.title">
-              {{ costMark.prefix }}{{ formatCost(row.costUsd) }}
+              {{ costMark.prefix }}<span v-if="costMark.srLabel" class="sr-only">{{ costMark.srLabel }}</span>{{ formatCost(row.costUsd) }}
             </dd>
           </div>
           <div>
@@ -98,7 +98,7 @@ const stamp = (iso: string | null) => iso ? iso.replace('T', ' ').slice(0, 16) :
               Agent time
             </dt>
             <dd data-testid="drawer-agent" :title="agentMark.title">
-              {{ agentMark.prefix }}{{ formatUptime(Math.floor(row.agentMs / 1000)) }} ({{ row.agentTimeSource }})
+              {{ agentMark.prefix }}<span v-if="agentMark.srLabel" class="sr-only">{{ agentMark.srLabel }}</span>{{ formatUptime(Math.floor(row.agentMs / 1000)) }} ({{ row.agentTimeSource }})
             </dd>
           </div>
           <div>

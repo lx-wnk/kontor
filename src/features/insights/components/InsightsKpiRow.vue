@@ -9,7 +9,12 @@ const props = defineProps<{ summary: InsightsSummary | null }>()
 
 type Metric = 'costUsd' | 'agentMs' | 'tokens' | 'sessions'
 
+const legacyCount = computed(() => (props.summary?.current.legacy ?? 0) + (props.summary?.previous?.legacy ?? 0))
+const SKEWED_BY_LEGACY: Metric[] = ['tokens', 'agentMs']
+
 function delta(metric: Metric): string {
+  if (legacyCount.value > 0 && SKEWED_BY_LEGACY.includes(metric))
+    return ''
   const prev: InsightsTotals | null | undefined = props.summary?.previous
   if (!prev || !prev[metric])
     return ''
@@ -38,7 +43,7 @@ const tiles = computed(() => {
           {{ t.label }}
         </div>
         <div class="text-xl font-semibold text-fg tabular-nums" :title="t.marked ? mark.title : undefined">
-          {{ t.marked ? mark.prefix : '' }}{{ t.value }}
+          {{ t.marked ? mark.prefix : '' }}<span v-if="t.marked && mark.srLabel" class="sr-only">{{ mark.srLabel }}</span>{{ t.value }}
         </div>
         <div v-if="delta(t.metric)" class="text-xs text-fg-mute tabular-nums">
           {{ delta(t.metric) }} vs previous period
@@ -47,6 +52,9 @@ const tiles = computed(() => {
     </div>
     <p v-if="summary && summary.current.estimated > 0" class="mt-2 text-xs text-fg-mute">
       {{ summary.current.estimated }} of {{ summary.current.sessions }} sessions estimated
+    </p>
+    <p v-if="legacyCount > 0" class="mt-1 text-xs text-fg-mute">
+      {{ legacyCount }} {{ legacyCount === 1 ? 'session' : 'sessions' }} recorded before per-session tracking
     </p>
   </div>
 </template>

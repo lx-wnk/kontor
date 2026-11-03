@@ -97,10 +97,10 @@ function open(row: InsightsSessionRow, event: Event) {
               {{ day(r.startedAt) }}
             </td>
             <td class="py-2 px-2 text-right tabular-nums" :title="estimateMark(r.costSource, r.costUnknownModel).title">
-              {{ estimateMark(r.costSource, r.costUnknownModel).prefix }}{{ formatCost(r.costUsd) }}
+              {{ estimateMark(r.costSource, r.costUnknownModel).prefix }}<span v-if="estimateMark(r.costSource, r.costUnknownModel).srLabel" class="sr-only">{{ estimateMark(r.costSource, r.costUnknownModel).srLabel }}</span>{{ formatCost(r.costUsd) }}
             </td>
             <td class="py-2 px-2 text-right tabular-nums" :title="estimateMark(r.agentTimeSource).title">
-              {{ estimateMark(r.agentTimeSource).prefix }}{{ formatUptime(Math.floor(r.agentMs / 1000)) }}
+              {{ estimateMark(r.agentTimeSource).prefix }}<span v-if="estimateMark(r.agentTimeSource).srLabel" class="sr-only">{{ estimateMark(r.agentTimeSource).srLabel }}</span>{{ formatUptime(Math.floor(r.agentMs / 1000)) }}
             </td>
             <td class="py-2 px-2 text-right tabular-nums">
               {{ formatTokens(rowTokens(r)) }}
