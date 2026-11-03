@@ -61,6 +61,7 @@ describe('useViewState', () => {
     } } as Storage
     try {
       expect((await freshModule()).useViewState().activeView.value).toBe('insights')
+      expect((await import('@/features/insights/insightsTab')).readInsightsTab()).toBe('cost')
     }
     finally {
       globalThis.localStorage = real

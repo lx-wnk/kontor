@@ -3,7 +3,11 @@ export type InsightsTab = (typeof INSIGHTS_TABS)[number]
 
 export const INSIGHTS_TAB_KEY = 'insights-tab'
 
+let pendingTab: InsightsTab | null = null
+
 export function readInsightsTab(): InsightsTab {
+  if (pendingTab)
+    return pendingTab
   try {
     const v = localStorage.getItem(INSIGHTS_TAB_KEY)
     return (INSIGHTS_TABS as readonly string[]).includes(v ?? '') ? (v as InsightsTab) : 'overview'
@@ -16,6 +20,9 @@ export function readInsightsTab(): InsightsTab {
 export function writeInsightsTab(t: InsightsTab): void {
   try {
     localStorage.setItem(INSIGHTS_TAB_KEY, t)
+    pendingTab = null
   }
-  catch {}
+  catch {
+    pendingTab = t
+  }
 }

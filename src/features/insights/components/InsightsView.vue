@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Ref } from 'vue'
 import type { InsightsProject, InsightsSessionRow, InsightsSessionsPage, InsightsSort, InsightsSummary, Preset } from '../insightsApi'
 import type { InsightsTab } from '../insightsTab'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -43,33 +44,35 @@ const projectDisabled = computed(() => PROJECT_FILTER_FREE.includes(tab.value))
 const summary = ref<InsightsSummary | null>(null)
 const projects = ref<InsightsProject[]>([])
 const sessions = ref<InsightsSessionsPage | null>(null)
-const loadError = ref<string | null>(null)
+const summaryError = ref<string | null>(null)
+const projectsError = ref<string | null>(null)
+const sessionsError = ref<string | null>(null)
 const drawerRow = ref<InsightsSessionRow | null>(null)
 let drawerOpener: HTMLElement | null = null
 
 const controllers = { summary: null as AbortController | null, projects: null as AbortController | null, sessions: null as AbortController | null }
 
-async function load<T>(slot: keyof typeof controllers, run: (signal: AbortSignal) => Promise<T>, apply: (v: T) => void) {
+async function load<T>(slot: keyof typeof controllers, error: Ref<string | null>, run: (signal: AbortSignal) => Promise<T>, apply: (v: T) => void) {
   controllers[slot]?.abort()
   const ctrl = new AbortController()
   controllers[slot] = ctrl
   try {
     apply(await run(ctrl.signal))
-    loadError.value = null
+    error.value = null
   }
   catch (e) {
     if (!ctrl.signal.aborted)
-      loadError.value = e instanceof Error ? e.message : String(e)
+      error.value = e instanceof Error ? e.message : String(e)
   }
 }
 
 function loadSummary() {
-  return load('summary', s => fetchSummary(filters.value, s), (v) => {
+  return load('summary', summaryError, s => fetchSummary(filters.value, s), (v) => {
     summary.value = v
   })
 }
 function loadSessions() {
-  return load('sessions', s => fetchSessions(filters.value, { sort: sort.value, order: order.value, limit: PAGE_SIZE, offset: offset.value }, s), (v) => {
+  return load('sessions', sessionsError, s => fetchSessions(filters.value, { sort: sort.value, order: order.value, limit: PAGE_SIZE, offset: offset.value }, s), (v) => {
     sessions.value = v
   })
 }
@@ -79,7 +82,7 @@ watch(filters, () => {
   void loadSummary()
 }, { immediate: true })
 watch(() => [filters.value.from, filters.value.to], () => {
-  void load('projects', s => fetchProjects(filters.value, s), (v) => {
+  void load('projects', projectsError, s => fetchProjects(filters.value, s), (v) => {
     projects.value = v
   })
 }, { immediate: true })
@@ -144,9 +147,9 @@ function closeDrawer() {
 
 <template>
   <div class="flex flex-col gap-4" data-testid="insights-view">
-    <h1 class="text-xl font-semibold text-fg">
+    <h2 class="text-xl font-semibold text-fg">
       Insights
-    </h1>
+    </h2>
 
     <div class="flex flex-wrap items-center gap-3">
       <div role="group" aria-label="Period" class="flex gap-1">
@@ -180,8 +183,11 @@ function closeDrawer() {
       </p>
     </div>
 
-    <p v-if="loadError" role="alert" class="text-sm text-danger-text">
-      {{ loadError }}
+    <p v-if="summaryError" role="alert" data-testid="summary-error" class="text-sm text-danger-text">
+      {{ summaryError }}
+    </p>
+    <p v-if="projectsError" role="alert" data-testid="projects-error" class="text-sm text-danger-text">
+      {{ projectsError }}
     </p>
 
     <InsightsKpiRow :summary="summary" />
@@ -218,6 +224,12 @@ function closeDrawer() {
         @page="offset = $event"
         @open="openDrawer"
       />
+      <p v-else-if="tab === 'sessions' && sessionsError" role="alert" data-testid="sessions-error" class="text-sm text-danger-text">
+        {{ sessionsError }}
+      </p>
+      <p v-else-if="tab === 'sessions'" data-testid="sessions-loading" class="text-sm text-fg-mute">
+        Loading sessions…
+      </p>
       <CostAnalyticsView v-else-if="tab === 'cost'" :from="filters.from" :to="filters.to" :project="filters.project" />
       <EvalView v-else-if="tab === 'quality'" :hours="presetHours(preset)" />
       <WorkflowsView v-else-if="tab === 'workflows'" :from="filters.from" :to="filters.to" @navigate="$emit('navigate', $event)" />

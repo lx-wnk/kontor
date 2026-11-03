@@ -59,7 +59,7 @@ function readInitial(): { view: ActiveView, layout: DashboardLayout } {
 
   // A page view is kept unchecked: the layout loads after this runs, and
   // resolveView falls back once it has.
-  if (stored && stored in FOLDED_VIEW_TABS) {
+  if (stored && Object.hasOwn(FOLDED_VIEW_TABS, stored)) {
     view = 'insights'
     writeInsightsTab(FOLDED_VIEW_TABS[stored as keyof typeof FOLDED_VIEW_TABS])
     trySet(ls, 'agent-active-view', 'insights')

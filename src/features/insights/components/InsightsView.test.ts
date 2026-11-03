@@ -98,4 +98,42 @@ describe('insightsView', () => {
     expect(document.activeElement?.getAttribute('data-testid')).toBe('tab-sessions')
     w.unmount()
   })
+
+  it('renders the insights heading as h2', async () => {
+    const w = mountView()
+    await flushPromises()
+    expect(w.find('h1').exists()).toBe(false)
+    expect(w.get('h2').text()).toBe('Insights')
+    w.unmount()
+  })
+
+  it('sends the selected project with summary and sessions requests', async () => {
+    store['insights-tab'] = 'sessions'
+    const w = mountView()
+    await flushPromises()
+    await w.get('[data-testid="project-select"]').setValue('/code/app')
+    await flushPromises()
+    const urls = fetchMock.mock.calls.map(c => c[0] as string)
+    const enc = `project=${encodeURIComponent('/code/app')}`
+    expect(urls.filter(u => u.startsWith('/api/insights/summary')).at(-1)).toContain(enc)
+    expect(urls.filter(u => u.startsWith('/api/insights/sessions')).at(-1)).toContain(enc)
+    w.unmount()
+  })
+
+  it('shows a loading line, then the sessions error, without touching the summary error', async () => {
+    store['insights-tab'] = 'sessions'
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/insights/sessions'))
+        return { ok: false, status: 500, statusText: 'boom', json: async () => ({}) }
+      const body = url.startsWith('/api/insights/summary') ? { from: '', to: '', current: totals, previous: null } : []
+      return { ok: true, json: async () => body }
+    })
+    const w = mountView()
+    expect(w.find('[data-testid="sessions-loading"]').exists()).toBe(true)
+    await flushPromises()
+    expect(w.find('[data-testid="sessions-loading"]').exists()).toBe(false)
+    expect(w.get('[data-testid="sessions-error"]').attributes('role')).toBe('alert')
+    expect(w.find('[data-testid="summary-error"]').exists()).toBe(false)
+    w.unmount()
+  })
 })
