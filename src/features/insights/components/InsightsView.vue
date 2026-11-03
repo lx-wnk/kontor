@@ -13,7 +13,8 @@ import InsightsOverview from './InsightsOverview.vue'
 import InsightsSessionDrawer from './InsightsSessionDrawer.vue'
 import InsightsSessionsTable from './InsightsSessionsTable.vue'
 
-defineEmits<{ navigate: [sessionId: string] }>()
+const props = defineProps<{ liveSessionIds: string[] }>()
+const emit = defineEmits<{ navigate: [sessionId: string] }>()
 
 const PRESETS: { value: Preset, label: string }[] = [
   { value: '7d', label: '7d' },
@@ -143,6 +144,11 @@ function closeDrawer() {
   drawerRow.value = null
   void nextTick(() => drawerOpener?.focus())
 }
+
+function openLiveSession(sessionId: string) {
+  drawerRow.value = null
+  emit('navigate', sessionId)
+}
 </script>
 
 <template>
@@ -235,6 +241,6 @@ function closeDrawer() {
       <WorkflowsView v-else-if="tab === 'workflows'" :from="filters.from" :to="filters.to" @navigate="$emit('navigate', $event)" />
     </div>
 
-    <InsightsSessionDrawer :row="drawerRow" @close="closeDrawer" @navigate="$emit('navigate', $event)" />
+    <InsightsSessionDrawer :row="drawerRow" :can-open="drawerRow !== null && props.liveSessionIds.includes(drawerRow.sessionId)" @close="closeDrawer" @navigate="openLiveSession" />
   </div>
 </template>

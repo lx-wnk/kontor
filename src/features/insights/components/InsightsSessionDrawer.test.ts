@@ -4,8 +4,8 @@ import { sessionRow } from './fixtures'
 import InsightsSessionDrawer from './InsightsSessionDrawer.vue'
 
 const stubs = { SessionDagChart: { template: '<div data-testid="dag" />' } }
-function opts(row: ReturnType<typeof sessionRow> | null) {
-  return { props: { row }, global: { stubs }, attachTo: document.body }
+function opts(row: ReturnType<typeof sessionRow> | null, canOpen = true) {
+  return { props: { row, canOpen }, global: { stubs }, attachTo: document.body }
 }
 
 describe('insightsSessionDrawer', () => {
@@ -81,6 +81,24 @@ describe('insightsSessionDrawer', () => {
     const w = mount(InsightsSessionDrawer, opts(sessionRow({ agentTimeSource: 'estimate' })))
     await flushPromises()
     expect(document.body.querySelector('[data-testid="drawer-agent"]')?.textContent).toContain('≈')
+    w.unmount()
+  })
+
+  it('shows the open-session button only when the session is live', async () => {
+    const w = mount(InsightsSessionDrawer, opts(sessionRow(), true))
+    await flushPromises()
+    expect(document.body.querySelector('[data-testid="open-session"]')).not.toBeNull()
+    await w.setProps({ canOpen: false })
+    expect(document.body.querySelector('[data-testid="open-session"]')).toBeNull()
+    w.unmount()
+  })
+
+  it('shows a dash for legacy agent time', async () => {
+    const w = mount(InsightsSessionDrawer, opts(sessionRow({ agentMs: 0, agentTimeSource: 'legacy' })))
+    await flushPromises()
+    const text = document.body.querySelector('[data-testid="drawer-agent"]')?.textContent ?? ''
+    expect(text).toContain('—')
+    expect(text).not.toContain('0s')
     w.unmount()
   })
 })

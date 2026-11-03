@@ -8,7 +8,7 @@ import { SessionDagChart } from '@/features/workflows'
 import { formatCost, formatTokens, formatUptime } from '@/utils/format'
 import { estimateMark } from '../estimateMark'
 
-const props = defineProps<{ row: InsightsSessionRow | null }>()
+const props = defineProps<{ row: InsightsSessionRow | null, canOpen: boolean }>()
 const emit = defineEmits<{ close: [], navigate: [sessionId: string] }>()
 
 const TITLE_ID = 'insights-drawer-title'
@@ -98,7 +98,7 @@ const stamp = (iso: string | null) => iso ? iso.replace('T', ' ').slice(0, 16) :
               Agent time
             </dt>
             <dd data-testid="drawer-agent" :title="agentMark.title">
-              {{ agentMark.prefix }}<span v-if="agentMark.srLabel" class="sr-only">{{ agentMark.srLabel }}</span>{{ formatUptime(Math.floor(row.agentMs / 1000)) }} ({{ row.agentTimeSource }})
+              {{ agentMark.prefix }}<span v-if="agentMark.srLabel" class="sr-only">{{ agentMark.srLabel }}</span>{{ row.agentTimeSource === 'legacy' ? '—' : formatUptime(Math.floor(row.agentMs / 1000)) }} ({{ row.agentTimeSource }})
             </dd>
           </div>
           <div>
@@ -153,7 +153,7 @@ const stamp = (iso: string | null) => iso ? iso.replace('T', ' ').slice(0, 16) :
         </div>
         <SessionDagChart :data="dag" :loading="loading" :error="error" />
       </div>
-      <footer class="p-4 border-t border-line">
+      <footer v-if="canOpen" class="p-4 border-t border-line">
         <AppButton variant="primary" data-testid="open-session" @click="emit('navigate', row.sessionId)">
           Open session
         </AppButton>

@@ -418,6 +418,7 @@ onMounted(() => usageComposable.start())
         />
         <InsightsView
           v-else-if="activeView === 'insights'"
+          :live-session-ids="agents.map(a => a.sessionId)"
           @navigate="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
         />
         <SchedulesView v-else-if="activeView === 'schedules'" />

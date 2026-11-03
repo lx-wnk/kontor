@@ -66,4 +66,11 @@ describe('insightsSessionsTable', () => {
     const last = mountTable(page({ offset: 100 }))
     expect(last.find('[data-testid="page-next"]').attributes('disabled')).toBeDefined()
   })
+
+  it('shows a dash for legacy agent time', () => {
+    const w = mountTable(page({ rows: [sessionRow({ agentMs: 0, agentTimeSource: 'legacy' })] }))
+    const cell = w.findAll('tbody tr td')[4]
+    expect(cell.text()).toContain('—')
+    expect(cell.text()).not.toContain('0s')
+  })
 })

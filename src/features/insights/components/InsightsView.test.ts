@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
+import { sessionRow } from './fixtures'
 import InsightsView from './InsightsView.vue'
 
 vi.mock('@/features/analytics', () => ({
@@ -42,7 +43,7 @@ describe('insightsView', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  const mountView = () => mount(InsightsView, { attachTo: document.body })
+  const mountView = () => mount(InsightsView, { attachTo: document.body, props: { liveSessionIds: ['s-1'] } })
   const summaryUrls = () => fetchMock.mock.calls.map(c => c[0] as string).filter(u => u.startsWith('/api/insights/summary'))
 
   it('defaults to the overview tab', async () => {
@@ -134,6 +135,24 @@ describe('insightsView', () => {
     expect(w.find('[data-testid="sessions-loading"]').exists()).toBe(false)
     expect(w.get('[data-testid="sessions-error"]').attributes('role')).toBe('alert')
     expect(w.find('[data-testid="summary-error"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('closes the drawer and emits navigate when a live session is opened', async () => {
+    store['insights-tab'] = 'sessions'
+    const base = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) => url.startsWith('/api/insights/sessions')
+      ? { ok: true, json: async () => ({ rows: [sessionRow()], total: 1, limit: 50, offset: 0 }) }
+      : base(url))
+    const w = mountView()
+    await flushPromises()
+    await w.get('tbody tr').trigger('click')
+    await flushPromises()
+    const btn = document.body.querySelector<HTMLButtonElement>('[data-testid="open-session"]')!
+    btn.click()
+    await flushPromises()
+    expect(w.emitted('navigate')?.[0]).toEqual(['s-1'])
+    expect(document.body.querySelector('[data-testid="open-session"]')).toBeNull()
     w.unmount()
   })
 })
