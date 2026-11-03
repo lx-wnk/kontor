@@ -69,6 +69,48 @@ func TestSummary_CurrentAndPrevious(t *testing.T) {
 	}
 }
 
+func TestSummary_PreviousWindowEdges(t *testing.T) {
+	h := setup(t, row("out", "2026-10-16", 100), row("first", "2026-10-17", 1), row("last", "2026-10-23", 2), row("cur", "2026-10-24", 4))
+	var got summaryResponse
+	get(t, h, "/api/insights/summary?from=2026-10-24&to=2026-10-30", &got)
+	if got.Current.CostUSD != 4 || got.Current.Sessions != 1 {
+		t.Fatalf("current = %+v", got.Current)
+	}
+	if got.Previous == nil || got.Previous.CostUSD != 3 || got.Previous.Sessions != 2 {
+		t.Fatalf("previous = %+v", got.Previous)
+	}
+}
+
+func TestSummary_EstimatedCountsLegacyAndUnknownModel(t *testing.T) {
+	est, leg, unk := row("est", "2026-10-25", 1), row("leg", "2026-10-25", 1), row("unk", "2026-10-25", 1)
+	est.CostSource, leg.CostSource, unk.CostUnknownModel = repo.SourceEstimate, repo.SourceLegacy, true
+	pleg := row("pleg", "2026-10-20", 1)
+	pleg.CostSource = repo.SourceLegacy
+	h := setup(t, est, leg, unk, row("ok", "2026-10-25", 1), pleg)
+	var got summaryResponse
+	get(t, h, "/api/insights/summary?from=2026-10-24&to=2026-10-30", &got)
+	if got.Current.Estimated != 3 || got.Current.Legacy != 1 || got.Current.Sessions != 4 {
+		t.Fatalf("current = %+v", got.Current)
+	}
+	if got.Previous == nil || got.Previous.Estimated != 1 || got.Previous.Legacy != 1 {
+		t.Fatalf("previous = %+v", got.Previous)
+	}
+}
+
+func TestSummary_ProjectScopesCurrentAndPrevious(t *testing.T) {
+	q1, q2 := row("q1", "2026-10-25", 10), row("q2", "2026-10-20", 20)
+	q1.ProjectPath, q2.ProjectPath = "/q", "/q"
+	h := setup(t, row("p1", "2026-10-25", 1), row("p2", "2026-10-20", 2), q1, q2)
+	var got summaryResponse
+	get(t, h, "/api/insights/summary?from=2026-10-24&to=2026-10-30&project=/p", &got)
+	if got.Current.CostUSD != 1 || got.Current.Sessions != 1 {
+		t.Fatalf("current = %+v", got.Current)
+	}
+	if got.Previous == nil || got.Previous.CostUSD != 2 || got.Previous.Sessions != 1 {
+		t.Fatalf("previous = %+v", got.Previous)
+	}
+}
+
 func TestSummary_AllTimeHasNoPrevious(t *testing.T) {
 	h := setup(t, row("a", "2026-10-20", 1))
 	var got summaryResponse

@@ -55,6 +55,7 @@ type totals struct {
 	Tokens    int64   `json:"tokens"`
 	Sessions  int     `json:"sessions"`
 	Estimated int     `json:"estimated"`
+	Legacy    int     `json:"legacy"`
 }
 
 type summaryResponse struct {
@@ -176,11 +177,12 @@ SELECT COALESCE(SUM(cost_usd), 0),
        COALESCE(SUM(agent_ms), 0),
        COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens), 0),
        COUNT(*),
-       COALESCE(SUM(cost_source = 'estimate'), 0)
+       COALESCE(SUM(cost_source IN ('estimate', 'legacy') OR cost_unknown_model), 0),
+       COALESCE(SUM(cost_source = 'legacy'), 0)
 FROM agent_cost_trends
 WHERE ` + where
 	var t totals
-	err := h.db.QueryRowContext(ctx, q, args...).Scan(&t.CostUSD, &t.AgentMs, &t.Tokens, &t.Sessions, &t.Estimated)
+	err := h.db.QueryRowContext(ctx, q, args...).Scan(&t.CostUSD, &t.AgentMs, &t.Tokens, &t.Sessions, &t.Estimated, &t.Legacy)
 	return t, err
 }
 
