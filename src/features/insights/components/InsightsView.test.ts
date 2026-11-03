@@ -6,8 +6,8 @@ import InsightsView from './InsightsView.vue'
 vi.mock('@/features/analytics', () => ({
   CostAnalyticsView: defineComponent({ props: ['from', 'to', 'project'], setup: p => () => h('div', { 'data-testid': 'cost', 'data-project': p.project }) }),
   EvalView: defineComponent({ props: ['hours'], setup: () => () => h('div', { 'data-testid': 'eval' }) }),
-  useCostAnalytics: () => ({ summary: { value: { byDay: [] } }, setRange: vi.fn(), start: vi.fn() }),
-  useEvalMetrics: () => ({ openAlerts: { value: [] }, start: vi.fn() }),
+  useCostAnalytics: () => ({ summary: { value: { byDay: [] } }, error: { value: null }, setRange: vi.fn() }),
+  useEvalMetrics: () => ({ openAlerts: { value: [] }, error: { value: null }, startAlerts: vi.fn() }),
 }))
 vi.mock('@/features/workflows', () => ({
   WorkflowsView: defineComponent({ setup: () => () => h('div', { 'data-testid': 'workflows' }) }),

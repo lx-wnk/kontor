@@ -9,13 +9,13 @@ import { formatCost } from '@/utils/format'
 import { estimateMark } from '../estimateMark'
 import { fetchSessions } from '../insightsApi'
 
-const props = defineProps<{ filters: InsightsFilters }>()
+const props = defineProps<{ filters: InsightsFilters, estimated: boolean }>()
 const emit = defineEmits<{ open: [row: InsightsSessionRow, el: HTMLElement] }>()
 
 const ALL_TIME_FROM = '2000-01-01'
 
-const { summary, setRange, start: startCost } = useCostAnalytics()
-const { openAlerts, start: startEval } = useEvalMetrics()
+const { summary, error: costError, setRange } = useCostAnalytics()
+const { openAlerts, error: evalError, startAlerts } = useEvalMetrics()
 
 const top = ref<InsightsSessionRow[]>([])
 const topError = ref<string | null>(null)
@@ -41,10 +41,7 @@ watch(() => props.filters, (f) => {
   void loadTop()
 }, { immediate: true })
 
-onMounted(() => {
-  startCost()
-  startEval()
-})
+onMounted(startAlerts)
 onUnmounted(() => controller?.abort())
 
 const perDay = computed(() => {
@@ -55,8 +52,6 @@ const perDay = computed(() => {
 })
 const maxDay = computed(() => Math.max(0, ...perDay.value.map(d => d.costUsd)))
 const tableRows = computed(() => perDay.value.map(d => ({ day: d.day, cost: formatCost(d.costUsd) })))
-
-defineExpose({ perDay })
 </script>
 
 <template>
@@ -66,7 +61,10 @@ defineExpose({ perDay })
         Open drift alerts
         <span v-if="openAlerts.length" class="ml-1.5 text-xs bg-red-600 text-white rounded-full px-1.5 py-0.5">{{ openAlerts.length }}</span>
       </h2>
-      <p v-if="!openAlerts.length" class="text-sm text-fg-mute">
+      <p v-if="evalError" role="alert" class="text-sm text-danger-text">
+        {{ evalError }}
+      </p>
+      <p v-else-if="!openAlerts.length" class="text-sm text-fg-mute">
         No open drift alerts.
       </p>
       <ul v-else class="flex flex-col gap-1.5 text-xs">
@@ -105,9 +103,12 @@ defineExpose({ perDay })
 
     <AppCard>
       <h2 class="text-sm font-semibold mb-3 text-fg-soft">
-        Cost per day
+        <span :title="estimated ? estimateMark('estimate').title : undefined">{{ estimated ? estimateMark('estimate').prefix : '' }}Cost per day</span>
       </h2>
-      <p v-if="!perDay.length" class="text-sm text-fg-mute">
+      <p v-if="costError" role="alert" class="text-sm text-danger-text">
+        {{ costError }}
+      </p>
+      <p v-else-if="!perDay.length" class="text-sm text-fg-mute">
         No cost data in this period.
       </p>
       <template v-else>

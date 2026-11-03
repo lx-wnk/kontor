@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { sessionRow } from './fixtures'
 import InsightsOverview from './InsightsOverview.vue'
 
@@ -9,29 +9,62 @@ const byDay = shallowRef([
   { day: '2026-10-01', model: 'a', costUsd: 2 },
   { day: '2026-10-01', model: 'b', costUsd: 3 },
 ])
+const costError = ref<string | null>(null)
+const evalError = ref<string | null>(null)
+const setRange = vi.fn()
+const startAlerts = vi.fn()
 vi.mock('@/features/analytics', () => ({
-  useCostAnalytics: () => ({ summary: shallowRef({ byDay: byDay.value }), setRange: vi.fn(), start: vi.fn() }),
-  useEvalMetrics: () => ({ openAlerts: shallowRef([]), start: vi.fn() }),
+  useCostAnalytics: () => ({ summary: shallowRef({ byDay: byDay.value }), error: costError, setRange }),
+  useEvalMetrics: () => ({ openAlerts: shallowRef([]), error: evalError, startAlerts }),
 }))
+
+const props = { filters: { preset: '30d' as const, to: '2026-10-29' }, estimated: false }
 
 describe('insightsOverview', () => {
   const fetchMock = vi.fn()
   beforeEach(() => {
     fetchMock.mockReset()
+    setRange.mockClear()
+    costError.value = null
+    evalError.value = null
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ rows: [], total: 0, limit: 5, offset: 0 }) })
     vi.stubGlobal('fetch', fetchMock)
   })
 
   it('sums byDay per day, ascending', () => {
-    const w = mount(InsightsOverview, { props: { filters: { preset: '30d', to: '2026-10-29' } } })
-    expect((w.vm as unknown as { perDay: unknown }).perDay).toEqual([
-      { day: '2026-10-01', costUsd: 5 },
-      { day: '2026-10-02', costUsd: 1 },
-    ])
+    const w = mount(InsightsOverview, { props })
+    expect(w.findAll('tbody tr').map(r => r.text())).toEqual(['2026-10-01$5.00', '2026-10-02$1.00'])
+  })
+
+  it('passes the all-time floor and project to setRange', () => {
+    mount(InsightsOverview, { props: { filters: { preset: 'all', to: '2026-10-29', project: '/p' }, estimated: false } })
+    expect(setRange).toHaveBeenCalledWith('2000-01-01', '2026-10-29', '/p')
+  })
+
+  it('shows cost and eval errors instead of empty text', () => {
+    costError.value = 'HTTP 500'
+    evalError.value = 'HTTP 502'
+    const w = mount(InsightsOverview, { props })
+    expect(w.text()).toContain('HTTP 500')
+    expect(w.text()).toContain('HTTP 502')
+    expect(w.text()).not.toContain('No cost data')
+    expect(w.text()).not.toContain('No open drift alerts')
+  })
+
+  it('marks the cost-per-day heading when estimated', () => {
+    const w = mount(InsightsOverview, { props: { ...props, estimated: true } })
+    expect(w.text()).toContain('≈Cost per day')
+  })
+
+  it('never requests eval metrics', async () => {
+    mount(InsightsOverview, { props })
+    await flushPromises()
+    expect(startAlerts).toHaveBeenCalled()
+    expect(fetchMock.mock.calls.some(c => String(c[0]).includes('/api/eval/metrics'))).toBe(false)
   })
 
   it('queries the top 5 sessions by cost', async () => {
-    mount(InsightsOverview, { props: { filters: { preset: '30d', to: '2026-10-29' } } })
+    mount(InsightsOverview, { props })
     await flushPromises()
     const url = fetchMock.mock.calls[0][0] as string
     expect(url).toContain('sort=cost')
@@ -53,7 +86,7 @@ describe('insightsOverview', () => {
         offset: 0,
       }),
     })
-    const w = mount(InsightsOverview, { props: { filters: { preset: '30d', to: '2026-10-29' } } })
+    const w = mount(InsightsOverview, { props })
     await flushPromises()
     const costs = w.findAll('[data-testid="top-session-cost"]')
     expect(costs[0].text()).toContain('≈')

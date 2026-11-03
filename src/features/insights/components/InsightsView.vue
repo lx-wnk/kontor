@@ -214,7 +214,7 @@ function closeDrawer() {
     </div>
 
     <div id="insights-panel" role="tabpanel" :aria-labelledby="`insights-tab-${tab}`" class="min-h-0">
-      <InsightsOverview v-if="tab === 'overview'" :filters="filters" @open="openDrawer" />
+      <InsightsOverview v-if="tab === 'overview'" :filters="filters" :estimated="(summary?.current.estimated ?? 0) > 0" @open="openDrawer" />
       <InsightsSessionsTable
         v-else-if="tab === 'sessions' && sessions"
         :page="sessions"
