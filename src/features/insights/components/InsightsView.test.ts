@@ -138,6 +138,33 @@ describe('insightsView', () => {
     w.unmount()
   })
 
+  it('shows a failed sessions reload above the stale table and clears it on the next success', async () => {
+    store['insights-tab'] = 'sessions'
+    let fail = false
+    const base = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (url: string) => {
+      if (!url.startsWith('/api/insights/sessions'))
+        return base(url)
+      return fail
+        ? { ok: false, status: 500, statusText: 'boom', json: async () => ({}) }
+        : { ok: true, json: async () => ({ rows: [sessionRow()], total: 1, limit: 50, offset: 0 }) }
+    })
+    const w = mountView()
+    await flushPromises()
+    expect(w.find('tbody tr').exists()).toBe(true)
+    fail = true
+    await w.get('[data-testid="sort-cost"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="sessions-error"]').attributes('role')).toBe('alert')
+    expect(w.find('tbody tr').exists()).toBe(true)
+    fail = false
+    await w.get('[data-testid="sort-tokens"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="sessions-error"]').exists()).toBe(false)
+    expect(w.find('tbody tr').exists()).toBe(true)
+    w.unmount()
+  })
+
   it('closes the drawer and emits navigate when a live session is opened', async () => {
     store['insights-tab'] = 'sessions'
     const base = fetchMock.getMockImplementation()!

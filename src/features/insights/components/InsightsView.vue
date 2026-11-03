@@ -221,21 +221,23 @@ function openLiveSession(sessionId: string) {
 
     <div id="insights-panel" role="tabpanel" :aria-labelledby="`insights-tab-${tab}`" class="min-h-0">
       <InsightsOverview v-if="tab === 'overview'" :filters="filters" :estimated="(summary?.current.estimated ?? 0) > 0" @open="openDrawer" />
-      <InsightsSessionsTable
-        v-else-if="tab === 'sessions' && sessions"
-        :page="sessions"
-        :sort="sort"
-        :order="order"
-        @sort="onSort"
-        @page="offset = $event"
-        @open="openDrawer"
-      />
-      <p v-else-if="tab === 'sessions' && sessionsError" role="alert" data-testid="sessions-error" class="text-sm text-danger-text">
-        {{ sessionsError }}
-      </p>
-      <p v-else-if="tab === 'sessions'" data-testid="sessions-loading" class="text-sm text-fg-mute">
-        Loading sessions…
-      </p>
+      <template v-else-if="tab === 'sessions'">
+        <p v-if="sessionsError" role="alert" data-testid="sessions-error" class="text-sm text-danger-text mb-2">
+          {{ sessionsError }}
+        </p>
+        <InsightsSessionsTable
+          v-if="sessions"
+          :page="sessions"
+          :sort="sort"
+          :order="order"
+          @sort="onSort"
+          @page="offset = $event"
+          @open="openDrawer"
+        />
+        <p v-else-if="!sessionsError" data-testid="sessions-loading" class="text-sm text-fg-mute">
+          Loading sessions…
+        </p>
+      </template>
       <CostAnalyticsView v-else-if="tab === 'cost'" :from="filters.from" :to="filters.to" :project="filters.project" />
       <EvalView v-else-if="tab === 'quality'" :hours="presetHours(preset)" />
       <WorkflowsView v-else-if="tab === 'workflows'" :from="filters.from" :to="filters.to" @navigate="$emit('navigate', $event)" />
