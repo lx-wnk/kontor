@@ -28,7 +28,7 @@ test.describe('Cost analytics', () => {
     await stubJson(page, '/api/insights/summary', {
       from: '',
       to: '',
-      current: { costUsd: 0, agentMs: 0, tokens: 0, sessions: 0, estimated: 0 },
+      current: { costUsd: 0, agentMs: 0, tokens: 0, sessions: 0, estimated: 0, legacy: 0 },
       previous: null,
     })
     await stubJson(page, '/api/insights/projects', [])

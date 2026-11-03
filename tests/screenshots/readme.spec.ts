@@ -79,7 +79,7 @@ test.describe('README screenshots', () => {
     })
 
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await expect(page.getByTestId('insights-view').getByRole('heading', { level: 1 })).toHaveText('Insights')
+    await expect(page.getByTestId('insights-view').getByRole('heading', { level: 2, name: 'Insights', exact: true })).toBeVisible()
     await expect(page.getByText('Spend by Model')).toBeVisible()
     await expect(page.getByText('Spend by Project')).toBeVisible()
 

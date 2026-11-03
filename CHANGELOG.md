@@ -530,6 +530,8 @@ Preparing the first public release.
   assignment. A prefix assignment (`F=… cmd`) only reaches its own command,
   an unquoted heredoc body line ending in `\` continues into its closer as in
   bash, and a command the parser rejects yields no touches at all.
+- Insights: sessions recorded before the upgrade whose logs are gone are kept as "legacy"
+  estimates, and the header hides token and agent-time changes for windows that contain them.
 
 ### Deprecated
 

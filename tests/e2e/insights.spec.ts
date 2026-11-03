@@ -13,7 +13,7 @@ const ROW = {
   costSource: 'cost_state',
   costUnknownModel: false,
   agentMs: 600_000,
-  agentTimeSource: 'measured',
+  agentTimeSource: 'cost_state',
   inputTokens: 1000,
   outputTokens: 500,
   cacheReadTokens: 0,
@@ -32,7 +32,7 @@ test.describe('Insights', () => {
     await stubJson(page, '/api/insights/summary', {
       from: '2026-09-30',
       to: '2026-10-30',
-      current: { costUsd: 1.5, agentMs: 600_000, tokens: 1500, sessions: 1, estimated: 0 },
+      current: { costUsd: 1.5, agentMs: 600_000, tokens: 1500, sessions: 1, estimated: 0, legacy: 0 },
       previous: null,
     })
     await stubJson(page, '/api/insights/projects', [{ projectPath: ROW.projectPath, projectName: ROW.projectName, sessions: 1 }])
@@ -58,9 +58,9 @@ test.describe('Insights', () => {
   })
 
   test('overview renders the KPI header', async ({ page }) => {
-    await expect(page.getByTestId('insights-view').getByRole('heading', { level: 1 })).toHaveText('Insights')
+    await expect(page.getByTestId('insights-view').getByRole('heading', { level: 2, name: 'Insights', exact: true })).toBeVisible()
     await expect(page.getByTestId('insights-overview')).toBeVisible()
-    await expect(page.getByTestId('kpi-sessions')).toContainText('1')
+    await expect(page.getByTestId('kpi-sessions')).toHaveText(/^\D*1\D*$/)
   })
 
   test('quality tab shows the drift alerts', async ({ page }) => {
@@ -76,5 +76,6 @@ test.describe('Insights', () => {
     await expect(drawer).toContainText('Refactor the forecast cache')
     await page.keyboard.press('Escape')
     await expect(drawer).toBeHidden()
+    await expect(page.getByRole('row', { name: /Refactor the forecast cache/ })).toBeFocused()
   })
 })

@@ -583,7 +583,7 @@ export async function installDemoRoutes(page: Page): Promise<void> {
   await page.route('**/api/insights/summary*', route => route.fulfill(json({
     from: '2026-09-30',
     to: '2026-10-30',
-    current: { costUsd: 42, agentMs: 36_000_000, tokens: 4_570_000, sessions: 61, estimated: 0 },
+    current: { costUsd: 42, agentMs: 36_000_000, tokens: 4_570_000, sessions: 61, estimated: 0, legacy: 0 },
     previous: null,
   })))
   await page.route('**/api/insights/projects*', route => route.fulfill(json([])))
