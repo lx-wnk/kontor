@@ -53,13 +53,26 @@ func TestParseSession_CostStateLastWins(t *testing.T) {
 	}, *stats.CostState)
 }
 
-func TestParseSession_StaleCostStateIsDropped(t *testing.T) {
+func TestParseSession_StaleCostStateIsKeptAndFlagged(t *testing.T) {
 	stats := mustParse(t,
 		promptLine("2025-01-15T10:00:00Z", "hi"),
 		costStateLine(1.0),
 		assistantLine("2025-01-15T10:00:05Z"),
 	)
-	assert.Nil(t, stats.CostState)
+	require.NotNil(t, stats.CostState)
+	assert.True(t, stats.CostStateStale)
+	assert.InDelta(t, 1.0, stats.CostState.TotalCostUSD, 1e-12)
+}
+
+func TestParseSession_CostStateAfterAssistantIsFresh(t *testing.T) {
+	stats := mustParse(t,
+		costStateLine(1.0),
+		assistantLine("2025-01-15T10:00:05Z"),
+		costStateLine(2.0),
+	)
+	require.NotNil(t, stats.CostState)
+	assert.False(t, stats.CostStateStale)
+	assert.InDelta(t, 2.0, stats.CostState.TotalCostUSD, 1e-12)
 }
 
 func TestParseSession_NoCostState(t *testing.T) {

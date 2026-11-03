@@ -384,8 +384,11 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 		SourceMtime:         sourceMtime,
 	}
 	if cs := stats.CostState; cs != nil {
-		row.CostUSD, row.CostSource = cs.TotalCostUSD, repo.SourceCostState
-		row.AgentMs, row.AgentTimeSource = cs.APIDurationMs+cs.ToolDurationMs, repo.SourceCostState
+		// A stale cost-state lags behind later turns, so only its cumulative counters are kept.
+		if !stats.CostStateStale {
+			row.CostUSD, row.CostSource = cs.TotalCostUSD, repo.SourceCostState
+			row.AgentMs, row.AgentTimeSource = cs.APIDurationMs+cs.ToolDurationMs, repo.SourceCostState
+		}
 		row.LinesAdded, row.LinesRemoved = cs.LinesAdded, cs.LinesRemoved
 		row.CostUnknownModel = cs.UnknownModelCost
 		row.ModelCosts = cs.ModelCosts
@@ -414,10 +417,11 @@ func subagentFiles(parentPath string) []string {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
 			continue
 		}
-		if info, err := entry.Info(); err != nil || info.Size() > maxFileSizeBytes {
+		path := filepath.Join(dir, entry.Name())
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() || info.Size() > maxFileSizeBytes {
 			continue
 		}
-		files = append(files, filepath.Join(dir, entry.Name()))
+		files = append(files, path)
 	}
 	return files
 }

@@ -671,7 +671,7 @@ func TestImporter_StaleCostStateFallsBack(t *testing.T) {
 	parent := strings.Join([]string{
 		promptLine("2025-01-15T10:00:00Z", "hi"),
 		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
-		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2}`,
+		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2,"hasUnknownModelCost":true,"modelUsage":{"claude-opus-4":{"costUSD":3.2}}}`,
 		usageLine("2025-01-15T10:00:09Z", "claude-opus-4", 1, 1),
 	}, "\n")
 	stats := mustParse(t, parent)
@@ -685,8 +685,10 @@ func TestImporter_StaleCostStateFallsBack(t *testing.T) {
 	assert.Equal(t, repo.SourceEstimate, row.AgentTimeSource)
 	assert.Equal(t, stats.EstimateMs, row.AgentMs)
 	assert.InDelta(t, parser.EstimateCost(stats.Usage, stats.Model), row.CostUSD, 1e-12)
-	assert.Zero(t, row.LinesAdded)
-	assert.Nil(t, row.ModelCosts)
+	assert.Equal(t, 7, row.LinesAdded)
+	assert.Equal(t, 2, row.LinesRemoved)
+	assert.True(t, row.CostUnknownModel)
+	assert.Equal(t, map[string]float64{"claude-opus-4": 3.2}, row.ModelCosts)
 }
 
 func TestImporter_ReparsesWhenOnlySubagentChanged(t *testing.T) {
@@ -741,6 +743,22 @@ func TestImporter_UnreadableSubagentIsSkipped(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	assert.Equal(t, 100, row.InputTokens)
+}
+
+func TestSubagentFiles_SkipsSymlinkToOversizeFile(t *testing.T) {
+	parentPath, _ := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	big := filepath.Join(t.TempDir(), "big.jsonl")
+	f, err := os.Create(big)
+	require.NoError(t, err)
+	require.NoError(t, f.Truncate(maxFileSizeBytes+1))
+	require.NoError(t, f.Close())
+	subDir := filepath.Join(strings.TrimSuffix(parentPath, ".jsonl"), "subagents")
+	require.NoError(t, os.Symlink(big, filepath.Join(subDir, "agent-big.jsonl")))
+	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(subDir, "agent-dir.jsonl")))
+
+	assert.Equal(t, []string{filepath.Join(subDir, "agent-a.jsonl")}, subagentFiles(parentPath))
 }
 
 type touchingResolver struct {

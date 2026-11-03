@@ -19,15 +19,16 @@ const (
 )
 
 type sessionStats struct {
-	Usage        sdk.TokenUsage
-	Model        string
-	Cwd          string
-	StartedAt    time.Time
-	LastActivity time.Time
-	Title        string
-	Turns        int
-	EstimateMs   int64
-	CostState    *costState
+	Usage          sdk.TokenUsage
+	Model          string
+	Cwd            string
+	StartedAt      time.Time
+	LastActivity   time.Time
+	Title          string
+	Turns          int
+	EstimateMs     int64
+	CostState      *costState
+	CostStateStale bool
 }
 
 type costState struct {
@@ -180,8 +181,9 @@ func parseSession(r io.Reader) (sessionStats, error) {
 		switch {
 		case e.Type == "cost-state":
 			cost = e.costState()
+			stats.CostStateStale = false
 		case e.isAssistant():
-			cost = nil
+			stats.CostStateStale = cost != nil
 			stats.addAssistant(&e, ts)
 			if clock.inTurn && !clock.answered {
 				clock.answered = true
