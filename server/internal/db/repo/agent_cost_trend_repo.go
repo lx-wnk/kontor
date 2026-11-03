@@ -13,6 +13,7 @@ import (
 const (
 	SourceCostState = "cost_state"
 	SourceEstimate  = "estimate"
+	SourceLegacy    = "legacy"
 )
 
 // AgentCostRow is the input type for Upsert.

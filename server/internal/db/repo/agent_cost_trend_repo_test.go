@@ -157,3 +157,21 @@ func TestAgentCostTrendRepo_Upsert_InsightsFields(t *testing.T) {
 	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
 	require.Equal(t, 9, list().Turns)
 }
+
+func TestAgentCostTrendRepo_Upsert_NilModelCostsClearsColumn(t *testing.T) {
+	client := openTestDB(t)
+	r := repo.NewAgentCostTrendRepo(client)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	row := repo.AgentCostRow{SessionID: "sess-mc", Model: "m", RecordedAt: now,
+		ModelCosts: map[string]float64{"claude-opus-5-5": 1.25}}
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+
+	row.ModelCosts = nil
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+
+	got, err := r.ListByTimeRange(t.Context(), now.Add(-time.Minute), now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Empty(t, got[0].ModelCosts)
+}
