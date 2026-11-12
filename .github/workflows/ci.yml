@@ -322,8 +322,6 @@ jobs:
           cache: pnpm
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
-      - name: Refresh apt index
-        run: sudo apt-get update
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
       - name: Build server binary with embedded SPA
