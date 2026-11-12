@@ -54,10 +54,8 @@ const WorkspacePage = defineAsyncComponent({
 // longer on the first-paint path, and a static import keeps its whole subtree
 // in the entry chunk, which has a size budget CI enforces.
 const DashboardView = defineAsyncComponent(() => import('@/features/cockpit/components/DashboardView.vue'))
-const CostAnalyticsView = defineAsyncComponent(() => import('@/features/analytics/components/CostAnalyticsView.vue'))
-const EvalView = defineAsyncComponent(() => import('@/features/analytics/components/EvalView.vue'))
+const InsightsView = defineAsyncComponent(() => import('@/features/insights/components/InsightsView.vue'))
 const PipelineBoard = defineAsyncComponent(() => import('@/features/pipeline/components/PipelineBoard.vue'))
-const WorkflowsView = defineAsyncComponent(() => import('@/features/workflows/components/WorkflowsView.vue'))
 const SchedulesView = defineAsyncComponent(() => import('./components/SchedulesView.vue'))
 const CloudSessionsView = defineAsyncComponent(() => import('@/features/cloud/CloudSessionsView.vue'))
 // Heavy modal loaded on demand — split into its own chunk (includes DependencyGraph + StageCostWaterfall).
@@ -418,14 +416,13 @@ onMounted(() => usageComposable.start())
           @open-chat="(t) => { activeConceptTask = t; showRefinementChat = true }"
           @navigate-agent="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
         />
-        <CostAnalyticsView v-else-if="activeView === 'cost'" />
-        <SchedulesView v-else-if="activeView === 'schedules'" />
-        <CloudSessionsView v-else-if="activeView === 'cloud'" />
-        <EvalView v-else-if="activeView === 'eval'" />
-        <WorkflowsView
-          v-else-if="activeView === 'workflows'"
+        <InsightsView
+          v-else-if="activeView === 'insights'"
+          :live-session-ids="agents.map(a => a.sessionId)"
           @navigate="(sessionId) => { const a = agents.find(x => x.sessionId === sessionId); if (a) selectAgent(a) }"
         />
+        <SchedulesView v-else-if="activeView === 'schedules'" />
+        <CloudSessionsView v-else-if="activeView === 'cloud'" />
       </div>
 
       <template #statusbar>

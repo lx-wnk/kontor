@@ -994,7 +994,7 @@ func ParseSessionFile(path string) (*SessionData, error) {
 						}
 					case "text":
 						if b.Text != "" {
-							btwText = scrubSecrets(b.Text)
+							btwText = ScrubSecrets(b.Text)
 							data.LastOutput = btwText
 							if entry.IsAPIErrorMessage {
 								if es := classifyAPIError(entry.APIErrorStatus, entry.Error, b.Text); es != "" {

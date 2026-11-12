@@ -29,6 +29,18 @@ func (AgentCostTrend) Fields() []ent.Field {
 		field.String("project_name").Optional().Default(""),
 		// source_mtime is the file modification time in unix nanoseconds; used to skip unchanged files on rescans.
 		field.Int64("source_mtime").Optional().Default(0),
+		field.Time("started_at").Optional().Nillable(),
+		field.String("title").Optional().Default(""),
+		field.Int("turns").Optional().Default(0),
+		field.Int64("agent_ms").Optional().Default(0),
+		field.String("agent_time_source").Optional().Default("estimate"),
+		field.String("cost_source").Optional().Default("estimate"),
+		field.Bool("cost_unknown_model").Optional().Default(false),
+		field.Int("cache_read_tokens").Optional().Default(0),
+		field.Int("cache_creation_tokens").Optional().Default(0),
+		field.Int("lines_added").Optional().Default(0),
+		field.Int("lines_removed").Optional().Default(0),
+		field.JSON("model_costs", map[string]float64{}).Optional(),
 	}
 }
 

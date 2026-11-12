@@ -29,20 +29,12 @@ var secretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,2}`),
 }
 
-// scrubSecrets replaces known secret patterns in s with "[REDACTED]".
+// ScrubSecrets replaces known secret patterns in s with "[REDACTED]".
 // It is intentionally conservative: the base64 pattern requires 40+ characters
 // to avoid false positives on legitimate short encoded values.
-func scrubSecrets(s string) string {
+func ScrubSecrets(s string) string {
 	for _, re := range secretPatterns {
 		s = re.ReplaceAllString(s, "[REDACTED]")
 	}
 	return s
-}
-
-// ScrubSecrets is the exported entry point onto scrubSecrets for callers
-// outside this package (e.g. memory, sanitizing content before it is stored).
-// secretPatterns itself stays unexported: a caller that could reach the slice
-// could mutate the source of truth every other caller relies on.
-func ScrubSecrets(s string) string {
-	return scrubSecrets(s)
 }

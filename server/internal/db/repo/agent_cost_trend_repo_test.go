@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
@@ -114,4 +115,63 @@ func TestAgentCostTrendRepo_ListByTimeRange_Filtered(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, "in-range", results[0].SessionID)
+}
+
+func TestAgentCostTrendRepo_Upsert_InsightsFields(t *testing.T) {
+	client := openTestDB(t)
+	r := repo.NewAgentCostTrendRepo(client)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	row := repo.AgentCostRow{
+		SessionID: "sess-i", Model: "claude-opus-5-5", InputTokens: 10, OutputTokens: 5, CostUSD: 1.25,
+		RecordedAt: now, StartedAt: now.Add(-time.Hour),
+		Title: "Fix login", Turns: 3, AgentMs: 120000, AgentTimeSource: repo.SourceCostState,
+		CostSource: repo.SourceCostState, CostUnknownModel: true,
+		CacheReadTokens: 7, CacheCreationTokens: 8, LinesAdded: 20, LinesRemoved: 4,
+		ModelCosts: map[string]float64{"claude-opus-5-5": 1.25},
+	}
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+
+	list := func() *ent.AgentCostTrend {
+		got, err := r.ListByTimeRange(t.Context(), now.Add(-time.Minute), now.Add(time.Minute))
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		return got[0]
+	}
+	got := list()
+	require.NotNil(t, got.StartedAt)
+	require.True(t, row.StartedAt.Equal(*got.StartedAt))
+	require.Equal(t, "Fix login", got.Title)
+	require.Equal(t, 3, got.Turns)
+	require.Equal(t, int64(120000), got.AgentMs)
+	require.Equal(t, repo.SourceCostState, got.AgentTimeSource)
+	require.Equal(t, repo.SourceCostState, got.CostSource)
+	require.True(t, got.CostUnknownModel)
+	require.Equal(t, 7, got.CacheReadTokens)
+	require.Equal(t, 8, got.CacheCreationTokens)
+	require.Equal(t, 20, got.LinesAdded)
+	require.Equal(t, 4, got.LinesRemoved)
+	require.Equal(t, map[string]float64{"claude-opus-5-5": 1.25}, got.ModelCosts)
+
+	row.Turns = 9
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+	require.Equal(t, 9, list().Turns)
+}
+
+func TestAgentCostTrendRepo_Upsert_NilModelCostsClearsColumn(t *testing.T) {
+	client := openTestDB(t)
+	r := repo.NewAgentCostTrendRepo(client)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	row := repo.AgentCostRow{SessionID: "sess-mc", Model: "m", RecordedAt: now,
+		ModelCosts: map[string]float64{"claude-opus-5-5": 1.25}}
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+
+	row.ModelCosts = nil
+	require.NoError(t, r.Upsert(t.Context(), []repo.AgentCostRow{row}))
+
+	got, err := r.ListByTimeRange(t.Context(), now.Add(-time.Minute), now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Empty(t, got[0].ModelCosts)
 }

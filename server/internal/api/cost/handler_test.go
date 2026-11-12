@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,5 +127,92 @@ func TestSummary_WithSeededRows(t *testing.T) {
 	// At least one week bucket.
 	if len(resp.ByWeek) == 0 {
 		t.Fatalf("ByWeek empty, want ≥ 1 bucket")
+	}
+}
+
+func getSummaryResp(t *testing.T, query string) (int, summaryResponse) {
+	t.Helper()
+	bundle, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = bundle.Close() })
+	now := time.Now().UTC()
+	rows := []repo.AgentCostRow{
+		{SessionID: uuid.NewString(), ProjectPath: "/a", Model: "m1", CostUSD: 1, RecordedAt: now.AddDate(0, 0, -1)},
+		{SessionID: uuid.NewString(), ProjectPath: "/b", Model: "m2", CostUSD: 2, RecordedAt: now.AddDate(0, 0, -2)},
+		{SessionID: uuid.NewString(), ProjectPath: "", Model: "m1", CostUSD: 4, RecordedAt: now.AddDate(0, 0, -3)},
+	}
+	if err := repo.NewAgentCostTrendRepo(bundle.Client).Upsert(t.Context(), rows); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	newRouter(NewHandler(bundle.DB)).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/cost/summary"+query, nil))
+	var resp summaryResponse
+	if rec.Code == http.StatusOK {
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+	}
+	return rec.Code, resp
+}
+
+func TestSummary_ProjectFilter(t *testing.T) {
+	code, resp := getSummaryResp(t, "?project=/a")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	if resp.TotalUSD != 1 || len(resp.ByProject) != 1 || resp.ByProject[0].ProjectPath != "/a" {
+		t.Fatalf("totals/byProject not filtered: %+v", resp)
+	}
+	if len(resp.ByDay) != 1 || resp.ByDay[0].CostUSD != 1 {
+		t.Fatalf("byDay not filtered: %+v", resp.ByDay)
+	}
+}
+
+func TestSummary_NoProjectUnchanged(t *testing.T) {
+	code, resp := getSummaryResp(t, "")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d", code)
+	}
+	if resp.TotalUSD != 7 || len(resp.ByProject) != 3 || len(resp.ByDay) != 3 {
+		t.Fatalf("unfiltered response changed: %+v", resp)
+	}
+}
+
+func TestSummary_UnknownProjectBucket(t *testing.T) {
+	_, resp := getSummaryResp(t, "?project=unknown")
+	if resp.TotalUSD != 4 || len(resp.ByProject) != 1 || resp.ByProject[0].ProjectPath != "unknown" {
+		t.Fatalf("unknown bucket not matched: %+v", resp)
+	}
+}
+
+func TestSummary_ProjectTooLong(t *testing.T) {
+	code, _ := getSummaryResp(t, "?project="+strings.Repeat("x", ProjectParamMaxLen+1))
+	if code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", code)
+	}
+}
+
+func TestRangeWhere(t *testing.T) {
+	const dateTerm = "substr(recorded_at, 1, 10)"
+	const projTerm = "COALESCE(NULLIF(project_path, ''), 'unknown') = ?"
+	cases := []struct {
+		name              string
+		from, to, project string
+		clause            string
+		args              []any
+	}{
+		{"both bounds", "2026-01-01", "2026-01-31", "", dateTerm + " >= ? AND " + dateTerm + " <= ?", []any{"2026-01-01", "2026-01-31"}},
+		{"empty from", "", "2026-01-31", "", dateTerm + " <= ?", []any{"2026-01-31"}},
+		{"with project", "2026-01-01", "2026-01-31", "/a", dateTerm + " >= ? AND " + dateTerm + " <= ? AND " + projTerm, []any{"2026-01-01", "2026-01-31", "/a"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			clause, args := RangeWhere(c.from, c.to, c.project)
+			if clause != c.clause || !reflect.DeepEqual(args, c.args) {
+				t.Fatalf("got %q %v, want %q %v", clause, args, c.clause, c.args)
+			}
+		})
 	}
 }

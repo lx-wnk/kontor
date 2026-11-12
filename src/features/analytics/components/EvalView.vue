@@ -11,7 +11,9 @@ import { toast } from '@/composables/useToast'
 import { useEvalMetrics } from '@/features/analytics/composables/useEvalMetrics'
 import { EVAL_RANGE_OPTIONS, formatWindowLabel, METRIC_KEYS, metricLabel } from '@/utils/evalMetrics'
 
-const { snapshots, openAlerts, isLoading, error, hours, lastDataAt, acknowledge, runScan, setHours, start } = useEvalMetrics()
+const props = defineProps<{ hours?: number }>()
+
+const { snapshots, openAlerts, isLoading, error, hours: windowHours, lastDataAt, acknowledge, runScan, setHours, start } = useEvalMetrics()
 
 // Toast is a transient nudge; `error` itself drives the persistent banner
 // below so a broken backend doesn't look like legitimate emptiness once the
@@ -21,7 +23,7 @@ watch(error, (msg) => {
     toast.error(msg)
 })
 
-const windowLabel = computed(() => formatWindowLabel(hours.value))
+const windowLabel = computed(() => formatWindowLabel(windowHours.value))
 
 // Shared across all nine cards — the window is one setting, not per-metric.
 // Never implies "Run scan now" can back-fill a period nothing ran in: it
@@ -147,7 +149,14 @@ function renderAllCharts() {
 }
 
 onMounted(() => {
+  if (props.hours !== undefined)
+    windowHours.value = props.hours
   start()
+})
+
+watch(() => props.hours, (h) => {
+  if (h !== undefined)
+    void setHours(h)
 })
 
 // Two conditions gate the <svg> these charts draw into: the section is hidden
@@ -173,8 +182,9 @@ onUnmounted(() => {
       </h2>
       <div class="flex items-center gap-3">
         <AppSelect
+          v-if="props.hours === undefined"
           id="eval-range-select"
-          :model-value="hours"
+          :model-value="windowHours"
           :options="EVAL_RANGE_OPTIONS"
           aria-label="Metric trend range"
           size="compact"

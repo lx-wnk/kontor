@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/lx-wnk/kontor/sdk"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
+	"github.com/lx-wnk/kontor/server/internal/parser"
 )
 
 // ---- stub repo ----
@@ -68,134 +70,134 @@ func itoa(n int) string {
 	return string(s)
 }
 
-func TestParseTokensFromRaw_ValidJSONLWithUsage(t *testing.T) {
+func TestParseSession_ValidJSONLWithUsage(t *testing.T) {
 	ts := "2024-01-15T10:30:00.000Z"
 	line := buildJSONLLine(100, 50, "claude-opus-4", ts)
 
-	usage, model, lastActivity, _, err := parseTokensFromRaw(line)
+	stats, err := parseSession(strings.NewReader(line))
 	require.NoError(t, err)
 
-	assert.Equal(t, 100, usage.InputTokens)
-	assert.Equal(t, 50, usage.OutputTokens)
-	assert.Equal(t, "claude-opus-4", model)
-	// lastActivity should be the parsed timestamp.
+	assert.Equal(t, 100, stats.Usage.InputTokens)
+	assert.Equal(t, 50, stats.Usage.OutputTokens)
+	assert.Equal(t, "claude-opus-4", stats.Model)
+	// LastActivity should be the parsed timestamp.
 	expected, _ := time.Parse(time.RFC3339Nano, ts)
-	assert.True(t, lastActivity.Equal(expected) || lastActivity.After(expected),
+	assert.True(t, stats.LastActivity.Equal(expected) || stats.LastActivity.After(expected),
 		"lastActivity should be at or after the parsed timestamp")
 }
 
-func TestParseTokensFromRaw_MultipleEntriesAccumulatesTokens(t *testing.T) {
+func TestParseSession_MultipleEntriesAccumulatesTokens(t *testing.T) {
 	ts1 := "2024-01-15T10:00:00.000Z"
 	ts2 := "2024-01-15T11:00:00.000Z"
 	line1 := buildJSONLLine(100, 50, "claude-sonnet-4-5", ts1)
 	line2 := buildJSONLLine(200, 80, "claude-sonnet-4-5", ts2)
 	raw := line1 + "\n" + line2
 
-	usage, model, lastActivity, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
 
-	assert.Equal(t, 300, usage.InputTokens, "input tokens should be summed")
-	assert.Equal(t, 130, usage.OutputTokens, "output tokens should be summed")
-	assert.Equal(t, "claude-sonnet-4-5", model)
+	assert.Equal(t, 300, stats.Usage.InputTokens, "input tokens should be summed")
+	assert.Equal(t, 130, stats.Usage.OutputTokens, "output tokens should be summed")
+	assert.Equal(t, "claude-sonnet-4-5", stats.Model)
 
-	// lastActivity should be ts2 (the later one).
+	// LastActivity should be ts2 (the later one).
 	expected, _ := time.Parse(time.RFC3339Nano, ts2)
-	assert.True(t, lastActivity.Equal(expected) || lastActivity.After(expected))
+	assert.True(t, stats.LastActivity.Equal(expected) || stats.LastActivity.After(expected))
 }
 
-func TestParseTokensFromRaw_MissingUsageField(t *testing.T) {
+func TestParseSession_MissingUsageField(t *testing.T) {
 	// Assistant message without "usage" field — should not panic and return zero tokens.
 	raw := `{"type":"message","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-sonnet-4-5"}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_NonAssistantRoleSkipped(t *testing.T) {
+func TestParseSession_NonAssistantRoleSkipped(t *testing.T) {
 	// User messages should be ignored.
 	raw := `{"type":"message","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"user","usage":{"input_tokens":999,"output_tokens":999}}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_NonMessageTypeSkipped(t *testing.T) {
+func TestParseSession_NonMessageTypeSkipped(t *testing.T) {
 	// Non-turn entries (tool_result, attachment, …) must not contribute usage,
 	// even when they carry an assistant role + usage block.
 	raw := `{"type":"tool_result","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","usage":{"input_tokens":999,"output_tokens":999}}}`
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-// TestParseTokensFromRaw_AssistantType is the regression guard for the bug that
+// TestParseSession_AssistantType is the regression guard for the bug that
 // left the cost table empty: real Claude Code logs write assistant turns with a
 // top-level type of "assistant" (not "message"), and those entries carry the
 // token usage. They must be counted.
-func TestParseTokensFromRaw_AssistantType(t *testing.T) {
+func TestParseSession_AssistantType(t *testing.T) {
 	raw := `{"type":"assistant","timestamp":"2024-01-15T10:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-7","usage":{"input_tokens":120,"output_tokens":45}}}`
 
-	usage, model, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 120, usage.InputTokens)
-	assert.Equal(t, 45, usage.OutputTokens)
-	assert.Equal(t, "claude-opus-4-7", model)
+	assert.Equal(t, 120, stats.Usage.InputTokens)
+	assert.Equal(t, 45, stats.Usage.OutputTokens)
+	assert.Equal(t, "claude-opus-4-7", stats.Model)
 }
 
-func TestParseTokensFromRaw_MalformedJSONLineSkipped(t *testing.T) {
+func TestParseSession_MalformedJSONLineSkipped(t *testing.T) {
 	// Malformed line followed by a valid line — the bad one is skipped, not an error.
 	ts := "2024-01-15T12:00:00.000Z"
 	validLine := buildJSONLLine(42, 21, "claude-opus-4", ts)
 	raw := "THIS IS NOT JSON\n" + validLine
 
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err, "malformed JSON should be skipped, not cause an error")
-	assert.Equal(t, 42, usage.InputTokens)
-	assert.Equal(t, 21, usage.OutputTokens)
+	assert.Equal(t, 42, stats.Usage.InputTokens)
+	assert.Equal(t, 21, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_EmptyInput(t *testing.T) {
-	usage, model, _, _, err := parseTokensFromRaw("")
+func TestParseSession_EmptyInput(t *testing.T) {
+	stats, err := parseSession(strings.NewReader(""))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 	// Default model should be set.
-	assert.NotEmpty(t, model)
+	assert.NotEmpty(t, stats.Model)
 }
 
-func TestParseTokensFromRaw_AllBlankLines(t *testing.T) {
+func TestParseSession_AllBlankLines(t *testing.T) {
 	raw := strings.Repeat("\n", 10)
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
-func TestParseTokensFromRaw_ModelUpdatedToLatestEntry(t *testing.T) {
+func TestParseSession_ModelUpdatedToLatestEntry(t *testing.T) {
 	ts1 := "2024-01-15T10:00:00.000Z"
 	ts2 := "2024-01-15T11:00:00.000Z"
 	line1 := buildJSONLLine(10, 5, "claude-sonnet-4-5", ts1)
 	line2 := buildJSONLLine(10, 5, "claude-opus-4", ts2)
 	raw := line1 + "\n" + line2
 
-	_, model, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
 	// The last assistant entry's model wins.
-	assert.Equal(t, "claude-opus-4", model)
+	assert.Equal(t, "claude-opus-4", stats.Model)
 }
 
-func TestParseTokensFromRaw_AllMalformedLines(t *testing.T) {
+func TestParseSession_AllMalformedLines(t *testing.T) {
 	raw := "not json\nalso not json\n{broken"
-	usage, _, _, _, err := parseTokensFromRaw(raw)
+	stats, err := parseSession(strings.NewReader(raw))
 	require.NoError(t, err)
-	assert.Equal(t, 0, usage.InputTokens)
-	assert.Equal(t, 0, usage.OutputTokens)
+	assert.Equal(t, 0, stats.Usage.InputTokens)
+	assert.Equal(t, 0, stats.Usage.OutputTokens)
 }
 
 // ---- multi-dir importer tests ----
@@ -568,41 +570,218 @@ func TestImporter_SkipsUnchangedFiles(t *testing.T) {
 		"unchanged file must be skipped — no rows upserted")
 }
 
-// TestParseTokensFromReader_EquivalentToRaw verifies the streaming reader path
-// returns identical results to the string-based wrapper.
-func TestParseTokensFromReader_EquivalentToRaw(t *testing.T) {
-	ts1 := "2025-01-15T10:30:00.000Z"
-	ts2 := "2025-01-15T10:31:00.000Z"
-	raw := buildJSONLLine(100, 50, "claude-opus-4", ts1) + "\n" +
-		buildJSONLLine(200, 80, "claude-opus-4", ts2)
-
-	rawUsage, rawModel, rawActivity, rawCwd, rawErr := parseTokensFromRaw(raw)
-	rdUsage, rdModel, rdActivity, rdCwd, rdErr := parseTokensFromReader(strings.NewReader(raw))
-
-	require.NoError(t, rawErr)
-	require.NoError(t, rdErr)
-	require.Equal(t, rawUsage, rdUsage)
-	require.Equal(t, rawModel, rdModel)
-	require.True(t, rawActivity.Equal(rdActivity))
-	require.Equal(t, rawCwd, rdCwd)
-	require.Equal(t, 300, rdUsage.InputTokens)
-	require.Equal(t, 130, rdUsage.OutputTokens)
-}
-
-// TestParseTokensFromReader_LongLine exercises a single JSONL line far larger than
+// TestParseSession_LongLine exercises a single JSONL line far larger than
 // bufio.Scanner's default 64 KB token limit, proving the enlarged buffer keeps the
 // row instead of dropping it with bufio.ErrTooLong.
-func TestParseTokensFromReader_LongLine(t *testing.T) {
+func TestParseSession_LongLine(t *testing.T) {
 	ts := "2025-01-15T10:30:00.000Z"
 	// ~512 KB of filler embedded in a valid assistant entry's text content.
 	filler := strings.Repeat("x", 512*1024)
 	line := `{"type":"assistant","timestamp":"` + ts + `","cwd":"/work/proj","message":{"role":"assistant","model":"claude-opus-4","content":[{"type":"text","text":"` +
 		filler + `"}],"usage":{"input_tokens":111,"output_tokens":22,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`
 
-	usage, model, _, cwd, err := parseTokensFromReader(strings.NewReader(line))
+	stats, err := parseSession(strings.NewReader(line))
 	require.NoError(t, err)
-	require.Equal(t, 111, usage.InputTokens)
-	require.Equal(t, 22, usage.OutputTokens)
-	require.Equal(t, "claude-opus-4", model)
-	require.Equal(t, "/work/proj", cwd)
+	require.Equal(t, 111, stats.Usage.InputTokens)
+	require.Equal(t, 22, stats.Usage.OutputTokens)
+	require.Equal(t, "claude-opus-4", stats.Model)
+	require.Equal(t, "/work/proj", stats.Cwd)
+}
+
+// ---- subagent roll-up and row fill ----
+
+func usageLine(ts, model string, in, out int) string {
+	return fmt.Sprintf(`{"type":"assistant","timestamp":%q,"message":{"role":"assistant","model":%q,"usage":{"input_tokens":%d,"output_tokens":%d}}}`, ts, model, in, out)
+}
+
+func writeParentWithSub(t *testing.T, parent, sub string) (parentPath, subPath string) {
+	t.Helper()
+	dir := t.TempDir()
+	parentPath = writeSession(t, dir, "session-roll", parent)
+	subDir := filepath.Join(dir, "session-roll", "subagents")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	subPath = filepath.Join(subDir, "agent-a.jsonl")
+	require.NoError(t, os.WriteFile(subPath, []byte(sub), 0o644))
+	return parentPath, subPath
+}
+
+func runImportSync(t *testing.T, costRepo *stubCostRepo, files ...string) {
+	t.Helper()
+	t.Setenv("DASHBOARD_CLAUDE_CONFIG_DIRS", "/fake/acct")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/fake/nonexistent")
+	imp := NewImporter(costRepo).WithCollectFn(func(string) ([]string, error) { return files, nil })
+	imp.runImport(t.Context(), func(ImportProgress) {})
+}
+
+func TestImporter_RollsUpSubagents(t *testing.T) {
+	opus, haiku := "claude-opus-4", "claude-haiku-4-5"
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "first"),
+		usageLine("2025-01-15T10:00:05Z", opus, 60, 6),
+		promptLine("2025-01-15T10:01:00Z", "second"),
+		usageLine("2025-01-15T10:01:05Z", opus, 40, 4),
+	}, "\n")
+	sub := strings.Join([]string{
+		promptLine("2025-01-15T10:00:01Z", "sub task"),
+		usageLine("2025-01-15T10:00:02Z", haiku, 50, 5),
+	}, "\n")
+	parentPath, _ := writeParentWithSub(t, parent, sub)
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.Equal(t, 150, row.InputTokens)
+	assert.Equal(t, 15, row.OutputTokens)
+	want := parser.EstimateCost(sdk.TokenUsage{InputTokens: 100, OutputTokens: 10}, opus) +
+		parser.EstimateCost(sdk.TokenUsage{InputTokens: 50, OutputTokens: 5}, haiku)
+	assert.InDelta(t, want, row.CostUSD, 1e-12)
+	assert.Equal(t, repo.SourceEstimate, row.CostSource)
+	assert.Equal(t, repo.SourceEstimate, row.AgentTimeSource)
+	assert.Equal(t, 2, row.Turns, "only the parent's turns count")
+	assert.Equal(t, opus, row.Model)
+	assert.Equal(t, "first", row.Title)
+	assert.Equal(t, int64(10_000), row.AgentMs, "subagent time is not added on the estimate path")
+}
+
+func TestImporter_CostStateWins(t *testing.T) {
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "hi"),
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2,"hasUnknownModelCost":true,"modelUsage":{"claude-opus-4":{"costUSD":3.0},"claude-haiku-4-5":{"costUSD":0.2}}}`,
+	}, "\n")
+	parentPath, _ := writeParentWithSub(t, parent, usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.InDelta(t, 3.2, row.CostUSD, 1e-12)
+	assert.Equal(t, repo.SourceCostState, row.CostSource)
+	assert.Equal(t, int64(1500), row.AgentMs)
+	assert.Equal(t, repo.SourceCostState, row.AgentTimeSource)
+	assert.Equal(t, 7, row.LinesAdded)
+	assert.Equal(t, 2, row.LinesRemoved)
+	assert.True(t, row.CostUnknownModel)
+	assert.Equal(t, map[string]float64{"claude-opus-4": 3.0, "claude-haiku-4-5": 0.2}, row.ModelCosts)
+	assert.Equal(t, 150, row.InputTokens, "tokens are summed even when cost-state wins")
+}
+
+func TestImporter_StaleCostStateFallsBack(t *testing.T) {
+	parent := strings.Join([]string{
+		promptLine("2025-01-15T10:00:00Z", "hi"),
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		`{"type":"cost-state","totalCostUSD":3.2,"totalAPIDuration":1000,"totalToolDuration":500,"totalLinesAdded":7,"totalLinesRemoved":2,"hasUnknownModelCost":true,"modelUsage":{"claude-opus-4":{"costUSD":3.2}}}`,
+		usageLine("2025-01-15T10:00:09Z", "claude-opus-4", 1, 1),
+	}, "\n")
+	stats := mustParse(t, parent)
+	p := writeSession(t, t.TempDir(), "session-stale", parent)
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), p)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+
+	assert.Equal(t, repo.SourceEstimate, row.CostSource)
+	assert.Equal(t, repo.SourceEstimate, row.AgentTimeSource)
+	assert.Equal(t, stats.EstimateMs, row.AgentMs)
+	assert.InDelta(t, parser.EstimateCost(stats.Usage, stats.Model), row.CostUSD, 1e-12)
+	assert.Equal(t, 7, row.LinesAdded)
+	assert.Equal(t, 2, row.LinesRemoved)
+	assert.True(t, row.CostUnknownModel)
+	assert.Equal(t, map[string]float64{"claude-opus-4": 3.2}, row.ModelCosts)
+}
+
+func TestImporter_ReparsesWhenOnlySubagentChanged(t *testing.T) {
+	parentPath, subPath := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	info, err := os.Stat(parentPath)
+	require.NoError(t, err)
+	require.NoError(t, os.Chtimes(subPath, info.ModTime(), info.ModTime()))
+
+	first := &stubCostRepo{mtimes: map[string]int64{"session-roll": info.ModTime().UnixNano()}}
+	runImportSync(t, first, parentPath)
+	assert.Empty(t, first.all(), "unchanged parent and subagent are skipped")
+
+	later := info.ModTime().Add(time.Second)
+	require.NoError(t, os.Chtimes(subPath, later, later))
+	second := &stubCostRepo{mtimes: first.mtimes}
+	runImportSync(t, second, parentPath)
+	rows := second.all()
+	require.Len(t, rows, 1)
+	assert.Equal(t, later.UnixNano(), rows[0].SourceMtime)
+}
+
+func TestImporter_SubagentFilesAreNotRows(t *testing.T) {
+	projects := t.TempDir()
+	enc := filepath.Join(projects, "-repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(enc, "s1", "subagents"), 0o755))
+	parentPath := writeSession(t, enc, "s1", makeJSONLContent(1, 1))
+	require.NoError(t, os.WriteFile(filepath.Join(enc, "s1", "subagents", "agent-a.jsonl"), []byte(makeJSONLContent(1, 1)), 0o644))
+
+	files, err := collectJSONLFiles(projects)
+	require.NoError(t, err)
+	assert.Equal(t, []string{parentPath}, files)
+}
+
+func TestSubagentFiles_AbsentDirIsNil(t *testing.T) {
+	p := writeSession(t, t.TempDir(), "lonely", makeJSONLContent(1, 1))
+	assert.Nil(t, subagentFiles(p))
+}
+
+func TestImporter_UnreadableSubagentIsSkipped(t *testing.T) {
+	parentPath, subPath := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	require.NoError(t, os.Chmod(subPath, 0o000))
+	if f, err := os.Open(subPath); err == nil {
+		_ = f.Close()
+		t.Skip("running with privileges that ignore file modes")
+	}
+
+	row, err := NewImporter(&stubCostRepo{}).extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, 100, row.InputTokens)
+}
+
+func TestSubagentFiles_SkipsSymlinkToOversizeFile(t *testing.T) {
+	parentPath, _ := writeParentWithSub(t,
+		usageLine("2025-01-15T10:00:05Z", "claude-opus-4", 100, 10),
+		usageLine("2025-01-15T10:00:02Z", "claude-haiku-4-5", 50, 5))
+	big := filepath.Join(t.TempDir(), "big.jsonl")
+	f, err := os.Create(big)
+	require.NoError(t, err)
+	require.NoError(t, f.Truncate(maxFileSizeBytes+1))
+	require.NoError(t, f.Close())
+	subDir := filepath.Join(strings.TrimSuffix(parentPath, ".jsonl"), "subagents")
+	require.NoError(t, os.Symlink(big, filepath.Join(subDir, "agent-big.jsonl")))
+	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(subDir, "agent-dir.jsonl")))
+
+	assert.Equal(t, []string{filepath.Join(subDir, "agent-a.jsonl")}, subagentFiles(parentPath))
+}
+
+type touchingResolver struct {
+	t    *testing.T
+	path string
+	at   time.Time
+}
+
+func (r touchingResolver) Resolve(_ context.Context, cwd string) (string, string) {
+	require.NoError(r.t, os.Chtimes(r.path, r.at, r.at))
+	return cwd, filepath.Base(cwd)
+}
+
+func TestExtractCostRow_SourceMtimeCapturedBeforeParse(t *testing.T) {
+	line := `{"type":"assistant","timestamp":"2025-02-02T02:02:02.000Z","cwd":"/w/app","message":{"role":"assistant","model":"claude-opus-4","usage":{"input_tokens":3,"output_tokens":2}}}`
+	parentPath, subPath := writeParentWithSub(t, line, usageLine("2025-02-02T02:02:03Z", "claude-haiku-4-5", 1, 1))
+	before := time.Date(2025, 2, 2, 3, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(parentPath, before, before))
+	require.NoError(t, os.Chtimes(subPath, before, before))
+
+	imp := NewImporter(&stubCostRepo{}).WithProjectResolver(touchingResolver{t: t, path: subPath, at: before.Add(time.Hour)})
+	row, err := imp.extractCostRow(t.Context(), parentPath)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Equal(t, before.UnixNano(), row.SourceMtime, "a write during the import must not be marked as imported")
 }

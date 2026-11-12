@@ -18,9 +18,7 @@ export const NAV_ITEMS: NavItemConfig[] = [
   { view: 'dashboard', label: 'Dashboard', icon: '▦', group: 'Monitor' },
   { view: 'pipeline', label: 'Pipeline', icon: '▤', group: 'Build' },
   { view: 'schedules', label: 'Schedules', icon: '⏱', group: 'Build' },
-  { view: 'workflows', label: 'Workflows', icon: '⤳', group: 'Insights' },
-  { view: 'cost', label: 'Cost', icon: '◷', group: 'Insights' },
-  { view: 'eval', label: 'Eval', icon: '⬡', group: 'Insights' },
+  { view: 'insights', label: 'Insights', icon: '◷', group: 'Insights' },
   { view: 'cloud', label: 'Cloud sessions', icon: '☁', group: 'Monitor', hub: false },
 ]
 

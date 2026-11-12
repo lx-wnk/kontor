@@ -25,11 +25,17 @@ test.describe('Cost analytics', () => {
       updatedAt: new Date().toISOString(),
     })
 
+    await stubJson(page, '/api/insights/summary', {
+      from: '',
+      to: '',
+      current: { costUsd: 0, agentMs: 0, tokens: 0, sessions: 0, estimated: 0, legacy: 0 },
+      previous: null,
+    })
+    await stubJson(page, '/api/insights/projects', [])
+
     await page.goto('/')
-    await page
-      .getByRole('navigation', { name: 'Primary' })
-      .getByRole('button', { name: 'Cost' })
-      .click()
+    await page.getByTestId('nav-item-insights').click()
+    await page.getByRole('tab', { name: 'Cost' }).click()
   })
 
   test('shows the empty state and the time-range presets', async ({ page }) => {

@@ -73,6 +73,46 @@ func init() {
 	agentcosttrendDescSourceMtime := agentcosttrendFields[10].Descriptor()
 	// agentcosttrend.DefaultSourceMtime holds the default value on creation for the source_mtime field.
 	agentcosttrend.DefaultSourceMtime = agentcosttrendDescSourceMtime.Default.(int64)
+	// agentcosttrendDescTitle is the schema descriptor for title field.
+	agentcosttrendDescTitle := agentcosttrendFields[12].Descriptor()
+	// agentcosttrend.DefaultTitle holds the default value on creation for the title field.
+	agentcosttrend.DefaultTitle = agentcosttrendDescTitle.Default.(string)
+	// agentcosttrendDescTurns is the schema descriptor for turns field.
+	agentcosttrendDescTurns := agentcosttrendFields[13].Descriptor()
+	// agentcosttrend.DefaultTurns holds the default value on creation for the turns field.
+	agentcosttrend.DefaultTurns = agentcosttrendDescTurns.Default.(int)
+	// agentcosttrendDescAgentMs is the schema descriptor for agent_ms field.
+	agentcosttrendDescAgentMs := agentcosttrendFields[14].Descriptor()
+	// agentcosttrend.DefaultAgentMs holds the default value on creation for the agent_ms field.
+	agentcosttrend.DefaultAgentMs = agentcosttrendDescAgentMs.Default.(int64)
+	// agentcosttrendDescAgentTimeSource is the schema descriptor for agent_time_source field.
+	agentcosttrendDescAgentTimeSource := agentcosttrendFields[15].Descriptor()
+	// agentcosttrend.DefaultAgentTimeSource holds the default value on creation for the agent_time_source field.
+	agentcosttrend.DefaultAgentTimeSource = agentcosttrendDescAgentTimeSource.Default.(string)
+	// agentcosttrendDescCostSource is the schema descriptor for cost_source field.
+	agentcosttrendDescCostSource := agentcosttrendFields[16].Descriptor()
+	// agentcosttrend.DefaultCostSource holds the default value on creation for the cost_source field.
+	agentcosttrend.DefaultCostSource = agentcosttrendDescCostSource.Default.(string)
+	// agentcosttrendDescCostUnknownModel is the schema descriptor for cost_unknown_model field.
+	agentcosttrendDescCostUnknownModel := agentcosttrendFields[17].Descriptor()
+	// agentcosttrend.DefaultCostUnknownModel holds the default value on creation for the cost_unknown_model field.
+	agentcosttrend.DefaultCostUnknownModel = agentcosttrendDescCostUnknownModel.Default.(bool)
+	// agentcosttrendDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
+	agentcosttrendDescCacheReadTokens := agentcosttrendFields[18].Descriptor()
+	// agentcosttrend.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
+	agentcosttrend.DefaultCacheReadTokens = agentcosttrendDescCacheReadTokens.Default.(int)
+	// agentcosttrendDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
+	agentcosttrendDescCacheCreationTokens := agentcosttrendFields[19].Descriptor()
+	// agentcosttrend.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
+	agentcosttrend.DefaultCacheCreationTokens = agentcosttrendDescCacheCreationTokens.Default.(int)
+	// agentcosttrendDescLinesAdded is the schema descriptor for lines_added field.
+	agentcosttrendDescLinesAdded := agentcosttrendFields[20].Descriptor()
+	// agentcosttrend.DefaultLinesAdded holds the default value on creation for the lines_added field.
+	agentcosttrend.DefaultLinesAdded = agentcosttrendDescLinesAdded.Default.(int)
+	// agentcosttrendDescLinesRemoved is the schema descriptor for lines_removed field.
+	agentcosttrendDescLinesRemoved := agentcosttrendFields[21].Descriptor()
+	// agentcosttrend.DefaultLinesRemoved holds the default value on creation for the lines_removed field.
+	agentcosttrend.DefaultLinesRemoved = agentcosttrendDescLinesRemoved.Default.(int)
 	apikeyFields := schema.ApiKey{}.Fields()
 	_ = apikeyFields
 	// apikeyDescScopes is the schema descriptor for scopes field.

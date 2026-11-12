@@ -154,7 +154,7 @@ func buildSessionInfo(entry jsonlFileEntry, runningEncoded map[string]bool) Sess
 
 	if tailRaw, err := TailRead(entry.filePath); err == nil {
 		if resp := extractLastAssistantText(tailRaw); resp != "" {
-			scrubbed := scrubSecrets(resp)
+			scrubbed := ScrubSecrets(resp)
 			lastResponse = &scrubbed
 		}
 		// The model is stable within a session; if the head window missed
@@ -173,7 +173,7 @@ func buildSessionInfo(entry jsonlFileEntry, runningEncoded map[string]bool) Sess
 		inputTokens = meta.InputTokens
 		outputTokens = meta.OutputTokens
 		if meta.FirstPrompt != "" {
-			scrubbed := scrubSecrets(meta.FirstPrompt)
+			scrubbed := ScrubSecrets(meta.FirstPrompt)
 			firstPrompt = &scrubbed
 		}
 	}

@@ -62,6 +62,28 @@ beforeEach(() => {
 })
 
 describe('costAnalyticsView', () => {
+  it('follows page filters: sends project and hides its own range bar', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => emptyApiResponse })
+    vi.stubGlobal('fetch', mockFetch)
+    const wrapper = mount(CostAnalyticsView, { props: { from: '2026-10-01', to: '2026-10-30', project: '/a' } })
+    await flushPromises()
+    const url = String(mockFetch.mock.calls[0][0])
+    expect(url).toContain('project=%2Fa')
+    expect(url).toContain('from=2026-10-01')
+    expect(url).toContain('to=2026-10-30')
+    expect(wrapper.findAll('button').some(b => b.text() === '7d')).toBe(false)
+    expect(wrapper.find('input[type="date"]').exists()).toBe(false)
+  })
+
+  it('without props keeps its preset buttons and sends no project', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => emptyApiResponse })
+    vi.stubGlobal('fetch', mockFetch)
+    const wrapper = mount(CostAnalyticsView)
+    await flushPromises()
+    expect(wrapper.findAll('button').some(b => b.text() === '7d')).toBe(true)
+    expect(String(mockFetch.mock.calls[0][0])).not.toContain('project=')
+  })
+
   it('renders empty-state message when API returns no rows', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

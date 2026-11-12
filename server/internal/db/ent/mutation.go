@@ -109,27 +109,45 @@ const (
 // AgentCostTrendMutation represents an operation that mutates the AgentCostTrend nodes in the graph.
 type AgentCostTrendMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *string
-	session_id       *string
-	model            *string
-	input_tokens     *int
-	addinput_tokens  *int
-	output_tokens    *int
-	addoutput_tokens *int
-	cost_usd         *float64
-	addcost_usd      *float64
-	recorded_at      *time.Time
-	cwd              *string
-	project_path     *string
-	project_name     *string
-	source_mtime     *int64
-	addsource_mtime  *int64
-	clearedFields    map[string]struct{}
-	done             bool
-	oldValue         func(context.Context) (*AgentCostTrend, error)
-	predicates       []predicate.AgentCostTrend
+	op                       Op
+	typ                      string
+	id                       *string
+	session_id               *string
+	model                    *string
+	input_tokens             *int
+	addinput_tokens          *int
+	output_tokens            *int
+	addoutput_tokens         *int
+	cost_usd                 *float64
+	addcost_usd              *float64
+	recorded_at              *time.Time
+	cwd                      *string
+	project_path             *string
+	project_name             *string
+	source_mtime             *int64
+	addsource_mtime          *int64
+	started_at               *time.Time
+	title                    *string
+	turns                    *int
+	addturns                 *int
+	agent_ms                 *int64
+	addagent_ms              *int64
+	agent_time_source        *string
+	cost_source              *string
+	cost_unknown_model       *bool
+	cache_read_tokens        *int
+	addcache_read_tokens     *int
+	cache_creation_tokens    *int
+	addcache_creation_tokens *int
+	lines_added              *int
+	addlines_added           *int
+	lines_removed            *int
+	addlines_removed         *int
+	model_costs              *map[string]float64
+	clearedFields            map[string]struct{}
+	done                     bool
+	oldValue                 func(context.Context) (*AgentCostTrend, error)
+	predicates               []predicate.AgentCostTrend
 }
 
 var _ ent.Mutation = (*AgentCostTrendMutation)(nil)
@@ -729,6 +747,720 @@ func (m *AgentCostTrendMutation) ResetSourceMtime() {
 	delete(m.clearedFields, agentcosttrend.FieldSourceMtime)
 }
 
+// SetStartedAt sets the "started_at" field.
+func (m *AgentCostTrendMutation) SetStartedAt(t time.Time) {
+	m.started_at = &t
+}
+
+// StartedAt returns the value of the "started_at" field in the mutation.
+func (m *AgentCostTrendMutation) StartedAt() (r time.Time, exists bool) {
+	v := m.started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartedAt returns the old "started_at" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldStartedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartedAt: %w", err)
+	}
+	return oldValue.StartedAt, nil
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (m *AgentCostTrendMutation) ClearStartedAt() {
+	m.started_at = nil
+	m.clearedFields[agentcosttrend.FieldStartedAt] = struct{}{}
+}
+
+// StartedAtCleared returns if the "started_at" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) StartedAtCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldStartedAt]
+	return ok
+}
+
+// ResetStartedAt resets all changes to the "started_at" field.
+func (m *AgentCostTrendMutation) ResetStartedAt() {
+	m.started_at = nil
+	delete(m.clearedFields, agentcosttrend.FieldStartedAt)
+}
+
+// SetTitle sets the "title" field.
+func (m *AgentCostTrendMutation) SetTitle(s string) {
+	m.title = &s
+}
+
+// Title returns the value of the "title" field in the mutation.
+func (m *AgentCostTrendMutation) Title() (r string, exists bool) {
+	v := m.title
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTitle returns the old "title" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldTitle(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTitle is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTitle requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTitle: %w", err)
+	}
+	return oldValue.Title, nil
+}
+
+// ClearTitle clears the value of the "title" field.
+func (m *AgentCostTrendMutation) ClearTitle() {
+	m.title = nil
+	m.clearedFields[agentcosttrend.FieldTitle] = struct{}{}
+}
+
+// TitleCleared returns if the "title" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) TitleCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldTitle]
+	return ok
+}
+
+// ResetTitle resets all changes to the "title" field.
+func (m *AgentCostTrendMutation) ResetTitle() {
+	m.title = nil
+	delete(m.clearedFields, agentcosttrend.FieldTitle)
+}
+
+// SetTurns sets the "turns" field.
+func (m *AgentCostTrendMutation) SetTurns(i int) {
+	m.turns = &i
+	m.addturns = nil
+}
+
+// Turns returns the value of the "turns" field in the mutation.
+func (m *AgentCostTrendMutation) Turns() (r int, exists bool) {
+	v := m.turns
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTurns returns the old "turns" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldTurns(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTurns is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTurns requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTurns: %w", err)
+	}
+	return oldValue.Turns, nil
+}
+
+// AddTurns adds i to the "turns" field.
+func (m *AgentCostTrendMutation) AddTurns(i int) {
+	if m.addturns != nil {
+		*m.addturns += i
+	} else {
+		m.addturns = &i
+	}
+}
+
+// AddedTurns returns the value that was added to the "turns" field in this mutation.
+func (m *AgentCostTrendMutation) AddedTurns() (r int, exists bool) {
+	v := m.addturns
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (m *AgentCostTrendMutation) ClearTurns() {
+	m.turns = nil
+	m.addturns = nil
+	m.clearedFields[agentcosttrend.FieldTurns] = struct{}{}
+}
+
+// TurnsCleared returns if the "turns" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) TurnsCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldTurns]
+	return ok
+}
+
+// ResetTurns resets all changes to the "turns" field.
+func (m *AgentCostTrendMutation) ResetTurns() {
+	m.turns = nil
+	m.addturns = nil
+	delete(m.clearedFields, agentcosttrend.FieldTurns)
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (m *AgentCostTrendMutation) SetAgentMs(i int64) {
+	m.agent_ms = &i
+	m.addagent_ms = nil
+}
+
+// AgentMs returns the value of the "agent_ms" field in the mutation.
+func (m *AgentCostTrendMutation) AgentMs() (r int64, exists bool) {
+	v := m.agent_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAgentMs returns the old "agent_ms" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldAgentMs(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAgentMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAgentMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAgentMs: %w", err)
+	}
+	return oldValue.AgentMs, nil
+}
+
+// AddAgentMs adds i to the "agent_ms" field.
+func (m *AgentCostTrendMutation) AddAgentMs(i int64) {
+	if m.addagent_ms != nil {
+		*m.addagent_ms += i
+	} else {
+		m.addagent_ms = &i
+	}
+}
+
+// AddedAgentMs returns the value that was added to the "agent_ms" field in this mutation.
+func (m *AgentCostTrendMutation) AddedAgentMs() (r int64, exists bool) {
+	v := m.addagent_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (m *AgentCostTrendMutation) ClearAgentMs() {
+	m.agent_ms = nil
+	m.addagent_ms = nil
+	m.clearedFields[agentcosttrend.FieldAgentMs] = struct{}{}
+}
+
+// AgentMsCleared returns if the "agent_ms" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) AgentMsCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldAgentMs]
+	return ok
+}
+
+// ResetAgentMs resets all changes to the "agent_ms" field.
+func (m *AgentCostTrendMutation) ResetAgentMs() {
+	m.agent_ms = nil
+	m.addagent_ms = nil
+	delete(m.clearedFields, agentcosttrend.FieldAgentMs)
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (m *AgentCostTrendMutation) SetAgentTimeSource(s string) {
+	m.agent_time_source = &s
+}
+
+// AgentTimeSource returns the value of the "agent_time_source" field in the mutation.
+func (m *AgentCostTrendMutation) AgentTimeSource() (r string, exists bool) {
+	v := m.agent_time_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAgentTimeSource returns the old "agent_time_source" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldAgentTimeSource(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAgentTimeSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAgentTimeSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAgentTimeSource: %w", err)
+	}
+	return oldValue.AgentTimeSource, nil
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (m *AgentCostTrendMutation) ClearAgentTimeSource() {
+	m.agent_time_source = nil
+	m.clearedFields[agentcosttrend.FieldAgentTimeSource] = struct{}{}
+}
+
+// AgentTimeSourceCleared returns if the "agent_time_source" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) AgentTimeSourceCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldAgentTimeSource]
+	return ok
+}
+
+// ResetAgentTimeSource resets all changes to the "agent_time_source" field.
+func (m *AgentCostTrendMutation) ResetAgentTimeSource() {
+	m.agent_time_source = nil
+	delete(m.clearedFields, agentcosttrend.FieldAgentTimeSource)
+}
+
+// SetCostSource sets the "cost_source" field.
+func (m *AgentCostTrendMutation) SetCostSource(s string) {
+	m.cost_source = &s
+}
+
+// CostSource returns the value of the "cost_source" field in the mutation.
+func (m *AgentCostTrendMutation) CostSource() (r string, exists bool) {
+	v := m.cost_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCostSource returns the old "cost_source" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldCostSource(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCostSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCostSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCostSource: %w", err)
+	}
+	return oldValue.CostSource, nil
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (m *AgentCostTrendMutation) ClearCostSource() {
+	m.cost_source = nil
+	m.clearedFields[agentcosttrend.FieldCostSource] = struct{}{}
+}
+
+// CostSourceCleared returns if the "cost_source" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) CostSourceCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldCostSource]
+	return ok
+}
+
+// ResetCostSource resets all changes to the "cost_source" field.
+func (m *AgentCostTrendMutation) ResetCostSource() {
+	m.cost_source = nil
+	delete(m.clearedFields, agentcosttrend.FieldCostSource)
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (m *AgentCostTrendMutation) SetCostUnknownModel(b bool) {
+	m.cost_unknown_model = &b
+}
+
+// CostUnknownModel returns the value of the "cost_unknown_model" field in the mutation.
+func (m *AgentCostTrendMutation) CostUnknownModel() (r bool, exists bool) {
+	v := m.cost_unknown_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCostUnknownModel returns the old "cost_unknown_model" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldCostUnknownModel(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCostUnknownModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCostUnknownModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCostUnknownModel: %w", err)
+	}
+	return oldValue.CostUnknownModel, nil
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (m *AgentCostTrendMutation) ClearCostUnknownModel() {
+	m.cost_unknown_model = nil
+	m.clearedFields[agentcosttrend.FieldCostUnknownModel] = struct{}{}
+}
+
+// CostUnknownModelCleared returns if the "cost_unknown_model" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) CostUnknownModelCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldCostUnknownModel]
+	return ok
+}
+
+// ResetCostUnknownModel resets all changes to the "cost_unknown_model" field.
+func (m *AgentCostTrendMutation) ResetCostUnknownModel() {
+	m.cost_unknown_model = nil
+	delete(m.clearedFields, agentcosttrend.FieldCostUnknownModel)
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (m *AgentCostTrendMutation) SetCacheReadTokens(i int) {
+	m.cache_read_tokens = &i
+	m.addcache_read_tokens = nil
+}
+
+// CacheReadTokens returns the value of the "cache_read_tokens" field in the mutation.
+func (m *AgentCostTrendMutation) CacheReadTokens() (r int, exists bool) {
+	v := m.cache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheReadTokens returns the old "cache_read_tokens" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldCacheReadTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheReadTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheReadTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheReadTokens: %w", err)
+	}
+	return oldValue.CacheReadTokens, nil
+}
+
+// AddCacheReadTokens adds i to the "cache_read_tokens" field.
+func (m *AgentCostTrendMutation) AddCacheReadTokens(i int) {
+	if m.addcache_read_tokens != nil {
+		*m.addcache_read_tokens += i
+	} else {
+		m.addcache_read_tokens = &i
+	}
+}
+
+// AddedCacheReadTokens returns the value that was added to the "cache_read_tokens" field in this mutation.
+func (m *AgentCostTrendMutation) AddedCacheReadTokens() (r int, exists bool) {
+	v := m.addcache_read_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (m *AgentCostTrendMutation) ClearCacheReadTokens() {
+	m.cache_read_tokens = nil
+	m.addcache_read_tokens = nil
+	m.clearedFields[agentcosttrend.FieldCacheReadTokens] = struct{}{}
+}
+
+// CacheReadTokensCleared returns if the "cache_read_tokens" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) CacheReadTokensCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldCacheReadTokens]
+	return ok
+}
+
+// ResetCacheReadTokens resets all changes to the "cache_read_tokens" field.
+func (m *AgentCostTrendMutation) ResetCacheReadTokens() {
+	m.cache_read_tokens = nil
+	m.addcache_read_tokens = nil
+	delete(m.clearedFields, agentcosttrend.FieldCacheReadTokens)
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (m *AgentCostTrendMutation) SetCacheCreationTokens(i int) {
+	m.cache_creation_tokens = &i
+	m.addcache_creation_tokens = nil
+}
+
+// CacheCreationTokens returns the value of the "cache_creation_tokens" field in the mutation.
+func (m *AgentCostTrendMutation) CacheCreationTokens() (r int, exists bool) {
+	v := m.cache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheCreationTokens returns the old "cache_creation_tokens" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldCacheCreationTokens(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheCreationTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheCreationTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheCreationTokens: %w", err)
+	}
+	return oldValue.CacheCreationTokens, nil
+}
+
+// AddCacheCreationTokens adds i to the "cache_creation_tokens" field.
+func (m *AgentCostTrendMutation) AddCacheCreationTokens(i int) {
+	if m.addcache_creation_tokens != nil {
+		*m.addcache_creation_tokens += i
+	} else {
+		m.addcache_creation_tokens = &i
+	}
+}
+
+// AddedCacheCreationTokens returns the value that was added to the "cache_creation_tokens" field in this mutation.
+func (m *AgentCostTrendMutation) AddedCacheCreationTokens() (r int, exists bool) {
+	v := m.addcache_creation_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (m *AgentCostTrendMutation) ClearCacheCreationTokens() {
+	m.cache_creation_tokens = nil
+	m.addcache_creation_tokens = nil
+	m.clearedFields[agentcosttrend.FieldCacheCreationTokens] = struct{}{}
+}
+
+// CacheCreationTokensCleared returns if the "cache_creation_tokens" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) CacheCreationTokensCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldCacheCreationTokens]
+	return ok
+}
+
+// ResetCacheCreationTokens resets all changes to the "cache_creation_tokens" field.
+func (m *AgentCostTrendMutation) ResetCacheCreationTokens() {
+	m.cache_creation_tokens = nil
+	m.addcache_creation_tokens = nil
+	delete(m.clearedFields, agentcosttrend.FieldCacheCreationTokens)
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (m *AgentCostTrendMutation) SetLinesAdded(i int) {
+	m.lines_added = &i
+	m.addlines_added = nil
+}
+
+// LinesAdded returns the value of the "lines_added" field in the mutation.
+func (m *AgentCostTrendMutation) LinesAdded() (r int, exists bool) {
+	v := m.lines_added
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLinesAdded returns the old "lines_added" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldLinesAdded(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLinesAdded is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLinesAdded requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLinesAdded: %w", err)
+	}
+	return oldValue.LinesAdded, nil
+}
+
+// AddLinesAdded adds i to the "lines_added" field.
+func (m *AgentCostTrendMutation) AddLinesAdded(i int) {
+	if m.addlines_added != nil {
+		*m.addlines_added += i
+	} else {
+		m.addlines_added = &i
+	}
+}
+
+// AddedLinesAdded returns the value that was added to the "lines_added" field in this mutation.
+func (m *AgentCostTrendMutation) AddedLinesAdded() (r int, exists bool) {
+	v := m.addlines_added
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (m *AgentCostTrendMutation) ClearLinesAdded() {
+	m.lines_added = nil
+	m.addlines_added = nil
+	m.clearedFields[agentcosttrend.FieldLinesAdded] = struct{}{}
+}
+
+// LinesAddedCleared returns if the "lines_added" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) LinesAddedCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldLinesAdded]
+	return ok
+}
+
+// ResetLinesAdded resets all changes to the "lines_added" field.
+func (m *AgentCostTrendMutation) ResetLinesAdded() {
+	m.lines_added = nil
+	m.addlines_added = nil
+	delete(m.clearedFields, agentcosttrend.FieldLinesAdded)
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (m *AgentCostTrendMutation) SetLinesRemoved(i int) {
+	m.lines_removed = &i
+	m.addlines_removed = nil
+}
+
+// LinesRemoved returns the value of the "lines_removed" field in the mutation.
+func (m *AgentCostTrendMutation) LinesRemoved() (r int, exists bool) {
+	v := m.lines_removed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLinesRemoved returns the old "lines_removed" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldLinesRemoved(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLinesRemoved is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLinesRemoved requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLinesRemoved: %w", err)
+	}
+	return oldValue.LinesRemoved, nil
+}
+
+// AddLinesRemoved adds i to the "lines_removed" field.
+func (m *AgentCostTrendMutation) AddLinesRemoved(i int) {
+	if m.addlines_removed != nil {
+		*m.addlines_removed += i
+	} else {
+		m.addlines_removed = &i
+	}
+}
+
+// AddedLinesRemoved returns the value that was added to the "lines_removed" field in this mutation.
+func (m *AgentCostTrendMutation) AddedLinesRemoved() (r int, exists bool) {
+	v := m.addlines_removed
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (m *AgentCostTrendMutation) ClearLinesRemoved() {
+	m.lines_removed = nil
+	m.addlines_removed = nil
+	m.clearedFields[agentcosttrend.FieldLinesRemoved] = struct{}{}
+}
+
+// LinesRemovedCleared returns if the "lines_removed" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) LinesRemovedCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldLinesRemoved]
+	return ok
+}
+
+// ResetLinesRemoved resets all changes to the "lines_removed" field.
+func (m *AgentCostTrendMutation) ResetLinesRemoved() {
+	m.lines_removed = nil
+	m.addlines_removed = nil
+	delete(m.clearedFields, agentcosttrend.FieldLinesRemoved)
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (m *AgentCostTrendMutation) SetModelCosts(value map[string]float64) {
+	m.model_costs = &value
+}
+
+// ModelCosts returns the value of the "model_costs" field in the mutation.
+func (m *AgentCostTrendMutation) ModelCosts() (r map[string]float64, exists bool) {
+	v := m.model_costs
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelCosts returns the old "model_costs" field's value of the AgentCostTrend entity.
+// If the AgentCostTrend object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AgentCostTrendMutation) OldModelCosts(ctx context.Context) (v map[string]float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelCosts is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelCosts requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelCosts: %w", err)
+	}
+	return oldValue.ModelCosts, nil
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (m *AgentCostTrendMutation) ClearModelCosts() {
+	m.model_costs = nil
+	m.clearedFields[agentcosttrend.FieldModelCosts] = struct{}{}
+}
+
+// ModelCostsCleared returns if the "model_costs" field was cleared in this mutation.
+func (m *AgentCostTrendMutation) ModelCostsCleared() bool {
+	_, ok := m.clearedFields[agentcosttrend.FieldModelCosts]
+	return ok
+}
+
+// ResetModelCosts resets all changes to the "model_costs" field.
+func (m *AgentCostTrendMutation) ResetModelCosts() {
+	m.model_costs = nil
+	delete(m.clearedFields, agentcosttrend.FieldModelCosts)
+}
+
 // Where appends a list predicates to the AgentCostTrendMutation builder.
 func (m *AgentCostTrendMutation) Where(ps ...predicate.AgentCostTrend) {
 	m.predicates = append(m.predicates, ps...)
@@ -763,7 +1495,7 @@ func (m *AgentCostTrendMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AgentCostTrendMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 22)
 	if m.session_id != nil {
 		fields = append(fields, agentcosttrend.FieldSessionID)
 	}
@@ -794,6 +1526,42 @@ func (m *AgentCostTrendMutation) Fields() []string {
 	if m.source_mtime != nil {
 		fields = append(fields, agentcosttrend.FieldSourceMtime)
 	}
+	if m.started_at != nil {
+		fields = append(fields, agentcosttrend.FieldStartedAt)
+	}
+	if m.title != nil {
+		fields = append(fields, agentcosttrend.FieldTitle)
+	}
+	if m.turns != nil {
+		fields = append(fields, agentcosttrend.FieldTurns)
+	}
+	if m.agent_ms != nil {
+		fields = append(fields, agentcosttrend.FieldAgentMs)
+	}
+	if m.agent_time_source != nil {
+		fields = append(fields, agentcosttrend.FieldAgentTimeSource)
+	}
+	if m.cost_source != nil {
+		fields = append(fields, agentcosttrend.FieldCostSource)
+	}
+	if m.cost_unknown_model != nil {
+		fields = append(fields, agentcosttrend.FieldCostUnknownModel)
+	}
+	if m.cache_read_tokens != nil {
+		fields = append(fields, agentcosttrend.FieldCacheReadTokens)
+	}
+	if m.cache_creation_tokens != nil {
+		fields = append(fields, agentcosttrend.FieldCacheCreationTokens)
+	}
+	if m.lines_added != nil {
+		fields = append(fields, agentcosttrend.FieldLinesAdded)
+	}
+	if m.lines_removed != nil {
+		fields = append(fields, agentcosttrend.FieldLinesRemoved)
+	}
+	if m.model_costs != nil {
+		fields = append(fields, agentcosttrend.FieldModelCosts)
+	}
 	return fields
 }
 
@@ -822,6 +1590,30 @@ func (m *AgentCostTrendMutation) Field(name string) (ent.Value, bool) {
 		return m.ProjectName()
 	case agentcosttrend.FieldSourceMtime:
 		return m.SourceMtime()
+	case agentcosttrend.FieldStartedAt:
+		return m.StartedAt()
+	case agentcosttrend.FieldTitle:
+		return m.Title()
+	case agentcosttrend.FieldTurns:
+		return m.Turns()
+	case agentcosttrend.FieldAgentMs:
+		return m.AgentMs()
+	case agentcosttrend.FieldAgentTimeSource:
+		return m.AgentTimeSource()
+	case agentcosttrend.FieldCostSource:
+		return m.CostSource()
+	case agentcosttrend.FieldCostUnknownModel:
+		return m.CostUnknownModel()
+	case agentcosttrend.FieldCacheReadTokens:
+		return m.CacheReadTokens()
+	case agentcosttrend.FieldCacheCreationTokens:
+		return m.CacheCreationTokens()
+	case agentcosttrend.FieldLinesAdded:
+		return m.LinesAdded()
+	case agentcosttrend.FieldLinesRemoved:
+		return m.LinesRemoved()
+	case agentcosttrend.FieldModelCosts:
+		return m.ModelCosts()
 	}
 	return nil, false
 }
@@ -851,6 +1643,30 @@ func (m *AgentCostTrendMutation) OldField(ctx context.Context, name string) (ent
 		return m.OldProjectName(ctx)
 	case agentcosttrend.FieldSourceMtime:
 		return m.OldSourceMtime(ctx)
+	case agentcosttrend.FieldStartedAt:
+		return m.OldStartedAt(ctx)
+	case agentcosttrend.FieldTitle:
+		return m.OldTitle(ctx)
+	case agentcosttrend.FieldTurns:
+		return m.OldTurns(ctx)
+	case agentcosttrend.FieldAgentMs:
+		return m.OldAgentMs(ctx)
+	case agentcosttrend.FieldAgentTimeSource:
+		return m.OldAgentTimeSource(ctx)
+	case agentcosttrend.FieldCostSource:
+		return m.OldCostSource(ctx)
+	case agentcosttrend.FieldCostUnknownModel:
+		return m.OldCostUnknownModel(ctx)
+	case agentcosttrend.FieldCacheReadTokens:
+		return m.OldCacheReadTokens(ctx)
+	case agentcosttrend.FieldCacheCreationTokens:
+		return m.OldCacheCreationTokens(ctx)
+	case agentcosttrend.FieldLinesAdded:
+		return m.OldLinesAdded(ctx)
+	case agentcosttrend.FieldLinesRemoved:
+		return m.OldLinesRemoved(ctx)
+	case agentcosttrend.FieldModelCosts:
+		return m.OldModelCosts(ctx)
 	}
 	return nil, fmt.Errorf("unknown AgentCostTrend field %s", name)
 }
@@ -930,6 +1746,90 @@ func (m *AgentCostTrendMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSourceMtime(v)
 		return nil
+	case agentcosttrend.FieldStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartedAt(v)
+		return nil
+	case agentcosttrend.FieldTitle:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTitle(v)
+		return nil
+	case agentcosttrend.FieldTurns:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTurns(v)
+		return nil
+	case agentcosttrend.FieldAgentMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAgentMs(v)
+		return nil
+	case agentcosttrend.FieldAgentTimeSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAgentTimeSource(v)
+		return nil
+	case agentcosttrend.FieldCostSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCostSource(v)
+		return nil
+	case agentcosttrend.FieldCostUnknownModel:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCostUnknownModel(v)
+		return nil
+	case agentcosttrend.FieldCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheReadTokens(v)
+		return nil
+	case agentcosttrend.FieldCacheCreationTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheCreationTokens(v)
+		return nil
+	case agentcosttrend.FieldLinesAdded:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLinesAdded(v)
+		return nil
+	case agentcosttrend.FieldLinesRemoved:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLinesRemoved(v)
+		return nil
+	case agentcosttrend.FieldModelCosts:
+		v, ok := value.(map[string]float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelCosts(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AgentCostTrend field %s", name)
 }
@@ -950,6 +1850,24 @@ func (m *AgentCostTrendMutation) AddedFields() []string {
 	if m.addsource_mtime != nil {
 		fields = append(fields, agentcosttrend.FieldSourceMtime)
 	}
+	if m.addturns != nil {
+		fields = append(fields, agentcosttrend.FieldTurns)
+	}
+	if m.addagent_ms != nil {
+		fields = append(fields, agentcosttrend.FieldAgentMs)
+	}
+	if m.addcache_read_tokens != nil {
+		fields = append(fields, agentcosttrend.FieldCacheReadTokens)
+	}
+	if m.addcache_creation_tokens != nil {
+		fields = append(fields, agentcosttrend.FieldCacheCreationTokens)
+	}
+	if m.addlines_added != nil {
+		fields = append(fields, agentcosttrend.FieldLinesAdded)
+	}
+	if m.addlines_removed != nil {
+		fields = append(fields, agentcosttrend.FieldLinesRemoved)
+	}
 	return fields
 }
 
@@ -966,6 +1884,18 @@ func (m *AgentCostTrendMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedCostUsd()
 	case agentcosttrend.FieldSourceMtime:
 		return m.AddedSourceMtime()
+	case agentcosttrend.FieldTurns:
+		return m.AddedTurns()
+	case agentcosttrend.FieldAgentMs:
+		return m.AddedAgentMs()
+	case agentcosttrend.FieldCacheReadTokens:
+		return m.AddedCacheReadTokens()
+	case agentcosttrend.FieldCacheCreationTokens:
+		return m.AddedCacheCreationTokens()
+	case agentcosttrend.FieldLinesAdded:
+		return m.AddedLinesAdded()
+	case agentcosttrend.FieldLinesRemoved:
+		return m.AddedLinesRemoved()
 	}
 	return nil, false
 }
@@ -1003,6 +1933,48 @@ func (m *AgentCostTrendMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddSourceMtime(v)
 		return nil
+	case agentcosttrend.FieldTurns:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTurns(v)
+		return nil
+	case agentcosttrend.FieldAgentMs:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAgentMs(v)
+		return nil
+	case agentcosttrend.FieldCacheReadTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheReadTokens(v)
+		return nil
+	case agentcosttrend.FieldCacheCreationTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCacheCreationTokens(v)
+		return nil
+	case agentcosttrend.FieldLinesAdded:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLinesAdded(v)
+		return nil
+	case agentcosttrend.FieldLinesRemoved:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLinesRemoved(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AgentCostTrend numeric field %s", name)
 }
@@ -1022,6 +1994,42 @@ func (m *AgentCostTrendMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(agentcosttrend.FieldSourceMtime) {
 		fields = append(fields, agentcosttrend.FieldSourceMtime)
+	}
+	if m.FieldCleared(agentcosttrend.FieldStartedAt) {
+		fields = append(fields, agentcosttrend.FieldStartedAt)
+	}
+	if m.FieldCleared(agentcosttrend.FieldTitle) {
+		fields = append(fields, agentcosttrend.FieldTitle)
+	}
+	if m.FieldCleared(agentcosttrend.FieldTurns) {
+		fields = append(fields, agentcosttrend.FieldTurns)
+	}
+	if m.FieldCleared(agentcosttrend.FieldAgentMs) {
+		fields = append(fields, agentcosttrend.FieldAgentMs)
+	}
+	if m.FieldCleared(agentcosttrend.FieldAgentTimeSource) {
+		fields = append(fields, agentcosttrend.FieldAgentTimeSource)
+	}
+	if m.FieldCleared(agentcosttrend.FieldCostSource) {
+		fields = append(fields, agentcosttrend.FieldCostSource)
+	}
+	if m.FieldCleared(agentcosttrend.FieldCostUnknownModel) {
+		fields = append(fields, agentcosttrend.FieldCostUnknownModel)
+	}
+	if m.FieldCleared(agentcosttrend.FieldCacheReadTokens) {
+		fields = append(fields, agentcosttrend.FieldCacheReadTokens)
+	}
+	if m.FieldCleared(agentcosttrend.FieldCacheCreationTokens) {
+		fields = append(fields, agentcosttrend.FieldCacheCreationTokens)
+	}
+	if m.FieldCleared(agentcosttrend.FieldLinesAdded) {
+		fields = append(fields, agentcosttrend.FieldLinesAdded)
+	}
+	if m.FieldCleared(agentcosttrend.FieldLinesRemoved) {
+		fields = append(fields, agentcosttrend.FieldLinesRemoved)
+	}
+	if m.FieldCleared(agentcosttrend.FieldModelCosts) {
+		fields = append(fields, agentcosttrend.FieldModelCosts)
 	}
 	return fields
 }
@@ -1048,6 +2056,42 @@ func (m *AgentCostTrendMutation) ClearField(name string) error {
 		return nil
 	case agentcosttrend.FieldSourceMtime:
 		m.ClearSourceMtime()
+		return nil
+	case agentcosttrend.FieldStartedAt:
+		m.ClearStartedAt()
+		return nil
+	case agentcosttrend.FieldTitle:
+		m.ClearTitle()
+		return nil
+	case agentcosttrend.FieldTurns:
+		m.ClearTurns()
+		return nil
+	case agentcosttrend.FieldAgentMs:
+		m.ClearAgentMs()
+		return nil
+	case agentcosttrend.FieldAgentTimeSource:
+		m.ClearAgentTimeSource()
+		return nil
+	case agentcosttrend.FieldCostSource:
+		m.ClearCostSource()
+		return nil
+	case agentcosttrend.FieldCostUnknownModel:
+		m.ClearCostUnknownModel()
+		return nil
+	case agentcosttrend.FieldCacheReadTokens:
+		m.ClearCacheReadTokens()
+		return nil
+	case agentcosttrend.FieldCacheCreationTokens:
+		m.ClearCacheCreationTokens()
+		return nil
+	case agentcosttrend.FieldLinesAdded:
+		m.ClearLinesAdded()
+		return nil
+	case agentcosttrend.FieldLinesRemoved:
+		m.ClearLinesRemoved()
+		return nil
+	case agentcosttrend.FieldModelCosts:
+		m.ClearModelCosts()
 		return nil
 	}
 	return fmt.Errorf("unknown AgentCostTrend nullable field %s", name)
@@ -1086,6 +2130,42 @@ func (m *AgentCostTrendMutation) ResetField(name string) error {
 		return nil
 	case agentcosttrend.FieldSourceMtime:
 		m.ResetSourceMtime()
+		return nil
+	case agentcosttrend.FieldStartedAt:
+		m.ResetStartedAt()
+		return nil
+	case agentcosttrend.FieldTitle:
+		m.ResetTitle()
+		return nil
+	case agentcosttrend.FieldTurns:
+		m.ResetTurns()
+		return nil
+	case agentcosttrend.FieldAgentMs:
+		m.ResetAgentMs()
+		return nil
+	case agentcosttrend.FieldAgentTimeSource:
+		m.ResetAgentTimeSource()
+		return nil
+	case agentcosttrend.FieldCostSource:
+		m.ResetCostSource()
+		return nil
+	case agentcosttrend.FieldCostUnknownModel:
+		m.ResetCostUnknownModel()
+		return nil
+	case agentcosttrend.FieldCacheReadTokens:
+		m.ResetCacheReadTokens()
+		return nil
+	case agentcosttrend.FieldCacheCreationTokens:
+		m.ResetCacheCreationTokens()
+		return nil
+	case agentcosttrend.FieldLinesAdded:
+		m.ResetLinesAdded()
+		return nil
+	case agentcosttrend.FieldLinesRemoved:
+		m.ResetLinesRemoved()
+		return nil
+	case agentcosttrend.FieldModelCosts:
+		m.ResetModelCosts()
 		return nil
 	}
 	return fmt.Errorf("unknown AgentCostTrend field %s", name)

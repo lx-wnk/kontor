@@ -50,6 +50,9 @@ GET /api/github/summary
 GET /api/grants
 GET /api/history/import/status
 GET /api/hooks/pending
+GET /api/insights/projects
+GET /api/insights/sessions
+GET /api/insights/summary
 GET /api/kontor-session
 GET /api/me
 GET /api/memory/entries

@@ -37,6 +37,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/grants"
 	apihistory "github.com/lx-wnk/kontor/server/internal/api/history"
 	"github.com/lx-wnk/kontor/server/internal/api/hooks"
+	apiinsights "github.com/lx-wnk/kontor/server/internal/api/insights"
 	kontorsessionapi "github.com/lx-wnk/kontor/server/internal/api/kontorsession"
 	apimemory "github.com/lx-wnk/kontor/server/internal/api/memory"
 	apiobsidian "github.com/lx-wnk/kontor/server/internal/api/obsidian"
@@ -1049,8 +1050,10 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 	}
 
 	var costHandler *apicost.Handler
+	var insightsHandler *apiinsights.Handler
 	if bundle != nil {
 		costHandler = apicost.NewHandler(bundle.DB)
+		insightsHandler = apiinsights.NewHandler(bundle.DB)
 	}
 
 	// Build optional handlers that previously lived inside provideRouterDeps.
@@ -1206,6 +1209,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		PlanHandler:            planHandler,
 		AnalyticsHandler:       analyticsHandler,
 		CostHandler:            costHandler,
+		InsightsHandler:        insightsHandler,
 		EvalHandler:            evalHandler,
 		VisualizationsHandler:  apivisualizations.NewHandler(),
 		MCPHandler:             mcpHandler,

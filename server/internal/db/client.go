@@ -205,6 +205,14 @@ func Open(path string) (*DBBundle, error) {
 		_ = client.Close()
 		return nil, fmt.Errorf("db: routine run modes: %w", err)
 	}
+	if err := migrateRescanCostTrends(sqlDB); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("db: rescan cost trends: %w", err)
+	}
+	if err := migrateMarkLegacyCostTrends(sqlDB); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("db: mark legacy cost trends: %w", err)
+	}
 	if err := runRawMigrations(sqlDB); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("db: raw migrations: %w", err)
@@ -531,6 +539,49 @@ func migrateRoutineRunModes(db *sql.DB) error {
 		return fmt.Errorf("record marker %q: %w", marker, err)
 	}
 	return nil
+}
+
+// migrateRescanCostTrends zeroes source_mtime once so the importer re-reads every
+// session and fills the insights columns. The columns are additive; the down path
+// is to ignore them.
+func migrateRescanCostTrends(db *sql.DB) error {
+	const marker = "rescan-cost-trends-insights-v1"
+	ctx := context.Background()
+	store := MarkerStore{DB: db}
+	done, err := store.Has(ctx, marker)
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE agent_cost_trends SET source_mtime = 0`); err != nil {
+		return fmt.Errorf("reset source_mtime: %w", err)
+	}
+	return store.Record(ctx, marker)
+}
+
+// migrateMarkLegacyCostTrends marks every row that predates per-session tracking
+// as legacy; the importer overwrites the sources of rows it re-imports. Runs in
+// Open, before any importer write. Additive; the down path is to treat 'legacy'
+// as 'estimate'.
+func migrateMarkLegacyCostTrends(db *sql.DB) error {
+	const marker = "mark-legacy-cost-trends-v1"
+	ctx := context.Background()
+	store := MarkerStore{DB: db}
+	done, err := store.Has(ctx, marker)
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
+	}
+	// 'legacy' mirrors repo.SourceLegacy; repo imports db, so it cannot be referenced here.
+	if _, err := db.ExecContext(ctx,
+		`UPDATE agent_cost_trends SET cost_source = 'legacy', agent_time_source = 'legacy'`); err != nil {
+		return fmt.Errorf("mark legacy sources: %w", err)
+	}
+	return store.Record(ctx, marker)
 }
 
 // migrateCopyAuditLogsToAuditEvents copies legacy audit_logs rows into audit_events

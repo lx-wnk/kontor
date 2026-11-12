@@ -220,6 +220,280 @@ func (_u *AgentCostTrendUpdate) ClearSourceMtime() *AgentCostTrendUpdate {
 	return _u
 }
 
+// SetStartedAt sets the "started_at" field.
+func (_u *AgentCostTrendUpdate) SetStartedAt(v time.Time) *AgentCostTrendUpdate {
+	_u.mutation.SetStartedAt(v)
+	return _u
+}
+
+// SetNillableStartedAt sets the "started_at" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableStartedAt(v *time.Time) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetStartedAt(*v)
+	}
+	return _u
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (_u *AgentCostTrendUpdate) ClearStartedAt() *AgentCostTrendUpdate {
+	_u.mutation.ClearStartedAt()
+	return _u
+}
+
+// SetTitle sets the "title" field.
+func (_u *AgentCostTrendUpdate) SetTitle(v string) *AgentCostTrendUpdate {
+	_u.mutation.SetTitle(v)
+	return _u
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableTitle(v *string) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetTitle(*v)
+	}
+	return _u
+}
+
+// ClearTitle clears the value of the "title" field.
+func (_u *AgentCostTrendUpdate) ClearTitle() *AgentCostTrendUpdate {
+	_u.mutation.ClearTitle()
+	return _u
+}
+
+// SetTurns sets the "turns" field.
+func (_u *AgentCostTrendUpdate) SetTurns(v int) *AgentCostTrendUpdate {
+	_u.mutation.ResetTurns()
+	_u.mutation.SetTurns(v)
+	return _u
+}
+
+// SetNillableTurns sets the "turns" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableTurns(v *int) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetTurns(*v)
+	}
+	return _u
+}
+
+// AddTurns adds value to the "turns" field.
+func (_u *AgentCostTrendUpdate) AddTurns(v int) *AgentCostTrendUpdate {
+	_u.mutation.AddTurns(v)
+	return _u
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (_u *AgentCostTrendUpdate) ClearTurns() *AgentCostTrendUpdate {
+	_u.mutation.ClearTurns()
+	return _u
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (_u *AgentCostTrendUpdate) SetAgentMs(v int64) *AgentCostTrendUpdate {
+	_u.mutation.ResetAgentMs()
+	_u.mutation.SetAgentMs(v)
+	return _u
+}
+
+// SetNillableAgentMs sets the "agent_ms" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableAgentMs(v *int64) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetAgentMs(*v)
+	}
+	return _u
+}
+
+// AddAgentMs adds value to the "agent_ms" field.
+func (_u *AgentCostTrendUpdate) AddAgentMs(v int64) *AgentCostTrendUpdate {
+	_u.mutation.AddAgentMs(v)
+	return _u
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (_u *AgentCostTrendUpdate) ClearAgentMs() *AgentCostTrendUpdate {
+	_u.mutation.ClearAgentMs()
+	return _u
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (_u *AgentCostTrendUpdate) SetAgentTimeSource(v string) *AgentCostTrendUpdate {
+	_u.mutation.SetAgentTimeSource(v)
+	return _u
+}
+
+// SetNillableAgentTimeSource sets the "agent_time_source" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableAgentTimeSource(v *string) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetAgentTimeSource(*v)
+	}
+	return _u
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (_u *AgentCostTrendUpdate) ClearAgentTimeSource() *AgentCostTrendUpdate {
+	_u.mutation.ClearAgentTimeSource()
+	return _u
+}
+
+// SetCostSource sets the "cost_source" field.
+func (_u *AgentCostTrendUpdate) SetCostSource(v string) *AgentCostTrendUpdate {
+	_u.mutation.SetCostSource(v)
+	return _u
+}
+
+// SetNillableCostSource sets the "cost_source" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableCostSource(v *string) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetCostSource(*v)
+	}
+	return _u
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (_u *AgentCostTrendUpdate) ClearCostSource() *AgentCostTrendUpdate {
+	_u.mutation.ClearCostSource()
+	return _u
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (_u *AgentCostTrendUpdate) SetCostUnknownModel(v bool) *AgentCostTrendUpdate {
+	_u.mutation.SetCostUnknownModel(v)
+	return _u
+}
+
+// SetNillableCostUnknownModel sets the "cost_unknown_model" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableCostUnknownModel(v *bool) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetCostUnknownModel(*v)
+	}
+	return _u
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (_u *AgentCostTrendUpdate) ClearCostUnknownModel() *AgentCostTrendUpdate {
+	_u.mutation.ClearCostUnknownModel()
+	return _u
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdate) SetCacheReadTokens(v int) *AgentCostTrendUpdate {
+	_u.mutation.ResetCacheReadTokens()
+	_u.mutation.SetCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableCacheReadTokens sets the "cache_read_tokens" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableCacheReadTokens(v *int) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddCacheReadTokens adds value to the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdate) AddCacheReadTokens(v int) *AgentCostTrendUpdate {
+	_u.mutation.AddCacheReadTokens(v)
+	return _u
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdate) ClearCacheReadTokens() *AgentCostTrendUpdate {
+	_u.mutation.ClearCacheReadTokens()
+	return _u
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdate) SetCacheCreationTokens(v int) *AgentCostTrendUpdate {
+	_u.mutation.ResetCacheCreationTokens()
+	_u.mutation.SetCacheCreationTokens(v)
+	return _u
+}
+
+// SetNillableCacheCreationTokens sets the "cache_creation_tokens" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableCacheCreationTokens(v *int) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetCacheCreationTokens(*v)
+	}
+	return _u
+}
+
+// AddCacheCreationTokens adds value to the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdate) AddCacheCreationTokens(v int) *AgentCostTrendUpdate {
+	_u.mutation.AddCacheCreationTokens(v)
+	return _u
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdate) ClearCacheCreationTokens() *AgentCostTrendUpdate {
+	_u.mutation.ClearCacheCreationTokens()
+	return _u
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (_u *AgentCostTrendUpdate) SetLinesAdded(v int) *AgentCostTrendUpdate {
+	_u.mutation.ResetLinesAdded()
+	_u.mutation.SetLinesAdded(v)
+	return _u
+}
+
+// SetNillableLinesAdded sets the "lines_added" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableLinesAdded(v *int) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetLinesAdded(*v)
+	}
+	return _u
+}
+
+// AddLinesAdded adds value to the "lines_added" field.
+func (_u *AgentCostTrendUpdate) AddLinesAdded(v int) *AgentCostTrendUpdate {
+	_u.mutation.AddLinesAdded(v)
+	return _u
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (_u *AgentCostTrendUpdate) ClearLinesAdded() *AgentCostTrendUpdate {
+	_u.mutation.ClearLinesAdded()
+	return _u
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (_u *AgentCostTrendUpdate) SetLinesRemoved(v int) *AgentCostTrendUpdate {
+	_u.mutation.ResetLinesRemoved()
+	_u.mutation.SetLinesRemoved(v)
+	return _u
+}
+
+// SetNillableLinesRemoved sets the "lines_removed" field if the given value is not nil.
+func (_u *AgentCostTrendUpdate) SetNillableLinesRemoved(v *int) *AgentCostTrendUpdate {
+	if v != nil {
+		_u.SetLinesRemoved(*v)
+	}
+	return _u
+}
+
+// AddLinesRemoved adds value to the "lines_removed" field.
+func (_u *AgentCostTrendUpdate) AddLinesRemoved(v int) *AgentCostTrendUpdate {
+	_u.mutation.AddLinesRemoved(v)
+	return _u
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (_u *AgentCostTrendUpdate) ClearLinesRemoved() *AgentCostTrendUpdate {
+	_u.mutation.ClearLinesRemoved()
+	return _u
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (_u *AgentCostTrendUpdate) SetModelCosts(v map[string]float64) *AgentCostTrendUpdate {
+	_u.mutation.SetModelCosts(v)
+	return _u
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (_u *AgentCostTrendUpdate) ClearModelCosts() *AgentCostTrendUpdate {
+	_u.mutation.ClearModelCosts()
+	return _u
+}
+
 // Mutation returns the AgentCostTrendMutation object of the builder.
 func (_u *AgentCostTrendUpdate) Mutation() *AgentCostTrendMutation {
 	return _u.mutation
@@ -314,6 +588,96 @@ func (_u *AgentCostTrendUpdate) sqlSave(ctx context.Context) (_node int, err err
 	}
 	if _u.mutation.SourceMtimeCleared() {
 		_spec.ClearField(agentcosttrend.FieldSourceMtime, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.StartedAt(); ok {
+		_spec.SetField(agentcosttrend.FieldStartedAt, field.TypeTime, value)
+	}
+	if _u.mutation.StartedAtCleared() {
+		_spec.ClearField(agentcosttrend.FieldStartedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Title(); ok {
+		_spec.SetField(agentcosttrend.FieldTitle, field.TypeString, value)
+	}
+	if _u.mutation.TitleCleared() {
+		_spec.ClearField(agentcosttrend.FieldTitle, field.TypeString)
+	}
+	if value, ok := _u.mutation.Turns(); ok {
+		_spec.SetField(agentcosttrend.FieldTurns, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTurns(); ok {
+		_spec.AddField(agentcosttrend.FieldTurns, field.TypeInt, value)
+	}
+	if _u.mutation.TurnsCleared() {
+		_spec.ClearField(agentcosttrend.FieldTurns, field.TypeInt)
+	}
+	if value, ok := _u.mutation.AgentMs(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentMs, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAgentMs(); ok {
+		_spec.AddField(agentcosttrend.FieldAgentMs, field.TypeInt64, value)
+	}
+	if _u.mutation.AgentMsCleared() {
+		_spec.ClearField(agentcosttrend.FieldAgentMs, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.AgentTimeSource(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentTimeSource, field.TypeString, value)
+	}
+	if _u.mutation.AgentTimeSourceCleared() {
+		_spec.ClearField(agentcosttrend.FieldAgentTimeSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.CostSource(); ok {
+		_spec.SetField(agentcosttrend.FieldCostSource, field.TypeString, value)
+	}
+	if _u.mutation.CostSourceCleared() {
+		_spec.ClearField(agentcosttrend.FieldCostSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.CostUnknownModel(); ok {
+		_spec.SetField(agentcosttrend.FieldCostUnknownModel, field.TypeBool, value)
+	}
+	if _u.mutation.CostUnknownModelCleared() {
+		_spec.ClearField(agentcosttrend.FieldCostUnknownModel, field.TypeBool)
+	}
+	if value, ok := _u.mutation.CacheReadTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
+		_spec.AddField(agentcosttrend.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if _u.mutation.CacheReadTokensCleared() {
+		_spec.ClearField(agentcosttrend.FieldCacheReadTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.CacheCreationTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCacheCreationTokens(); ok {
+		_spec.AddField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt, value)
+	}
+	if _u.mutation.CacheCreationTokensCleared() {
+		_spec.ClearField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LinesAdded(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesAdded, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLinesAdded(); ok {
+		_spec.AddField(agentcosttrend.FieldLinesAdded, field.TypeInt, value)
+	}
+	if _u.mutation.LinesAddedCleared() {
+		_spec.ClearField(agentcosttrend.FieldLinesAdded, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LinesRemoved(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesRemoved, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLinesRemoved(); ok {
+		_spec.AddField(agentcosttrend.FieldLinesRemoved, field.TypeInt, value)
+	}
+	if _u.mutation.LinesRemovedCleared() {
+		_spec.ClearField(agentcosttrend.FieldLinesRemoved, field.TypeInt)
+	}
+	if value, ok := _u.mutation.ModelCosts(); ok {
+		_spec.SetField(agentcosttrend.FieldModelCosts, field.TypeJSON, value)
+	}
+	if _u.mutation.ModelCostsCleared() {
+		_spec.ClearField(agentcosttrend.FieldModelCosts, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -527,6 +891,280 @@ func (_u *AgentCostTrendUpdateOne) ClearSourceMtime() *AgentCostTrendUpdateOne {
 	return _u
 }
 
+// SetStartedAt sets the "started_at" field.
+func (_u *AgentCostTrendUpdateOne) SetStartedAt(v time.Time) *AgentCostTrendUpdateOne {
+	_u.mutation.SetStartedAt(v)
+	return _u
+}
+
+// SetNillableStartedAt sets the "started_at" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableStartedAt(v *time.Time) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetStartedAt(*v)
+	}
+	return _u
+}
+
+// ClearStartedAt clears the value of the "started_at" field.
+func (_u *AgentCostTrendUpdateOne) ClearStartedAt() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearStartedAt()
+	return _u
+}
+
+// SetTitle sets the "title" field.
+func (_u *AgentCostTrendUpdateOne) SetTitle(v string) *AgentCostTrendUpdateOne {
+	_u.mutation.SetTitle(v)
+	return _u
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableTitle(v *string) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetTitle(*v)
+	}
+	return _u
+}
+
+// ClearTitle clears the value of the "title" field.
+func (_u *AgentCostTrendUpdateOne) ClearTitle() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearTitle()
+	return _u
+}
+
+// SetTurns sets the "turns" field.
+func (_u *AgentCostTrendUpdateOne) SetTurns(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetTurns()
+	_u.mutation.SetTurns(v)
+	return _u
+}
+
+// SetNillableTurns sets the "turns" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableTurns(v *int) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetTurns(*v)
+	}
+	return _u
+}
+
+// AddTurns adds value to the "turns" field.
+func (_u *AgentCostTrendUpdateOne) AddTurns(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.AddTurns(v)
+	return _u
+}
+
+// ClearTurns clears the value of the "turns" field.
+func (_u *AgentCostTrendUpdateOne) ClearTurns() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearTurns()
+	return _u
+}
+
+// SetAgentMs sets the "agent_ms" field.
+func (_u *AgentCostTrendUpdateOne) SetAgentMs(v int64) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetAgentMs()
+	_u.mutation.SetAgentMs(v)
+	return _u
+}
+
+// SetNillableAgentMs sets the "agent_ms" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableAgentMs(v *int64) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetAgentMs(*v)
+	}
+	return _u
+}
+
+// AddAgentMs adds value to the "agent_ms" field.
+func (_u *AgentCostTrendUpdateOne) AddAgentMs(v int64) *AgentCostTrendUpdateOne {
+	_u.mutation.AddAgentMs(v)
+	return _u
+}
+
+// ClearAgentMs clears the value of the "agent_ms" field.
+func (_u *AgentCostTrendUpdateOne) ClearAgentMs() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearAgentMs()
+	return _u
+}
+
+// SetAgentTimeSource sets the "agent_time_source" field.
+func (_u *AgentCostTrendUpdateOne) SetAgentTimeSource(v string) *AgentCostTrendUpdateOne {
+	_u.mutation.SetAgentTimeSource(v)
+	return _u
+}
+
+// SetNillableAgentTimeSource sets the "agent_time_source" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableAgentTimeSource(v *string) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetAgentTimeSource(*v)
+	}
+	return _u
+}
+
+// ClearAgentTimeSource clears the value of the "agent_time_source" field.
+func (_u *AgentCostTrendUpdateOne) ClearAgentTimeSource() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearAgentTimeSource()
+	return _u
+}
+
+// SetCostSource sets the "cost_source" field.
+func (_u *AgentCostTrendUpdateOne) SetCostSource(v string) *AgentCostTrendUpdateOne {
+	_u.mutation.SetCostSource(v)
+	return _u
+}
+
+// SetNillableCostSource sets the "cost_source" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableCostSource(v *string) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetCostSource(*v)
+	}
+	return _u
+}
+
+// ClearCostSource clears the value of the "cost_source" field.
+func (_u *AgentCostTrendUpdateOne) ClearCostSource() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearCostSource()
+	return _u
+}
+
+// SetCostUnknownModel sets the "cost_unknown_model" field.
+func (_u *AgentCostTrendUpdateOne) SetCostUnknownModel(v bool) *AgentCostTrendUpdateOne {
+	_u.mutation.SetCostUnknownModel(v)
+	return _u
+}
+
+// SetNillableCostUnknownModel sets the "cost_unknown_model" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableCostUnknownModel(v *bool) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetCostUnknownModel(*v)
+	}
+	return _u
+}
+
+// ClearCostUnknownModel clears the value of the "cost_unknown_model" field.
+func (_u *AgentCostTrendUpdateOne) ClearCostUnknownModel() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearCostUnknownModel()
+	return _u
+}
+
+// SetCacheReadTokens sets the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdateOne) SetCacheReadTokens(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetCacheReadTokens()
+	_u.mutation.SetCacheReadTokens(v)
+	return _u
+}
+
+// SetNillableCacheReadTokens sets the "cache_read_tokens" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableCacheReadTokens(v *int) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetCacheReadTokens(*v)
+	}
+	return _u
+}
+
+// AddCacheReadTokens adds value to the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdateOne) AddCacheReadTokens(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.AddCacheReadTokens(v)
+	return _u
+}
+
+// ClearCacheReadTokens clears the value of the "cache_read_tokens" field.
+func (_u *AgentCostTrendUpdateOne) ClearCacheReadTokens() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearCacheReadTokens()
+	return _u
+}
+
+// SetCacheCreationTokens sets the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdateOne) SetCacheCreationTokens(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetCacheCreationTokens()
+	_u.mutation.SetCacheCreationTokens(v)
+	return _u
+}
+
+// SetNillableCacheCreationTokens sets the "cache_creation_tokens" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableCacheCreationTokens(v *int) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetCacheCreationTokens(*v)
+	}
+	return _u
+}
+
+// AddCacheCreationTokens adds value to the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdateOne) AddCacheCreationTokens(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.AddCacheCreationTokens(v)
+	return _u
+}
+
+// ClearCacheCreationTokens clears the value of the "cache_creation_tokens" field.
+func (_u *AgentCostTrendUpdateOne) ClearCacheCreationTokens() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearCacheCreationTokens()
+	return _u
+}
+
+// SetLinesAdded sets the "lines_added" field.
+func (_u *AgentCostTrendUpdateOne) SetLinesAdded(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetLinesAdded()
+	_u.mutation.SetLinesAdded(v)
+	return _u
+}
+
+// SetNillableLinesAdded sets the "lines_added" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableLinesAdded(v *int) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetLinesAdded(*v)
+	}
+	return _u
+}
+
+// AddLinesAdded adds value to the "lines_added" field.
+func (_u *AgentCostTrendUpdateOne) AddLinesAdded(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.AddLinesAdded(v)
+	return _u
+}
+
+// ClearLinesAdded clears the value of the "lines_added" field.
+func (_u *AgentCostTrendUpdateOne) ClearLinesAdded() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearLinesAdded()
+	return _u
+}
+
+// SetLinesRemoved sets the "lines_removed" field.
+func (_u *AgentCostTrendUpdateOne) SetLinesRemoved(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.ResetLinesRemoved()
+	_u.mutation.SetLinesRemoved(v)
+	return _u
+}
+
+// SetNillableLinesRemoved sets the "lines_removed" field if the given value is not nil.
+func (_u *AgentCostTrendUpdateOne) SetNillableLinesRemoved(v *int) *AgentCostTrendUpdateOne {
+	if v != nil {
+		_u.SetLinesRemoved(*v)
+	}
+	return _u
+}
+
+// AddLinesRemoved adds value to the "lines_removed" field.
+func (_u *AgentCostTrendUpdateOne) AddLinesRemoved(v int) *AgentCostTrendUpdateOne {
+	_u.mutation.AddLinesRemoved(v)
+	return _u
+}
+
+// ClearLinesRemoved clears the value of the "lines_removed" field.
+func (_u *AgentCostTrendUpdateOne) ClearLinesRemoved() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearLinesRemoved()
+	return _u
+}
+
+// SetModelCosts sets the "model_costs" field.
+func (_u *AgentCostTrendUpdateOne) SetModelCosts(v map[string]float64) *AgentCostTrendUpdateOne {
+	_u.mutation.SetModelCosts(v)
+	return _u
+}
+
+// ClearModelCosts clears the value of the "model_costs" field.
+func (_u *AgentCostTrendUpdateOne) ClearModelCosts() *AgentCostTrendUpdateOne {
+	_u.mutation.ClearModelCosts()
+	return _u
+}
+
 // Mutation returns the AgentCostTrendMutation object of the builder.
 func (_u *AgentCostTrendUpdateOne) Mutation() *AgentCostTrendMutation {
 	return _u.mutation
@@ -651,6 +1289,96 @@ func (_u *AgentCostTrendUpdateOne) sqlSave(ctx context.Context) (_node *AgentCos
 	}
 	if _u.mutation.SourceMtimeCleared() {
 		_spec.ClearField(agentcosttrend.FieldSourceMtime, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.StartedAt(); ok {
+		_spec.SetField(agentcosttrend.FieldStartedAt, field.TypeTime, value)
+	}
+	if _u.mutation.StartedAtCleared() {
+		_spec.ClearField(agentcosttrend.FieldStartedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Title(); ok {
+		_spec.SetField(agentcosttrend.FieldTitle, field.TypeString, value)
+	}
+	if _u.mutation.TitleCleared() {
+		_spec.ClearField(agentcosttrend.FieldTitle, field.TypeString)
+	}
+	if value, ok := _u.mutation.Turns(); ok {
+		_spec.SetField(agentcosttrend.FieldTurns, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTurns(); ok {
+		_spec.AddField(agentcosttrend.FieldTurns, field.TypeInt, value)
+	}
+	if _u.mutation.TurnsCleared() {
+		_spec.ClearField(agentcosttrend.FieldTurns, field.TypeInt)
+	}
+	if value, ok := _u.mutation.AgentMs(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentMs, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedAgentMs(); ok {
+		_spec.AddField(agentcosttrend.FieldAgentMs, field.TypeInt64, value)
+	}
+	if _u.mutation.AgentMsCleared() {
+		_spec.ClearField(agentcosttrend.FieldAgentMs, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.AgentTimeSource(); ok {
+		_spec.SetField(agentcosttrend.FieldAgentTimeSource, field.TypeString, value)
+	}
+	if _u.mutation.AgentTimeSourceCleared() {
+		_spec.ClearField(agentcosttrend.FieldAgentTimeSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.CostSource(); ok {
+		_spec.SetField(agentcosttrend.FieldCostSource, field.TypeString, value)
+	}
+	if _u.mutation.CostSourceCleared() {
+		_spec.ClearField(agentcosttrend.FieldCostSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.CostUnknownModel(); ok {
+		_spec.SetField(agentcosttrend.FieldCostUnknownModel, field.TypeBool, value)
+	}
+	if _u.mutation.CostUnknownModelCleared() {
+		_spec.ClearField(agentcosttrend.FieldCostUnknownModel, field.TypeBool)
+	}
+	if value, ok := _u.mutation.CacheReadTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCacheReadTokens(); ok {
+		_spec.AddField(agentcosttrend.FieldCacheReadTokens, field.TypeInt, value)
+	}
+	if _u.mutation.CacheReadTokensCleared() {
+		_spec.ClearField(agentcosttrend.FieldCacheReadTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.CacheCreationTokens(); ok {
+		_spec.SetField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedCacheCreationTokens(); ok {
+		_spec.AddField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt, value)
+	}
+	if _u.mutation.CacheCreationTokensCleared() {
+		_spec.ClearField(agentcosttrend.FieldCacheCreationTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LinesAdded(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesAdded, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLinesAdded(); ok {
+		_spec.AddField(agentcosttrend.FieldLinesAdded, field.TypeInt, value)
+	}
+	if _u.mutation.LinesAddedCleared() {
+		_spec.ClearField(agentcosttrend.FieldLinesAdded, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LinesRemoved(); ok {
+		_spec.SetField(agentcosttrend.FieldLinesRemoved, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLinesRemoved(); ok {
+		_spec.AddField(agentcosttrend.FieldLinesRemoved, field.TypeInt, value)
+	}
+	if _u.mutation.LinesRemovedCleared() {
+		_spec.ClearField(agentcosttrend.FieldLinesRemoved, field.TypeInt)
+	}
+	if value, ok := _u.mutation.ModelCosts(); ok {
+		_spec.SetField(agentcosttrend.FieldModelCosts, field.TypeJSON, value)
+	}
+	if _u.mutation.ModelCostsCleared() {
+		_spec.ClearField(agentcosttrend.FieldModelCosts, field.TypeJSON)
 	}
 	_node = &AgentCostTrend{config: _u.config}
 	_spec.Assign = _node.assignValues

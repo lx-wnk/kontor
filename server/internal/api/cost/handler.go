@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -91,6 +92,11 @@ type summaryResponse struct {
 func (h *Handler) getSummary(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	from, to := parseRange(r, now)
+	project := r.URL.Query().Get("project")
+	if len(project) > ProjectParamMaxLen {
+		apierr.JSONError(w, http.StatusBadRequest, "project too long")
+		return
+	}
 
 	if h.db == nil {
 		apierr.WriteJSON(w, http.StatusOK, emptySummary(from, to))
@@ -100,22 +106,22 @@ func (h *Handler) getSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	fromStr, toStr := dateStr(from), dateStr(to)
 
-	byModel, err := h.queryByModel(ctx, fromStr, toStr)
+	byModel, err := h.queryByModel(ctx, fromStr, toStr, project)
 	if err != nil {
 		apierr.JSONError(w, http.StatusInternalServerError, fmt.Sprintf("cost.byModel: %v", err))
 		return
 	}
-	byProject, err := h.queryByProject(ctx, fromStr, toStr)
+	byProject, err := h.queryByProject(ctx, fromStr, toStr, project)
 	if err != nil {
 		apierr.JSONError(w, http.StatusInternalServerError, fmt.Sprintf("cost.byProject: %v", err))
 		return
 	}
-	byDay, err := h.queryByDay(ctx, fromStr, toStr)
+	byDay, err := h.queryByDay(ctx, fromStr, toStr, project)
 	if err != nil {
 		apierr.JSONError(w, http.StatusInternalServerError, fmt.Sprintf("cost.byDay: %v", err))
 		return
 	}
-	byWeek, err := h.queryByWeek(ctx, fromStr, toStr)
+	byWeek, err := h.queryByWeek(ctx, fromStr, toStr, project)
 	if err != nil {
 		apierr.JSONError(w, http.StatusInternalServerError, fmt.Sprintf("cost.byWeek: %v", err))
 		return
@@ -164,17 +170,37 @@ func parseRange(r *http.Request, now time.Time) (from, to time.Time) {
 
 // ─── queries ──────────────────────────────────────────────────────────────────
 
-// recordedAtRangeClause bounds recorded_at to [from, to] as a date-only window.
+// ProjectParamMaxLen caps the `project` query parameter.
+const ProjectParamMaxLen = 4096
+
+// RangeWhere builds the WHERE body (no leading WHERE) bounding recorded_at to
+// [from, to] and optionally one project. Empty from means no lower bound; empty
+// project means no project term.
 //
 // The ent client persists time.Time via Go's default String() format
 // ("2026-05-23 10:28:54.704002 +0000 UTC"); legacy rows may use RFC3339. Both
 // share a lexicographically sortable "YYYY-MM-DD" prefix, so we compare the
 // first 10 characters and avoid strftime() (which returns NULL for the Go form).
-const recordedAtRangeClause = `substr(recorded_at, 1, 10) >= ? AND substr(recorded_at, 1, 10) <= ?`
+func RangeWhere(from, to, project string) (clause string, args []any) {
+	terms := make([]string, 0, 3)
+	if from != "" {
+		terms = append(terms, "substr(recorded_at, 1, 10) >= ?")
+		args = append(args, from)
+	}
+	terms = append(terms, "substr(recorded_at, 1, 10) <= ?")
+	args = append(args, to)
+	if project != "" {
+		terms = append(terms, "COALESCE(NULLIF(project_path, ''), 'unknown') = ?")
+		args = append(args, project)
+	}
+	return strings.Join(terms, " AND "), args
+}
 
 func dateStr(t time.Time) string { return t.UTC().Format("2006-01-02") }
 
-func (h *Handler) queryByModel(ctx context.Context, from, to string) ([]modelBreakdown, error) {
+func (h *Handler) queryByModel(ctx context.Context, from, to, project string) ([]modelBreakdown, error) {
+	where, args := RangeWhere(from, to, project)
+	//nolint:gosec // G202: where is a fixed clause from RangeWhere; values are bound
 	q := `
 SELECT
     COALESCE(NULLIF(model, ''), 'unknown') AS model,
@@ -183,11 +209,11 @@ SELECT
     SUM(output_tokens)                     AS out_tokens,
     COUNT(DISTINCT session_id)             AS sessions
 FROM agent_cost_trends
-WHERE ` + recordedAtRangeClause + `
+WHERE ` + where + `
 GROUP BY model
 ORDER BY total_cost DESC
 `
-	rows, err := h.db.QueryContext(ctx, q, from, to)
+	rows, err := h.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,9 +230,11 @@ ORDER BY total_cost DESC
 	return result, rows.Err()
 }
 
-func (h *Handler) queryByProject(ctx context.Context, from, to string) ([]projectBreakdown, error) {
+func (h *Handler) queryByProject(ctx context.Context, from, to, project string) ([]projectBreakdown, error) {
 	// Group by the stable project_path key; pick the most recent non-empty
 	// project_name for display (MAX is a cheap deterministic choice).
+	where, args := RangeWhere(from, to, project)
+	//nolint:gosec // G202: where is a fixed clause from RangeWhere; values are bound
 	q := `
 SELECT
     COALESCE(NULLIF(project_path, ''), 'unknown') AS project_path,
@@ -216,11 +244,11 @@ SELECT
     SUM(output_tokens)                            AS out_tokens,
     COUNT(DISTINCT session_id)                    AS sessions
 FROM agent_cost_trends
-WHERE ` + recordedAtRangeClause + `
+WHERE ` + where + `
 GROUP BY project_path
 ORDER BY total_cost DESC
 `
-	rows, err := h.db.QueryContext(ctx, q, from, to)
+	rows, err := h.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -240,18 +268,20 @@ ORDER BY total_cost DESC
 	return result, rows.Err()
 }
 
-func (h *Handler) queryByDay(ctx context.Context, from, to string) ([]dayPoint, error) {
+func (h *Handler) queryByDay(ctx context.Context, from, to, project string) ([]dayPoint, error) {
+	where, args := RangeWhere(from, to, project)
+	//nolint:gosec // G202: where is a fixed clause from RangeWhere; values are bound
 	q := `
 SELECT
     substr(recorded_at, 1, 10)             AS day,
     COALESCE(NULLIF(model, ''), 'unknown') AS model,
     SUM(cost_usd)                          AS total_cost
 FROM agent_cost_trends
-WHERE ` + recordedAtRangeClause + `
+WHERE ` + where + `
 GROUP BY day, model
 ORDER BY day ASC, total_cost DESC
 `
-	rows, err := h.db.QueryContext(ctx, q, from, to)
+	rows, err := h.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -271,17 +301,19 @@ ORDER BY day ASC, total_cost DESC
 // queryByWeek aggregates per-ISO-week totals. SQLite can't reliably parse the
 // ent-stored time format with strftime, so we read per-day totals and bucket
 // them in Go using time.Time.ISOWeek().
-func (h *Handler) queryByWeek(ctx context.Context, from, to string) ([]weekPoint, error) {
+func (h *Handler) queryByWeek(ctx context.Context, from, to, project string) ([]weekPoint, error) {
+	where, args := RangeWhere(from, to, project)
+	//nolint:gosec // G202: where is a fixed clause from RangeWhere; values are bound
 	q := `
 SELECT
     substr(recorded_at, 1, 10) AS day,
     SUM(cost_usd)              AS total_cost
 FROM agent_cost_trends
-WHERE ` + recordedAtRangeClause + `
+WHERE ` + where + `
 GROUP BY day
 ORDER BY day ASC
 `
-	rows, err := h.db.QueryContext(ctx, q, from, to)
+	rows, err := h.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

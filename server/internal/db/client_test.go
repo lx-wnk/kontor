@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1051,4 +1052,86 @@ func TestOpen_BackfillsWaitReasonOutOfStageRunOutput(t *testing.T) {
 	require.NoError(t, second.DB.QueryRow(
 		`SELECT json_extract(output, '$.wait_reason') FROM stage_runs WHERE id = 'awaiting'`).Scan(&restored))
 	require.Equal(t, "edited after migration", restored, "the down path must put the reason back where the previous binary reads it")
+}
+
+func TestMigrateRescanCostTrends_RunsOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rescan.db")
+	const marker = "rescan-cost-trends-insights-v1"
+
+	first, err := db.Open(path)
+	require.NoError(t, err)
+	_, err = first.DB.Exec(`DELETE FROM applied_migrations WHERE name = ?`, marker)
+	require.NoError(t, err)
+	_, err = first.DB.Exec(`INSERT INTO agent_cost_trends
+		(id, session_id, model, input_tokens, output_tokens, cost_usd, recorded_at, source_mtime)
+		VALUES ('a', 's1', 'm', 1, 1, 0.1, datetime('now'), 42)`)
+	require.NoError(t, err)
+	require.NoError(t, first.Close())
+
+	sourceMtime := func(b *db.DBBundle) int64 {
+		var v int64
+		require.NoError(t, b.DB.QueryRow(`SELECT source_mtime FROM agent_cost_trends WHERE id = 'a'`).Scan(&v))
+		return v
+	}
+
+	second, err := db.Open(path)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), sourceMtime(second))
+	_, err = second.DB.Exec(`UPDATE agent_cost_trends SET source_mtime = 42`)
+	require.NoError(t, err)
+	require.NoError(t, second.Close())
+
+	third, err := db.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = third.Close() }()
+	require.Equal(t, int64(42), sourceMtime(third))
+}
+
+func TestMigrateMarkLegacyCostTrends_RunsOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.db")
+	const marker = "mark-legacy-cost-trends-v1"
+
+	first, err := db.Open(path)
+	require.NoError(t, err)
+	var recorded int
+	require.NoError(t, first.DB.QueryRow(`SELECT COUNT(*) FROM applied_migrations WHERE name = ?`, marker).Scan(&recorded))
+	require.Equal(t, 1, recorded, "a fresh database records the marker")
+	_, err = first.DB.Exec(`DELETE FROM applied_migrations WHERE name = ?`, marker)
+	require.NoError(t, err)
+	_, err = first.DB.Exec(`INSERT INTO agent_cost_trends
+		(id, session_id, model, input_tokens, output_tokens, cost_usd, recorded_at, cost_source, agent_time_source)
+		VALUES ('a', 's1', 'm', 1, 1, 0.1, datetime('now'), 'estimate', 'estimate')`)
+	require.NoError(t, err)
+	require.NoError(t, first.Close())
+
+	sources := func(b *db.DBBundle, id string) (string, string) {
+		var cost, agentTime string
+		require.NoError(t, b.DB.QueryRow(
+			`SELECT cost_source, agent_time_source FROM agent_cost_trends WHERE id = ?`, id).Scan(&cost, &agentTime))
+		return cost, agentTime
+	}
+
+	second, err := db.Open(path)
+	require.NoError(t, err)
+	cost, agentTime := sources(second, "a")
+	require.Equal(t, repo.SourceLegacy, cost)
+	require.Equal(t, repo.SourceLegacy, agentTime)
+	require.NoError(t, repo.NewAgentCostTrendRepo(second.Client).Upsert(t.Context(), []repo.AgentCostRow{{
+		SessionID: "s2", Model: "m", RecordedAt: time.Now().UTC(),
+		CostSource: repo.SourceCostState, AgentTimeSource: repo.SourceCostState,
+	}}))
+	_, err = second.DB.Exec(`UPDATE agent_cost_trends SET cost_source = 'estimate' WHERE id = 'a'`)
+	require.NoError(t, err)
+	require.NoError(t, second.Close())
+
+	third, err := db.Open(path)
+	require.NoError(t, err)
+	defer func() { _ = third.Close() }()
+	cost, _ = sources(third, "a")
+	require.Equal(t, repo.SourceEstimate, cost, "a second boot must be a no-op")
+	var s2Cost, s2AgentTime string
+	require.NoError(t, third.DB.QueryRow(
+		`SELECT cost_source, agent_time_source FROM agent_cost_trends WHERE session_id = 's2'`).Scan(&s2Cost, &s2AgentTime))
+	require.Equal(t, repo.SourceCostState, s2Cost)
+	require.Equal(t, repo.SourceCostState, s2AgentTime)
 }

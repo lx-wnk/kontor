@@ -12,8 +12,10 @@ const props = withDefaults(defineProps<{
    *   `width` prop controls the max panel width (px value or CSS class).
    * - `auto`: no sizing or chrome — the slot brings its own box. Used by the
    *   deliberate exceptions (command palette, settings with its own layout).
+   * - `drawer`: right-aligned full-height panel, `width` as max width,
+   *   full width below the `md` breakpoint.
    */
-  size?: 'standard' | 'auto'
+  size?: 'standard' | 'auto' | 'drawer'
   /** Width for the standard panel (px string like "560px" or CSS class). Defaults to 900px. */
   width?: string
 }>(), {
@@ -25,11 +27,17 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ close: [] }>()
 // Chrome for the standard size. `auto` is a transparent passthrough.
 const STANDARD_CHROME = 'bg-card border border-line rounded-xl shadow-modal overflow-hidden flex flex-col'
-const panelClass = computed(() => (props.size === 'standard' ? STANDARD_CHROME : ''))
-const panelStyle = computed(() =>
-  props.size === 'standard'
-    ? { width: `min(${props.width}, calc(100vw - 2rem))`, maxHeight: '85vh' }
-    : undefined,
+const DRAWER_CHROME = 'modal-drawer bg-card border-l border-line shadow-modal overflow-hidden flex flex-col h-full w-full md:max-w-[var(--drawer-w)]'
+const panelClass = computed(() => ({ standard: STANDARD_CHROME, drawer: DRAWER_CHROME, auto: '' })[props.size])
+const panelStyle = computed(() => {
+  if (props.size === 'standard')
+    return { width: `min(${props.width}, calc(100vw - 2rem))`, maxHeight: '85vh' }
+  if (props.size === 'drawer')
+    return { '--drawer-w': props.width }
+  return undefined
+})
+const backdropClass = computed(() =>
+  props.size === 'drawer' ? 'justify-end' : 'items-center justify-center p-4',
 )
 
 const modalPanelRef = ref<HTMLElement | null>(null)
@@ -108,7 +116,8 @@ function trapFocus(event: KeyboardEvent) {
     <Transition name="dialog">
       <div
         v-if="open"
-        class="fixed inset-0 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm"
+        class="fixed inset-0 flex bg-black/55 backdrop-blur-sm"
+        :class="backdropClass"
         :style="{ zIndex }"
         role="dialog"
         aria-modal="true"
@@ -149,5 +158,9 @@ function trapFocus(event: KeyboardEvent) {
 .dialog-leave-to .base-modal-box {
   transform: scale(0.95);
   opacity: 0;
+}
+.dialog-enter-from .modal-drawer,
+.dialog-leave-to .modal-drawer {
+  transform: translateX(2rem);
 }
 </style>

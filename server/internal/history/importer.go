@@ -2,11 +2,8 @@
 package history
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lx-wnk/kontor/sdk"
-	"github.com/lx-wnk/kontor/server/internal/claudemodel"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 	"github.com/lx-wnk/kontor/server/internal/parser"
 )
@@ -213,8 +208,7 @@ func (imp *Importer) runImport(ctx context.Context, onProgress func(ImportProgre
 		// safely skip parsing — the content has not changed since the last import.
 		sessionID := sessionIDFromPath(filePath)
 		if stored, ok := storedMtimes[sessionID]; ok && stored != 0 {
-			info, statErr := os.Stat(filePath)
-			if statErr == nil && info.ModTime().UnixNano() == stored {
+			if newestMtime(filePath, subagentFiles(filePath)) == stored {
 				progress.Processed++
 				reportProgress(false)
 				continue
@@ -319,8 +313,8 @@ func collectJSONLFiles(projectsDir string) ([]string, error) {
 	return files, nil
 }
 
-// extractCostRow reads filePath, parses JSONL, and returns an AgentCostRow.
-// Returns (nil, nil) when the file has no usable token data.
+// extractCostRow parses filePath plus its subagent files into one AgentCostRow.
+// Returns (nil, nil) when the session has no usable token data.
 func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo.AgentCostRow, error) {
 	info, err := os.Stat(filePath)
 	if err != nil {
@@ -329,29 +323,38 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 	if info.Size() > maxFileSizeBytes {
 		return nil, fmt.Errorf("file too large (%d bytes)", info.Size())
 	}
-	f, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("open: %w", err)
-	}
-	defer f.Close()
-	sourceMtime := info.ModTime().UnixNano()
-
-	sessionID := sessionIDFromPath(filePath)
-	usage, model, lastActivity, cwd, err := parseTokensFromReader(f)
+	subs := subagentFiles(filePath)
+	// Captured before parsing so a write during the import triggers a re-parse next run.
+	sourceMtime := newestMtime(filePath, subs)
+	stats, err := parseFile(filePath)
 	if err != nil {
 		return nil, err
 	}
+
+	usage := stats.Usage
+	estimate := parser.EstimateCost(stats.Usage, stats.Model)
+	for _, sub := range subs {
+		subStats, err := parseFile(sub)
+		if err != nil {
+			slog.Debug("history.import: skip subagent file", "path", sub, "err", err)
+			continue
+		}
+		usage.InputTokens += subStats.Usage.InputTokens
+		usage.OutputTokens += subStats.Usage.OutputTokens
+		usage.CacheReadTokens += subStats.Usage.CacheReadTokens
+		usage.CacheCreationTokens += subStats.Usage.CacheCreationTokens
+		estimate += parser.EstimateCost(subStats.Usage, subStats.Model)
+	}
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
-		return nil, nil // no usable data
+		return nil, nil
 	}
 
-	// Recorded-at fallback: use file mtime when no timestamp was parsed.
-	recordedAt := lastActivity
+	recordedAt := stats.LastActivity
 	if recordedAt.IsZero() {
 		recordedAt = info.ModTime()
 	}
 
-	// Resolve project grouping.
+	cwd := stats.Cwd
 	projectPath, projectName := cwd, filepath.Base(cwd)
 	if cwd == "" {
 		projectName = ""
@@ -360,112 +363,86 @@ func (imp *Importer) extractCostRow(ctx context.Context, filePath string) (*repo
 		projectPath, projectName = imp.resolver.Resolve(ctx, cwd)
 	}
 
-	cost := parser.EstimateCost(usage, model)
-	return &repo.AgentCostRow{
-		SessionID:    sessionID,
-		Model:        model,
-		InputTokens:  usage.InputTokens,
-		OutputTokens: usage.OutputTokens,
-		CostUSD:      cost,
-		RecordedAt:   recordedAt,
-		Cwd:          cwd,
-		ProjectPath:  projectPath,
-		ProjectName:  projectName,
-		SourceMtime:  sourceMtime,
-	}, nil
+	row := &repo.AgentCostRow{
+		SessionID:           sessionIDFromPath(filePath),
+		Model:               stats.Model,
+		InputTokens:         usage.InputTokens,
+		OutputTokens:        usage.OutputTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		CostUSD:             estimate,
+		CostSource:          repo.SourceEstimate,
+		AgentMs:             stats.EstimateMs,
+		AgentTimeSource:     repo.SourceEstimate,
+		RecordedAt:          recordedAt,
+		StartedAt:           stats.StartedAt,
+		Title:               stats.Title,
+		Turns:               stats.Turns,
+		Cwd:                 cwd,
+		ProjectPath:         projectPath,
+		ProjectName:         projectName,
+		SourceMtime:         sourceMtime,
+	}
+	if cs := stats.CostState; cs != nil {
+		// A stale cost-state lags behind later turns, so only its cumulative counters are kept.
+		if !stats.CostStateStale {
+			row.CostUSD, row.CostSource = cs.TotalCostUSD, repo.SourceCostState
+			row.AgentMs, row.AgentTimeSource = cs.APIDurationMs+cs.ToolDurationMs, repo.SourceCostState
+		}
+		row.LinesAdded, row.LinesRemoved = cs.LinesAdded, cs.LinesRemoved
+		row.CostUnknownModel = cs.UnknownModelCost
+		row.ModelCosts = cs.ModelCosts
+	}
+	return row, nil
+}
+
+func parseFile(path string) (sessionStats, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return sessionStats{}, fmt.Errorf("open: %w", err)
+	}
+	defer f.Close()
+	return parseSession(f)
+}
+
+// subagentFiles returns the *.jsonl files in <dir>/<sessionId>/subagents/ next to parentPath.
+func subagentFiles(parentPath string) []string {
+	dir := filepath.Join(strings.TrimSuffix(parentPath, ".jsonl"), "subagents")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var files []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() || info.Size() > maxFileSizeBytes {
+			continue
+		}
+		files = append(files, path)
+	}
+	return files
+}
+
+// newestMtime returns the latest mtime (unix nanoseconds) of parentPath and subs; 0 when the parent cannot be stat'ed.
+func newestMtime(parentPath string, subs []string) int64 {
+	info, err := os.Stat(parentPath)
+	if err != nil {
+		return 0
+	}
+	newest := info.ModTime().UnixNano()
+	for _, sub := range subs {
+		if info, err := os.Stat(sub); err == nil && info.ModTime().UnixNano() > newest {
+			newest = info.ModTime().UnixNano()
+		}
+	}
+	return newest
 }
 
 // sessionIDFromPath extracts the session UUID from a JSONL filename.
 func sessionIDFromPath(path string) string {
 	base := filepath.Base(path)
 	return strings.TrimSuffix(base, ".jsonl")
-}
-
-// jsonlEntry is the minimal structure of a JSONL session log entry.
-type jsonlEntry struct {
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	// cwd is a top-level field present on every line in modern Claude Code logs.
-	Cwd     string `json:"cwd"`
-	Message struct {
-		Role  string `json:"role"`
-		Model string `json:"model"`
-		Usage *struct {
-			InputTokens         int `json:"input_tokens"`
-			OutputTokens        int `json:"output_tokens"`
-			CacheCreationTokens int `json:"cache_creation_input_tokens"`
-			CacheReadTokens     int `json:"cache_read_input_tokens"`
-		} `json:"usage"`
-	} `json:"message"`
-}
-
-// parseTokensFromRaw is a thin wrapper over parseTokensFromReader retained for
-// tests that already hold the file content as a string.
-func parseTokensFromRaw(raw string) (sdk.TokenUsage, string, time.Time, string, error) {
-	return parseTokensFromReader(strings.NewReader(raw))
-}
-
-// parseTokensFromReader extracts cumulative token usage, model, last activity, and
-// cwd by streaming JSONL line-by-line from r. lastActivity is zero when no
-// timestamp could be parsed; the caller falls back to file mtime in that case.
-//
-// Streaming (rather than reading the whole file into a []byte and Split-ing it)
-// keeps memory flat at one line regardless of session size. The scanner buffer is
-// enlarged to match the parser package so a single long line (large tool output)
-// does not trip bufio.ErrTooLong and silently drop the row.
-func parseTokensFromReader(r io.Reader) (sdk.TokenUsage, string, time.Time, string, error) {
-	var (
-		total        sdk.TokenUsage
-		model        = claudemodel.Latest(claudemodel.Sonnet)
-		lastActivity time.Time // zero → no timestamp parsed
-		cwd          string
-	)
-
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 256*1024), 4*1024*1024)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		var e jsonlEntry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			continue
-		}
-		// Capture cwd from any line — it is stable within a session; last non-empty wins.
-		if e.Cwd != "" {
-			cwd = e.Cwd
-		}
-		// Token usage lives on assistant turns. Claude Code writes these with a
-		// top-level type of "assistant"; older logs used "message". Accept both
-		// shapes (but not tool_result/attachment/etc.) and require the assistant
-		// role. Filtering on type=="message" alone silently dropped every modern
-		// session and left the cost table empty.
-		if e.Type != "assistant" && e.Type != "message" {
-			continue
-		}
-		if e.Message.Role != "assistant" {
-			continue
-		}
-		if e.Message.Model != "" {
-			model = e.Message.Model
-		}
-		if e.Message.Usage != nil {
-			total.InputTokens += e.Message.Usage.InputTokens
-			total.OutputTokens += e.Message.Usage.OutputTokens
-			total.CacheCreationTokens += e.Message.Usage.CacheCreationTokens
-			total.CacheReadTokens += e.Message.Usage.CacheReadTokens
-		}
-		if ts, err := time.Parse(time.RFC3339Nano, e.Timestamp); err == nil {
-			if lastActivity.IsZero() || ts.After(lastActivity) {
-				lastActivity = ts
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return total, model, lastActivity, cwd, fmt.Errorf("scan: %w", err)
-	}
-
-	return total, model, lastActivity, cwd, nil
 }

@@ -10,6 +10,12 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/agentcosttrend"
 )
 
+const (
+	SourceCostState = "cost_state"
+	SourceEstimate  = "estimate"
+	SourceLegacy    = "legacy"
+)
+
 // AgentCostRow is the input type for Upsert.
 type AgentCostRow struct {
 	SessionID    string
@@ -23,6 +29,19 @@ type AgentCostRow struct {
 	ProjectPath string
 	ProjectName string
 	SourceMtime int64
+	// StartedAt zero means unset.
+	StartedAt           time.Time
+	Title               string
+	Turns               int
+	AgentMs             int64
+	AgentTimeSource     string
+	CostSource          string
+	CostUnknownModel    bool
+	CacheReadTokens     int
+	CacheCreationTokens int
+	LinesAdded          int
+	LinesRemoved        int
+	ModelCosts          map[string]float64
 }
 
 // AgentCostTrendRepo defines read/write operations for the agent_cost_trend table.
@@ -57,7 +76,7 @@ func (r *entAgentCostTrendRepo) Upsert(ctx context.Context, rows []AgentCostRow)
 		return fmt.Errorf("agentcosttrend.Upsert: begin tx: %w", err)
 	}
 	for _, row := range rows {
-		if err := tx.AgentCostTrend.Create().
+		create := tx.AgentCostTrend.Create().
 			SetID(uuid.New().String()).
 			SetSessionID(row.SessionID).
 			SetModel(row.Model).
@@ -69,6 +88,21 @@ func (r *entAgentCostTrendRepo) Upsert(ctx context.Context, rows []AgentCostRow)
 			SetProjectPath(row.ProjectPath).
 			SetProjectName(row.ProjectName).
 			SetSourceMtime(row.SourceMtime).
+			SetTitle(row.Title).
+			SetTurns(row.Turns).
+			SetAgentMs(row.AgentMs).
+			SetAgentTimeSource(row.AgentTimeSource).
+			SetCostSource(row.CostSource).
+			SetCostUnknownModel(row.CostUnknownModel).
+			SetCacheReadTokens(row.CacheReadTokens).
+			SetCacheCreationTokens(row.CacheCreationTokens).
+			SetLinesAdded(row.LinesAdded).
+			SetLinesRemoved(row.LinesRemoved).
+			SetModelCosts(row.ModelCosts)
+		if !row.StartedAt.IsZero() {
+			create.SetStartedAt(row.StartedAt)
+		}
+		if err := create.
 			OnConflictColumns(agentcosttrend.FieldSessionID).
 			UpdateNewValues().
 			Exec(ctx); err != nil {

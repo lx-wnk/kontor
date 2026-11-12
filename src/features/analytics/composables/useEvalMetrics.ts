@@ -158,6 +158,15 @@ export function useEvalMetrics() {
     startDriftStream()
   }
 
+  function startAlerts(): void {
+    if (intervalId !== null)
+      return
+    active = true
+    void fetchAlertsOnly()
+    intervalId = setInterval(fetchAlertsOnly, POLL_INTERVAL_MS)
+    startDriftStream()
+  }
+
   function stop(): void {
     active = false
     if (intervalId !== null) {
@@ -183,6 +192,7 @@ export function useEvalMetrics() {
     setHours,
     refresh: fetchAll,
     start,
+    startAlerts,
     stop,
   }
 }

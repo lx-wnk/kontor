@@ -18,7 +18,7 @@ describe('launchersFor', () => {
     expect(l.at(-2)).toMatchObject({ id: 'page:morning', label: 'Morning', view: 'page:morning', kind: 'view' })
   })
   it('turns the eighth slot into More when there are more than eight', () => {
-    const pages = [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }]
+    const pages = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id, title: id.toUpperCase() }))
     const l = launchersFor(NAV_ITEMS, pages, 'zentrale')
     expect(l).toHaveLength(MAX_LAUNCHERS)
     expect(l.at(-1)).toMatchObject({ id: 'more', kind: 'more' })

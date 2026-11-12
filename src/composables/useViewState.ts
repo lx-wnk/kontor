@@ -1,9 +1,10 @@
 import type { AgentGroup, AgentSort } from '../utils/agentGroup'
 import { ref, watch } from 'vue'
+import { writeInsightsTab } from '@/features/insights/insightsTab'
 import { PAGE_ID_PATTERN, ZENTRALE_PAGE_ID } from '@/features/workspace/layout'
 import { AGENT_GROUP_OPTIONS, AGENT_SORT_OPTIONS, resolveGroup } from '../utils/agentGroup'
 
-export type CoreView = 'zentrale' | 'dashboard' | 'workflows' | 'pipeline' | 'cost' | 'schedules' | 'eval' | 'cloud'
+export type CoreView = 'zentrale' | 'dashboard' | 'pipeline' | 'schedules' | 'insights' | 'cloud'
 // A page the operator created. The prefix keeps "is this one of mine?"
 // answerable in one line everywhere a view is compared.
 export type ActiveView = CoreView | `page:${string}`
@@ -11,7 +12,7 @@ export type DashboardLayout = 'cards' | 'list'
 
 // Exported: the command palette derives one navigation command per view, so
 // a view added here shows up there without a second list to keep in step.
-export const ACTIVE_VIEWS: CoreView[] = ['zentrale', 'dashboard', 'workflows', 'pipeline', 'cost', 'schedules', 'eval', 'cloud']
+export const ACTIVE_VIEWS: CoreView[] = ['zentrale', 'dashboard', 'pipeline', 'schedules', 'insights', 'cloud']
 
 export function isCoreView(v: string): v is CoreView {
   return (ACTIVE_VIEWS as string[]).includes(v)
@@ -33,6 +34,17 @@ export function resolveView(v: ActiveView, pageIds: string[]): ActiveView {
     return 'zentrale'
   return v
 }
+// Views folded into Insights, mapped to the tab that replaces them.
+const FOLDED_VIEW_TABS = { cost: 'cost', eval: 'quality', workflows: 'workflows' } as const
+const FOLDED_LEGACY_TABS = { 'cost-analytics': 'cost', 'workflows': 'workflows' } as const
+
+function trySet(ls: Storage | null, key: string, value: string): void {
+  try {
+    ls?.setItem(key, value)
+  }
+  catch {}
+}
+
 const AGENT_SORT_VALUES: AgentSort[] = AGENT_SORT_OPTIONS.map(o => o.value)
 const AGENT_GROUP_VALUES: AgentGroup[] = AGENT_GROUP_OPTIONS.map(o => o.value)
 
@@ -47,14 +59,19 @@ function readInitial(): { view: ActiveView, layout: DashboardLayout } {
 
   // A page view is kept unchecked: the layout loads after this runs, and
   // resolveView falls back once it has.
-  if (stored && (isCoreView(stored) || stored.startsWith('page:'))) {
+  if (stored && Object.hasOwn(FOLDED_VIEW_TABS, stored)) {
+    view = 'insights'
+    writeInsightsTab(FOLDED_VIEW_TABS[stored as keyof typeof FOLDED_VIEW_TABS])
+    trySet(ls, 'agent-active-view', 'insights')
+  }
+  else if (stored && (isCoreView(stored) || stored.startsWith('page:'))) {
     view = stored as ActiveView
   }
   else {
     view = 'zentrale'
     if (stored) {
       // stored value is no longer valid — overwrite to stop the guard firing every load
-      ls?.setItem('agent-active-view', 'zentrale')
+      trySet(ls, 'agent-active-view', 'zentrale')
     }
 
     if (!stored && legacy) {
@@ -62,16 +79,15 @@ function readInitial(): { view: ActiveView, layout: DashboardLayout } {
         case 'pipeline':
           view = 'pipeline'
           break
-        case 'workflows':
-          view = 'workflows'
-          break
         case 'config-explorer':
           // Config view was folded into Settings → Spawners → Details; send
           // legacy deep-links to the dashboard rather than a dead view.
           view = 'dashboard'
           break
         case 'cost-analytics':
-          view = 'cost'
+        case 'workflows':
+          view = 'insights'
+          writeInsightsTab(FOLDED_LEGACY_TABS[legacy])
           break
         case 'list':
           view = 'dashboard'
@@ -82,7 +98,10 @@ function readInitial(): { view: ActiveView, layout: DashboardLayout } {
           layout = 'cards'
           break
       }
-      ls?.removeItem('agent-view-mode')
+      try {
+        ls?.removeItem('agent-view-mode')
+      }
+      catch {}
     }
   }
   return { view, layout }
