@@ -39,6 +39,10 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore(ci)
+    ignore:
+      # #565 bumped this to v2201, a tag that does not exist.
+      - dependency-name: vladopajic/go-test-coverage
+        versions: ['>= 3']
     groups:
       actions:
         update-types: [minor, patch]
