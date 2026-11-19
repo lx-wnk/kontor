@@ -44,13 +44,15 @@
 ### Task 1: `AttentionMark` schema and repo
 
 **Files:**
-- Create: `server/internal/db/ent/schema/attention_mark.go`
+- Create: `server/internal/db/ent/schema/attention_mark.go` (holds both `AttentionMark` and `AttentionBaseline`)
 - Create: `server/internal/db/repo/attention_mark_repo.go`
 - Test: `server/internal/db/repo/attention_mark_repo_test.go`
-- Generated: `server/internal/db/ent/...` (attentionmark only)
+- Generated: `server/internal/db/ent/...` (attentionmark and attentionbaseline only)
 
 **Interfaces:**
-- Produces: `repo.AttentionMarkRepo` with `List(ctx) ([]*ent.AttentionMark, error)` and `Mark(ctx, key string, seenThrough time.Time) (*ent.AttentionMark, bool, error)`; `repo.NewAttentionMarkRepo(*ent.Client) AttentionMarkRepo`.
+- Produces: `repo.AttentionMarkRepo` with `List(ctx) ([]*ent.AttentionMark, error)`, `Mark(ctx, key string, seenThrough time.Time) (*ent.AttentionMark, bool, error)` and `Baseline(ctx) (time.Time, error)`; `repo.NewAttentionMarkRepo(*ent.Client) AttentionMarkRepo`.
+
+Baseline (spec R12): `AttentionBaseline` is a one-row table with `IDTimestampsMixin` and `field.Time("started_at").Immutable()`. `Baseline` runs in `r.client.Tx(ctx)`: return the existing row's `StartedAt` if a row exists; else create one with `SetID("attention")` and `SetStartedAt(time.Now().UTC())` and return it. It never changes an existing row. Errors wrap as `attentionbaseline.Baseline: %w`.
 
 Schema:
 
@@ -75,6 +77,7 @@ func (AttentionMark) Fields() []ent.Field {
   - `TestAttentionMarkRepo_MarkSameIsNoChange`: mark `10:00:00Z` twice → second `changed=false`, `List` length 1.
   - `TestAttentionMarkRepo_MarkAdvances`: `10:00:00Z` then `10:00:07Z` → `changed=true`, stored `10:00:07Z`.
   - `TestAttentionMarkRepo_NanosRoundTrip`: `time.Date(2026,11,19,10,0,0,123456789,time.UTC)` reads back `Equal` (spec Q2; if it fails, truncate to ms in `Mark` and assert ms).
+  - `TestAttentionMarkRepo_BaselineIsStable`: first `Baseline` returns a non-zero time within 5 s of `time.Now()`; a second call returns an `Equal` time; the table has exactly 1 row.
 - [ ] **Step 2: Run** `cd server && go test ./internal/db/repo -run AttentionMark -count=1`. Expected: compile FAIL. Commit `test(attention): add RED tests for attention marks repo`.
 - [ ] **Step 3: Implement** schema, regenerate ent, write repo.
 - [ ] **Step 4: Run** the same command. Expected: PASS. Then `task test` and `cd server && go vet ./...`.
@@ -91,7 +94,7 @@ func (AttentionMark) Fields() []ent.Field {
 - Consumes: `repo.AttentionMarkRepo` (Task 1).
 - Produces: `sse.AttentionEvent{Type string "json:type"; Mark any "json:mark"}`, const `sse.AttentionMarked = "attention_marked"`; `attention.NewHandler(marks repo.AttentionMarkRepo, b *sse.TypedBroadcaster[sse.AttentionEvent]) *Handler` (panics on nil args); `(*Handler).Mount(r chi.Router)`; JSON view `markView{Key string "json:key"; SeenThrough string "json:seenThrough"}` with `SeenThrough` formatted `time.RFC3339Nano` in UTC.
 
-Routes in `Mount`: `GET /api/attention/marks` (List), `PUT /api/attention/marks` (Put), `GET /api/attention/stream` (Stream, copy of `cloudsessions.Handler.Stream`). Use `apierr.ErrorMiddleware` and `apierr.WriteJSON` as in `server/internal/api/cloudsessions/handler.go:190-298`.
+Routes in `Mount`: `GET /api/attention/marks` (List; response `{"baseline": <RFC3339Nano UTC from repo.Baseline>, "marks": [markView…]}`), `PUT /api/attention/marks` (Put), `GET /api/attention/stream` (Stream, copy of `cloudsessions.Handler.Stream`). Use `apierr.ErrorMiddleware` and `apierr.WriteJSON` as in `server/internal/api/cloudsessions/handler.go:190-298`.
 
 `Put` validation, in order: `http.MaxBytesReader` 4096; `json.Decoder` with `DisallowUnknownFields`; `key` matches `var keyPattern = regexp.MustCompile(`^[a-z]+:[A-Za-z0-9._-]{1,128}$`)`; `seenThrough` parses with `time.RFC3339Nano` and is not zero. Each failure → `apierr.NewAppError(400, <message>)`. On success broadcast only when `changed`.
 
@@ -99,7 +102,8 @@ Routes in `Mount`: `GET /api/attention/marks` (List), `PUT /api/attention/marks`
   - Table `TestPut_Rejects` → all 400: `{}`; `{"key":"","seenThrough":"2026-11-19T10:00:00Z"}`; `{"key":"Finished:s1",…}`; `{"key":"finished:a b",…}`; `{"key":"finished:"+129×"a",…}`; `{"key":"finished:s1","seenThrough":"yesterday"}`; `{"key":"finished:s1","seenThrough":"0001-01-01T00:00:00Z"}`; `{"key":"finished:s1","seenThrough":"2026-11-19T10:00:00Z","x":1}`; body of 5000 bytes.
   - `TestPut_StoresAndBroadcastsOnce`: PUT `{"key":"failed:s1","seenThrough":"2026-11-19T10:00:00Z"}` twice → both 200, both bodies `{"key":"failed:s1","seenThrough":"2026-11-19T10:00:00Z"}`, exactly one frame on the channel containing `"type":"attention_marked"`.
   - `TestPut_OlderDoesNotRegress`: PUT `10:00:05Z` then `10:00:00Z` → second body has `10:00:05Z`, one frame total.
-  - `TestList`: after two PUTs (`a:1`, `b:2`) → GET 200 with 2 entries ordered by key.
+  - `TestList`: after two PUTs (`a:1`, `b:2`) → GET 200, `marks` has 2 entries ordered by key, `baseline` parses with `time.RFC3339Nano` and is not zero.
+  - `TestList_BaselineStable`: two GETs return the same `baseline` string.
 - [ ] **Step 2: Run** `cd server && go test ./internal/api/attention -count=1`. Expected: compile FAIL. Commit RED.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** same command → PASS; `cd server && go vet ./...`.
@@ -158,7 +162,9 @@ Routes in `Mount`: `GET /api/attention/marks` (List), `PUT /api/attention/marks`
 
 **Interfaces:**
 - Consumes: `NextThing.key/since`, `agentOutcome` (Task 4); API from Task 2.
-- Produces: `useAttentionMarks(): { marks: ShallowRef<ReadonlyMap<string,string>>, start(): void }`; `markSeen(key: string, since: string): Promise<void>`; `isPutAway(t: NextThing, marks: ReadonlyMap<string,string>): boolean`; `visibleNextThings(list: NextThing[], marks): NextThing[]`.
+- Produces: `useAttentionMarks(): { marks: ShallowRef<ReadonlyMap<string,string>>, baseline: Ref<string | null>, start(): void }`; `markSeen(key: string, since: string): Promise<void>`; `isPutAway(t: NextThing, marks: ReadonlyMap<string,string>, baseline: string | null): boolean`; `visibleNextThings(list: NextThing[], marks, baseline): NextThing[]`.
+
+Baseline (spec R12): `fetchInitial` reads `{baseline, marks}` from `GET`. For `failed` and `finished` items only, `isPutAway` also returns `true` when `baseline === null` (not loaded yet, so no flash of old items) or `Date.parse(t.since) <= Date.parse(baseline)`. Other kinds ignore the baseline.
 
 Module-level state, `createSseResource({ streamUrl: '/api/attention/stream', fetchInitial, onMessage, onConnected: fetchInitial })` exactly as `src/features/cloud/composables/useCloudSessions.ts`. `isPutAway`: `const m = marks.get(t.key); return m !== undefined && Date.parse(m) >= Date.parse(t.since)`. `markSeen`: keep previous value, set new map with `key → since`, `PUT` JSON `{key, seenThrough: since}`; on non-OK or throw: restore previous value, `toast.error('Could not put that away')`.
 
@@ -167,6 +173,8 @@ App.vue: `const { marks, start: startMarks } = useAttentionMarks()`; call `start
 - [ ] **Step 1: RED tests:**
   - `isPutAway`: mark `'2026-11-19T10:00:00Z'`, since same → `true`; since `'2026-11-19T10:00:01Z'` → `false`; no mark → `false`; mark with nanos `'2026-11-19T10:00:00.000000000Z'` vs since `'2026-11-19T10:00:00Z'` → `true`.
   - `visibleNextThings` drops only the marked item of three.
+  - Baseline `'2026-11-19T10:00:00Z'`: `finished` item with since `'2026-11-19T09:59:59Z'` → hidden; since `'2026-11-19T10:00:01Z'` → shown; `failed` with since `'2026-11-19T10:00:00Z'` → hidden; `permission` with since `'2026-11-19T09:00:00Z'` → shown.
+  - Baseline `null`: `finished` and `failed` hidden, `permission` shown.
   - `markSeen` with `fetch` mocked 200 → map has key immediately (before the promise resolves) and request is `PUT /api/attention/marks` with body `{"key":"failed:s1","seenThrough":"2026-11-19T10:00:00Z"}`.
   - `markSeen` with `fetch` mocked 500 → map back to previous, `toast.error` called once.
   - SSE message `{"type":"attention_marked","mark":{"key":"k:1","seenThrough":"…"}}` → map contains `k:1`.

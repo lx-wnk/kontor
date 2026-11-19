@@ -73,7 +73,7 @@ API (package `server/internal/api/attention`, mounted in the protected group):
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /api/attention/marks` | `200 [{"key","seenThrough"}]`, `seenThrough` is `RFC3339Nano` UTC |
+| `GET /api/attention/marks` | `200 {"baseline", "marks": [{"key","seenThrough"}]}`, times are `RFC3339Nano` UTC; `baseline` per R12 |
 | `PUT /api/attention/marks` | body `{"key","seenThrough"}`. `200` with the stored mark. Idempotent: the same body twice gives the same row and one broadcast. |
 | `GET /api/attention/stream` | SSE. Event `{"type":"attention_marked","mark":{"key","seenThrough"}}`, sent only when `changed=true`. |
 
@@ -143,11 +143,12 @@ The server does not validate the kind prefix against a kind list. A list would b
 | R4 | The dashboard triage band ignores marks. | The band shows live fleet state, not an inbox. The brief scopes marks to the queue. | One extra filter on `attentionAgents`. |
 | R5 | "Viewed" for a `finished` item means the agent detail opened. Rendering a card on screen is not "viewed". | Rendering would clear every card the moment it appears. | Change the trigger in one watcher. |
 | R6 | Server stores marks only. The client derives items. | The client already owns the derivation; a server copy would duplicate it in Go. | Cross-device views can disagree for one tick while streams catch up. |
-| R7 | No down migration. The table is added by ent `Schema.Create` (additive). Manual rollback: `DROP TABLE attention_marks;` — an older binary ignores the table. | Repo convention since `client.go:151`; there is no migration framework with down steps. | Manual SQL on rollback. |
+| R7 | No down migration. The tables are added by ent `Schema.Create` (additive). Manual rollback: `DROP TABLE attention_marks; DROP TABLE attention_baselines;` — an older binary ignores both tables. Accepted by the user on 2026-11-19. | Repo convention since `client.go:151`; there is no migration framework with down steps. | Manual SQL on rollback. |
 | R8 | Keys on non-dashboard views target the needs-you list, not `attentionAgents`. | The triage band is not rendered there; approving an invisible agent's permission is unsafe. | Users who expect dashboard semantics on other views see list semantics. |
 | R9 | The fleet chip choice is not persisted. | It is always visible, so a stale hidden filter cannot empty the roster silently. | Add one key to `useViewState`. |
 | R10 | The server keeps the later `seenThrough` per key. | A stale browser must not resurface an item another browser cleared. | None known. |
 | R11 | Marks are never pruned. | One small row per put-away item; growth is user-paced. | Follow-up: prune rows older than 30 days. |
+| R12 | A server-side baseline (one-row table `attention_baselines`, written once on first read, never changed) hides `failed` and `finished` items whose `since` is at or before it. `GET /api/attention/marks` returns `{"baseline", "marks"}`. Until the client has the baseline, it hides both kinds. Decided by the user on 2026-11-19. | Without it, every idle or failed agent from before the release floods the list on first load. | One more table; deleting its row resets the cutoff to the next read. |
 
 ## Open questions
 
