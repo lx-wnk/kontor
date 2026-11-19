@@ -119,6 +119,25 @@ test.describe('triage keys on every view', () => {
 
     release()
     await expect(card(page, 'p2')).toBeVisible()
+    expect(stub.resolved()).toEqual([])
+  })
+
+  test('a repeated keydown does not resolve; a normal one does once', async ({ page }) => {
+    const stub = await stubPermissions(page, ['p1'])
+    await page.addInitScript(() => localStorage.setItem('agent-active-view', 'cost'))
+    await page.goto('/')
+    await parkPointerOffNav(page)
+    await expect(card(page)).toBeVisible()
+
+    await page.keyboard.press('n')
+    await expect(card(page)).toHaveAttribute('aria-current', 'true')
+
+    const handled = await page.evaluate(() => !window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', repeat: true, bubbles: true, cancelable: true })))
+    expect(handled).toBe(false)
+    expect(stub.resolved()).toEqual([])
+
+    await page.keyboard.press('a')
+    await expect.poll(stub.resolved).toEqual([{ id: 'p1', decision: 'allow_once' }])
   })
 })
 
@@ -213,7 +232,7 @@ test.describe('put away persists', () => {
     await stubLive(page, () => agents)
     await page.addInitScript(() => localStorage.setItem('agent-active-view', 'cost'))
 
-    // First read writes the server baseline (R12); activity must be newer than it.
+    // On a fresh DB the first read writes the server baseline (R12); activity must be newer than it.
     const [baselineRes] = await Promise.all([
       page.waitForResponse(r => r.url().includes('/api/attention/marks') && r.request().method() === 'GET'),
       page.goto('/'),
@@ -229,6 +248,7 @@ test.describe('put away persists', () => {
     await expect(shown(page, oldSid)).toHaveCount(0)
 
     await shown(page, sid).getByTestId('needs-you-put-away').click()
+    await expect(shown(page, controlSid)).toBeVisible()
     await expect(shown(page, sid)).toHaveCount(0)
 
     await page.reload()
@@ -251,6 +271,36 @@ test.describe('put away persists', () => {
     agents = [finished(sid, new Date(Date.parse(lastActivity) + 1000).toISOString()), finished(controlSid, lastActivity)]
     await page.reload()
     await expect(shown(page, sid)).toBeVisible()
+  })
+
+  test('opening a finished agent clears its card across a reload', async ({ page }) => {
+    const sid = `e2e-${Date.now()}-opened`
+    const controlSid = `e2e-${Date.now()}-opened-control`
+    let agents: unknown[] = []
+    await stubLive(page, () => agents)
+    await stubJson(page, `/api/agents/${sid}/output`, { messages: [] })
+    await stubJson(page, `/api/agents/${sid}/replies`, { replies: [] })
+    await page.addInitScript(() => localStorage.setItem('agent-active-view', 'cost'))
+    await page.goto('/')
+
+    const lastActivity = new Date().toISOString()
+    agents = [finished(sid, lastActivity), finished(controlSid, lastActivity)]
+    await page.reload()
+    const shown = (id: string) => page.locator(`[data-testid="needs-you"] li[data-key="finished:${id}"]`)
+    await expect(shown(sid)).toBeVisible()
+    await expect(shown(controlSid)).toBeVisible()
+
+    const marked = page.waitForResponse(r => r.url().includes('/api/attention/marks') && r.request().method() === 'PUT')
+    await shown(sid).getByTestId('mission-open-agent').click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    expect((await marked).status()).toBe(200)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+
+    await page.reload()
+    await expect(shown(controlSid)).toBeVisible()
+    await expect(shown(sid)).toHaveCount(0)
   })
 
   test('the marks endpoint rejects a malformed key', async ({ request, baseURL }) => {
@@ -284,5 +334,6 @@ test('the docked hub queue leaves out finished agents but keeps permissions', as
   }])
   await page.goto('/')
   await expect(card(page)).toBeVisible()
+  await expect(page).toHaveTitle(/^\(2\)/)
   await expect(page.locator('[data-testid="needs-you"] li[data-key^="finished:"]')).toHaveCount(0)
 })

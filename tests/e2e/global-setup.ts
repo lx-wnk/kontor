@@ -1,9 +1,9 @@
 import { APP_BASE_URL, LIMITER_BASE_URL } from './servers'
 
 /**
- * Each server runs against a scratch database, which starts with the first-run
- * onboarding dialog open — it covers the page and swallows every click the
- * specs make. Runs after both webServers are ready, so they are reachable.
+ * Each server runs against `.e2e/dashboard-e2e-<port>.db`, which persists between runs.
+ * On a fresh file the first-run onboarding dialog is open — it covers the page and
+ * swallows every click the specs make. Runs after both webServers are ready, so they are reachable.
  */
 export default async function globalSetup(): Promise<void> {
   for (const baseURL of [APP_BASE_URL, LIMITER_BASE_URL])
