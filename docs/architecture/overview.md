@@ -14,7 +14,7 @@ A real-time monitoring and control dashboard for locally running Claude Code age
 +------------------------+      +---------------------------+      +-------------------+
 |  Browser (Vue 3 SPA)   |      |  Go Backend (:13120)      |      | Claude Code Agents|
 +------------------------+      +---------------------------+      +-------------------+
-| List / Cards / Kanban  | <--- | GET  /api/agents/stream   | ---> | ps / lsof         |
+| Cards / List           | <--- | GET  /api/agents/stream   | ---> | ps / lsof         |
 | Agent Modal (chat)     |      |      (SSE + polling fb)   |      | ~/.claude/        |
 | Prompt Input           | ---> | POST /agents/:id/message  |      | JSONL logs        |
 | Spawn Dialog           | ---> | POST /agents/spawn        |      |                   |

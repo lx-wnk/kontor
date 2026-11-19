@@ -84,7 +84,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Kontor session** — one Claude session per installation that can read and steer Kontor through its task API; start it from the Zentrale or the `Cmd+K` field. If its Claude login expires, the tile offers **Log in**, which opens the session's terminal to run `/login`.
 
-**Dashboard** — real-time agent roster over SSE (list, card, kanban) with tokens, cost, status and uptime; a needs-you band that approves or denies permission prompts in bulk; chat-style transcripts with tool groups and subagent badges; `Cmd+K` spotlight search.
+**Dashboard** — real-time agent roster over SSE (cards or list) with tokens, cost, status and uptime; a needs-you band that approves or denies permission prompts in bulk; chat-style transcripts with tool groups and subagent badges; `Cmd+K` spotlight search.
 
 **Live sessions** — agents spawned from the dashboard run interactively via tmux or a built-in pty broker; the agent modal has a real terminal tab and answers `AskUserQuestion` prompts inline. Commands that open a terminal picker (`/login`, `/model`, `/mcp`, …) open the terminal for you, and a picker left open is flagged as waiting in the terminal. The dashboard terminal attaches to pty-broker sessions only; for a tmux session, attach to its pane.
 
