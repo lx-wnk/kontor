@@ -121,3 +121,52 @@ test.describe('triage keys on every view', () => {
     await expect(card(page, 'p2')).toBeVisible()
   })
 })
+
+test.describe('fleet filter chips', () => {
+  const agent = (pid: number, extra: Record<string, unknown>) => ({
+    pid,
+    sessionId: `sess-${pid}`,
+    provider: 'claude',
+    projectName: `proj-${pid}`,
+    projectPath: `/repo/proj-${pid}`,
+    cwd: `/repo/proj-${pid}`,
+    status: 'active',
+    working: true,
+    lastActivity: new Date().toISOString(),
+    uptime: 120,
+    channelAvailable: false,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+    costEstimate: 0,
+    lastTools: [],
+    tasks: [],
+    subagents: [],
+    ...extra,
+  })
+  const asking = agent(1, {
+    pendingQuestion: {
+      header: 'Colour',
+      question: 'Which colour?',
+      multiSelect: false,
+      options: [{ index: 1, label: 'Red' }],
+      typeSomethingIndex: 2,
+      chatAboutIndex: 3,
+    },
+  })
+
+  test('Needs you leaves only the asking agent on the roster', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('agent-active-view', 'dashboard'))
+    await stubAuthDisabled(page)
+    await stubAgents(page, [asking, agent(2, {})])
+    await page.goto('/')
+
+    const chips = page.getByRole('group', { name: 'Filter agents' })
+    await expect(chips.getByRole('button', { name: 'All 2' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('agent-card-project')).toHaveCount(2)
+
+    await chips.getByRole('button', { name: 'Needs you 1' }).click()
+
+    await expect(chips.getByRole('button', { name: 'Needs you 1' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('agent-card-project')).toHaveCount(1)
+    await expect(page.getByTestId('agent-card-project')).toHaveText('Proj 1')
+  })
+})

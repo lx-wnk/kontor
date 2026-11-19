@@ -1,3 +1,4 @@
+import type { Agent } from '@/types'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { useViewState } from '@/composables/useViewState'
@@ -73,7 +74,7 @@ describe('dashboardView', () => {
   it('filters the roster by fleet chip while the counts stay on the unfiltered list', async () => {
     const recent = new Date().toISOString()
     const question = { header: 'h', question: 'q', multiSelect: false, options: [], typeSomethingIndex: 1, chatAboutIndex: 2 }
-    const make = (pid: number, extra: Record<string, unknown>) => ({ pid, sessionId: `s${pid}`, projectName: 'p', projectId: 'p1', lastActivity: recent, status: 'active', ...extra })
+    const make = (pid: number, extra: Record<string, unknown>) => ({ pid, sessionId: `s${pid}`, projectName: 'p', projectId: 'p1', lastActivity: recent, status: 'active', ...extra }) as unknown as Agent
     useViewState().dashboardProject.value = 'all'
     useAgents({ autoStart: false }).agents.value = [
       make(1, { working: true, pendingQuestion: question }),

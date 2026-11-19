@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PermissionDecision } from '@/features/pipeline'
+import type { Agent } from '@/types'
+import type { FleetFilter } from '@/utils/agentGroup'
 import { computed, ref, watch } from 'vue'
 import AutoApprovingStrip from '@/components/AutoApprovingStrip.vue'
 import ChannelScriptCallout from '@/components/shell/ChannelScriptCallout.vue'
@@ -9,8 +11,10 @@ import { useNow } from '@/composables/useNow'
 import { useSpawners } from '@/composables/useSpawners'
 import { useViewState } from '@/composables/useViewState'
 import { AgentCardGrid, AgentTable, AgentTriageBand, EmptyAgentState, useAgents } from '@/features/agents'
-import { agentProjectKey, groupAgents, sortAgents } from '@/utils/agentGroup'
+import { agentProjectKey, fleetBucket, fleetCounts, groupAgents, sortAgents } from '@/utils/agentGroup'
+import { secondsSince } from '@/utils/format'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
+import FleetFilterChips from './FleetFilterChips.vue'
 
 defineProps<{
   permissionItems: PermissionItem[]
@@ -31,14 +35,24 @@ const { nowMs } = useNow()
 
 const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(null)
 
-// Dashboard roster: project + spawner filter → sort → optional grouping. Project
-// options list every known project (pre-filter) so the dropdown stays stable.
-const rosterAgents = computed(() => {
+// Dashboard roster: project + spawner filter → fleet chip → sort → optional
+// grouping. Project options list every known project (pre-filter) so the
+// dropdown stays stable; chip counts come from the list before the chip filter.
+const fleet = ref<FleetFilter>('all')
+const secsOf = (a: Agent) => secondsSince(a.lastActivity, nowMs.value)
+const preChipAgents = computed(() => {
   let base = filteredAgents.value
   if (dashboardProject.value !== 'all')
     base = base.filter(a => agentProjectKey(a) === dashboardProject.value)
   if (dashboardSpawner.value !== 'all')
     base = base.filter(a => a.spawnerId === dashboardSpawner.value)
+  return base
+})
+const fleetChipCounts = computed(() => fleetCounts(preChipAgents.value, secsOf))
+const rosterAgents = computed(() => {
+  const base = fleet.value === 'all'
+    ? preChipAgents.value
+    : preChipAgents.value.filter(a => fleetBucket(a, secsOf(a)) === fleet.value)
   return sortAgents(base, dashboardSort.value, nowMs.value)
 })
 const rosterGroups = computed(() => groupAgents(rosterAgents.value, dashboardGroup.value))
@@ -82,6 +96,7 @@ defineExpose({ rosterAgents })
     @decide="(taskId, ids, decision) => emit('decide', taskId, ids, decision)"
   />
   <AutoApprovingStrip ref="autoApprovingStrip" />
+  <FleetFilterChips v-model="fleet" :counts="fleetChipCounts" />
   <DashboardToolbar
     :layout="dashboardLayout"
     :spawner="dashboardSpawner"
