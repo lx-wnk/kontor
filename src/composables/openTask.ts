@@ -1,4 +1,4 @@
-import type { ComputedRef, InjectionKey } from 'vue'
+import type { ComputedRef, InjectionKey, Ref } from 'vue'
 import type { usePendingPermissions } from './usePendingPermissions'
 import type { NextThing } from '@/features/mission'
 
@@ -12,6 +12,9 @@ export const PENDING_PERMISSIONS: InjectionKey<ReturnType<typeof usePendingPermi
 
 // App.vue ranks once per tick and provides the list; every queue and the hub core read it.
 export const NEEDS_YOU: InjectionKey<ComputedRef<NextThing[]>> = Symbol('needsYou')
+
+// App.vue owns the key handler and provides the focused needs-you key; the queue reads it to highlight the row.
+export const NEEDS_YOU_FOCUS: InjectionKey<Ref<string | null>> = Symbol('needsYouFocus')
 
 // App.vue owns the settings panel; the hub opens it through this.
 export const OPEN_SETTINGS: InjectionKey<() => void> = Symbol('openSettings')
