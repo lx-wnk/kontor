@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, shallowRef } from 'vue'
 import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
+import { DOCKED_KINDS } from '@/composables/needsYouPlacement'
 import { useSidebar } from '@/composables/useSidebar'
 import { useViewState } from '@/composables/useViewState'
 import { DEFAULT_LAYOUT, failedWidgets, useWorkspace } from '@/features/workspace'
@@ -61,7 +62,7 @@ vi.mock('@/features/agents', () => ({
 }))
 vi.mock('@/features/mission', () => ({
   NeedsYouQueue: {
-    props: ['variant'],
+    props: ['variant', 'kinds'],
     template: '<div data-testid="stub-queue">{{ variant }}</div>',
   },
   useKontorSession: () => ({ ask, overlayOpen }),
@@ -293,6 +294,12 @@ describe('hubWidget', () => {
     expect(w.get('[data-testid="hub-agent-102"]').attributes('aria-label')).toContain('needs you')
     expect(w.get('[data-testid="hub-core"]').text()).toContain('2 running · 2 need you')
     expect(w.get('[data-testid="stub-queue"]').text()).toBe('docked')
+    w.unmount()
+  })
+
+  it('docks the queue without finished turns', async () => {
+    const w = await mountHub()
+    expect(w.getComponent('[data-testid="stub-queue"]').props('kinds')).toEqual(DOCKED_KINDS)
     w.unmount()
   })
 
