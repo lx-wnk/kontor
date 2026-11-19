@@ -20,6 +20,8 @@ function fakeGraph(): GraphResponse {
 }
 
 const AGENT_COUNT = 24
+// Older than the server's attention baseline, so these idle agents are not listed as finished and the needs-you box stays empty over the map.
+const BEFORE_ATTENTION_BASELINE = '2020-01-01T00:00:00.000Z'
 
 // A crowd on one project's rim: its slots sit closer together than a label is wide, so the cull must hide some.
 function fakeAgents() {
@@ -32,7 +34,7 @@ function fakeAgents() {
     cwd: '/repo/work',
     status: i % 3 === 0 ? 'active' : 'idle',
     working: i % 3 === 0,
-    lastActivity: new Date().toISOString(),
+    lastActivity: BEFORE_ATTENTION_BASELINE,
     uptime: 120,
     tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
     costEstimate: 0,
