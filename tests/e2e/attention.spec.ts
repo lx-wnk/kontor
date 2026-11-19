@@ -208,25 +208,30 @@ test.describe('put away persists', () => {
   test('a put-away finished agent stays gone across reload and contexts until it posts again', async ({ page, browser, baseURL }) => {
     const sid = `e2e-${Date.now()}-finished`
     const oldSid = `${sid}-old`
+    const controlSid = `e2e-${Date.now()}-control`
     let agents: unknown[] = []
     await stubLive(page, () => agents)
 
     // First read writes the server baseline (R12); activity must be newer than it.
-    await page.goto('/')
-    await expect(page.locator('[data-testid="needs-you"]')).toBeVisible()
+    const [baselineRes] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/attention/marks') && r.request().method() === 'GET'),
+      page.goto('/'),
+    ])
+    expect(baselineRes.status()).toBe(200)
 
     const lastActivity = new Date().toISOString()
-    agents = [finished(sid, lastActivity), finished(oldSid, '2020-01-01T00:00:00Z')]
+    agents = [finished(sid, lastActivity), finished(controlSid, lastActivity), finished(oldSid, '2020-01-01T00:00:00Z')]
     await page.reload()
     const shown = (p: Page, id: string) => p.locator(`[data-testid="needs-you"] li[data-key="finished:${id}"]`)
     await expect(shown(page, sid)).toBeVisible()
+    await expect(shown(page, controlSid)).toBeVisible()
     await expect(shown(page, oldSid)).toHaveCount(0)
 
     await shown(page, sid).getByTestId('needs-you-put-away').click()
     await expect(shown(page, sid)).toHaveCount(0)
 
     await page.reload()
-    await expect(page.locator('[data-testid="needs-you"]')).toBeVisible()
+    await expect(shown(page, controlSid)).toBeVisible()
     await expect(shown(page, sid)).toHaveCount(0)
 
     const other = await browser.newContext({ baseURL })
@@ -234,14 +239,14 @@ test.describe('put away persists', () => {
       const page2 = await other.newPage()
       await stubLive(page2, () => agents)
       await page2.goto('/')
-      await expect(page2.locator('[data-testid="needs-you"]')).toBeVisible()
+      await expect(shown(page2, controlSid)).toBeVisible()
       await expect(shown(page2, sid)).toHaveCount(0)
     }
     finally {
       await other.close()
     }
 
-    agents = [finished(sid, new Date(Date.parse(lastActivity) + 60_000).toISOString())]
+    agents = [finished(sid, new Date(Date.parse(lastActivity) + 1000).toISOString()), finished(controlSid, lastActivity)]
     await page.reload()
     await expect(shown(page, sid)).toBeVisible()
   })
