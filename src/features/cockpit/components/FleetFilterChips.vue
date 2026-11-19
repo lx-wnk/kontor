@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FleetFilter } from '@/utils/agentGroup'
+import { ref } from 'vue'
 import { FLEET_FILTERS } from '@/utils/agentGroup'
 
 defineProps<{
@@ -7,10 +8,12 @@ defineProps<{
   counts: Record<FleetFilter, number>
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: FleetFilter] }>()
+const root = ref<HTMLElement | null>(null)
+defineExpose({ focusAll: () => root.value?.querySelector<HTMLElement>('[data-testid="fleet-chip-all"]')?.focus() })
 </script>
 
 <template>
-  <div role="group" aria-label="Filter agents by state" class="mb-3 flex flex-wrap gap-2">
+  <div ref="root" role="group" aria-label="Filter agents by state" class="mb-3 flex flex-wrap gap-2">
     <button
       v-for="filter in FLEET_FILTERS"
       :key="filter.value"

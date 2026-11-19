@@ -3,7 +3,7 @@ import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PermissionDecision } from '@/features/pipeline'
 import type { Agent } from '@/types'
 import type { FleetFilter } from '@/utils/agentGroup'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import AutoApprovingStrip from '@/components/AutoApprovingStrip.vue'
 import ChannelScriptCallout from '@/components/shell/ChannelScriptCallout.vue'
 import DashboardToolbar from '@/components/shell/DashboardToolbar.vue'
@@ -37,6 +37,12 @@ const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(n
 
 // Chip counts come from the list before the chip filter.
 const fleet = ref<FleetFilter>('all')
+const fleetChips = ref<InstanceType<typeof FleetFilterChips> | null>(null)
+async function showAll() {
+  fleet.value = 'all'
+  await nextTick()
+  fleetChips.value?.focusAll()
+}
 const secsOf = (a: Agent) => secondsSince(a.lastActivity, nowMs.value)
 const preChipAgents = computed(() => {
   let base = filteredAgents.value
@@ -95,7 +101,7 @@ defineExpose({ rosterAgents })
     @decide="(taskId, ids, decision) => emit('decide', taskId, ids, decision)"
   />
   <AutoApprovingStrip ref="autoApprovingStrip" />
-  <FleetFilterChips v-model="fleet" :counts="fleetChipCounts" />
+  <FleetFilterChips ref="fleetChips" v-model="fleet" :counts="fleetChipCounts" />
   <DashboardToolbar
     :layout="dashboardLayout"
     :spawner="dashboardSpawner"
@@ -114,9 +120,9 @@ defineExpose({ rosterAgents })
     @update:group-by="setDashboardGroup($event)"
     @update:search-query="searchQuery = $event"
   />
-  <div v-if="chipEmptiedRoster" class="flex items-center gap-3 py-8 text-[13px] text-fg-mute">
+  <div v-if="chipEmptiedRoster" role="status" class="flex items-center gap-3 py-8 text-[13px] text-fg-mute">
     <span>No agents match this filter.</span>
-    <button type="button" data-testid="fleet-show-all" class="cursor-pointer rounded-full border border-line-strong px-3 py-1 text-[12px] text-fg focus-visible:outline-2 focus-visible:outline-accent" @click="fleet = 'all'">
+    <button type="button" data-testid="fleet-show-all" class="cursor-pointer rounded-full border border-line-strong px-3 py-1 text-[12px] text-fg focus-visible:outline-2 focus-visible:outline-accent" @click="showAll">
       Show all
     </button>
   </div>

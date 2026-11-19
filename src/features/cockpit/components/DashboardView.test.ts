@@ -1,6 +1,7 @@
 import type { Agent } from '@/types'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { useViewState } from '@/composables/useViewState'
 import { useAgents } from '@/features/agents'
 import DashboardView from './DashboardView.vue'
@@ -102,6 +103,7 @@ describe('dashboardView', () => {
     useViewState().dashboardProject.value = 'all'
     useAgents({ autoStart: false }).agents.value = [make(1), make(2), make(3)]
     const wrapper = mount(DashboardView, {
+      attachTo: document.body,
       props: { permissionItems: [], focusedSessionId: null },
       global: { stubs },
     })
@@ -109,9 +111,13 @@ describe('dashboardView', () => {
     await wrapper.get('[data-testid="fleet-chip-needsYou"]').trigger('click')
 
     expect(wrapper.text()).toContain('No agents match this filter.')
+    expect(wrapper.get('[role="status"]').text()).toContain('No agents match this filter.')
     expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="fleet-show-all"]').trigger('click')
+    await nextTick()
+
+    expect(document.activeElement).toBe(wrapper.get('[data-testid="fleet-chip-all"]').element)
 
     expect(wrapper.get('[data-testid="fleet-chip-all"]').attributes('aria-pressed')).toBe('true')
     expect((wrapper.vm as any).rosterAgents).toHaveLength(3)
