@@ -87,8 +87,15 @@ func (r *entAttentionMarkRepo) Mark(ctx context.Context, key string, seenThrough
 }
 
 func (r *entAttentionMarkRepo) Baseline(ctx context.Context) (time.Time, error) {
+	row, err := r.client.AttentionBaseline.Get(ctx, attentionBaselineID)
+	if err == nil {
+		return row.StartedAt, nil
+	}
+	if !ent.IsNotFound(err) {
+		return time.Time{}, fmt.Errorf("attentionbaseline.Baseline: %w", err)
+	}
 	var startedAt time.Time
-	err := WithWriteTx(ctx, r.writeClient, func(tx *ent.Tx) error {
+	err = WithWriteTx(ctx, r.writeClient, func(tx *ent.Tx) error {
 		row, err := tx.AttentionBaseline.Get(ctx, attentionBaselineID)
 		if ent.IsNotFound(err) {
 			row, err = tx.AttentionBaseline.Create().

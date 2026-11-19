@@ -18,7 +18,9 @@ import (
 
 const maxBodyBytes = 4096
 
-var keyPattern = regexp.MustCompile(`^[a-z]+:[A-Za-z0-9._-]{1,128}$`)
+const readyFrame = "data: {\"type\":\"attention_ready\"}\n\n"
+
+var keyPattern = regexp.MustCompile(`^[a-z]{1,31}:[A-Za-z0-9._-]{1,128}$`)
 
 // Handler serves the attention marks API and its SSE stream.
 type Handler struct {
@@ -124,6 +126,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	sub := h.broadcaster.Subscribe()
 	defer h.broadcaster.Unsubscribe(sub)
 	sse.WriteHeaders(w)
+	_, _ = io.WriteString(w, readyFrame)
 	flusher.Flush()
 	for {
 		select {
