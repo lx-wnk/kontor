@@ -3,7 +3,6 @@ import type { TrackedMessage } from '@/features/agents/composables/deliveryState
 import type { Agent, OutputMessage } from '@/types'
 import { onUnmounted, ref } from 'vue'
 import { dispatchSlashCommand, parseSlashCommand, SLASH_COMMAND_DEFS } from '@/composables/useSlashCommands'
-import { agentOutcome, markSeen } from '@/features/mission'
 import { errorMessage } from '@/utils/errorMessage'
 import { addPending } from '@/utils/pendingMessages'
 import { BACKGROUND_SYNC_TAG } from '@/utils/swConstants'
@@ -46,12 +45,16 @@ function isNetworkFailure(err: unknown): boolean {
  * variant only). They are appended to the message as trailing "@<path>" tokens
  * so Claude Code resolves them as image references, and cleared once folded
  * into a sent/staged message.
+ *
+ * `onInjected` fires once per accepted live inject, after the send succeeded.
+ * It never fires on a failed send or on a resume spawn.
  */
 export function useAgentPrompt(
   getAgent: () => Agent | null,
   onMessageSent?: OnMessageSent,
   ctx?: AgentPromptContext,
   attachments?: Ref<string[]>,
+  onInjected?: (agent: Agent) => void,
 ) {
   const promptInput = ref('')
   const isSending = ref(false)
@@ -132,8 +135,8 @@ export function useAgentPrompt(
       }
       updateTracked(trackId, { state: 'sent', serverText })
       sendStatus.value = 'sent'
-      if (mode === 'inject' && agentOutcome(agent) === 'failed')
-        void markSeen(`failed:${agent.sessionId}`, agent.lastActivity)
+      if (mode === 'inject')
+        onInjected?.(agent)
     }
     catch (err) {
       if (isNetworkFailure(err)) {

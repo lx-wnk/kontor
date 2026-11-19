@@ -1,12 +1,10 @@
 import type { Agent } from '@/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { markSeen } from '@/features/mission/composables/useAttentionMarks'
 import { addPending } from '@/utils/pendingMessages'
 import { SW_READY_TIMEOUT_MS } from '@/utils/timing'
 import { useAgentPrompt } from './useAgentPrompt'
 
 vi.mock('@/utils/pendingMessages', () => ({ addPending: vi.fn(async () => {}) }))
-vi.mock('@/features/mission/composables/useAttentionMarks', () => ({ markSeen: vi.fn(async () => {}) }))
 
 function makeAgent(over: Partial<Agent> = {}): Agent {
   return {
@@ -121,50 +119,39 @@ describe('useAgentPrompt routing', () => {
   })
 })
 
-describe('useAgentPrompt clears a failed needs-you item on send', () => {
-  const failedAgent = () => makeAgent({
-    liveInjectable: true,
-    status: 'active',
-    errorState: 'quota_exhausted',
-    lastActivity: '2026-11-19T10:00:00Z',
-  })
-
+describe('useAgentPrompt onInjected callback', () => {
   beforeEach(() => {
-    vi.mocked(markSeen).mockClear()
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
   })
 
-  it('marks the failed item seen once the message is accepted', async () => {
-    const { promptInput, handleSend } = useAgentPrompt(() => failedAgent())
-    promptInput.value = 'try again'
-    await handleSend()
-    expect(markSeen).toHaveBeenCalledTimes(1)
-    expect(markSeen).toHaveBeenCalledWith('failed:s1', '2026-11-19T10:00:00Z')
-  })
-
-  it('does not mark the failed item seen when the server rejects the send', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })))
-    const { promptInput, handleSend } = useAgentPrompt(() => failedAgent())
-    promptInput.value = 'try again'
-    await handleSend()
-    expect(markSeen).not.toHaveBeenCalled()
-  })
-
-  it('does not mark anything seen for a healthy working agent', async () => {
-    const { promptInput, handleSend } = useAgentPrompt(() => makeAgent({ liveInjectable: true, status: 'active', lastActivity: '2026-11-19T10:00:00Z' }))
+  it('calls onInjected once with the agent after an accepted inject', async () => {
+    const agent = makeAgent({ liveInjectable: true })
+    const onInjected = vi.fn()
+    const { promptInput, handleSend } = useAgentPrompt(() => agent, undefined, undefined, undefined, onInjected)
     promptInput.value = 'hello'
     await handleSend()
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(onInjected).toHaveBeenCalledTimes(1)
+    expect(onInjected).toHaveBeenCalledWith(agent)
   })
 
-  it('does not mark the failed item seen when the send is a resume spawn', async () => {
-    const agent = makeAgent({ liveInjectable: false, status: 'active', errorState: 'quota_exhausted', lastActivity: '2026-11-19T10:00:00Z' })
-    const { promptInput, handleSend, confirmResume } = useAgentPrompt(() => agent)
+  it('does not call onInjected when the server rejects the inject', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })))
+    const onInjected = vi.fn()
+    const { promptInput, handleSend } = useAgentPrompt(() => makeAgent({ liveInjectable: true }), undefined, undefined, undefined, onInjected)
+    promptInput.value = 'hello'
+    await handleSend()
+    expect(onInjected).not.toHaveBeenCalled()
+  })
+
+  it('does not call onInjected for a resume spawn', async () => {
+    const agent = makeAgent({ liveInjectable: false, status: 'active' })
+    const onInjected = vi.fn()
+    const { promptInput, handleSend, confirmResume } = useAgentPrompt(() => agent, undefined, undefined, undefined, onInjected)
     promptInput.value = 'resume please'
     await handleSend()
     await confirmResume()
     expect(fetch).toHaveBeenCalledWith('/api/agents/spawn', expect.objectContaining({ method: 'POST' }))
-    expect(markSeen).not.toHaveBeenCalled()
+    expect(onInjected).not.toHaveBeenCalled()
   })
 })
 

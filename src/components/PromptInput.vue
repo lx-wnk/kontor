@@ -3,6 +3,7 @@ import type { DynamicCommandSet } from '../composables/useSlashCommands'
 import type { Agent, OutputMessage } from '../types'
 import { computed, nextTick, ref, useId, watch } from 'vue'
 import { useAgentPrompt } from '@/features/agents/composables/useAgentPrompt'
+import { agentOutcome, markSeen } from '@/features/mission'
 import { emptyCommandSet, fetchDynamicCommands, isInteractiveCommand, SLASH_COMMAND_DEFS } from '../composables/useSlashCommands'
 import TemplatePicker from './TemplatePicker.vue'
 
@@ -41,6 +42,10 @@ const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm
     get cwd() { return props.agent?.cwd },
   },
   attachments,
+  (agent) => {
+    if (agentOutcome(agent) === 'failed')
+      void markSeen(`failed:${agent.sessionId}`, agent.lastActivity)
+  },
 )
 
 watch(sendStatus, (status) => {

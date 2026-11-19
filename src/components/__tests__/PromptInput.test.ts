@@ -2,6 +2,11 @@ import type { Agent } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/features/mission', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/features/mission')>()),
+  markSeen: vi.fn(async () => {}),
+}))
+
 let PromptInput: any
 
 // Only the fields PromptInput and useAgentPrompt actually read. A partial
@@ -227,5 +232,39 @@ describe('promptInput interactive commands', () => {
   it('stays quiet when delivery failed', async () => {
     const w = await sendModel(false)
     expect(w.emitted('interactiveCommand')).toBeUndefined()
+  })
+})
+
+describe('promptInput clears a failed needs-you item on send', () => {
+  let markSeen: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    markSeen = (await import('@/features/mission')).markSeen as unknown as ReturnType<typeof vi.fn>
+    markSeen.mockClear()
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/message'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(commandsResponse) })
+    }))
+  })
+
+  async function sendText(agent: Agent) {
+    const w = mount(PromptInput, { props: { agent } })
+    await flushPromises()
+    const input = w.find('input[role="combobox"]')
+    await input.setValue('hello')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+  }
+
+  it('marks the failed item seen once an accepted send reaches the agent', async () => {
+    await sendText(makeAgent({ sessionId: 's1', errorState: 'quota_exhausted', lastActivity: '2026-11-19T10:00:00Z' }))
+    expect(markSeen).toHaveBeenCalledTimes(1)
+    expect(markSeen).toHaveBeenCalledWith('failed:s1', '2026-11-19T10:00:00Z')
+  })
+
+  it('does not mark anything seen for a healthy working agent', async () => {
+    await sendText(makeAgent({ sessionId: 's2', status: 'active', lastActivity: '2026-11-19T10:00:00Z' }))
+    expect(markSeen).not.toHaveBeenCalled()
   })
 })
