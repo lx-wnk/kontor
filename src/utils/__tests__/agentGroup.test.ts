@@ -1,6 +1,6 @@
 import type { Agent } from '../../types'
 import { describe, expect, it } from 'vitest'
-import { agentGroupOptions, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
+import { agentGroupOptions, fleetBucket, fleetCounts, FLEET_FILTERS, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
 import { statusLabel } from '../statusColors'
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
@@ -189,5 +189,59 @@ describe('agentGroupOptions / resolveGroup', () => {
     expect(resolveGroup('spawner', 'all')).toBe('spawner')
     expect(resolveGroup('spawner', 's1')).toBe('none')
     expect(resolveGroup('status', 's1')).toBe('status')
+  })
+})
+
+describe('fleet buckets', () => {
+  const question = {
+    header: 'Choose',
+    question: 'Which one?',
+    multiSelect: false,
+    options: [{ index: 1, label: 'A' }],
+    typeSomethingIndex: 2,
+    chatAboutIndex: 3,
+  }
+
+  const pendingQuestion = makeAgent({ pid: 1, status: 'active', working: true, pendingQuestion: question as Agent['pendingQuestion'] })
+  const errored = makeAgent({ pid: 2, status: 'active', working: true, errorState: 'auth_failed' as Agent['errorState'] })
+  const working = makeAgent({ pid: 3, status: 'active', working: true })
+  const yourTurn = makeAgent({ pid: 4, status: 'active', working: false })
+  const finished = makeAgent({ pid: 5, status: 'finished', working: false })
+  const fleet = [pendingQuestion, errored, working, yourTurn, finished]
+  const secsOf = () => 10
+
+  it('FLEET_FILTERS lists the four chips with the spec labels', () => {
+    expect(FLEET_FILTERS.map(f => [f.value, f.label])).toEqual([
+      ['all', 'All'],
+      ['needsYou', 'Needs you'],
+      ['working', 'Working'],
+      ['idle', 'Idle or done'],
+    ])
+  })
+
+  it('pendingQuestion lands in needsYou', () => {
+    expect(fleetBucket(pendingQuestion, 10)).toBe('needsYou')
+  })
+
+  it('errorState lands in needsYou', () => {
+    expect(fleetBucket(errored, 10)).toBe('needsYou')
+  })
+
+  it('working with no attention lands in working', () => {
+    expect(fleetBucket(working, 10)).toBe('working')
+  })
+
+  it('a finished agent or one awaiting a new instruction lands in idle', () => {
+    expect(fleetBucket(yourTurn, 10)).toBe('idle')
+    expect(fleetBucket(finished, 10)).toBe('idle')
+  })
+
+  it('counts the five-agent fleet into the buckets', () => {
+    expect(fleetCounts(fleet, secsOf)).toEqual({ all: 5, needsYou: 2, working: 1, idle: 2 })
+  })
+
+  it('the three buckets partition the list: needsYou + working + idle equals all', () => {
+    const counts = fleetCounts(fleet, secsOf)
+    expect(counts.needsYou + counts.working + counts.idle).toBe(counts.all)
   })
 })
