@@ -414,6 +414,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 			deps.SchedulesHandler.Mount(r)
 		}
 
+		if deps.AttentionHandler != nil {
+			deps.AttentionHandler.Mount(r)
+		}
 		if deps.CloudSessionsHandler != nil {
 			deps.CloudSessionsHandler.Mount(r)
 		}
