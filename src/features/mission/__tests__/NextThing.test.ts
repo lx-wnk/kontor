@@ -20,6 +20,7 @@ vi.mocked(useCapabilityDecisions).mockReturnValue({ resolvingIds: ref({}), resol
 
 beforeEach(() => {
   resolveCapability.mockClear()
+  vi.mocked(useAgents).mockReturnValue({ agents: ref([]), selectAgent: vi.fn() } as never)
 })
 
 const stubs = {
@@ -173,7 +174,7 @@ describe('nextThing decision guard', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...permission, request: { ...permission.request, id: 'r2' } as never }
+    const next: NextThingItem = { ...permission, key: 'permission:r2', request: { ...permission.request, id: 'r2' } as never }
     await w.setProps({ next })
     expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="mission-decide-allow_once"]').trigger('click')
@@ -192,7 +193,7 @@ describe('nextThing decision guard', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="stub-question"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...question, pid: 4712 }
+    const next: NextThingItem = { ...question, key: 'question:4712', pid: 4712 }
     await w.setProps({ next })
     expect(w.get('[data-testid="stub-question"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="stub-question"]').trigger('click')
@@ -211,7 +212,7 @@ describe('nextThing decision guard', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="mission-capability-allow"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...capability, decision: { ...capability.decision, id: 'd2' } as never }
+    const next: NextThingItem = { ...capability, key: 'capability:d2', decision: { ...capability.decision, id: 'd2' } as never }
     await w.setProps({ next })
     expect(w.get('[data-testid="mission-capability-allow"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="mission-capability-allow"]').trigger('click')
