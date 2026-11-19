@@ -42,3 +42,6 @@ updates:
     groups:
       actions:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: vladopajic/go-test-coverage
+        versions: [">= 3"]
