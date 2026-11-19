@@ -7,7 +7,6 @@ import { useNeedsYouTriage } from '../composables/useNeedsYouTriage'
 
 vi.mock('@/features/pipeline', () => ({ resolvePermissionRequest: vi.fn() }))
 vi.mock('@/features/agents', () => ({ useCapabilityDecisions: vi.fn() }))
-vi.mock('@/composables/useToast', () => ({ toast: { info: vi.fn(), error: vi.fn() } }))
 
 const resolveCapability = vi.fn()
 
