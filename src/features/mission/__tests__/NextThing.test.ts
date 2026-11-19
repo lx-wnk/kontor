@@ -111,7 +111,7 @@ describe('nextThing', () => {
     resolveCapability.mockResolvedValue({ outcome: 'applied' })
     const w = mountNext(capability)
     await vi.advanceTimersByTimeAsync(500)
-    expect(w.get('h2').text()).toBe('net.fetch(api.github.com)')
+    expect(w.get('h3').text()).toBe('net.fetch(api.github.com)')
     expect(w.get('[data-testid="mission-context"]').text()).toBe('routine:nightly')
     expect(w.get('[data-testid="mission-capability-reason"]').text()).toBe('not granted')
 
@@ -142,7 +142,7 @@ describe('nextThing', () => {
     const calm = w.get('[data-testid="mission-calm"]')
     expect(calm.element.tagName).toBe('P')
     expect(calm.text()).toContain('Nothing needs you')
-    expect(w.find('h2').exists()).toBe(false)
+    expect(w.find('h3').exists()).toBe(false)
     expect(w.find('[data-testid="mission-next"]').exists()).toBe(false)
     w.unmount()
   })
@@ -184,6 +184,18 @@ describe('nextThing decision guard', () => {
     expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
     await w.get('[data-testid="mission-decide-allow_once"]').trigger('click')
     expect(resolvePermissionRequest).toHaveBeenCalledWith('t1', 'r2', 'allow_once')
+    w.unmount()
+  })
+
+  it('re-arms the guard when the card moves to another position in the list', async () => {
+    vi.useFakeTimers()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    await vi.advanceTimersByTimeAsync(500)
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
+    await w.setProps({ position: 1 })
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
     w.unmount()
   })
 

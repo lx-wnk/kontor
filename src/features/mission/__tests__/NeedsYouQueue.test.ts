@@ -12,10 +12,10 @@ const items = ref<NextThing[]>([
 
 vi.mock('../components/NextThing.vue', () => ({
   default: {
-    props: ['next'],
+    props: ['next', 'position'],
     emits: ['open', 'resolved'],
     template: '<div>'
-      + '<p data-testid="stub-next">{{ next ? next.title : "calm" }}</p>'
+      + '<p data-testid="stub-next" :data-position="position">{{ next ? next.title : "calm" }}</p>'
       + '<button type="button" data-testid="stub-open" @click="$emit(\'open\', \'t1\')">open</button>'
       + '<button type="button" data-testid="stub-resolved" @click="$emit(\'resolved\')">resolved</button>'
       + '</div>',
@@ -55,6 +55,16 @@ describe('needsYouQueue', () => {
     expect(w.get('[data-testid="needs-you-count"]').text()).toContain('3')
     for (const id of ['needs-you-next', 'needs-you-prev', 'needs-you-position'])
       expect(w.find(`[data-testid="${id}"]`).exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('passes each card its position so a moved card re-arms its guard', async () => {
+    items.value = [perm('t1'), perm('t2')]
+    const w = mountQueue('docked')
+    items.value = [perm('t0'), perm('t1'), perm('t2')]
+    await nextTick()
+    const positions = w.findAll('[data-testid="stub-next"]').map(n => [n.text(), n.attributes('data-position')])
+    expect(positions).toEqual([['t0', '0'], ['t1', '1'], ['t2', '2']])
     w.unmount()
   })
 

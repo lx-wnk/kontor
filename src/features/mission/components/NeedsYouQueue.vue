@@ -37,8 +37,8 @@ const ranked = computed(() => props.kinds ? needsYou.value.filter(t => props.kin
         Needs you · <span data-testid="needs-you-count">{{ ranked.length }}</span>
       </h2>
       <ul class="flex flex-col gap-3">
-        <li v-for="t in ranked" :key="t.key" :data-key="t.key" class="flex flex-col gap-2">
-          <NextThing :next="t" @resolved="refresh" @open="openTask" />
+        <li v-for="(t, i) in ranked" :key="t.key" :data-key="t.key" class="flex flex-col gap-2">
+          <NextThing :next="t" :position="i" @resolved="refresh" @open="openTask" />
           <button
             type="button"
             data-testid="needs-you-put-away"

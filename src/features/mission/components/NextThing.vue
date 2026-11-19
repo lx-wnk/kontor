@@ -12,7 +12,7 @@ import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { capabilityValueLabel, elidedTitle } from '@/utils/capabilityDecision'
 import { errorMessage } from '@/utils/errorMessage'
 
-const props = defineProps<{ next: NextThing | null }>()
+const props = defineProps<{ next: NextThing | null, position?: number }>()
 const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
 
 const busy = ref<PermissionDecision | null>(null)
@@ -37,7 +37,7 @@ const DECISION_GUARD_MS = 500
 const guarding = ref(true)
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(() => props.next?.key, () => {
+watch(() => [props.next?.key, props.position], () => {
   guarding.value = true
   if (guardTimer)
     clearTimeout(guardTimer)
@@ -141,7 +141,7 @@ async function answer(intent: AnswerIntent) {
         </span>
       </div>
 
-      <h2 v-if="next.kind !== 'question'" class="text-[23px] font-medium leading-snug text-fg" :class="next.kind === 'finished' ? 'truncate' : ''">
+      <h3 v-if="next.kind !== 'question'" class="text-[23px] font-medium leading-snug text-fg" :class="next.kind === 'finished' ? 'truncate' : ''">
         <template v-if="next.kind === 'permission'">
           Let this agent run <span class="font-mono text-[20px] text-accent">{{ next.title }}</span>?
         </template>
@@ -155,7 +155,7 @@ async function answer(intent: AnswerIntent) {
         <template v-else>
           {{ next.title }}
         </template>
-      </h2>
+      </h3>
 
       <p v-if="next.request?.outsideSafeList" class="text-[13px] text-warning-text leading-relaxed">
         This command is outside the server's safe list — allowing it is a deliberate override, not a formality.
