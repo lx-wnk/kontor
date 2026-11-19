@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import type { NextThing } from '@/features/mission'
+import { describe, expect, it } from 'vitest'
 import { KIND_RANK } from '@/features/mission/composables/useNextThing'
 import { DOCKED_KINDS, needsYouPlacement, triageKeysActive, triageListFor } from '../needsYouPlacement'
 

@@ -19,7 +19,7 @@ import SpotlightSearch from './components/SpotlightSearch.vue'
 import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
-import { needsYouPlacement } from './composables/needsYouPlacement'
+import { needsYouPlacement, triageKeysActive, triageListFor } from './composables/needsYouPlacement'
 import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
@@ -33,7 +33,7 @@ import { useTodayCost } from './composables/useTodayCost'
 import { useUsage } from './composables/useUsage'
 import { useUser } from './composables/useUser'
 import { pageIdOf, resolveView, useViewState } from './composables/useViewState'
-import { agentOutcome, markSeen, NeedsYouQueue, rankNextThings, useAttentionMarks, useNeedsYouTriage, visibleNextThings } from './features/mission'
+import { agentOutcome, markOutcomeSeen, NeedsYouQueue, rankNextThings, useAttentionMarks, useNeedsYouTriage, visibleNextThings } from './features/mission'
 import { failedWidgets, HUB_WIDGET, useWorkspace, watchExternalChanges, ZENTRALE_PAGE_ID } from './features/workspace'
 import { formatCost } from './utils/format'
 import { isTypingTarget } from './utils/isTypingTarget'
@@ -110,15 +110,15 @@ const combinedAttentionCount = computed(() => attentionCount.value + permissionI
 // and Cost view agree. Distinct from totalCost (cost of agents running now).
 const { todayUsd, start: startTodayCost } = useTodayCost()
 
-// Ranked once per tick and provided, so every queue and the hub core share one ranking instead of re-ranking per SSE tick.
 const { marks, baseline, start: startMarks } = useAttentionMarks()
+// Ranked once per tick and provided, so every queue and the hub core share one ranking instead of re-ranking per SSE tick.
 const needsYou = computed(() => visibleNextThings(rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value), marks.value, baseline.value))
 watch(
   () => selectedAgent.value && `${selectedAgent.value.sessionId}|${selectedAgent.value.lastActivity}|${agentOutcome(selectedAgent.value)}`,
   () => {
     const a = selectedAgent.value
-    if (a && agentOutcome(a) === 'finished')
-      void markSeen(`finished:${a.sessionId}`, a.lastActivity)
+    if (a)
+      void markOutcomeSeen(a, 'finished')
   },
 )
 provide(NEEDS_YOU, needsYou)
@@ -208,9 +208,8 @@ function onCreateTaskAndRefine(task: PipelineTask) {
 const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
 const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !failedWidgets.has(HUB_WIDGET) && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === HUB_WIDGET))
 const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value, pageHasHub: pageHasHub.value, error: !!error.value }))
-// Exactly the list the queue renders on this view, so a key never acts on a card that is not on screen.
-const triageList = computed(() => needsYouPlace.value.kinds ? needsYou.value.filter(t => needsYouPlace.value.kinds!.includes(t.kind)) : needsYou.value)
-const triage = useNeedsYouTriage(triageList, pendingPermissions.refresh)
+const triageList = computed(() => triageListFor(needsYou.value, needsYouPlace.value))
+const triage = useNeedsYouTriage(triageList, pendingPermissions.refresh, () => activeView.value)
 provide(NEEDS_YOU_FOCUS, triage.focusedKey)
 const needsYouQueues = ref(0)
 provide(NEEDS_YOU_QUEUES, needsYouQueues)
@@ -242,7 +241,9 @@ function resolveFocused(outcome: 'granted' | 'denied') {
 }
 
 function handleTriageKey(e: KeyboardEvent, key: string) {
-  if (needsYouQueues.value === 0 || triageList.value.length === 0)
+  if (!triageKeysActive(needsYouQueues.value, triageList.value))
+    return
+  if (e.repeat && (key === 'n' || key === 'a' || key === 'd'))
     return
   if (key === 'n') {
     e.preventDefault()
@@ -264,9 +265,7 @@ function handleTriageKey(e: KeyboardEvent, key: string) {
   })
 }
 
-// Shift+D theme + Cmd/Ctrl+B sidebar are global. With no overlay open and no
-// field focused, n/a/d/⇧A act on the triage band on the dashboard and on the
-// needs-you list elsewhere; c is dashboard-only.
+// Global shortcuts first, then n/a/d/⇧A on the triage band or needs-you list; c is dashboard-only.
 function handleKeydown(e: KeyboardEvent) {
   handleSidebarShortcut(e)
 

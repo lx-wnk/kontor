@@ -35,7 +35,6 @@ const { nowMs } = useNow()
 
 const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(null)
 
-// Chip counts come from the list before the chip filter.
 const fleet = ref<FleetFilter>('all')
 const fleetChips = ref<InstanceType<typeof FleetFilterChips> | null>(null)
 async function showAll() {
