@@ -69,4 +69,30 @@ describe('dashboardView', () => {
     expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="agent-card-grid"]').exists()).toBe(false)
   })
+
+  it('filters the roster by fleet chip while the counts stay on the unfiltered list', async () => {
+    const recent = new Date().toISOString()
+    const question = { header: 'h', question: 'q', multiSelect: false, options: [], typeSomethingIndex: 1, chatAboutIndex: 2 }
+    const make = (pid: number, extra: Record<string, unknown>) => ({ pid, sessionId: `s${pid}`, projectName: 'p', projectId: 'p1', lastActivity: recent, status: 'active', ...extra })
+    useViewState().dashboardProject.value = 'all'
+    useAgents({ autoStart: false }).agents.value = [
+      make(1, { working: true, pendingQuestion: question }),
+      make(2, { working: true, errorState: 'auth_failed' }),
+      make(3, { working: true }),
+      make(4, { working: false }),
+      make(5, { working: false, status: 'finished' }),
+    ]
+    const wrapper = mount(DashboardView, {
+      props: { permissionItems: [], focusedSessionId: null },
+      global: { stubs },
+    })
+    const label = (id: string) => wrapper.get(`[data-testid="fleet-chip-${id}"]`).text().replace(/\s+/g, ' ')
+    expect((wrapper.vm as any).rosterAgents).toHaveLength(5)
+
+    await wrapper.get('[data-testid="fleet-chip-needsYou"]').trigger('click')
+
+    expect((wrapper.vm as any).rosterAgents).toHaveLength(2)
+    expect([label('all'), label('needsYou'), label('working'), label('idle')]).toEqual(['All 5', 'Needs you 2', 'Working 1', 'Idle or done 2'])
+    wrapper.unmount()
+  })
 })
