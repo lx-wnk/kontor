@@ -170,3 +170,87 @@ test.describe('fleet filter chips', () => {
     await expect(page.getByTestId('agent-card-project')).toHaveText('Proj 1')
   })
 })
+
+test.describe('put away persists', () => {
+  const finished = (sessionId: string, lastActivity: string) => ({
+    pid: 4242,
+    sessionId,
+    provider: 'claude',
+    projectName: 'put-away-proj',
+    projectPath: '/repo/put-away-proj',
+    cwd: '/repo/put-away-proj',
+    status: 'finished',
+    working: false,
+    lastActivity,
+    uptime: 120,
+    channelAvailable: false,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+    costEstimate: 0,
+    lastTools: [],
+    tasks: [],
+    subagents: [],
+  })
+
+  async function stubLive(page: Page, current: () => unknown[]): Promise<void> {
+    await stubAuthDisabled(page)
+    await page.route('/api/agents', route => route.fulfill({ json: current() }))
+    await page.route('/api/agents/stream', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: `data: ${JSON.stringify({ agents: current() })}\n\n`,
+    }))
+    await stubJson(page, '/api/projects', [])
+    await stubEmptyStream(page, '/api/projects/stream')
+    await stubJson(page, '/api/tasks', [])
+    await stubEmptyStream(page, '/api/tasks/stream')
+  }
+
+  test('a put-away finished agent stays gone across reload and contexts until it posts again', async ({ page, browser, baseURL }) => {
+    const sid = `e2e-${Date.now()}-finished`
+    const oldSid = `${sid}-old`
+    let agents: unknown[] = []
+    await stubLive(page, () => agents)
+
+    // First read writes the server baseline (R12); activity must be newer than it.
+    await page.goto('/')
+    await expect(page.locator('[data-testid="needs-you"]')).toBeVisible()
+
+    const lastActivity = new Date().toISOString()
+    agents = [finished(sid, lastActivity), finished(oldSid, '2020-01-01T00:00:00Z')]
+    await page.reload()
+    const shown = (p: Page, id: string) => p.locator(`[data-testid="needs-you"] li[data-key="finished:${id}"]`)
+    await expect(shown(page, sid)).toBeVisible()
+    await expect(shown(page, oldSid)).toHaveCount(0)
+
+    await shown(page, sid).getByTestId('needs-you-put-away').click()
+    await expect(shown(page, sid)).toHaveCount(0)
+
+    await page.reload()
+    await expect(page.locator('[data-testid="needs-you"]')).toBeVisible()
+    await expect(shown(page, sid)).toHaveCount(0)
+
+    const other = await browser.newContext({ baseURL })
+    try {
+      const page2 = await other.newPage()
+      await stubLive(page2, () => agents)
+      await page2.goto('/')
+      await expect(page2.locator('[data-testid="needs-you"]')).toBeVisible()
+      await expect(shown(page2, sid)).toHaveCount(0)
+    }
+    finally {
+      await other.close()
+    }
+
+    agents = [finished(sid, new Date(Date.parse(lastActivity) + 60_000).toISOString())]
+    await page.reload()
+    await expect(shown(page, sid)).toBeVisible()
+  })
+
+  test('the marks endpoint rejects a malformed key', async ({ request, baseURL }) => {
+    const res = await request.put('/api/attention/marks', {
+      headers: { Origin: baseURL! },
+      data: { key: 'bad key', seenThrough: 'x' },
+    })
+    expect(res.status()).toBe(400)
+  })
+})
