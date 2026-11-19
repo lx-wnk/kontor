@@ -59,16 +59,18 @@ func frames(ch chan []byte) int {
 func TestPut_Rejects(t *testing.T) {
 	const ts = "2026-11-19T10:00:00Z"
 	cases := map[string]string{
-		"empty object":    `{}`,
-		"empty key":       `{"key":"","seenThrough":"` + ts + `"}`,
-		"uppercase kind":  `{"key":"Finished:s1","seenThrough":"` + ts + `"}`,
-		"space in id":     `{"key":"finished:a b","seenThrough":"` + ts + `"}`,
-		"id too long":     `{"key":"finished:` + strings.Repeat("a", 129) + `","seenThrough":"` + ts + `"}`,
-		"bad time":        `{"key":"finished:s1","seenThrough":"yesterday"}`,
-		"zero time":       `{"key":"finished:s1","seenThrough":"0001-01-01T00:00:00Z"}`,
-		"unknown field":   `{"key":"finished:s1","seenThrough":"` + ts + `","x":1}`,
-		"oversized body":  `{"key":"finished:s1","seenThrough":"` + ts + `","pad":"` + strings.Repeat("a", 5000) + `"}`,
-		"oversized plain": strings.Repeat("a", 5000),
+		"empty object":     `{}`,
+		"empty key":        `{"key":"","seenThrough":"` + ts + `"}`,
+		"uppercase kind":   `{"key":"Finished:s1","seenThrough":"` + ts + `"}`,
+		"space in id":      `{"key":"finished:a b","seenThrough":"` + ts + `"}`,
+		"id too long":      `{"key":"finished:` + strings.Repeat("a", 129) + `","seenThrough":"` + ts + `"}`,
+		"bad time":         `{"key":"finished:s1","seenThrough":"yesterday"}`,
+		"zero time":        `{"key":"finished:s1","seenThrough":"0001-01-01T00:00:00Z"}`,
+		"trailing garbage": `{"key":"finished:s1","seenThrough":"` + ts + `"}garbage`,
+		"two objects":      `{"key":"finished:s1","seenThrough":"` + ts + `"}{"key":"finished:s1","seenThrough":"` + ts + `"}`,
+		"unknown field":    `{"key":"finished:s1","seenThrough":"` + ts + `","x":1}`,
+		"oversized body":   `{"key":"finished:s1","seenThrough":"` + ts + `","pad":"` + strings.Repeat("a", 5000) + `"}`,
+		"oversized plain":  strings.Repeat("a", 5000),
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {

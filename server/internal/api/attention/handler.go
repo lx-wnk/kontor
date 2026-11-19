@@ -2,6 +2,8 @@ package attention
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"regexp"
 	"time"
@@ -88,6 +90,9 @@ func (h *Handler) Put(w http.ResponseWriter, r *http.Request) error {
 	dec.DisallowUnknownFields()
 	var body putBody
 	if err := dec.Decode(&body); err != nil {
+		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
+	}
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return apierr.NewAppError(http.StatusBadRequest, "invalid JSON body")
 	}
 	if !keyPattern.MatchString(body.Key) {
