@@ -1,6 +1,6 @@
 import type { Agent } from '../../types'
 import { describe, expect, it } from 'vitest'
-import { agentGroupOptions, fleetBucket, fleetCounts, FLEET_FILTERS, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
+import { agentGroupOptions, FLEET_FILTERS, fleetBucket, fleetCounts, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
 import { statusLabel } from '../statusColors'
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
@@ -210,7 +210,7 @@ describe('fleet buckets', () => {
   const fleet = [pendingQuestion, errored, working, yourTurn, finished]
   const secsOf = () => 10
 
-  it('FLEET_FILTERS lists the four chips with the spec labels', () => {
+  it('fleet filter chips carry the spec labels', () => {
     expect(FLEET_FILTERS.map(f => [f.value, f.label])).toEqual([
       ['all', 'All'],
       ['needsYou', 'Needs you'],

@@ -1,9 +1,36 @@
 import type { Agent } from '../types'
 import { AGENT_STATUSES, SPAWNER_SOURCE_ENV } from '../types'
 import { STATUS_ORDER } from './agentSort'
+import { attentionFor } from './attention'
 import { secondsSince, shortModel } from './format'
 import { friendlyProjectName } from './friendlyProjectName'
 import { agentDisplayStatus, statusLabel } from './statusColors'
+
+export const FLEET_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'needsYou', label: 'Needs you' },
+  { value: 'working', label: 'Working' },
+  { value: 'idle', label: 'Idle or done' },
+] as const
+
+export type FleetFilter = typeof FLEET_FILTERS[number]['value']
+export type FleetBucket = Exclude<FleetFilter, 'all'>
+
+export function fleetBucket(agent: Agent, secs: number | null): FleetBucket {
+  const attention = attentionFor(agent, secs)
+  if (attention && attention.kind !== 'yourTurn')
+    return 'needsYou'
+  if (agentDisplayStatus(agent) === 'working')
+    return 'working'
+  return 'idle'
+}
+
+export function fleetCounts(list: Agent[], secsOf: (a: Agent) => number | null): Record<FleetFilter, number> {
+  const counts = { all: list.length, needsYou: 0, working: 0, idle: 0 }
+  for (const agent of list)
+    counts[fleetBucket(agent, secsOf(agent))] += 1
+  return counts
+}
 
 export const AGENT_SORT_OPTIONS = [
   { value: 'latest', label: 'Latest active' },
