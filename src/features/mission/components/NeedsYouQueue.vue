@@ -5,7 +5,7 @@ import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_TASK, PENDING_PERMIS
 import { markSeen } from '../composables/useAttentionMarks'
 import NextThing from './NextThing.vue'
 
-const props = defineProps<{ variant: 'docked' | 'strip', kinds?: NextKind[] }>()
+const props = defineProps<{ variant: 'docked' | 'strip', kinds?: readonly NextKind[] }>()
 
 // App.vue ranks once per tick, owns navigation, and provides both to every queue via inject.
 const needsYou = inject(NEEDS_YOU)
@@ -55,16 +55,7 @@ watch(focusedKey, async (key) => {
       </h2>
       <ul class="flex flex-col gap-3">
         <li v-for="(t, i) in ranked" :key="t.key" :data-key="t.key" :aria-current="t.key === focusedKey ? 'true' : undefined" class="flex flex-col gap-2 rounded-lg" :class="t.key === focusedKey ? 'ring-2 ring-accent' : ''">
-          <NextThing :next="t" :position="i" @resolved="refresh" @open="openTask" />
-          <button
-            type="button"
-            data-testid="needs-you-put-away"
-            aria-label="Put away until the agent posts something new"
-            class="self-end rounded border border-line-strong px-2 py-1 text-[12px] text-fg-mute focus-visible:outline-2 focus-visible:outline-accent"
-            @click="markSeen(t.key, t.since)"
-          >
-            Put away
-          </button>
+          <NextThing :next="t" :position="i" @resolved="refresh" @open="openTask" @put-away="markSeen(t.key, t.since)" />
         </li>
       </ul>
     </template>

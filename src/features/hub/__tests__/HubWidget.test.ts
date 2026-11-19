@@ -61,6 +61,7 @@ vi.mock('@/features/agents', () => ({
   useAgents: () => ({ agents: computed(() => agents.value.map(a => ({ ...a, cwd: a.cwd ?? `/code/${a.projectName}` }))), selectAgent: vi.fn() }),
 }))
 vi.mock('@/features/mission', () => ({
+  DOCKED_KINDS: ['permission', 'question', 'dialog', 'capability', 'plan', 'failed'],
   NeedsYouQueue: {
     name: 'NeedsYouQueue',
     props: ['variant', 'kinds'],

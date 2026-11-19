@@ -48,6 +48,12 @@ export interface NextThing {
 /** Lower sorts first. Exported so a new kind has to state its place. */
 export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, dialog: 2, capability: 3, plan: 4, failed: 5, finished: 6 }
 
+export const DOCKED_KINDS: readonly NextKind[] = (Object.keys(KIND_RANK) as NextKind[]).filter(k => k !== 'finished')
+
+export function outcomeKey(outcome: 'failed' | 'finished', sessionId: string): string {
+  return `${outcome}:${sessionId}`
+}
+
 export const WHY: Record<NextKind, string> = {
   permission: 'First because an agent is stopped until you answer.',
   question: 'An agent asked you something and cannot go on until you reply.',
@@ -58,11 +64,6 @@ export const WHY: Record<NextKind, string> = {
   finished: 'The agent finished its turn and waits for your next instruction.',
 }
 
-/**
- * Every candidate, in the order the centre hands them over. The caller takes
- * [0] for the centre and counts the rest, so the centre can never disagree
- * with what "2 more after this" says.
- */
 export function agentOutcome(agent: Agent): 'failed' | 'finished' | null {
   if (agent.status === 'finished')
     return 'finished'
@@ -72,6 +73,11 @@ export function agentOutcome(agent: Agent): 'failed' | 'finished' | null {
   return kind === 'yourTurn' ? 'finished' : null
 }
 
+/**
+ * Every candidate, in the order the centre hands them over. The caller takes
+ * [0] for the centre and counts the rest, so the centre can never disagree
+ * with what "2 more after this" says.
+ */
 export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], agents: Agent[] = [], decisions: PendingCapabilityDecision[] = []): NextThing[] {
   const out: NextThing[] = []
 
@@ -174,7 +180,7 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
       continue
     out.push({
       kind: outcome,
-      key: `${outcome}:${agent.sessionId}`,
+      key: outcomeKey(outcome, agent.sessionId),
       since: agent.lastActivity,
       taskId: agent.pipelineTaskId ?? '',
       taskTitle: agent.projectName,
@@ -187,7 +193,14 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
     })
   }
 
-  return out.sort((a, b) => {
+  const latest = new Map<string, NextThing>()
+  for (const t of out) {
+    const kept = latest.get(t.key)
+    if (!kept || Date.parse(t.since) > Date.parse(kept.since))
+      latest.set(t.key, t)
+  }
+
+  return [...latest.values()].sort((a, b) => {
     const byKind = KIND_RANK[a.kind] - KIND_RANK[b.kind]
     // Same kind: the longest wait first, so nothing starves behind a steady
     // trickle of newer requests.
@@ -196,7 +209,7 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
 }
 
 function waitedSince(n: NextThing): number {
-  const at = n.request?.requestedAt ?? n.decision?.requestedAt
+  const at = n.request?.requestedAt ?? n.decision?.requestedAt ?? (n.kind === 'failed' || n.kind === 'finished' ? n.since : undefined)
   if (!at)
     return Number.MAX_SAFE_INTEGER
   const t = Date.parse(at)

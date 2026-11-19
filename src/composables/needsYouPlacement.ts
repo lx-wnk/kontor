@@ -1,12 +1,12 @@
 import type { ActiveView } from './useViewState'
 import type { NextKind } from '@/features/mission'
-import { KIND_RANK } from '@/features/mission/composables/useNextThing'
+import { DOCKED_KINDS } from '@/features/mission'
 
-export const DOCKED_KINDS: NextKind[] = (Object.keys(KIND_RANK) as NextKind[]).filter(k => k !== 'finished')
+export { DOCKED_KINDS }
 
 export interface NeedsYouPlacement {
   strip: boolean
-  kinds?: NextKind[]
+  kinds?: readonly NextKind[]
 }
 
 // error: the error line replaces the page, and with it the hub or the triage band.

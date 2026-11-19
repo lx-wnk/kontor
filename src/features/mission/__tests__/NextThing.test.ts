@@ -201,6 +201,7 @@ describe('nextThing decision guard', () => {
 
   it('puts away only once the guard is released, and the handler path is blocked while armed', async () => {
     vi.useFakeTimers()
+    vi.mocked(resolvePermissionRequest).mockClear()
     const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
     const putAway = w.get('[data-testid="needs-you-put-away"]')
     expect(putAway.attributes('aria-label')).toBe('Put away until the agent posts something new')

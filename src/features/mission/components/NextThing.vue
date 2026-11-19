@@ -13,7 +13,7 @@ import { capabilityValueLabel, elidedTitle } from '@/utils/capabilityDecision'
 import { errorMessage } from '@/utils/errorMessage'
 
 const props = defineProps<{ next: NextThing | null, position?: number }>()
-const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
+const emit = defineEmits<{ resolved: [], open: [taskId: string], putAway: [] }>()
 
 const busy = ref<PermissionDecision | null>(null)
 const answering = ref(false)
@@ -58,6 +58,12 @@ const DECISIONS: Array<{ value: PermissionDecision, label: string, primary?: boo
   { value: 'allow_routine', label: 'Allow for this routine' },
   { value: 'deny_once', label: 'Deny once' },
 ]
+
+function putAway() {
+  if (guarding.value)
+    return
+  emit('putAway')
+}
 
 async function decide(decision: PermissionDecision) {
   const n = props.next
@@ -251,6 +257,16 @@ async function answer(intent: AnswerIntent) {
           Open
         </button>
       </div>
+      <button
+        type="button"
+        data-testid="needs-you-put-away"
+        aria-label="Put away until the agent posts something new"
+        :disabled="guarding"
+        class="self-end rounded border border-line-strong px-2 py-1 text-[12px] text-fg-mute disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
+        @click="putAway"
+      >
+        Put away
+      </button>
     </div>
   </div>
 

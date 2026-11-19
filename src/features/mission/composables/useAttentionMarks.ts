@@ -1,7 +1,9 @@
 import type { NextThing } from './useNextThing'
+import type { Agent } from '@/types'
 import { ref, shallowRef } from 'vue'
 import { createSseResource } from '@/composables/useSseResource'
 import { toast } from '@/composables/useToast'
+import { agentOutcome, outcomeKey } from './useNextThing'
 
 interface AttentionMark {
   key: string
@@ -13,10 +15,7 @@ interface AttentionMarksResponse {
   marks: AttentionMark[]
 }
 
-interface AttentionEvent {
-  type: 'attention_marked'
-  mark: AttentionMark
-}
+type AttentionEvent = { type: 'attention_marked', mark: AttentionMark } | { type: 'attention_ready' }
 
 const marks = shallowRef<ReadonlyMap<string, string>>(new Map())
 const baseline = ref<string | null>(null)
@@ -38,11 +37,15 @@ async function fetchMarks(): Promise<void> {
       return
     const body = await res.json() as AttentionMarksResponse
     baseline.value = body.baseline
-    for (const m of body.marks)
-      applyMark(m.key, m.seenThrough)
+    const next = new Map(marks.value)
+    for (const m of body.marks) {
+      if (!covers(next.get(m.key), m.seenThrough))
+        next.set(m.key, m.seenThrough)
+    }
+    marks.value = next
   }
   catch {
-    // the stream's fallback poll retries
+    // the next (re)connect refetches
   }
 }
 
@@ -52,9 +55,7 @@ function handleMessage(data: string): void {
     if (event.type === 'attention_marked')
       applyMark(event.mark.key, event.mark.seenThrough)
   }
-  catch {
-    // ignore malformed messages
-  }
+  catch {}
 }
 
 const sse = createSseResource({
@@ -89,6 +90,12 @@ export async function markSeen(key: string, since: string): Promise<void> {
     }
     toast.error('Could not put that away')
   }
+}
+
+export function markOutcomeSeen(agent: Agent, outcome: 'failed' | 'finished'): Promise<void> {
+  if (agentOutcome(agent) !== outcome)
+    return Promise.resolve()
+  return markSeen(outcomeKey(outcome, agent.sessionId), agent.lastActivity)
 }
 
 export function isPutAway(t: NextThing, marked: ReadonlyMap<string, string>, base: string | null): boolean {
