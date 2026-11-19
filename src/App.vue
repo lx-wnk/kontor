@@ -113,10 +113,14 @@ const { todayUsd, start: startTodayCost } = useTodayCost()
 // Ranked once per tick and provided, so every queue and the hub core share one ranking instead of re-ranking per SSE tick.
 const { marks, baseline, start: startMarks } = useAttentionMarks()
 const needsYou = computed(() => visibleNextThings(rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value), marks.value, baseline.value))
-watch(selectedAgent, (a) => {
-  if (a && agentOutcome(a) === 'finished')
-    void markSeen(`finished:${a.sessionId}`, a.lastActivity)
-})
+watch(
+  () => selectedAgent.value && `${selectedAgent.value.sessionId}|${selectedAgent.value.lastActivity}|${agentOutcome(selectedAgent.value)}`,
+  () => {
+    const a = selectedAgent.value
+    if (a && agentOutcome(a) === 'finished')
+      void markSeen(`finished:${a.sessionId}`, a.lastActivity)
+  },
+)
 provide(NEEDS_YOU, needsYou)
 const needsYouCount = computed(() => needsYou.value.length)
 const BASE_TITLE = document.title

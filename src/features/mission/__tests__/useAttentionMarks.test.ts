@@ -1,6 +1,13 @@
 import type { NextKind, NextThing } from '../composables/useNextThing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isPutAway, markSeen, useAttentionMarks, visibleNextThings } from '../composables/useAttentionMarks'
+import { isPutAway, visibleNextThings } from '../composables/useAttentionMarks'
+
+type Marks = typeof import('../composables/useAttentionMarks')
+
+async function freshMarks(): Promise<Marks> {
+  vi.resetModules()
+  return await import('../composables/useAttentionMarks')
+}
 
 const toastError = vi.hoisted(() => vi.fn())
 vi.mock('@/composables/useToast', () => ({ toast: { error: toastError } }))
@@ -76,10 +83,14 @@ describe('visibleNextThings', () => {
 })
 
 describe('markSeen', () => {
-  const { marks } = useAttentionMarks()
+  let markSeen: Marks['markSeen']
+  let marks: ReturnType<Marks['useAttentionMarks']>['marks']
 
-  beforeEach(() => {
+  beforeEach(async () => {
     toastError.mockClear()
+    const mod = await freshMarks()
+    markSeen = mod.markSeen
+    marks = mod.useAttentionMarks().marks
   })
 
   afterEach(() => {
@@ -115,6 +126,83 @@ describe('markSeen', () => {
   })
 })
 
+describe('newest mark wins', () => {
+  let markSeen: Marks['markSeen']
+  let marks: ReturnType<Marks['useAttentionMarks']>['marks']
+  let start: () => void
+  const OLD = '2026-11-19T09:00:00Z'
+  const NEW = '2026-11-19T11:00:00Z'
+
+  beforeEach(async () => {
+    toastError.mockClear()
+    MockEventSource.instances = []
+    vi.stubGlobal('EventSource', MockEventSource)
+    const mod = await freshMarks()
+    markSeen = mod.markSeen
+    ;({ marks, start } = mod.useAttentionMarks())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function emit(key: string, seenThrough: string) {
+    MockEventSource.instances.at(-1)!.onmessage?.({
+      data: JSON.stringify({ type: 'attention_marked', mark: { key, seenThrough } }),
+    } as MessageEvent)
+  }
+
+  it('keeps a mark for another key that arrived while a PUT failed', async () => {
+    let reject!: (e: Error) => void
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ baseline: T, marks: [] }) })
+      .mockReturnValueOnce(new Promise((_, r) => { reject = r }))
+    vi.stubGlobal('fetch', fetchMock)
+    start()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const p = markSeen('failed:a1', T)
+    emit('other:a1', NEW)
+    reject(new Error('offline'))
+    await p
+    expect(marks.value.has('failed:a1')).toBe(false)
+    expect(marks.value.get('other:a1')).toBe(NEW)
+  })
+
+  it('ignores an older seenThrough from the stream', () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})))
+    start()
+    emit('k:b1', NEW)
+    emit('k:b1', OLD)
+    expect(marks.value.get('k:b1')).toBe(NEW)
+  })
+
+  it('keeps an optimistic mark over an older fetched value', async () => {
+    let resolveGet!: (v: unknown) => void
+    const fetchMock = vi.fn()
+      .mockReturnValueOnce(new Promise((r) => { resolveGet = r }))
+      .mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    start()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await markSeen('failed:c1', NEW)
+    resolveGet({
+      ok: true,
+      json: () => Promise.resolve({ baseline: T, marks: [{ key: 'failed:c1', seenThrough: OLD }] }),
+    })
+    await vi.waitFor(() => expect(marks.value.get('failed:c1')).toBe(NEW))
+    await new Promise(r => setTimeout(r, 0))
+    expect(marks.value.get('failed:c1')).toBe(NEW)
+  })
+
+  it('sends one PUT for the same since twice', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    await markSeen('finished:d1', T)
+    await markSeen('finished:d1', T)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('stream', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -127,7 +215,7 @@ describe('stream', () => {
       ok: true,
       json: () => Promise.resolve({ baseline: T, marks: [{ key: 'seed:1', seenThrough: T }] }),
     }))
-    const { marks, baseline, start } = useAttentionMarks()
+    const { marks, baseline, start } = (await freshMarks()).useAttentionMarks()
     start()
     await vi.waitFor(() => expect(baseline.value).toBe(T))
     expect(marks.value.get('seed:1')).toBe(T)

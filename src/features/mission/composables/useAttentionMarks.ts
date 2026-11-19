@@ -21,6 +21,16 @@ interface AttentionEvent {
 const marks = shallowRef<ReadonlyMap<string, string>>(new Map())
 const baseline = ref<string | null>(null)
 
+function covers(stored: string | undefined, since: string): boolean {
+  return stored !== undefined && Date.parse(stored) >= Date.parse(since)
+}
+
+function applyMark(key: string, seenThrough: string): void {
+  if (covers(marks.value.get(key), seenThrough))
+    return
+  marks.value = new Map(marks.value).set(key, seenThrough)
+}
+
 async function fetchMarks(): Promise<void> {
   try {
     const res = await fetch('/api/attention/marks')
@@ -28,7 +38,8 @@ async function fetchMarks(): Promise<void> {
       return
     const body = await res.json() as AttentionMarksResponse
     baseline.value = body.baseline
-    marks.value = new Map(body.marks.map(m => [m.key, m.seenThrough]))
+    for (const m of body.marks)
+      applyMark(m.key, m.seenThrough)
   }
   catch {
     // the stream's fallback poll retries
@@ -39,7 +50,7 @@ function handleMessage(data: string): void {
   try {
     const event = JSON.parse(data) as AttentionEvent
     if (event.type === 'attention_marked')
-      marks.value = new Map(marks.value).set(event.mark.key, event.mark.seenThrough)
+      applyMark(event.mark.key, event.mark.seenThrough)
   }
   catch {
     // ignore malformed messages
@@ -54,8 +65,10 @@ const sse = createSseResource({
 })
 
 export async function markSeen(key: string, since: string): Promise<void> {
-  const previous = marks.value
-  marks.value = new Map(previous).set(key, since)
+  if (covers(marks.value.get(key), since))
+    return
+  const previous = marks.value.get(key)
+  applyMark(key, since)
   try {
     const res = await fetch('/api/attention/marks', {
       method: 'PUT',
@@ -66,14 +79,20 @@ export async function markSeen(key: string, since: string): Promise<void> {
       throw new Error(`HTTP ${res.status}`)
   }
   catch {
-    marks.value = previous
+    if (marks.value.get(key) === since) {
+      const next = new Map(marks.value)
+      if (previous === undefined)
+        next.delete(key)
+      else
+        next.set(key, previous)
+      marks.value = next
+    }
     toast.error('Could not put that away')
   }
 }
 
 export function isPutAway(t: NextThing, marked: ReadonlyMap<string, string>, base: string | null): boolean {
-  const m = marked.get(t.key)
-  if (m !== undefined && Date.parse(m) >= Date.parse(t.since))
+  if (covers(marked.get(t.key), t.since))
     return true
   if (t.kind !== 'failed' && t.kind !== 'finished')
     return false
