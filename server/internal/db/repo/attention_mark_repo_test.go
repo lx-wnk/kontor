@@ -5,11 +5,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/repo"
 )
 
+func openBundle(t *testing.T) *db.DBBundle {
+	t.Helper()
+	bundle, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = bundle.Close() })
+	return bundle
+}
+
+func newAttentionRepo(t *testing.T) repo.AttentionMarkRepo {
+	t.Helper()
+	bundle := openBundle(t)
+	return repo.NewAttentionMarkRepo(bundle.Client, bundle.WriteClient)
+}
+
 func TestAttentionMarkRepo_MarkCreates(t *testing.T) {
-	r := repo.NewAttentionMarkRepo(openDB(t))
+	r := newAttentionRepo(t)
 	ctx := context.Background()
 	t0 := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
 
@@ -30,7 +47,7 @@ func TestAttentionMarkRepo_MarkCreates(t *testing.T) {
 }
 
 func TestAttentionMarkRepo_MarkKeepsLater(t *testing.T) {
-	r := repo.NewAttentionMarkRepo(openDB(t))
+	r := newAttentionRepo(t)
 	ctx := context.Background()
 	later := time.Date(2026, 11, 19, 10, 0, 5, 0, time.UTC)
 	earlier := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
@@ -55,7 +72,7 @@ func TestAttentionMarkRepo_MarkKeepsLater(t *testing.T) {
 }
 
 func TestAttentionMarkRepo_MarkSameIsNoChange(t *testing.T) {
-	r := repo.NewAttentionMarkRepo(openDB(t))
+	r := newAttentionRepo(t)
 	ctx := context.Background()
 	t0 := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
 
@@ -76,7 +93,7 @@ func TestAttentionMarkRepo_MarkSameIsNoChange(t *testing.T) {
 }
 
 func TestAttentionMarkRepo_MarkAdvances(t *testing.T) {
-	r := repo.NewAttentionMarkRepo(openDB(t))
+	r := newAttentionRepo(t)
 	ctx := context.Background()
 	t0 := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
 	t1 := time.Date(2026, 11, 19, 10, 0, 7, 0, time.UTC)
@@ -98,7 +115,7 @@ func TestAttentionMarkRepo_MarkAdvances(t *testing.T) {
 }
 
 func TestAttentionMarkRepo_NanosRoundTrip(t *testing.T) {
-	r := repo.NewAttentionMarkRepo(openDB(t))
+	r := newAttentionRepo(t)
 	ctx := context.Background()
 	t0 := time.Date(2026, 11, 19, 10, 0, 0, 123456789, time.UTC)
 
@@ -115,8 +132,9 @@ func TestAttentionMarkRepo_NanosRoundTrip(t *testing.T) {
 }
 
 func TestAttentionMarkRepo_BaselineIsStable(t *testing.T) {
-	client := openDB(t)
-	r := repo.NewAttentionMarkRepo(client)
+	bundle := openBundle(t)
+	client := bundle.Client
+	r := repo.NewAttentionMarkRepo(bundle.Client, bundle.WriteClient)
 	ctx := context.Background()
 
 	first, err := r.Baseline(ctx)

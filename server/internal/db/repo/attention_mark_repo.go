@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/lx-wnk/kontor/server/internal/db"
 	"github.com/lx-wnk/kontor/server/internal/db/ent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionmark"
 )
@@ -25,12 +26,15 @@ type AttentionMarkRepo interface {
 }
 
 type entAttentionMarkRepo struct {
-	client *ent.Client
+	client      *ent.Client
+	writeClient db.WriteClient
 }
 
-// NewAttentionMarkRepo returns an AttentionMarkRepo backed by the given ent client.
-func NewAttentionMarkRepo(client *ent.Client) AttentionMarkRepo {
-	return &entAttentionMarkRepo{client: client}
+// NewAttentionMarkRepo returns an AttentionMarkRepo backed by the ent client.
+// writeClient must be db.DBBundle.WriteClient — see WithWriteTx's doc comment
+// for why Mark and Baseline need it.
+func NewAttentionMarkRepo(client *ent.Client, writeClient db.WriteClient) AttentionMarkRepo {
+	return &entAttentionMarkRepo{client: client, writeClient: writeClient}
 }
 
 func (r *entAttentionMarkRepo) List(ctx context.Context) ([]*ent.AttentionMark, error) {
@@ -48,7 +52,7 @@ func (r *entAttentionMarkRepo) Mark(ctx context.Context, key string, seenThrough
 		mark    *ent.AttentionMark
 		changed bool
 	)
-	err := WithTx(ctx, r.client, func(tx *ent.Tx) error {
+	err := WithWriteTx(ctx, r.writeClient, func(tx *ent.Tx) error {
 		existing, err := tx.AttentionMark.Query().Where(attentionmark.ItemKey(key)).Only(ctx)
 		switch {
 		case err == nil:
@@ -84,7 +88,7 @@ func (r *entAttentionMarkRepo) Mark(ctx context.Context, key string, seenThrough
 
 func (r *entAttentionMarkRepo) Baseline(ctx context.Context) (time.Time, error) {
 	var startedAt time.Time
-	err := WithTx(ctx, r.client, func(tx *ent.Tx) error {
+	err := WithWriteTx(ctx, r.writeClient, func(tx *ent.Tx) error {
 		row, err := tx.AttentionBaseline.Get(ctx, attentionBaselineID)
 		if ent.IsNotFound(err) {
 			row, err = tx.AttentionBaseline.Create().
