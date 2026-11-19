@@ -18,6 +18,12 @@ type AppSetting func(*sql.Selector)
 // ApplicationSecret is the predicate function for applicationsecret builders.
 type ApplicationSecret func(*sql.Selector)
 
+// AttentionBaseline is the predicate function for attentionbaseline builders.
+type AttentionBaseline func(*sql.Selector)
+
+// AttentionMark is the predicate function for attentionmark builders.
+type AttentionMark func(*sql.Selector)
+
 // AuditEvent is the predicate function for auditevent builders.
 type AuditEvent func(*sql.Selector)
 

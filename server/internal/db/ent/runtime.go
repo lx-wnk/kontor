@@ -9,6 +9,8 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/apikey"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/applicationsecret"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/appsetting"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionbaseline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionmark"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
@@ -123,6 +125,54 @@ func init() {
 	applicationsecret.DefaultUpdatedAt = applicationsecretDescUpdatedAt.Default.(func() time.Time)
 	// applicationsecret.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	applicationsecret.UpdateDefaultUpdatedAt = applicationsecretDescUpdatedAt.UpdateDefault.(func() time.Time)
+	attentionbaselineMixin := schema.AttentionBaseline{}.Mixin()
+	attentionbaselineMixinFields0 := attentionbaselineMixin[0].Fields()
+	_ = attentionbaselineMixinFields0
+	attentionbaselineFields := schema.AttentionBaseline{}.Fields()
+	_ = attentionbaselineFields
+	// attentionbaselineDescCreatedAt is the schema descriptor for created_at field.
+	attentionbaselineDescCreatedAt := attentionbaselineMixinFields0[1].Descriptor()
+	// attentionbaseline.DefaultCreatedAt holds the default value on creation for the created_at field.
+	attentionbaseline.DefaultCreatedAt = attentionbaselineDescCreatedAt.Default.(func() time.Time)
+	// attentionbaselineDescUpdatedAt is the schema descriptor for updated_at field.
+	attentionbaselineDescUpdatedAt := attentionbaselineMixinFields0[2].Descriptor()
+	// attentionbaseline.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	attentionbaseline.DefaultUpdatedAt = attentionbaselineDescUpdatedAt.Default.(func() time.Time)
+	// attentionbaseline.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	attentionbaseline.UpdateDefaultUpdatedAt = attentionbaselineDescUpdatedAt.UpdateDefault.(func() time.Time)
+	attentionmarkMixin := schema.AttentionMark{}.Mixin()
+	attentionmarkMixinFields0 := attentionmarkMixin[0].Fields()
+	_ = attentionmarkMixinFields0
+	attentionmarkFields := schema.AttentionMark{}.Fields()
+	_ = attentionmarkFields
+	// attentionmarkDescCreatedAt is the schema descriptor for created_at field.
+	attentionmarkDescCreatedAt := attentionmarkMixinFields0[1].Descriptor()
+	// attentionmark.DefaultCreatedAt holds the default value on creation for the created_at field.
+	attentionmark.DefaultCreatedAt = attentionmarkDescCreatedAt.Default.(func() time.Time)
+	// attentionmarkDescUpdatedAt is the schema descriptor for updated_at field.
+	attentionmarkDescUpdatedAt := attentionmarkMixinFields0[2].Descriptor()
+	// attentionmark.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	attentionmark.DefaultUpdatedAt = attentionmarkDescUpdatedAt.Default.(func() time.Time)
+	// attentionmark.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	attentionmark.UpdateDefaultUpdatedAt = attentionmarkDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// attentionmarkDescItemKey is the schema descriptor for item_key field.
+	attentionmarkDescItemKey := attentionmarkFields[0].Descriptor()
+	// attentionmark.ItemKeyValidator is a validator for the "item_key" field. It is called by the builders before save.
+	attentionmark.ItemKeyValidator = func() func(string) error {
+		validators := attentionmarkDescItemKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(item_key string) error {
+			for _, fn := range fns {
+				if err := fn(item_key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	auditeventFields := schema.AuditEvent{}.Fields()
 	_ = auditeventFields
 	// auditeventDescTs is the schema descriptor for ts field.

@@ -15,6 +15,8 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/apikey"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/applicationsecret"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/appsetting"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionbaseline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionmark"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
@@ -68,6 +70,8 @@ const (
 	TypeApiKey             = "ApiKey"
 	TypeAppSetting         = "AppSetting"
 	TypeApplicationSecret  = "ApplicationSecret"
+	TypeAttentionBaseline  = "AttentionBaseline"
+	TypeAttentionMark      = "AttentionMark"
 	TypeAuditEvent         = "AuditEvent"
 	TypeCapability         = "Capability"
 	TypeCheckpoint         = "Checkpoint"
@@ -3218,6 +3222,940 @@ func (m *ApplicationSecretMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *ApplicationSecretMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown ApplicationSecret edge %s", name)
+}
+
+// AttentionBaselineMutation represents an operation that mutates the AttentionBaseline nodes in the graph.
+type AttentionBaselineMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	created_at    *time.Time
+	updated_at    *time.Time
+	started_at    *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*AttentionBaseline, error)
+	predicates    []predicate.AttentionBaseline
+}
+
+var _ ent.Mutation = (*AttentionBaselineMutation)(nil)
+
+// attentionbaselineOption allows management of the mutation configuration using functional options.
+type attentionbaselineOption func(*AttentionBaselineMutation)
+
+// newAttentionBaselineMutation creates new mutation for the AttentionBaseline entity.
+func newAttentionBaselineMutation(c config, op Op, opts ...attentionbaselineOption) *AttentionBaselineMutation {
+	m := &AttentionBaselineMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAttentionBaseline,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAttentionBaselineID sets the ID field of the mutation.
+func withAttentionBaselineID(id string) attentionbaselineOption {
+	return func(m *AttentionBaselineMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AttentionBaseline
+		)
+		m.oldValue = func(ctx context.Context) (*AttentionBaseline, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AttentionBaseline.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAttentionBaseline sets the old AttentionBaseline of the mutation.
+func withAttentionBaseline(node *AttentionBaseline) attentionbaselineOption {
+	return func(m *AttentionBaselineMutation) {
+		m.oldValue = func(context.Context) (*AttentionBaseline, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AttentionBaselineMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AttentionBaselineMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of AttentionBaseline entities.
+func (m *AttentionBaselineMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AttentionBaselineMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AttentionBaselineMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AttentionBaseline.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *AttentionBaselineMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *AttentionBaselineMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the AttentionBaseline entity.
+// If the AttentionBaseline object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionBaselineMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *AttentionBaselineMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *AttentionBaselineMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *AttentionBaselineMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the AttentionBaseline entity.
+// If the AttentionBaseline object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionBaselineMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *AttentionBaselineMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetStartedAt sets the "started_at" field.
+func (m *AttentionBaselineMutation) SetStartedAt(t time.Time) {
+	m.started_at = &t
+}
+
+// StartedAt returns the value of the "started_at" field in the mutation.
+func (m *AttentionBaselineMutation) StartedAt() (r time.Time, exists bool) {
+	v := m.started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStartedAt returns the old "started_at" field's value of the AttentionBaseline entity.
+// If the AttentionBaseline object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionBaselineMutation) OldStartedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStartedAt: %w", err)
+	}
+	return oldValue.StartedAt, nil
+}
+
+// ResetStartedAt resets all changes to the "started_at" field.
+func (m *AttentionBaselineMutation) ResetStartedAt() {
+	m.started_at = nil
+}
+
+// Where appends a list predicates to the AttentionBaselineMutation builder.
+func (m *AttentionBaselineMutation) Where(ps ...predicate.AttentionBaseline) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AttentionBaselineMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AttentionBaselineMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AttentionBaseline, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AttentionBaselineMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AttentionBaselineMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AttentionBaseline).
+func (m *AttentionBaselineMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AttentionBaselineMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.created_at != nil {
+		fields = append(fields, attentionbaseline.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, attentionbaseline.FieldUpdatedAt)
+	}
+	if m.started_at != nil {
+		fields = append(fields, attentionbaseline.FieldStartedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AttentionBaselineMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case attentionbaseline.FieldCreatedAt:
+		return m.CreatedAt()
+	case attentionbaseline.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case attentionbaseline.FieldStartedAt:
+		return m.StartedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AttentionBaselineMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case attentionbaseline.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case attentionbaseline.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case attentionbaseline.FieldStartedAt:
+		return m.OldStartedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown AttentionBaseline field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttentionBaselineMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case attentionbaseline.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case attentionbaseline.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case attentionbaseline.FieldStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStartedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AttentionBaseline field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AttentionBaselineMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AttentionBaselineMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttentionBaselineMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown AttentionBaseline numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AttentionBaselineMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AttentionBaselineMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AttentionBaselineMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown AttentionBaseline nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AttentionBaselineMutation) ResetField(name string) error {
+	switch name {
+	case attentionbaseline.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case attentionbaseline.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case attentionbaseline.FieldStartedAt:
+		m.ResetStartedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown AttentionBaseline field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AttentionBaselineMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AttentionBaselineMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AttentionBaselineMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AttentionBaselineMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AttentionBaselineMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AttentionBaselineMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AttentionBaselineMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AttentionBaseline unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AttentionBaselineMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AttentionBaseline edge %s", name)
+}
+
+// AttentionMarkMutation represents an operation that mutates the AttentionMark nodes in the graph.
+type AttentionMarkMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *string
+	created_at    *time.Time
+	updated_at    *time.Time
+	item_key      *string
+	seen_through  *time.Time
+	clearedFields map[string]struct{}
+	done          bool
+	oldValue      func(context.Context) (*AttentionMark, error)
+	predicates    []predicate.AttentionMark
+}
+
+var _ ent.Mutation = (*AttentionMarkMutation)(nil)
+
+// attentionmarkOption allows management of the mutation configuration using functional options.
+type attentionmarkOption func(*AttentionMarkMutation)
+
+// newAttentionMarkMutation creates new mutation for the AttentionMark entity.
+func newAttentionMarkMutation(c config, op Op, opts ...attentionmarkOption) *AttentionMarkMutation {
+	m := &AttentionMarkMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAttentionMark,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAttentionMarkID sets the ID field of the mutation.
+func withAttentionMarkID(id string) attentionmarkOption {
+	return func(m *AttentionMarkMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AttentionMark
+		)
+		m.oldValue = func(ctx context.Context) (*AttentionMark, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AttentionMark.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAttentionMark sets the old AttentionMark of the mutation.
+func withAttentionMark(node *AttentionMark) attentionmarkOption {
+	return func(m *AttentionMarkMutation) {
+		m.oldValue = func(context.Context) (*AttentionMark, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AttentionMarkMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AttentionMarkMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of AttentionMark entities.
+func (m *AttentionMarkMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AttentionMarkMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AttentionMarkMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AttentionMark.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *AttentionMarkMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *AttentionMarkMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the AttentionMark entity.
+// If the AttentionMark object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionMarkMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *AttentionMarkMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *AttentionMarkMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *AttentionMarkMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the AttentionMark entity.
+// If the AttentionMark object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionMarkMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *AttentionMarkMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetItemKey sets the "item_key" field.
+func (m *AttentionMarkMutation) SetItemKey(s string) {
+	m.item_key = &s
+}
+
+// ItemKey returns the value of the "item_key" field in the mutation.
+func (m *AttentionMarkMutation) ItemKey() (r string, exists bool) {
+	v := m.item_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldItemKey returns the old "item_key" field's value of the AttentionMark entity.
+// If the AttentionMark object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionMarkMutation) OldItemKey(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldItemKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldItemKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldItemKey: %w", err)
+	}
+	return oldValue.ItemKey, nil
+}
+
+// ResetItemKey resets all changes to the "item_key" field.
+func (m *AttentionMarkMutation) ResetItemKey() {
+	m.item_key = nil
+}
+
+// SetSeenThrough sets the "seen_through" field.
+func (m *AttentionMarkMutation) SetSeenThrough(t time.Time) {
+	m.seen_through = &t
+}
+
+// SeenThrough returns the value of the "seen_through" field in the mutation.
+func (m *AttentionMarkMutation) SeenThrough() (r time.Time, exists bool) {
+	v := m.seen_through
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSeenThrough returns the old "seen_through" field's value of the AttentionMark entity.
+// If the AttentionMark object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttentionMarkMutation) OldSeenThrough(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSeenThrough is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSeenThrough requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSeenThrough: %w", err)
+	}
+	return oldValue.SeenThrough, nil
+}
+
+// ResetSeenThrough resets all changes to the "seen_through" field.
+func (m *AttentionMarkMutation) ResetSeenThrough() {
+	m.seen_through = nil
+}
+
+// Where appends a list predicates to the AttentionMarkMutation builder.
+func (m *AttentionMarkMutation) Where(ps ...predicate.AttentionMark) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AttentionMarkMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AttentionMarkMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AttentionMark, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AttentionMarkMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AttentionMarkMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AttentionMark).
+func (m *AttentionMarkMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AttentionMarkMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.created_at != nil {
+		fields = append(fields, attentionmark.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, attentionmark.FieldUpdatedAt)
+	}
+	if m.item_key != nil {
+		fields = append(fields, attentionmark.FieldItemKey)
+	}
+	if m.seen_through != nil {
+		fields = append(fields, attentionmark.FieldSeenThrough)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AttentionMarkMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case attentionmark.FieldCreatedAt:
+		return m.CreatedAt()
+	case attentionmark.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case attentionmark.FieldItemKey:
+		return m.ItemKey()
+	case attentionmark.FieldSeenThrough:
+		return m.SeenThrough()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AttentionMarkMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case attentionmark.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case attentionmark.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case attentionmark.FieldItemKey:
+		return m.OldItemKey(ctx)
+	case attentionmark.FieldSeenThrough:
+		return m.OldSeenThrough(ctx)
+	}
+	return nil, fmt.Errorf("unknown AttentionMark field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttentionMarkMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case attentionmark.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case attentionmark.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case attentionmark.FieldItemKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetItemKey(v)
+		return nil
+	case attentionmark.FieldSeenThrough:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSeenThrough(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AttentionMark field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AttentionMarkMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AttentionMarkMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttentionMarkMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown AttentionMark numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AttentionMarkMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AttentionMarkMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AttentionMarkMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown AttentionMark nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AttentionMarkMutation) ResetField(name string) error {
+	switch name {
+	case attentionmark.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case attentionmark.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case attentionmark.FieldItemKey:
+		m.ResetItemKey()
+		return nil
+	case attentionmark.FieldSeenThrough:
+		m.ResetSeenThrough()
+		return nil
+	}
+	return fmt.Errorf("unknown AttentionMark field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AttentionMarkMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AttentionMarkMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AttentionMarkMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AttentionMarkMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AttentionMarkMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AttentionMarkMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AttentionMarkMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AttentionMark unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AttentionMarkMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AttentionMark edge %s", name)
 }
 
 // AuditEventMutation represents an operation that mutates the AuditEvent nodes in the graph.

@@ -19,6 +19,8 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/apikey"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/applicationsecret"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/appsetting"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionbaseline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionmark"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
@@ -70,6 +72,10 @@ type Client struct {
 	AppSetting *AppSettingClient
 	// ApplicationSecret is the client for interacting with the ApplicationSecret builders.
 	ApplicationSecret *ApplicationSecretClient
+	// AttentionBaseline is the client for interacting with the AttentionBaseline builders.
+	AttentionBaseline *AttentionBaselineClient
+	// AttentionMark is the client for interacting with the AttentionMark builders.
+	AttentionMark *AttentionMarkClient
 	// AuditEvent is the client for interacting with the AuditEvent builders.
 	AuditEvent *AuditEventClient
 	// Capability is the client for interacting with the Capability builders.
@@ -157,6 +163,8 @@ func (c *Client) init() {
 	c.ApiKey = NewApiKeyClient(c.config)
 	c.AppSetting = NewAppSettingClient(c.config)
 	c.ApplicationSecret = NewApplicationSecretClient(c.config)
+	c.AttentionBaseline = NewAttentionBaselineClient(c.config)
+	c.AttentionMark = NewAttentionMarkClient(c.config)
 	c.AuditEvent = NewAuditEventClient(c.config)
 	c.Capability = NewCapabilityClient(c.config)
 	c.Checkpoint = NewCheckpointClient(c.config)
@@ -289,6 +297,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ApiKey:             NewApiKeyClient(cfg),
 		AppSetting:         NewAppSettingClient(cfg),
 		ApplicationSecret:  NewApplicationSecretClient(cfg),
+		AttentionBaseline:  NewAttentionBaselineClient(cfg),
+		AttentionMark:      NewAttentionMarkClient(cfg),
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
@@ -348,6 +358,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ApiKey:             NewApiKeyClient(cfg),
 		AppSetting:         NewAppSettingClient(cfg),
 		ApplicationSecret:  NewApplicationSecretClient(cfg),
+		AttentionBaseline:  NewAttentionBaselineClient(cfg),
+		AttentionMark:      NewAttentionMarkClient(cfg),
 		AuditEvent:         NewAuditEventClient(cfg),
 		Capability:         NewCapabilityClient(cfg),
 		Checkpoint:         NewCheckpointClient(cfg),
@@ -413,9 +425,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CloudRoutine, c.CloudSession, c.CoordLock,
-		c.DriftAlert, c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret,
+		c.AttentionBaseline, c.AttentionMark, c.AuditEvent, c.Capability, c.Checkpoint,
+		c.CloudRoutine, c.CloudSession, c.CoordLock, c.DriftAlert,
+		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
 		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
 		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
 		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
@@ -431,9 +444,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret, c.AuditEvent,
-		c.Capability, c.Checkpoint, c.CloudRoutine, c.CloudSession, c.CoordLock,
-		c.DriftAlert, c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
+		c.AgentCostTrend, c.ApiKey, c.AppSetting, c.ApplicationSecret,
+		c.AttentionBaseline, c.AttentionMark, c.AuditEvent, c.Capability, c.Checkpoint,
+		c.CloudRoutine, c.CloudSession, c.CoordLock, c.DriftAlert,
+		c.EvalMetricSnapshot, c.Grant, c.GrantUsage, c.MCPApplication,
 		c.Materialization, c.MemoryEntry, c.MemoryInjection, c.PermissionPreset,
 		c.PermissionRequest, c.PipelineConfig, c.Plugin, c.PluginSetting, c.Project,
 		c.ProjectFolder, c.PromptTemplate, c.ProviderSetting, c.RefinementTurn,
@@ -456,6 +470,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.AppSetting.mutate(ctx, m)
 	case *ApplicationSecretMutation:
 		return c.ApplicationSecret.mutate(ctx, m)
+	case *AttentionBaselineMutation:
+		return c.AttentionBaseline.mutate(ctx, m)
+	case *AttentionMarkMutation:
+		return c.AttentionMark.mutate(ctx, m)
 	case *AuditEventMutation:
 		return c.AuditEvent.mutate(ctx, m)
 	case *CapabilityMutation:
@@ -1062,6 +1080,272 @@ func (c *ApplicationSecretClient) mutate(ctx context.Context, m *ApplicationSecr
 		return (&ApplicationSecretDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ApplicationSecret mutation op: %q", m.Op())
+	}
+}
+
+// AttentionBaselineClient is a client for the AttentionBaseline schema.
+type AttentionBaselineClient struct {
+	config
+}
+
+// NewAttentionBaselineClient returns a client for the AttentionBaseline from the given config.
+func NewAttentionBaselineClient(c config) *AttentionBaselineClient {
+	return &AttentionBaselineClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `attentionbaseline.Hooks(f(g(h())))`.
+func (c *AttentionBaselineClient) Use(hooks ...Hook) {
+	c.hooks.AttentionBaseline = append(c.hooks.AttentionBaseline, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `attentionbaseline.Intercept(f(g(h())))`.
+func (c *AttentionBaselineClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AttentionBaseline = append(c.inters.AttentionBaseline, interceptors...)
+}
+
+// Create returns a builder for creating a AttentionBaseline entity.
+func (c *AttentionBaselineClient) Create() *AttentionBaselineCreate {
+	mutation := newAttentionBaselineMutation(c.config, OpCreate)
+	return &AttentionBaselineCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AttentionBaseline entities.
+func (c *AttentionBaselineClient) CreateBulk(builders ...*AttentionBaselineCreate) *AttentionBaselineCreateBulk {
+	return &AttentionBaselineCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AttentionBaselineClient) MapCreateBulk(slice any, setFunc func(*AttentionBaselineCreate, int)) *AttentionBaselineCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AttentionBaselineCreateBulk{err: fmt.Errorf("calling to AttentionBaselineClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AttentionBaselineCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AttentionBaselineCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AttentionBaseline.
+func (c *AttentionBaselineClient) Update() *AttentionBaselineUpdate {
+	mutation := newAttentionBaselineMutation(c.config, OpUpdate)
+	return &AttentionBaselineUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AttentionBaselineClient) UpdateOne(_m *AttentionBaseline) *AttentionBaselineUpdateOne {
+	mutation := newAttentionBaselineMutation(c.config, OpUpdateOne, withAttentionBaseline(_m))
+	return &AttentionBaselineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AttentionBaselineClient) UpdateOneID(id string) *AttentionBaselineUpdateOne {
+	mutation := newAttentionBaselineMutation(c.config, OpUpdateOne, withAttentionBaselineID(id))
+	return &AttentionBaselineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AttentionBaseline.
+func (c *AttentionBaselineClient) Delete() *AttentionBaselineDelete {
+	mutation := newAttentionBaselineMutation(c.config, OpDelete)
+	return &AttentionBaselineDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AttentionBaselineClient) DeleteOne(_m *AttentionBaseline) *AttentionBaselineDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AttentionBaselineClient) DeleteOneID(id string) *AttentionBaselineDeleteOne {
+	builder := c.Delete().Where(attentionbaseline.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AttentionBaselineDeleteOne{builder}
+}
+
+// Query returns a query builder for AttentionBaseline.
+func (c *AttentionBaselineClient) Query() *AttentionBaselineQuery {
+	return &AttentionBaselineQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAttentionBaseline},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AttentionBaseline entity by its id.
+func (c *AttentionBaselineClient) Get(ctx context.Context, id string) (*AttentionBaseline, error) {
+	return c.Query().Where(attentionbaseline.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AttentionBaselineClient) GetX(ctx context.Context, id string) *AttentionBaseline {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AttentionBaselineClient) Hooks() []Hook {
+	return c.hooks.AttentionBaseline
+}
+
+// Interceptors returns the client interceptors.
+func (c *AttentionBaselineClient) Interceptors() []Interceptor {
+	return c.inters.AttentionBaseline
+}
+
+func (c *AttentionBaselineClient) mutate(ctx context.Context, m *AttentionBaselineMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AttentionBaselineCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AttentionBaselineUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AttentionBaselineUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AttentionBaselineDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AttentionBaseline mutation op: %q", m.Op())
+	}
+}
+
+// AttentionMarkClient is a client for the AttentionMark schema.
+type AttentionMarkClient struct {
+	config
+}
+
+// NewAttentionMarkClient returns a client for the AttentionMark from the given config.
+func NewAttentionMarkClient(c config) *AttentionMarkClient {
+	return &AttentionMarkClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `attentionmark.Hooks(f(g(h())))`.
+func (c *AttentionMarkClient) Use(hooks ...Hook) {
+	c.hooks.AttentionMark = append(c.hooks.AttentionMark, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `attentionmark.Intercept(f(g(h())))`.
+func (c *AttentionMarkClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AttentionMark = append(c.inters.AttentionMark, interceptors...)
+}
+
+// Create returns a builder for creating a AttentionMark entity.
+func (c *AttentionMarkClient) Create() *AttentionMarkCreate {
+	mutation := newAttentionMarkMutation(c.config, OpCreate)
+	return &AttentionMarkCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AttentionMark entities.
+func (c *AttentionMarkClient) CreateBulk(builders ...*AttentionMarkCreate) *AttentionMarkCreateBulk {
+	return &AttentionMarkCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AttentionMarkClient) MapCreateBulk(slice any, setFunc func(*AttentionMarkCreate, int)) *AttentionMarkCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AttentionMarkCreateBulk{err: fmt.Errorf("calling to AttentionMarkClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AttentionMarkCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AttentionMarkCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AttentionMark.
+func (c *AttentionMarkClient) Update() *AttentionMarkUpdate {
+	mutation := newAttentionMarkMutation(c.config, OpUpdate)
+	return &AttentionMarkUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AttentionMarkClient) UpdateOne(_m *AttentionMark) *AttentionMarkUpdateOne {
+	mutation := newAttentionMarkMutation(c.config, OpUpdateOne, withAttentionMark(_m))
+	return &AttentionMarkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AttentionMarkClient) UpdateOneID(id string) *AttentionMarkUpdateOne {
+	mutation := newAttentionMarkMutation(c.config, OpUpdateOne, withAttentionMarkID(id))
+	return &AttentionMarkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AttentionMark.
+func (c *AttentionMarkClient) Delete() *AttentionMarkDelete {
+	mutation := newAttentionMarkMutation(c.config, OpDelete)
+	return &AttentionMarkDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AttentionMarkClient) DeleteOne(_m *AttentionMark) *AttentionMarkDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AttentionMarkClient) DeleteOneID(id string) *AttentionMarkDeleteOne {
+	builder := c.Delete().Where(attentionmark.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AttentionMarkDeleteOne{builder}
+}
+
+// Query returns a query builder for AttentionMark.
+func (c *AttentionMarkClient) Query() *AttentionMarkQuery {
+	return &AttentionMarkQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAttentionMark},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AttentionMark entity by its id.
+func (c *AttentionMarkClient) Get(ctx context.Context, id string) (*AttentionMark, error) {
+	return c.Query().Where(attentionmark.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AttentionMarkClient) GetX(ctx context.Context, id string) *AttentionMark {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AttentionMarkClient) Hooks() []Hook {
+	return c.hooks.AttentionMark
+}
+
+// Interceptors returns the client interceptors.
+func (c *AttentionMarkClient) Interceptors() []Interceptor {
+	return c.inters.AttentionMark
+}
+
+func (c *AttentionMarkClient) mutate(ctx context.Context, m *AttentionMarkMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AttentionMarkCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AttentionMarkUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AttentionMarkUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AttentionMarkDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AttentionMark mutation op: %q", m.Op())
 	}
 }
 
@@ -6048,23 +6332,25 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CloudRoutine, CloudSession, CoordLock, DriftAlert,
-		EvalMetricSnapshot, Grant, GrantUsage, MCPApplication, Materialization,
-		MemoryEntry, MemoryInjection, PermissionPreset, PermissionRequest,
-		PipelineConfig, Plugin, PluginSetting, Project, ProjectFolder, PromptTemplate,
-		ProviderSetting, RefinementTurn, RemoteRegistration, Resource, Scratchpad,
-		Skill, Spawner, StageRun, SystemPrompt, Task, TaskDependency, TaskPermission,
-		TaskSchedule, User []ent.Hook
+		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AttentionBaseline,
+		AttentionMark, AuditEvent, Capability, Checkpoint, CloudRoutine, CloudSession,
+		CoordLock, DriftAlert, EvalMetricSnapshot, Grant, GrantUsage, MCPApplication,
+		Materialization, MemoryEntry, MemoryInjection, PermissionPreset,
+		PermissionRequest, PipelineConfig, Plugin, PluginSetting, Project,
+		ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
+		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
+		SystemPrompt, Task, TaskDependency, TaskPermission, TaskSchedule,
+		User []ent.Hook
 	}
 	inters struct {
-		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AuditEvent, Capability,
-		Checkpoint, CloudRoutine, CloudSession, CoordLock, DriftAlert,
-		EvalMetricSnapshot, Grant, GrantUsage, MCPApplication, Materialization,
-		MemoryEntry, MemoryInjection, PermissionPreset, PermissionRequest,
-		PipelineConfig, Plugin, PluginSetting, Project, ProjectFolder, PromptTemplate,
-		ProviderSetting, RefinementTurn, RemoteRegistration, Resource, Scratchpad,
-		Skill, Spawner, StageRun, SystemPrompt, Task, TaskDependency, TaskPermission,
-		TaskSchedule, User []ent.Interceptor
+		AgentCostTrend, ApiKey, AppSetting, ApplicationSecret, AttentionBaseline,
+		AttentionMark, AuditEvent, Capability, Checkpoint, CloudRoutine, CloudSession,
+		CoordLock, DriftAlert, EvalMetricSnapshot, Grant, GrantUsage, MCPApplication,
+		Materialization, MemoryEntry, MemoryInjection, PermissionPreset,
+		PermissionRequest, PipelineConfig, Plugin, PluginSetting, Project,
+		ProjectFolder, PromptTemplate, ProviderSetting, RefinementTurn,
+		RemoteRegistration, Resource, Scratchpad, Skill, Spawner, StageRun,
+		SystemPrompt, Task, TaskDependency, TaskPermission, TaskSchedule,
+		User []ent.Interceptor
 	}
 )
