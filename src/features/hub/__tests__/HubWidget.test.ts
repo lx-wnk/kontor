@@ -5,8 +5,8 @@ import type { Agent, Project } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, ref, shallowRef } from 'vue'
-import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 import { DOCKED_KINDS } from '@/composables/needsYouPlacement'
+import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 import { useSidebar } from '@/composables/useSidebar'
 import { useViewState } from '@/composables/useViewState'
 import { DEFAULT_LAYOUT, failedWidgets, useWorkspace } from '@/features/workspace'
@@ -62,6 +62,7 @@ vi.mock('@/features/agents', () => ({
 }))
 vi.mock('@/features/mission', () => ({
   NeedsYouQueue: {
+    name: 'NeedsYouQueue',
     props: ['variant', 'kinds'],
     template: '<div data-testid="stub-queue">{{ variant }}</div>',
   },
@@ -141,7 +142,7 @@ async function mountHub(size = { width: 1090, height: 1130 }, needsYouCount = 0,
     attachTo: document.body,
     global: {
       provide: {
-        [NEEDS_YOU]: computed(() => Array.from({ length: needsYouCount }, () => ({}))) as unknown as ComputedRef<NextThing[]>,
+        [NEEDS_YOU]: computed(() => Array.from({ length: needsYouCount }, () => ({ kind: 'permission' }))) as unknown as ComputedRef<NextThing[]>,
         [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() },
         [OPEN_TASK]: vi.fn(),
         [OPEN_SETTINGS]: openSettings,
@@ -299,7 +300,7 @@ describe('hubWidget', () => {
 
   it('docks the queue without finished turns', async () => {
     const w = await mountHub()
-    expect(w.getComponent('[data-testid="stub-queue"]').props('kinds')).toEqual(DOCKED_KINDS)
+    expect(w.findComponent({ name: 'NeedsYouQueue' }).props('kinds')).toEqual(DOCKED_KINDS)
     w.unmount()
   })
 

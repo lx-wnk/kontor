@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { KIND_RANK } from '@/features/mission'
+import { KIND_RANK } from '@/features/mission/composables/useNextThing'
 import { DOCKED_KINDS, needsYouPlacement } from '../needsYouPlacement'
 
 describe('needsYouPlacement', () => {
@@ -8,7 +8,7 @@ describe('needsYouPlacement', () => {
     expect(needsYouPlacement({ view: 'page:p-morning', pageHasHub: true, error: false })).toEqual({ strip: false, kinds: DOCKED_KINDS })
   })
 
-  it('DOCKED_KINDS is every kind but finished', () => {
+  it('lists every kind but finished as docked', () => {
     expect(DOCKED_KINDS).not.toContain('finished')
     expect([...DOCKED_KINDS].sort()).toEqual(Object.keys(KIND_RANK).filter(k => k !== 'finished').sort())
   })

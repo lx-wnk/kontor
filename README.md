@@ -91,7 +91,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 | Question, dialog | You answer it, or use **Put away**. |
 | Permission, capability, plan | You approve or deny it, or use **Put away**. |
 
-Finished and failed items from before the first read after this release stay hidden. On every view, `n` focuses the next item, `a` allows and `d` denies the focused permission or capability request, and `⇧A` allows every permission in the list; the keys act only while a needs-you queue is on screen and the list is not empty. On the Dashboard they act on its triage band instead. The Dashboard also has fleet filter chips (*All*, *Needs you*, *Working*, *Idle or done*) with a count each.
+The queue docked in the Zentrale leaves out finished agents, so idle ones do not cover the map; the window title count and the queue on other views still list them. Finished and failed items from before the first read after this release stay hidden. On every view, `n` focuses the next item, `a` allows and `d` denies the focused permission or capability request, and `⇧A` allows every permission in the list; the keys act only while a needs-you queue is on screen and the list is not empty. On the Dashboard they act on its triage band instead. The Dashboard also has fleet filter chips (*All*, *Needs you*, *Working*, *Idle or done*) with a count each.
 
 **Kontor session** — one Claude session per installation that can read and steer Kontor through its task API; start it from the Zentrale or the `Cmd+K` field. If its Claude login expires, the tile offers **Log in**, which opens the session's terminal to run `/login`.
 

@@ -211,6 +211,7 @@ test.describe('put away persists', () => {
     const controlSid = `e2e-${Date.now()}-control`
     let agents: unknown[] = []
     await stubLive(page, () => agents)
+    await page.addInitScript(() => localStorage.setItem('agent-active-view', 'cost'))
 
     // First read writes the server baseline (R12); activity must be newer than it.
     const [baselineRes] = await Promise.all([
@@ -238,6 +239,7 @@ test.describe('put away persists', () => {
     try {
       const page2 = await other.newPage()
       await stubLive(page2, () => agents)
+      await page2.addInitScript(() => localStorage.setItem('agent-active-view', 'cost'))
       await page2.goto('/')
       await expect(shown(page2, controlSid)).toBeVisible()
       await expect(shown(page2, sid)).toHaveCount(0)
@@ -258,4 +260,29 @@ test.describe('put away persists', () => {
     })
     expect(res.status()).toBe(400)
   })
+})
+
+test('the docked hub queue leaves out finished agents but keeps permissions', async ({ page }) => {
+  await stubPermissions(page, ['p1'])
+  await stubAgents(page, [{
+    pid: 4343,
+    sessionId: `e2e-${Date.now()}-dock`,
+    provider: 'claude',
+    projectName: 'dock-proj',
+    projectPath: '/repo/dock-proj',
+    cwd: '/repo/dock-proj',
+    status: 'finished',
+    working: false,
+    lastActivity: new Date(Date.now() + 60_000).toISOString(),
+    uptime: 120,
+    channelAvailable: false,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 },
+    costEstimate: 0,
+    lastTools: [],
+    tasks: [],
+    subagents: [],
+  }])
+  await page.goto('/')
+  await expect(card(page)).toBeVisible()
+  await expect(page.locator('[data-testid="needs-you"] li[data-key^="finished:"]')).toHaveCount(0)
 })

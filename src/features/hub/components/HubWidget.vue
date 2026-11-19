@@ -8,6 +8,7 @@ import type { WidgetId } from '@/features/workspace'
 import type { Agent } from '@/types'
 import { useElementSize, useEventListener, useNow } from '@vueuse/core'
 import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { DOCKED_KINDS } from '@/composables/needsYouPlacement'
 import { NEEDS_YOU, OPEN_SETTINGS } from '@/composables/openTask'
 import { useProjects } from '@/composables/useProjects'
 import { useSidebar } from '@/composables/useSidebar'
@@ -306,12 +307,13 @@ const breadcrumb = computed(() => {
 const otherPages = computed(() => layout.value.pages.filter(p => p.id !== ZENTRALE_PAGE_ID))
 const launchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value))
 const listLaunchers = computed(() => launchersFor(NAV_ITEMS, otherPages.value, activeView.value, Infinity))
+const dockedQueue = computed(() => needsYou.value.filter(t => DOCKED_KINDS.includes(t.kind)))
 const queueWrapper = ref<HTMLElement | null>(null)
 const { height: queueHeight } = useElementSize(queueWrapper)
 // A pending question can grow the queue to its cap; an empty one is as tall as it measures (card, breadcrumb, notice).
 const queueBox = computed<LabelBox>(() => {
   const worstCase = queueWorstCaseBox(size.value.width, size.value.height)
-  return needsYou.value.length > 0 ? worstCase : { ...worstCase, h: queueHeight.value }
+  return dockedQueue.value.length > 0 ? worstCase : { ...worstCase, h: queueHeight.value }
 })
 // The lens row and the zoom-level group are text-sized, so they are measured; an unmeasured one is 0 wide and blocks nothing.
 const lensRow = ref<HTMLElement | null>(null)
@@ -770,9 +772,10 @@ watch(hubFocusRequest, (target) => {
       </span>
       <NeedsYouQueue
         variant="docked"
+        :kinds="DOCKED_KINDS"
         data-hub-layer
         class="pointer-events-auto min-h-0 w-full overflow-y-auto rounded-[10px] border bg-card/95 px-2.5 py-2 shadow-lg"
-        :class="needsYou.length > 0 ? 'border-warning-line' : 'border-line'"
+        :class="dockedQueue.length > 0 ? 'border-warning-line' : 'border-line'"
       />
       <div
         v-if="graphNotice"
