@@ -17,7 +17,7 @@
 - Fail fast in core, validate at the boundary. `PUT /api/attention/marks` is idempotent.
 - SSOT: `agentOutcome` (useNextThing.ts) owns the failed/finished rule; `NextThing.key` owns item identity; `fleetBucket` (agentGroup.ts) owns the chip partition; `useAttentionMarks` owns marks state.
 - Schema change is additive via ent `Schema.Create`. No down migration; spec ruling R7 gives the manual rollback SQL. Every PR body states this.
-- Ent codegen: `go test -tags entgen ./server/internal/db/entgen/ -count=1` from repo root. Commit only generated files for `AttentionMark`.
+- Ent codegen: `go test -tags entgen ./server/internal/db/entgen/ -count=1` from repo root. Commit only generated files for `AttentionMark` and `AttentionBaseline`.
 - Route changes: `cd server && go test ./internal/api -run 'TestRouteGolden' -update-golden`, and add the handler to `buildBypassRouter` (`server/internal/api/bypass_auth_smoke_test.go`).
 - `pnpm build` wipes `server/frontend/dist/.gitkeep`; restore with `git checkout HEAD -- server/frontend/dist/.gitkeep` before committing.
 - Each task commits its RED test first, then the implementation. Conventional Commits.
@@ -298,7 +298,7 @@ DashboardView: `const fleet = ref<FleetFilter>('all')`; `preChip` = filtered by 
 **Files:**
 - Modify: `tests/e2e/attention.spec.ts`
 
-- [ ] **Step 1: Test:** stub one finished agent with session id `e2e-${Date.now()}` (avoids leftover marks, spec Q1). On the Zentrale the card shows; click "Put away" → card gone; `page.reload()` → still gone; open a second `browser.newContext()` page → gone there too. Then stub the same agent with a later `lastActivity` → the card is back. Separately: `request.put('/api/attention/marks', { headers: { Origin: baseURL }, data: { key: 'bad key', seenThrough: 'x' } })` → 400.
+- [ ] **Step 1: Test:** load the page once first so the server writes its baseline (spec R12), then stub one finished agent with session id `e2e-${Date.now()}` (avoids leftover marks, spec Q1) and `lastActivity` = `new Date().toISOString()` taken after that load, so the item is newer than the baseline. Also assert a finished agent with `lastActivity` `2020-01-01T00:00:00Z` never shows (baseline cutoff). On the Zentrale the card shows; click "Put away" → card gone; `page.reload()` → still gone; open a second `browser.newContext()` page → gone there too. Then stub the same agent with a later `lastActivity` → the card is back. Separately: `request.put('/api/attention/marks', { headers: { Origin: baseURL }, data: { key: 'bad key', seenThrough: 'x' } })` → 400.
 - [ ] **Step 2: Run** `pnpm test:e2e tests/e2e/attention.spec.ts` → PASS. Commit `test(e2e): put away survives reload and syncs across contexts`.
 
 ### Task 13: Docs
