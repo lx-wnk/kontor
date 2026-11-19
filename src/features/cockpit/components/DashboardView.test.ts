@@ -96,4 +96,26 @@ describe('dashboardView', () => {
     expect([label('all'), label('needsYou'), label('working'), label('idle')]).toEqual(['All 5', 'Needs you 2', 'Working 1', 'Idle or done 2'])
     wrapper.unmount()
   })
+
+  it('explains an emptied filter instead of claiming nothing runs, and Show all restores the roster', async () => {
+    const make = (pid: number) => ({ pid, sessionId: `s${pid}`, projectName: 'p', projectId: 'p1', lastActivity: new Date().toISOString(), status: 'active', working: true }) as unknown as Agent
+    useViewState().dashboardProject.value = 'all'
+    useAgents({ autoStart: false }).agents.value = [make(1), make(2), make(3)]
+    const wrapper = mount(DashboardView, {
+      props: { permissionItems: [], focusedSessionId: null },
+      global: { stubs },
+    })
+
+    await wrapper.get('[data-testid="fleet-chip-needsYou"]').trigger('click')
+
+    expect(wrapper.text()).toContain('No agents match this filter.')
+    expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="fleet-show-all"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="fleet-chip-all"]').attributes('aria-pressed')).toBe('true')
+    expect((wrapper.vm as any).rosterAgents).toHaveLength(3)
+    expect(wrapper.text()).not.toContain('No agents match this filter.')
+    wrapper.unmount()
+  })
 })

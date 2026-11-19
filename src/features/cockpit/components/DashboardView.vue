@@ -35,9 +35,7 @@ const { nowMs } = useNow()
 
 const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(null)
 
-// Dashboard roster: project + spawner filter → fleet chip → sort → optional
-// grouping. Project options list every known project (pre-filter) so the
-// dropdown stays stable; chip counts come from the list before the chip filter.
+// Chip counts come from the list before the chip filter.
 const fleet = ref<FleetFilter>('all')
 const secsOf = (a: Agent) => secondsSince(a.lastActivity, nowMs.value)
 const preChipAgents = computed(() => {
@@ -55,6 +53,7 @@ const rosterAgents = computed(() => {
     : preChipAgents.value.filter(a => fleetBucket(a, secsOf(a)) === fleet.value)
   return sortAgents(base, dashboardSort.value, nowMs.value)
 })
+const chipEmptiedRoster = computed(() => fleet.value !== 'all' && preChipAgents.value.length > 0 && rosterAgents.value.length === 0)
 const rosterGroups = computed(() => groupAgents(rosterAgents.value, dashboardGroup.value))
 const projectOptions = computed(() => [
   { value: 'all', label: 'All projects' },
@@ -115,7 +114,13 @@ defineExpose({ rosterAgents })
     @update:group-by="setDashboardGroup($event)"
     @update:search-query="searchQuery = $event"
   />
-  <template v-if="dashboardLayout === 'list'">
+  <div v-if="chipEmptiedRoster" class="flex items-center gap-3 py-8 text-[13px] text-fg-mute">
+    <span>No agents match this filter.</span>
+    <button type="button" data-testid="fleet-show-all" class="cursor-pointer rounded-full border border-line-strong px-3 py-1 text-[12px] text-fg focus-visible:outline-2 focus-visible:outline-accent" @click="fleet = 'all'">
+      Show all
+    </button>
+  </div>
+  <template v-else-if="dashboardLayout === 'list'">
     <EmptyAgentState v-if="rosterAgents.length === 0" :search-query="searchQuery" />
     <AgentTable v-else :agents="rosterAgents" :groups="rosterGroups" @select="selectAgent" />
   </template>

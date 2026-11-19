@@ -10,7 +10,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: FleetFilter] }>()
 </script>
 
 <template>
-  <div role="group" aria-label="Filter agents" class="mb-3 flex flex-wrap gap-2">
+  <div role="group" aria-label="Filter agents by state" class="mb-3 flex flex-wrap gap-2">
     <button
       v-for="filter in FLEET_FILTERS"
       :key="filter.value"

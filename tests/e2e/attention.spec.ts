@@ -159,7 +159,7 @@ test.describe('fleet filter chips', () => {
     await stubAgents(page, [asking, agent(2, {})])
     await page.goto('/')
 
-    const chips = page.getByRole('group', { name: 'Filter agents' })
+    const chips = page.getByRole('group', { name: 'Filter agents by state' })
     await expect(chips.getByRole('button', { name: 'All 2' })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('agent-card-project')).toHaveCount(2)
 

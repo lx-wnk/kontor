@@ -17,7 +17,7 @@ describe('fleetFilterChips', () => {
   it('exposes a labelled group and presses only the active chip', () => {
     const wrapper = mountChips('working')
     const group = wrapper.get('[role="group"]')
-    expect(group.attributes('aria-label')).toBe('Filter agents')
+    expect(group.attributes('aria-label')).toBe('Filter agents by state')
     expect(wrapper.findAll('button').map(b => b.attributes('aria-pressed'))).toEqual(['false', 'false', 'true', 'false'])
   })
 
