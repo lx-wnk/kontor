@@ -316,3 +316,19 @@ Content:
 - [ ] **Step 1:** Verify every doc claim against the merged code (`grep` each named symbol).
 - [ ] **Step 2: Run** all gates from Global Constraints, paste raw output.
 - [ ] **Step 3: Commit** `docs: document the attention inbox`.
+
+### Task 14: Keep finished turns out of the docked hub queue
+
+User decision 2026-11-19 (spec R13). Many idle agents otherwise fill the docked box and cover map dots.
+
+**Files:**
+- Modify: `src/composables/needsYouPlacement.ts` (export `DOCKED_KINDS`, every `NextKind` except `finished`; `pageHasHub` → `{ strip: false, kinds: DOCKED_KINDS }`)
+- Modify: `src/features/hub/components/HubWidget.vue` (docked `NeedsYouQueue` gets `:kinds="DOCKED_KINDS"`)
+- Test: `src/composables/__tests__/needsYouPlacement.test.ts`; `tests/e2e/attention.spec.ts` if a hub-page case needs it
+- Modify: `README.md` (one line: the Zentrale dock leaves out finished turns; the title count still counts them)
+
+Rules: `triageList` in App.vue already filters by `needsYouPlace.kinds`, so the keys and the dock agree with no App.vue change. The title count, the strip on other views and `needsYou` stay unfiltered. `DOCKED_KINDS` derives from the `NextKind` list in one place (no second hand-written list that can drift: build it from `KIND_RANK` keys or an exported kinds array).
+
+- [ ] **Step 1: RED:** `needsYouPlacement({ view: 'zentrale', pageHasHub: true, error: false })` → `{ strip: false, kinds }` with `kinds` containing every kind except `finished`; error and dashboard cases unchanged. HubWidget passes the same kinds (unit or e2e: a finished agent on a hub page does not show in the dock, a permission does).
+- [ ] **Step 2: Implement.**
+- [ ] **Step 3: Gates** `pnpm lint && pnpm typecheck && pnpm test`, `rm -f bin/kontor && pnpm test:e2e tests/e2e/attention.spec.ts tests/e2e/hub.spec.ts tests/e2e/zentrale.spec.ts`. Commit `feat(hub): keep finished turns out of the docked queue`.
