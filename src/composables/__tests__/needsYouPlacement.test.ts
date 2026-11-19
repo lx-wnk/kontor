@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { NextThing } from '@/features/mission'
 import { KIND_RANK } from '@/features/mission/composables/useNextThing'
-import { DOCKED_KINDS, needsYouPlacement } from '../needsYouPlacement'
+import { DOCKED_KINDS, needsYouPlacement, triageKeysActive, triageListFor } from '../needsYouPlacement'
 
 describe('needsYouPlacement', () => {
   it('docks into the hub on a workspace page that holds one, without finished turns', () => {
@@ -30,5 +31,32 @@ describe('needsYouPlacement', () => {
   it('is a strip on every other core view', () => {
     for (const view of ['cloud', 'workflows', 'pipeline', 'cost', 'schedules', 'eval'] as const)
       expect(needsYouPlacement({ view, pageHasHub: false, error: false })).toEqual({ strip: true })
+  })
+})
+
+const things = (['permission', 'plan', 'finished', 'failed'] as const).map(kind => ({ kind, key: `${kind}:s` }) as NextThing)
+
+describe('triageListFor', () => {
+  it('drops finished turns under the hub placement', () => {
+    expect(triageListFor(things, needsYouPlacement({ view: 'zentrale', pageHasHub: true, error: false })).map(t => t.kind)).toEqual(['permission', 'plan', 'failed'])
+  })
+
+  it('keeps only plan reviews under the dashboard placement', () => {
+    expect(triageListFor(things, needsYouPlacement({ view: 'dashboard', pageHasHub: false, error: false })).map(t => t.kind)).toEqual(['plan'])
+  })
+
+  it('keeps every item under the error placement', () => {
+    expect(triageListFor(things, needsYouPlacement({ view: 'zentrale', pageHasHub: true, error: true }))).toEqual(things)
+  })
+})
+
+describe('triageKeysActive', () => {
+  it('is false without a mounted queue or without items', () => {
+    expect(triageKeysActive(0, things)).toBe(false)
+    expect(triageKeysActive(1, [])).toBe(false)
+  })
+
+  it('is true with a mounted queue and items', () => {
+    expect(triageKeysActive(2, things)).toBe(true)
   })
 })

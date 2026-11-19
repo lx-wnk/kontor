@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/features/mission', async importOriginal => ({
   ...(await importOriginal<typeof import('@/features/mission')>()),
   markSeen: vi.fn(async () => {}),
+  markOutcomeSeen: vi.fn(async () => {}),
 }))
 
 let PromptInput: any
@@ -236,11 +237,11 @@ describe('promptInput interactive commands', () => {
 })
 
 describe('promptInput clears a failed needs-you item on send', () => {
-  let markSeen: ReturnType<typeof vi.fn>
+  let markOutcomeSeen: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
-    markSeen = (await import('@/features/mission')).markSeen as unknown as ReturnType<typeof vi.fn>
-    markSeen.mockClear()
+    markOutcomeSeen = (await import('@/features/mission')).markOutcomeSeen as unknown as ReturnType<typeof vi.fn>
+    markOutcomeSeen.mockClear()
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (url.endsWith('/message'))
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
@@ -257,14 +258,10 @@ describe('promptInput clears a failed needs-you item on send', () => {
     await flushPromises()
   }
 
-  it('marks the failed item seen once an accepted send reaches the agent', async () => {
-    await sendText(makeAgent({ sessionId: 's1', errorState: 'quota_exhausted', lastActivity: '2026-11-19T10:00:00Z' }))
-    expect(markSeen).toHaveBeenCalledTimes(1)
-    expect(markSeen).toHaveBeenCalledWith('failed:s1', '2026-11-19T10:00:00Z')
-  })
-
-  it('does not mark anything seen for a healthy working agent', async () => {
-    await sendText(makeAgent({ sessionId: 's2', status: 'active', lastActivity: '2026-11-19T10:00:00Z' }))
-    expect(markSeen).not.toHaveBeenCalled()
+  it('marks the failed outcome seen once an accepted send reaches the agent', async () => {
+    const agent = makeAgent({ sessionId: 's1', errorState: 'quota_exhausted', lastActivity: '2026-11-19T10:00:00Z' })
+    await sendText(agent)
+    expect(markOutcomeSeen).toHaveBeenCalledTimes(1)
+    expect(markOutcomeSeen).toHaveBeenCalledWith(agent, 'failed')
   })
 })

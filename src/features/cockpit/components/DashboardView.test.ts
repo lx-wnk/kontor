@@ -1,6 +1,7 @@
 import type { Agent } from '@/types'
+import type { VueWrapper } from '@vue/test-utils'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useViewState } from '@/composables/useViewState'
 import { useAgents } from '@/features/agents'
@@ -46,6 +47,11 @@ function mountWithStoredProject(stored: string, agents: any[]) {
 }
 
 describe('dashboardView', () => {
+  const attached: VueWrapper[] = []
+  afterEach(() => {
+    attached.splice(0).forEach(w => w.unmount())
+  })
+
   it('migrates a stored project name to that project\'s key', () => {
     const wrapper = mountWithStoredProject('Kontor', [{ projectId: 'p1', projectName: 'Kontor' }])
     expect(useViewState().dashboardProject.value).toBe('p1')
@@ -65,6 +71,7 @@ describe('dashboardView', () => {
       props: { permissionItems: [], focusedSessionId: null },
       global: { stubs },
     })
+    attached.push(wrapper)
 
     expect(wrapper.find('[data-testid="triage-band"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="dashboard-toolbar"]').exists()).toBe(true)
@@ -107,6 +114,7 @@ describe('dashboardView', () => {
       props: { permissionItems: [], focusedSessionId: null },
       global: { stubs },
     })
+    attached.push(wrapper)
 
     await wrapper.get('[data-testid="fleet-chip-needsYou"]').trigger('click')
 
@@ -122,6 +130,5 @@ describe('dashboardView', () => {
     expect(wrapper.get('[data-testid="fleet-chip-all"]').attributes('aria-pressed')).toBe('true')
     expect((wrapper.vm as any).rosterAgents).toHaveLength(3)
     expect(wrapper.text()).not.toContain('No agents match this filter.')
-    wrapper.unmount()
   })
 })
