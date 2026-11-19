@@ -1,8 +1,9 @@
+import type { Ref } from 'vue'
 import type { NextThing } from '../composables/useNextThing'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { computed, nextTick, ref } from 'vue'
-import { NEEDS_YOU, NEEDS_YOU_FOCUS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
+import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 
 const items = ref<NextThing[]>([
   { kind: 'permission', key: 'permission:t1', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
@@ -30,7 +31,7 @@ const { default: NeedsYouQueue } = await import('../components/NeedsYouQueue.vue
 // App.vue is the one owner of usePendingPermissions(tasks) (SSOT) — every
 // mount here provides a fresh stand-in instead of letting the component reach
 // for a second, out-of-sync cache.
-function mountQueue(variant: 'docked' | 'strip', overrides: { openTask?: (taskId: string) => void, refresh?: () => void, kinds?: NextThing['kind'][], focused?: string | null } = {}) {
+function mountQueue(variant: 'docked' | 'strip', overrides: { queues?: Ref<number>, openTask?: (taskId: string) => void, refresh?: () => void, kinds?: NextThing['kind'][], focused?: string | null } = {}) {
   return mount(NeedsYouQueue, {
     props: { variant, kinds: overrides.kinds },
     global: {
@@ -39,6 +40,7 @@ function mountQueue(variant: 'docked' | 'strip', overrides: { openTask?: (taskId
         [PENDING_PERMISSIONS]: { items: ref([]), refresh: overrides.refresh ?? vi.fn() },
         [OPEN_TASK]: overrides.openTask ?? vi.fn(),
         [NEEDS_YOU_FOCUS]: ref(overrides.focused ?? null),
+        [NEEDS_YOU_QUEUES]: overrides.queues ?? ref(0),
       },
     },
   })
@@ -135,16 +137,27 @@ describe('needsYouQueue', () => {
     items.value = [perm('p1'), perm('p2')]
     const focused = ref<string | null>(null)
     const scrollIntoView = vi.fn()
-    Element.prototype.scrollIntoView = scrollIntoView
+    Element.prototype.scrollIntoView ??= () => {}
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(scrollIntoView)
     const w = mount(NeedsYouQueue, {
       props: { variant: 'docked' },
       attachTo: document.body,
-      global: { provide: { [NEEDS_YOU]: computed(() => items.value), [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() }, [OPEN_TASK]: vi.fn(), [NEEDS_YOU_FOCUS]: focused } },
+      global: { provide: { [NEEDS_YOU]: computed(() => items.value), [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() }, [OPEN_TASK]: vi.fn(), [NEEDS_YOU_FOCUS]: focused, [NEEDS_YOU_QUEUES]: ref(0) } },
     })
     focused.value = 'permission:p2'
     await nextTick()
     await nextTick()
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    spy.mockRestore()
     w.unmount()
+  })
+
+  it('counts itself in the provided queue count while mounted', () => {
+    items.value = [perm('t1')]
+    const queues = ref(0)
+    const w = mountQueue('docked', { queues })
+    expect(queues.value).toBe(1)
+    w.unmount()
+    expect(queues.value).toBe(0)
   })
 })

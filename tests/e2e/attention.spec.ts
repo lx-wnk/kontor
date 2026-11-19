@@ -28,29 +28,29 @@ const TASK = {
   needsUser: false,
   hasPendingPermissions: true,
 }
-const REQUEST = { id: 'p1', stageRunId: 'sr1', tool: 'Bash', pattern: 'ls', reason: null, requestedAt: NOW, resolvedAt: null, outcome: null }
+const request = (id: string) => ({ id, stageRunId: 'sr1', tool: 'Bash', pattern: id, reason: null, requestedAt: NOW, resolvedAt: null, outcome: null })
 
-async function stubPermission(page: Page): Promise<{ resolved: () => unknown }> {
+async function stubPermissions(page: Page, ids: string[]): Promise<{ resolved: () => Array<{ id: string, decision: unknown }> }> {
   await stubAuthDisabled(page)
   await stubAgents(page)
   await stubJson(page, '/api/projects', [])
   await stubEmptyStream(page, '/api/projects/stream')
   await stubJson(page, '/api/tasks', [TASK])
   await stubEmptyStream(page, '/api/tasks/stream')
-  await stubJson(page, '/api/tasks/t1/permission-requests', [REQUEST])
-  let body: unknown = null
-  await page.route('/api/tasks/t1/permission-requests/p1/resolve', async (route) => {
-    body = route.request().postDataJSON()
+  await stubJson(page, '/api/tasks/t1/permission-requests', ids.map(request))
+  const resolved: Array<{ id: string, decision: unknown }> = []
+  await page.route(/\/api\/tasks\/t1\/permission-requests\/([^/]+)\/resolve$/, async (route) => {
+    resolved.push({ id: route.request().url().split('/').slice(-2)[0]!, decision: route.request().postDataJSON().decision })
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  return { resolved: () => body }
+  return { resolved: () => resolved }
 }
 
-const card = (page: Page) => page.locator('[data-testid="needs-you"] li[data-key="permission:p1"]').first()
+const card = (page: Page, id = 'p1') => page.locator(`[data-testid="needs-you"] li[data-key="permission:${id}"]`).first()
 
 test.describe('triage keys on every view', () => {
   test('n focuses the first card and a approves it on the Zentrale', async ({ page }) => {
-    const stub = await stubPermission(page)
+    const stub = await stubPermissions(page, ['p1'])
     await page.goto('/')
     await parkPointerOffNav(page)
     await expect(card(page)).toBeVisible()
@@ -60,11 +60,11 @@ test.describe('triage keys on every view', () => {
     await expect(card(page)).toHaveAttribute('aria-current', 'true')
 
     await page.keyboard.press('a')
-    await expect.poll(stub.resolved).toEqual({ decision: 'allow_once' })
+    await expect.poll(stub.resolved).toEqual([{ id: 'p1', decision: 'allow_once' }])
   })
 
   test('typing n in the spotlight input does not move focus', async ({ page }) => {
-    await stubPermission(page)
+    await stubPermissions(page, ['p1'])
     await page.goto('/')
     await parkPointerOffNav(page)
     await expect(card(page)).toBeVisible()
@@ -74,5 +74,50 @@ test.describe('triage keys on every view', () => {
     await input.fill('')
     await input.press('n')
     await expect(page.locator('[data-testid="needs-you"] li[aria-current="true"]')).toHaveCount(0)
+  })
+  test('Shift+A approves exactly the listed permissions', async ({ page }) => {
+    const stub = await stubPermissions(page, ['p1', 'p2'])
+    await page.goto('/')
+    await parkPointerOffNav(page)
+    await expect(card(page, 'p2')).toBeVisible()
+
+    await page.keyboard.press('Shift+A')
+    await expect.poll(() => stub.resolved().map(r => r.id).sort()).toEqual(['p1', 'p2'])
+    expect(stub.resolved().every(r => r.decision === 'allow_once')).toBe(true)
+  })
+
+  test('n then d denies the focused permission once', async ({ page }) => {
+    const stub = await stubPermissions(page, ['p1'])
+    await page.goto('/')
+    await parkPointerOffNav(page)
+    await expect(card(page)).toBeVisible()
+
+    await page.keyboard.press('n')
+    await expect(card(page)).toHaveAttribute('aria-current', 'true')
+    await page.keyboard.press('d')
+    await expect.poll(stub.resolved).toEqual([{ id: 'p1', decision: 'deny_once' }])
+  })
+
+  test('Shift+A does nothing while the hub has not mounted its queue', async ({ page }) => {
+    const stub = await stubPermissions(page, ['p1', 'p2'])
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route('**/assets/WorkspacePage-*.js', async (route) => {
+      await held
+      await route.continue()
+    })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await parkPointerOffNav(page)
+    await expect(page).toHaveTitle(/^\(2\)/)
+    await expect(page.locator('[data-testid="needs-you"]')).toHaveCount(0)
+
+    await page.keyboard.press('Shift+A')
+    await page.waitForTimeout(500)
+    expect(stub.resolved()).toEqual([])
+
+    release()
+    await expect(card(page, 'p2')).toBeVisible()
   })
 })

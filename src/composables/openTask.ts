@@ -16,5 +16,8 @@ export const NEEDS_YOU: InjectionKey<ComputedRef<NextThing[]>> = Symbol('needsYo
 // App.vue owns the key handler and provides the focused needs-you key; the queue reads it to highlight the row.
 export const NEEDS_YOU_FOCUS: InjectionKey<Ref<string | null>> = Symbol('needsYouFocus')
 
+// Counts the mounted needs-you queues; App.vue's keys act only while one is on screen.
+export const NEEDS_YOU_QUEUES: InjectionKey<Ref<number>> = Symbol('needsYouQueues')
+
 // App.vue owns the settings panel; the hub opens it through this.
 export const OPEN_SETTINGS: InjectionKey<() => void> = Symbol('openSettings')

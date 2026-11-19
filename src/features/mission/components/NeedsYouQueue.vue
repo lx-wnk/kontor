@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NextKind } from '../composables/useNextThing'
-import { computed, inject, nextTick, ref, watch } from 'vue'
-import { NEEDS_YOU, NEEDS_YOU_FOCUS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 import { markSeen } from '../composables/useAttentionMarks'
 import NextThing from './NextThing.vue'
 
@@ -11,8 +11,15 @@ const props = defineProps<{ variant: 'docked' | 'strip', kinds?: NextKind[] }>()
 const needsYou = inject(NEEDS_YOU)
 const openTask = inject(OPEN_TASK)
 const focusedKey = inject(NEEDS_YOU_FOCUS)
-if (!needsYou || !openTask || !focusedKey)
-  throw new Error('NeedsYouQueue requires NEEDS_YOU, NEEDS_YOU_FOCUS and OPEN_TASK from App.vue')
+const queueCount = inject(NEEDS_YOU_QUEUES)
+if (!needsYou || !openTask || !focusedKey || !queueCount)
+  throw new Error('NeedsYouQueue requires NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES and OPEN_TASK from App.vue')
+onMounted(() => {
+  queueCount.value++
+})
+onUnmounted(() => {
+  queueCount.value--
+})
 // App.vue provides the one usePendingPermissions(tasks) instance — a local
 // call here would open a second, out-of-sync cache.
 const pendingPermissions = inject(PENDING_PERMISSIONS)

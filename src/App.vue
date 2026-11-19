@@ -20,7 +20,7 @@ import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
 import { needsYouPlacement } from './composables/needsYouPlacement'
-import { NEEDS_YOU, NEEDS_YOU_FOCUS, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
+import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
 import { usePendingPermissions } from './composables/usePendingPermissions'
@@ -212,6 +212,8 @@ const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value,
 const triageList = computed(() => needsYouPlace.value.kinds ? needsYou.value.filter(t => needsYouPlace.value.kinds!.includes(t.kind)) : needsYou.value)
 const triage = useNeedsYouTriage(triageList, pendingPermissions.refresh)
 provide(NEEDS_YOU_FOCUS, triage.focusedKey)
+const needsYouQueues = ref(0)
+provide(NEEDS_YOU_QUEUES, needsYouQueues)
 
 // Keyboard focus for the triage band: `n` cycles attention agents (wrapping).
 const focusedSessionId = ref<string | null>(null)
@@ -240,6 +242,8 @@ function resolveFocused(outcome: 'granted' | 'denied') {
 }
 
 function handleTriageKey(e: KeyboardEvent, key: string) {
+  if (needsYouQueues.value === 0 || triageList.value.length === 0)
+    return
   if (key === 'n') {
     e.preventDefault()
     triage.focusNext()
