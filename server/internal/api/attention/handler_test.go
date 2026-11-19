@@ -1,6 +1,7 @@
 package attention_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -63,6 +64,7 @@ func TestPut_Rejects(t *testing.T) {
 		"empty key":        `{"key":"","seenThrough":"` + ts + `"}`,
 		"uppercase kind":   `{"key":"Finished:s1","seenThrough":"` + ts + `"}`,
 		"space in id":      `{"key":"finished:a b","seenThrough":"` + ts + `"}`,
+		"kind too long":    `{"key":"` + strings.Repeat("a", 32) + `:x","seenThrough":"` + ts + `"}`,
 		"id too long":      `{"key":"finished:` + strings.Repeat("a", 129) + `","seenThrough":"` + ts + `"}`,
 		"bad time":         `{"key":"finished:s1","seenThrough":"yesterday"}`,
 		"zero time":        `{"key":"finished:s1","seenThrough":"0001-01-01T00:00:00Z"}`,
@@ -154,5 +156,25 @@ func TestList_BaselineStable(t *testing.T) {
 	h, _ := setup(t)
 	if a, b := get(t, h).Baseline, get(t, h).Baseline; a != b {
 		t.Fatalf("baseline changed: %s vs %s", a, b)
+	}
+}
+
+func TestPut_AcceptsTrailingNewline(t *testing.T) {
+	h, _ := setup(t)
+	rec := do(h, http.MethodPut, "/api/attention/marks", `{"key":"failed:s1","seenThrough":"2026-11-19T10:00:00Z"}`+"\n")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body)
+	}
+}
+
+func TestStream_FirstFrameIsReady(t *testing.T) {
+	h, _ := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, "/api/attention/stream", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got, want := rec.Body.String(), "data: {\"type\":\"attention_ready\"}\n\n"; got != want {
+		t.Fatalf("first frame = %q, want %q", got, want)
 	}
 }
