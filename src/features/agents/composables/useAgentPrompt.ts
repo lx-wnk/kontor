@@ -3,6 +3,7 @@ import type { TrackedMessage } from '@/features/agents/composables/deliveryState
 import type { Agent, OutputMessage } from '@/types'
 import { onUnmounted, ref } from 'vue'
 import { dispatchSlashCommand, parseSlashCommand, SLASH_COMMAND_DEFS } from '@/composables/useSlashCommands'
+import { agentOutcome, markSeen } from '@/features/mission'
 import { errorMessage } from '@/utils/errorMessage'
 import { addPending } from '@/utils/pendingMessages'
 import { BACKGROUND_SYNC_TAG } from '@/utils/swConstants'
@@ -131,6 +132,8 @@ export function useAgentPrompt(
       }
       updateTracked(trackId, { state: 'sent', serverText })
       sendStatus.value = 'sent'
+      if (mode === 'inject' && agentOutcome(agent) === 'failed')
+        void markSeen(`failed:${agent.sessionId}`, agent.lastActivity)
     }
     catch (err) {
       if (isNetworkFailure(err)) {
