@@ -2,7 +2,7 @@ import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import { describe, expect, it } from 'vitest'
-import { KIND_RANK, rankNextThings, WHY } from '../composables/useNextThing'
+import { DOCKED_KINDS, KIND_RANK, outcomeKey, rankNextThings, WHY } from '../composables/useNextThing'
 
 function task(id: string, over: Partial<PipelineTask> = {}): PipelineTask {
   return { id, slug: id, title: `task ${id}`, currentStage: 'implementation', cwd: '/repo', ...over } as PipelineTask
@@ -235,5 +235,31 @@ describe('rankNextThings', () => {
       )
       expect(out.map(n => n.kind)).toEqual(['permission', 'question', 'dialog', 'capability', 'plan', 'failed', 'finished'])
     })
+
+    it('keeps one item per key, the one with the latest since', () => {
+      const out = rankNextThings([], [], [
+        agent(1, { sessionId: 'same', status: 'finished', lastActivity: '2026-11-19T10:00:00Z' }),
+        agent(2, { sessionId: 'same', status: 'finished', lastActivity: '2026-11-19T11:00:00Z' }),
+      ])
+      expect(out).toHaveLength(1)
+      expect(out[0]).toMatchObject({ key: 'finished:same', pid: 2, since: '2026-11-19T11:00:00Z' })
+    })
+
+    it('orders failed and finished items by how long they waited', () => {
+      const out = rankNextThings([], [], [
+        agent(1, { sessionId: 'new', status: 'finished', lastActivity: '2026-11-19T11:00:00Z' }),
+        agent(2, { sessionId: 'old', status: 'finished', lastActivity: '2026-11-19T09:00:00Z' }),
+      ])
+      expect(out.map(n => n.key)).toEqual(['finished:old', 'finished:new'])
+    })
+
+    it('builds outcome keys with the same function the ranking uses', () => {
+      expect(outcomeKey('failed', 's9')).toBe('failed:s9')
+    })
+  })
+
+  it('docks every kind but finished', () => {
+    expect(DOCKED_KINDS).not.toContain('finished')
+    expect([...DOCKED_KINDS].sort()).toEqual(Object.keys(KIND_RANK).filter(k => k !== 'finished').sort())
   })
 })

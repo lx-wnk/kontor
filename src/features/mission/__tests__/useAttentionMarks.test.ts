@@ -1,5 +1,6 @@
 import type { NextKind, NextThing } from '../composables/useNextThing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { watch } from 'vue'
 import { isPutAway, visibleNextThings } from '../composables/useAttentionMarks'
 
 type Marks = typeof import('../composables/useAttentionMarks')
@@ -203,6 +204,23 @@ describe('newest mark wins', () => {
   })
 })
 
+describe('markOutcomeSeen', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('marks the outcome key at lastActivity, and does nothing when the agent shows another outcome', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    const { markOutcomeSeen } = await freshMarks()
+    const agent = { sessionId: 's1', status: 'finished', lastActivity: T } as never
+    await markOutcomeSeen(agent, 'failed')
+    expect(fetchMock).not.toHaveBeenCalled()
+    await markOutcomeSeen(agent, 'finished')
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({ key: 'finished:s1', seenThrough: T })
+  })
+})
+
 describe('stream', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -223,5 +241,35 @@ describe('stream', () => {
       data: JSON.stringify({ type: 'attention_marked', mark: { key: 'k:1', seenThrough: '2026-11-19T11:00:00Z' } }),
     } as MessageEvent)
     expect(marks.value.get('k:1')).toBe('2026-11-19T11:00:00Z')
+  })
+
+  it('ignores the attention_ready frame', async () => {
+    MockEventSource.instances = []
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ baseline: T, marks: [{ key: 'seed:1', seenThrough: T }] }),
+    }))
+    const { marks, baseline, start } = (await freshMarks()).useAttentionMarks()
+    start()
+    await vi.waitFor(() => expect(baseline.value).toBe(T))
+    const before = marks.value
+    MockEventSource.instances.at(-1)!.onmessage?.({ data: JSON.stringify({ type: 'attention_ready' }) } as MessageEvent)
+    expect(marks.value).toBe(before)
+  })
+
+  it('assigns the fetched marks in one step', async () => {
+    MockEventSource.instances = []
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ baseline: T, marks: [1, 2, 3].map(n => ({ key: `k:${n}`, seenThrough: T })) }),
+    }))
+    const { marks, start } = (await freshMarks()).useAttentionMarks()
+    const assigned = vi.fn()
+    watch(marks, assigned, { flush: 'sync' })
+    start()
+    await vi.waitFor(() => expect(marks.value.size).toBe(3))
+    expect(assigned).toHaveBeenCalledTimes(1)
   })
 })

@@ -14,10 +14,11 @@ const items = ref<NextThing[]>([
 vi.mock('../components/NextThing.vue', () => ({
   default: {
     props: ['next', 'position'],
-    emits: ['open', 'resolved'],
+    emits: ['open', 'resolved', 'putAway'],
     template: '<div>'
       + '<p data-testid="stub-next" :data-position="position">{{ next ? next.title : "calm" }}</p>'
       + '<button type="button" data-testid="stub-open" @click="$emit(\'open\', \'t1\')">open</button>'
+      + '<button type="button" data-testid="needs-you-put-away" aria-label="Put away until the agent posts something new" @click="$emit(\'putAway\')">put away</button>'
       + '<button type="button" data-testid="stub-resolved" @click="$emit(\'resolved\')">resolved</button>'
       + '</div>',
   },

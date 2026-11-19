@@ -1,6 +1,6 @@
 import type { NextThing } from '../composables/useNextThing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useCapabilityDecisions } from '@/features/agents'
 import { resolvePermissionRequest } from '@/features/pipeline'
 import { useNeedsYouTriage } from '../composables/useNeedsYouTriage'
@@ -16,10 +16,10 @@ function perm(id: string, taskId = 't1'): NextThing {
 const question = { kind: 'question', key: 'question:s1', taskId: '' } as NextThing
 const capability = { kind: 'capability', key: 'capability:c1', taskId: '', decision: { id: 'c1' } } as unknown as NextThing
 
-function setup(items: NextThing[]) {
+function setup(items: NextThing[], resetOn?: () => unknown) {
   const list = ref(items)
   const refresh = vi.fn()
-  const triage = useNeedsYouTriage(computed(() => list.value), refresh)
+  const triage = useNeedsYouTriage(computed(() => list.value), refresh, resetOn)
   return { list, refresh, ...triage }
 }
 
@@ -30,6 +30,16 @@ beforeEach(() => {
 })
 
 describe('useNeedsYouTriage', () => {
+  it('clears focus when the reset source changes, even though the focused item still exists', async () => {
+    const view = ref('zentrale')
+    const t = setup([perm('p1'), perm('p2')], () => view.value)
+    t.focusNext()
+    expect(t.focusedKey.value).toBe('permission:p1')
+    view.value = 'dashboard'
+    await nextTick()
+    expect(t.focusedKey.value).toBeNull()
+  })
+
   it('focusNext walks the list and wraps', () => {
     const t = setup([perm('p1'), question, capability])
     const seen: Array<string | null> = []

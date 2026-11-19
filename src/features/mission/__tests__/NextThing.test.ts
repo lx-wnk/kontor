@@ -199,6 +199,28 @@ describe('nextThing decision guard', () => {
     w.unmount()
   })
 
+  it('puts away only once the guard is released, and the handler path is blocked while armed', async () => {
+    vi.useFakeTimers()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    const putAway = w.get('[data-testid="needs-you-put-away"]')
+    expect(putAway.attributes('aria-label')).toBe('Put away until the agent posts something new')
+    expect(putAway.attributes('disabled')).toBeDefined()
+    const decideButton = w.get('[data-testid="mission-decide-allow_once"]').element as HTMLButtonElement
+    const putAwayButton = putAway.element as HTMLButtonElement
+    putAwayButton.disabled = false
+    decideButton.disabled = false
+    putAwayButton.click()
+    decideButton.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(w.emitted('putAway')).toBeUndefined()
+    expect(resolvePermissionRequest).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(500)
+    await w.get('[data-testid="needs-you-put-away"]').trigger('click')
+    expect(w.emitted('putAway')).toHaveLength(1)
+    w.unmount()
+  })
+
   it('keeps an armed card armed when a refresh rebuilds the same item', async () => {
     vi.useFakeTimers()
     const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
