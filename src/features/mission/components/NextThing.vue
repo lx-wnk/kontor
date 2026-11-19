@@ -37,7 +37,7 @@ const DECISION_GUARD_MS = 500
 const guarding = ref(true)
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(() => [props.next?.key, props.position], () => {
+watch([() => props.next?.key, () => props.position], () => {
   guarding.value = true
   if (guardTimer)
     clearTimeout(guardTimer)

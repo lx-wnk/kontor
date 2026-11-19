@@ -199,6 +199,15 @@ describe('nextThing decision guard', () => {
     w.unmount()
   })
 
+  it('keeps an armed card armed when a refresh rebuilds the same item', async () => {
+    vi.useFakeTimers()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    await vi.advanceTimersByTimeAsync(500)
+    await w.setProps({ next: { ...permission } })
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
+    w.unmount()
+  })
+
   it('disables the answer controls for 500ms after the shown question changes, then sends', async () => {
     vi.useFakeTimers()
     const w = mountNext(question)
