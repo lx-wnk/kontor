@@ -5,9 +5,9 @@ import { computed, nextTick, ref } from 'vue'
 import { NEEDS_YOU, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 
 const items = ref<NextThing[]>([
-  { kind: 'permission', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
-  { kind: 'permission', taskId: 't2', taskTitle: 'Second', projectName: 'Dashboard', stage: 'implementation', title: 'Second', why: 'w' },
-  { kind: 'permission', taskId: 't3', taskTitle: 'Third', projectName: 'Dashboard', stage: 'implementation', title: 'Third', why: 'w' },
+  { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
+  { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't2', taskTitle: 'Second', projectName: 'Dashboard', stage: 'implementation', title: 'Second', why: 'w' },
+  { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't3', taskTitle: 'Third', projectName: 'Dashboard', stage: 'implementation', title: 'Third', why: 'w' },
 ])
 
 vi.mock('../components/NextThing.vue', () => ({
@@ -66,7 +66,7 @@ describe('needsYouQueue', () => {
   })
 
   it('announces the strip variant as a status region, unlike the docked one', () => {
-    items.value = [{ kind: 'permission', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' }]
+    items.value = [{ kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' }]
     const strip = mountQueue('strip')
     expect(strip.get('[data-testid="needs-you"]').attributes()).toMatchObject({ 'role': 'status', 'aria-live': 'polite' })
     const docked = mountQueue('docked')
@@ -76,8 +76,8 @@ describe('needsYouQueue', () => {
   })
 
   it('shows only the given kinds, and nothing as a strip when none of them waits', async () => {
-    const permission: NextThing = { kind: 'permission', taskId: 't1', taskTitle: 'Perm', projectName: 'Dashboard', stage: 'implementation', title: 'Perm', why: 'w' }
-    const plan: NextThing = { kind: 'plan', taskId: 't2', taskTitle: 'Plan', projectName: '', stage: 'plan_review', title: 'Plan', why: 'w' }
+    const permission: NextThing = { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'Perm', projectName: 'Dashboard', stage: 'implementation', title: 'Perm', why: 'w' }
+    const plan: NextThing = { kind: 'plan', key: 'plan:x', since: '2026-11-19T10:00:00Z', taskId: 't2', taskTitle: 'Plan', projectName: '', stage: 'plan_review', title: 'Plan', why: 'w' }
     items.value = [permission, plan]
     const w = mountQueue('strip', { kinds: ['plan'] })
     expect(w.get('[data-testid="stub-next"]').text()).toBe('Plan')
@@ -90,9 +90,9 @@ describe('needsYouQueue', () => {
 
   it('keeps a valid position when the list shrinks', async () => {
     items.value = [
-      { kind: 'permission', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
-      { kind: 'permission', taskId: 't2', taskTitle: 'Second', projectName: 'Dashboard', stage: 'implementation', title: 'Second', why: 'w' },
-      { kind: 'permission', taskId: 't3', taskTitle: 'Third', projectName: 'Dashboard', stage: 'implementation', title: 'Third', why: 'w' },
+      { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
+      { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't2', taskTitle: 'Second', projectName: 'Dashboard', stage: 'implementation', title: 'Second', why: 'w' },
+      { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't3', taskTitle: 'Third', projectName: 'Dashboard', stage: 'implementation', title: 'Third', why: 'w' },
     ]
     const w = mountQueue('docked')
     await w.get('[data-testid="needs-you-next"]').trigger('click')
@@ -105,7 +105,7 @@ describe('needsYouQueue', () => {
 
   it('opens a task through the injected OPEN_TASK and refreshes the injected instance on resolved', async () => {
     items.value = [
-      { kind: 'permission', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
+      { kind: 'permission', key: 'permission:x', since: '2026-11-19T10:00:00Z', taskId: 't1', taskTitle: 'First', projectName: 'Dashboard', stage: 'implementation', title: 'First', why: 'w' },
     ]
     const openTask = vi.fn()
     const refresh = vi.fn()

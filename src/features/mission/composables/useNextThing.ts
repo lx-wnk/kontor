@@ -2,6 +2,8 @@ import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import type { DetectedConfirm, DetectedQuestion } from '@/utils/askQuestionScreen'
+import { attentionFor } from '@/utils/attention'
+import { formatErrorState } from '@/utils/format'
 import { taskAttentionCause } from '@/utils/taskAttentionCause'
 
 /**
@@ -13,10 +15,14 @@ import { taskAttentionCause } from '@/utils/taskAttentionCause'
  * blocked-ness is what makes the answer explainable in one sentence, and an
  * order nobody can explain is one people stop trusting.
  */
-export type NextKind = 'permission' | 'question' | 'dialog' | 'capability' | 'plan'
+export type NextKind = 'permission' | 'question' | 'dialog' | 'capability' | 'plan' | 'failed' | 'finished'
 
 export interface NextThing {
   kind: NextKind
+  /** Stable identity of this item, the key the server stores marks under. */
+  key: string
+  /** ISO time of the event behind the item; a mark hides it only while seenThrough >= since. */
+  since: string
   taskId: string
   /** The task's own words, for the plan kind and for context on both. */
   taskTitle: string
@@ -26,6 +32,7 @@ export interface NextThing {
   request?: PermissionRequest
   /** The agent to answer, for the question and dialog kinds. */
   pid?: number
+  sessionId?: string
   /** For the dialog kind: whether the dashboard terminal can attach (pty broker, not tmux). */
   terminalAttachable?: boolean
   /** Whichever screen that agent is holding open — one of the two, never both. */
@@ -39,7 +46,7 @@ export interface NextThing {
 }
 
 /** Lower sorts first. Exported so a new kind has to state its place. */
-export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, dialog: 2, capability: 3, plan: 4 }
+export const KIND_RANK: Record<NextKind, number> = { permission: 0, question: 1, dialog: 2, capability: 3, plan: 4, failed: 5, finished: 6 }
 
 export const WHY: Record<NextKind, string> = {
   permission: 'First because an agent is stopped until you answer.',
@@ -47,6 +54,8 @@ export const WHY: Record<NextKind, string> = {
   dialog: 'A session holds a picker open in its terminal and waits until you answer it there.',
   capability: 'A run is paused until you allow or deny this capability.',
   plan: 'Waiting on your approval — nothing is running while it waits.',
+  failed: 'The run stopped with an error. Look at it or send the agent a new instruction.',
+  finished: 'The agent finished its turn and waits for your next instruction.',
 }
 
 /**
@@ -54,6 +63,15 @@ export const WHY: Record<NextKind, string> = {
  * [0] for the centre and counts the rest, so the centre can never disagree
  * with what "2 more after this" says.
  */
+export function agentOutcome(agent: Agent): 'failed' | 'finished' | null {
+  if (agent.status === 'finished')
+    return 'finished'
+  const kind = attentionFor(agent, null)?.kind
+  if (kind === 'error')
+    return 'failed'
+  return kind === 'yourTurn' ? 'finished' : null
+}
+
 export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], agents: Agent[] = [], decisions: PendingCapabilityDecision[] = []): NextThing[] {
   const out: NextThing[] = []
 
@@ -62,6 +80,8 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
     for (const request of item.requests) {
       out.push({
         kind: 'permission',
+        key: `permission:${request.id}`,
+        since: request.requestedAt,
         taskId: item.taskId,
         taskTitle: item.title,
         projectName: item.projectName,
@@ -84,6 +104,9 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
       continue
     out.push({
       kind: 'question',
+      key: `question:${agent.sessionId}`,
+      since: agent.lastActivity,
+      sessionId: agent.sessionId,
       taskId: agent.pipelineTaskId ?? '',
       taskTitle: agent.projectName,
       projectName: agent.projectName,
@@ -101,6 +124,9 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
       continue
     out.push({
       kind: 'dialog',
+      key: `dialog:${agent.sessionId}`,
+      since: agent.lastActivity,
+      sessionId: agent.sessionId,
       taskId: agent.pipelineTaskId ?? '',
       taskTitle: agent.projectName,
       projectName: agent.projectName,
@@ -115,6 +141,8 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
   for (const decision of decisions) {
     out.push({
       kind: 'capability',
+      key: `capability:${decision.id}`,
+      since: decision.requestedAt,
       taskId: '',
       taskTitle: '',
       projectName: '',
@@ -129,12 +157,33 @@ export function rankNextThings(items: PermissionItem[], tasks: PipelineTask[], a
       continue
     out.push({
       kind: 'plan',
+      key: `plan:${task.id}`,
+      since: task.updatedAt,
       taskId: task.id,
       taskTitle: task.title,
       projectName: '',
       stage: task.currentStage,
       title: task.title,
       why: WHY.plan,
+    })
+  }
+
+  for (const agent of agents) {
+    const outcome = agentOutcome(agent)
+    if (!outcome)
+      continue
+    out.push({
+      kind: outcome,
+      key: `${outcome}:${agent.sessionId}`,
+      since: agent.lastActivity,
+      taskId: agent.pipelineTaskId ?? '',
+      taskTitle: agent.projectName,
+      projectName: agent.projectName,
+      stage: '',
+      pid: agent.pid,
+      sessionId: agent.sessionId,
+      title: outcome === 'failed' ? (agent.errorState ? formatErrorState(agent.errorState) : 'Run failed') : (agent.lastOutput ?? 'Finished'),
+      why: WHY[outcome],
     })
   }
 

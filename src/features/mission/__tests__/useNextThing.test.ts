@@ -211,12 +211,12 @@ describe('rankNextThings', () => {
     })
 
     it('surfaces a run with an error as failed', () => {
-      const out = rankNextThings([], [], [agent(5, { sessionId: 's4', status: 'active', working: true, errorState: { message: 'boom' } as never })])
-      expect(out[0]).toMatchObject({ kind: 'failed', key: 'failed:s4', title: 'boom', why: WHY.failed })
+      const out = rankNextThings([], [], [agent(5, { sessionId: 's4', status: 'active', working: true, errorState: 'rate_limited' })])
+      expect(out[0]).toMatchObject({ kind: 'failed', key: 'failed:s4', title: 'Rate limited', why: WHY.failed })
     })
 
     it('uses the question alone when an agent has both a question and an error', () => {
-      const out = rankNextThings([], [], [agent(6, { sessionId: 's5', pendingQuestion: colourQuestion, errorState: { message: 'boom' } as never })])
+      const out = rankNextThings([], [], [agent(6, { sessionId: 's5', pendingQuestion: colourQuestion, errorState: 'rate_limited' })])
       expect(out.map(n => n.key)).toEqual(['question:s5'])
     })
 
@@ -227,7 +227,7 @@ describe('rankNextThings', () => {
         [task('t1', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })],
         [
           agent(10, { sessionId: 'f', status: 'active', working: false }),
-          agent(11, { sessionId: 'x', status: 'active', working: true, errorState: { message: 'boom' } as never }),
+          agent(11, { sessionId: 'x', status: 'active', working: true, errorState: 'rate_limited' }),
           agent(12, { sessionId: 'd', awaitingTerminalDialog: true }),
           agent(13, { sessionId: 'q', pendingQuestion: colourQuestion }),
         ],

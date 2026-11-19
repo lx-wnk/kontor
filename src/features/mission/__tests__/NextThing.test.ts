@@ -36,6 +36,8 @@ function mountNext(next: NextThingItem | null) {
 
 const permission: NextThingItem = {
   kind: 'permission',
+  key: 'permission:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: 't1',
   taskTitle: 'Fix the thing',
   projectName: 'Dashboard',
@@ -47,6 +49,8 @@ const permission: NextThingItem = {
 
 const capability: NextThingItem = {
   kind: 'capability',
+  key: 'capability:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: '',
   taskTitle: '',
   projectName: '',
@@ -57,6 +61,8 @@ const capability: NextThingItem = {
 
 const question: NextThingItem = {
   kind: 'question',
+  key: 'question:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: '',
   taskTitle: 'agent-dashboard',
   projectName: 'agent-dashboard',
@@ -204,7 +210,7 @@ describe('nextThing decision guard', () => {
   })
 
   it('opens the session terminal for a picker held there, or says to attach to its tmux pane', async () => {
-    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 'A dialog is open in this session\'s terminal', why: 'w' }
+    const dialog: NextThingItem = { kind: 'dialog', key: 'dialog:x', since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 'A dialog is open in this session\'s terminal', why: 'w' }
     const w = mountNext(dialog)
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
     await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
@@ -216,7 +222,7 @@ describe('nextThing decision guard', () => {
   })
 
   it('keeps an opened terminal while the item above it changes, until it is closed', async () => {
-    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 't', why: 'w' }
+    const dialog: NextThingItem = { kind: 'dialog', key: 'dialog:x', since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 't', why: 'w' }
     const w = mountNext(dialog)
     await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
     await w.setProps({ next: permission })

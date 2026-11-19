@@ -109,7 +109,7 @@ The server does not validate the kind prefix against a kind list. A list would b
 - Header row: `Needs you · <n>` (`data-testid="needs-you-count"`). The `‹ ›` buttons and "1 of n" go away.
 - One `<li>` per item in a `<ul>`, each with a `NextThing` card and a "Put away" button (`data-testid="needs-you-put-away"`, `aria-label="Put away until the agent posts something new"`).
 - `strip` and `docked` keep today's container rules: strip hides when empty, docked always renders (calm line when empty), strip keeps `role="status"` + `aria-live="polite"`. `kinds` filter stays.
-- `NextThing.vue`: the "NEXT" divider goes (the list header replaces it). `failed` and `finished` cards show the agent's project name, `errorState.message` (failed) or `lastOutput` (finished, one line, truncated by CSS), and an "Open agent" button that calls `useAgents({ autoStart: false }).selectAgent(agent)`.
+- `NextThing.vue`: the "NEXT" divider goes (the list header replaces it). `failed` and `finished` cards show the agent's project name, `formatErrorState(errorState)` (failed) or `lastOutput` (finished, one line, truncated by CSS), and an "Open agent" button that calls `useAgents({ autoStart: false }).selectAgent(agent)`.
 - The hub docked box stays bounded by `QUEUE_MAX_HEIGHT_SHARE` and scrolls (`overflow-y-auto` is already on the docked wrapper).
 
 ### 6. Triage keys on every view
