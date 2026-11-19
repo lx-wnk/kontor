@@ -33,7 +33,7 @@ import { useTodayCost } from './composables/useTodayCost'
 import { useUsage } from './composables/useUsage'
 import { useUser } from './composables/useUser'
 import { pageIdOf, resolveView, useViewState } from './composables/useViewState'
-import { NeedsYouQueue, rankNextThings } from './features/mission'
+import { agentOutcome, markSeen, NeedsYouQueue, rankNextThings, useAttentionMarks, visibleNextThings } from './features/mission'
 import { failedWidgets, HUB_WIDGET, useWorkspace, watchExternalChanges, ZENTRALE_PAGE_ID } from './features/workspace'
 import { formatCost } from './utils/format'
 import { isTypingTarget } from './utils/isTypingTarget'
@@ -111,7 +111,12 @@ const combinedAttentionCount = computed(() => attentionCount.value + permissionI
 const { todayUsd, start: startTodayCost } = useTodayCost()
 
 // Ranked once per tick and provided, so every queue and the hub core share one ranking instead of re-ranking per SSE tick.
-const needsYou = computed(() => rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value))
+const { marks, baseline, start: startMarks } = useAttentionMarks()
+const needsYou = computed(() => visibleNextThings(rankNextThings(permissionItems.value, tasks.value, agents.value, pendingCapabilityDecisions.value), marks.value, baseline.value))
+watch(selectedAgent, (a) => {
+  if (a && agentOutcome(a) === 'finished')
+    void markSeen(`finished:${a.sessionId}`, a.lastActivity)
+})
 provide(NEEDS_YOU, needsYou)
 const needsYouCount = computed(() => needsYou.value.length)
 const BASE_TITLE = document.title
@@ -125,6 +130,7 @@ watchEffect(() => {
 watch(loaded, (isLoaded) => {
   if (isLoaded && !showLogin.value) {
     startAgents()
+    startMarks()
     startTasks()
     startTodayCost()
     // Here, not only when a workspace page mounts: page titles and palette entries are needed on every view.

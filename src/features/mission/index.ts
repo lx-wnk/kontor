@@ -3,6 +3,7 @@
 export { default as KontorWidget } from './components/KontorWidget.vue'
 export { default as LiveWorkWidget } from './components/LiveWorkWidget.vue'
 export { default as NeedsYouQueue } from './components/NeedsYouQueue.vue'
+export { markSeen, useAttentionMarks, visibleNextThings } from './composables/useAttentionMarks'
 export { useKontorAgent, useKontorSession } from './composables/useKontorSession'
 export type { NextKind, NextThing } from './composables/useNextThing'
 export { agentOutcome, rankNextThings } from './composables/useNextThing'
