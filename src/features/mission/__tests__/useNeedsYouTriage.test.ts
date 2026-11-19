@@ -124,7 +124,7 @@ describe('useNeedsYouTriage', () => {
 
   it('approveAll allows every permission, never a capability, then refreshes once', async () => {
     const t = setup([perm('p1'), perm('p2', 't2'), capability])
-    expect(await t.approveAll()).toBeNull()
+    expect(await t.approveAll(t.list.value)).toBeNull()
     expect(resolvePermissionRequest).toHaveBeenCalledTimes(2)
     expect(resolvePermissionRequest).toHaveBeenCalledWith('t1', 'p1', 'allow_once')
     expect(resolvePermissionRequest).toHaveBeenCalledWith('t2', 'p2', 'allow_once')
@@ -135,15 +135,92 @@ describe('useNeedsYouTriage', () => {
   it('approveAll still resolves the rest and refreshes when one fails, and reports the failure', async () => {
     vi.mocked(resolvePermissionRequest).mockRejectedValueOnce(new Error('first failed'))
     const t = setup([perm('p1'), perm('p2')])
-    expect(await t.approveAll()).toBe('first failed')
+    expect(await t.approveAll(t.list.value)).toBe('first failed')
     expect(resolvePermissionRequest).toHaveBeenCalledTimes(2)
     expect(t.refresh).toHaveBeenCalledTimes(1)
   })
 
   it('approveAll on a list without permissions makes no call and does not refresh', async () => {
     const t = setup([question, capability])
-    expect(await t.approveAll()).toBeNull()
+    expect(await t.approveAll(t.list.value)).toBeNull()
     expect(resolvePermissionRequest).not.toHaveBeenCalled()
     expect(t.refresh).not.toHaveBeenCalled()
+  })
+
+  describe('in-flight guard', () => {
+    function deferred() {
+      let release!: () => void
+      const promise = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { promise, release }
+    }
+
+    it('ignores a second allow while the first is pending', async () => {
+      const gate = deferred()
+      vi.mocked(resolvePermissionRequest).mockReturnValue(gate.promise)
+      const t = setup([perm('p1')])
+      t.focusNext()
+      const first = t.decide('allow')
+      expect(await t.decide('allow')).toBeNull()
+      gate.release()
+      await first
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(1)
+      expect(t.refresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('ignores deny after allow while the first is pending', async () => {
+      const gate = deferred()
+      vi.mocked(resolvePermissionRequest).mockReturnValue(gate.promise)
+      const t = setup([perm('p1')])
+      t.focusNext()
+      const first = t.decide('allow')
+      await t.decide('deny')
+      gate.release()
+      await first
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(1)
+      expect(resolvePermissionRequest).toHaveBeenCalledWith('t1', 'p1', 'allow_once')
+    })
+
+    it('resolves each permission once when approveAll overlaps itself', async () => {
+      const gate = deferred()
+      vi.mocked(resolvePermissionRequest).mockReturnValue(gate.promise)
+      const t = setup([perm('p1'), perm('p2', 't2')])
+      const first = t.approveAll(t.list.value)
+      const second = t.approveAll(t.list.value)
+      gate.release()
+      await Promise.all([first, second])
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(2)
+    })
+
+    it('approveAll skips a permission that decide is resolving', async () => {
+      const gate = deferred()
+      vi.mocked(resolvePermissionRequest).mockReturnValueOnce(gate.promise)
+      const t = setup([perm('p1'), perm('p2', 't2')])
+      t.focusNext()
+      const pending = t.decide('deny')
+      await t.approveAll(t.list.value)
+      gate.release()
+      await pending
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(2)
+      expect(resolvePermissionRequest).toHaveBeenCalledWith('t1', 'p1', 'deny_once')
+      expect(resolvePermissionRequest).toHaveBeenCalledWith('t2', 'p2', 'allow_once')
+    })
+
+    it('approveAll acts only on the list it is given, permissions only', async () => {
+      const t = setup([perm('p9'), capability])
+      expect(await t.approveAll([capability, perm('p1')])).toBeNull()
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(1)
+      expect(resolvePermissionRequest).toHaveBeenCalledWith('t1', 'p1', 'allow_once')
+      expect(resolveCapability).not.toHaveBeenCalled()
+    })
+
+    it('allows the same item again after the first call settled', async () => {
+      const t = setup([perm('p1')])
+      t.focusNext()
+      await t.decide('allow')
+      await t.decide('allow')
+      expect(resolvePermissionRequest).toHaveBeenCalledTimes(2)
+    })
   })
 })
