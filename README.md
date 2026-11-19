@@ -82,6 +82,17 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full dev setup and command refe
 
 **Zentrale & hub** — the default view: what needs you in the centre, live work, GitHub, pipeline, memory and today's cost around it. Every tile can be moved, resized, added or removed with **Edit layout**. The centre tile is a zoomable map of running agents and your Obsidian vault's notes on the same coordinate system. Notes are placed by your vault's folder hierarchy: each first-level folder is a category circle around the core, each second-level folder a project circle inside it, and every note sits in its project's circle, all sized in proportion to what they hold; older notes are drawn fainter. Agents sit on the rim of their project's circle: the Kontor project's **Vault folder** (Settings › Projects, as `category/project`) when it is set and exists, otherwise the project folder whose name matches the agent's project name, or failing that the folder it runs in (a Claude worktree under `.claude/worktrees/` counts as the repository it was cut from). The hub renders three semantic levels (Overview shows the circles; Topics labels every project and draws know-how links inside it; Notes labels notes and draws every link); each level switches at a zoom threshold. Notes display their kind (frontmatter `type`, folder path, or `note` by default). Agents without a matching vault folder sit on the rim of an `Other` circle, shown only while such agents run. Press `?` for a legend; the Unlinked / Stale toggle (also in the Memory tile) highlights know-how notes that nothing links to or that have not been touched for 90+ days.
 
+**Needs-you inbox** — the list of what waits for you (Zentrale centre, docked queues). Each item has a **Put away** button that hides it until the agent posts something new; marks are stored on the server, so they sync across browsers and survive a reload. Items clear like this:
+
+| Item | Clears when |
+| --- | --- |
+| Finished agent | You open the agent. |
+| Failed agent | You use **Put away**, or Kontor accepts a message you send to that agent. |
+| Question, dialog | You answer it, or use **Put away**. |
+| Permission, capability, plan | You approve or deny it, or use **Put away**. |
+
+Finished and failed items from before the first read after this release stay hidden. On every view, `n` focuses the next item, `a` allows and `d` denies the focused permission or capability request, and `⇧A` allows every permission in the list; the keys act only while a needs-you queue is on screen and the list is not empty. On the Dashboard they act on its triage band instead. The Dashboard also has fleet filter chips (*All*, *Needs you*, *Working*, *Idle or done*) with a count each.
+
 **Kontor session** — one Claude session per installation that can read and steer Kontor through its task API; start it from the Zentrale or the `Cmd+K` field. If its Claude login expires, the tile offers **Log in**, which opens the session's terminal to run `/login`.
 
 **Dashboard** — real-time agent roster over SSE (cards or list) with tokens, cost, status and uptime; a needs-you band that approves or denies permission prompts in bulk; chat-style transcripts with tool groups and subagent badges; `Cmd+K` spotlight search.
