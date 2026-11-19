@@ -2,7 +2,7 @@ import type { NextThing as NextThingItem } from '../composables/useNextThing'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { useCapabilityDecisions } from '@/features/agents'
+import { useAgents, useCapabilityDecisions } from '@/features/agents'
 import { resolvePermissionRequest } from '@/features/pipeline'
 import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import NextThing from '../components/NextThing.vue'
@@ -11,6 +11,7 @@ vi.mock('@/features/pipeline', () => ({ resolvePermissionRequest: vi.fn() }))
 vi.mock('@/utils/answerQuestion', () => ({ sendQuestionAnswer: vi.fn() }))
 vi.mock('@/features/agents', () => ({
   useCapabilityDecisions: vi.fn(),
+  useAgents: vi.fn(),
   AgentTerminalModal: { props: { open: Boolean, pid: Number }, template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
 }))
 
@@ -148,6 +149,19 @@ describe('nextThing', () => {
 
 // A stale click aimed at the request just resolved must not land on whatever
 // the refresh puts in its place — see Security Minor 2.
+describe('nextThing failed and finished', () => {
+  it.each(['failed', 'finished'] as const)('shows the %s title and opens the matching agent', async (kind) => {
+    const selectAgent = vi.fn()
+    const other = { sessionId: 's0' }
+    const agent = { sessionId: 's1' }
+    vi.mocked(useAgents).mockReturnValue({ agents: ref([other, agent]), selectAgent } as never)
+    const w = mountNext({ kind, key: `${kind}:s1`, since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: '', projectName: 'Dashboard', stage: '', sessionId: 's1', title: 'It ended', why: 'w' })
+    expect(w.text()).toContain('It ended')
+    await w.get('[data-testid="mission-open-agent"]').trigger('click')
+    expect(selectAgent).toHaveBeenCalledWith(agent)
+  })
+})
+
 describe('nextThing decision guard', () => {
   afterEach(() => {
     vi.useRealTimers()
