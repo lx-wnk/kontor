@@ -20,7 +20,7 @@ import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
 import { needsYouPlacement } from './composables/needsYouPlacement'
-import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
+import { NEEDS_YOU, NEEDS_YOU_FOCUS, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
 import { usePendingPermissions } from './composables/usePendingPermissions'
@@ -33,7 +33,7 @@ import { useTodayCost } from './composables/useTodayCost'
 import { useUsage } from './composables/useUsage'
 import { useUser } from './composables/useUser'
 import { pageIdOf, resolveView, useViewState } from './composables/useViewState'
-import { agentOutcome, markSeen, NeedsYouQueue, rankNextThings, useAttentionMarks, visibleNextThings } from './features/mission'
+import { agentOutcome, markSeen, NeedsYouQueue, rankNextThings, useAttentionMarks, useNeedsYouTriage, visibleNextThings } from './features/mission'
 import { failedWidgets, HUB_WIDGET, useWorkspace, watchExternalChanges, ZENTRALE_PAGE_ID } from './features/workspace'
 import { formatCost } from './utils/format'
 import { isTypingTarget } from './utils/isTypingTarget'
@@ -205,6 +205,14 @@ function onCreateTaskAndRefine(task: PipelineTask) {
   showRefinementChat.value = true
 }
 
+const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
+const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !failedWidgets.has(HUB_WIDGET) && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === HUB_WIDGET))
+const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value, pageHasHub: pageHasHub.value, error: !!error.value }))
+// Exactly the list the queue renders on this view, so a key never acts on a card that is not on screen.
+const triageList = computed(() => needsYouPlace.value.kinds ? needsYou.value.filter(t => needsYouPlace.value.kinds!.includes(t.kind)) : needsYou.value)
+const triage = useNeedsYouTriage(triageList, pendingPermissions.refresh)
+provide(NEEDS_YOU_FOCUS, triage.focusedKey)
+
 // Keyboard focus for the triage band: `n` cycles attention agents (wrapping).
 const focusedSessionId = ref<string | null>(null)
 // Guards the keyboard resolve shortcuts (a/d/⇧A) against rapid double-fire.
@@ -231,8 +239,30 @@ function resolveFocused(outcome: 'granted' | 'denied') {
   }).finally(() => { kbResolving.value = false })
 }
 
-// Shift+D theme + Cmd/Ctrl+B sidebar are global; n/a/d/⇧A/c act on the triage
-// band and are gated to the dashboard with no overlay open and no field focused.
+function handleTriageKey(e: KeyboardEvent, key: string) {
+  if (key === 'n') {
+    e.preventDefault()
+    triage.focusNext()
+    return
+  }
+  if (key !== 'a' && key !== 'd')
+    return
+  e.preventDefault()
+  if (kbResolving.value)
+    return
+  kbResolving.value = true
+  const done = key === 'a' && e.shiftKey ? triage.approveAll(triageList.value) : triage.decide(key === 'a' ? 'allow' : 'deny')
+  void done.then((err) => {
+    if (err)
+      toast.error(err)
+  }).finally(() => {
+    kbResolving.value = false
+  })
+}
+
+// Shift+D theme + Cmd/Ctrl+B sidebar are global. With no overlay open and no
+// field focused, n/a/d/⇧A act on the triage band on the dashboard and on the
+// needs-you list elsewhere; c is dashboard-only.
 function handleKeydown(e: KeyboardEvent) {
   handleSidebarShortcut(e)
 
@@ -249,8 +279,13 @@ function handleKeydown(e: KeyboardEvent) {
   const overlayOpen = selectedAgent.value || showSettings.value || showSpawnDialog.value
     || showBacklogForm.value || showSessions.value || showRefinementChat.value || activeConceptTask.value || showPlanReview.value || activePlanTask.value
     || document.querySelector('[role="dialog"], [aria-modal="true"]') !== null
-  if (activeView.value !== 'dashboard' || overlayOpen || isTyping || e.ctrlKey || e.metaKey || e.altKey)
+  if (overlayOpen || isTyping || e.ctrlKey || e.metaKey || e.altKey)
     return
+
+  if (activeView.value !== 'dashboard') {
+    handleTriageKey(e, key)
+    return
+  }
 
   if (key === 'n') {
     e.preventDefault()
@@ -317,15 +352,12 @@ provide(OPEN_SETTINGS, () => {
   showSettings.value = true
 })
 
-const currentPageId = computed(() => activeView.value === 'zentrale' ? ZENTRALE_PAGE_ID : pageIdOf(activeView.value))
-const pageHasHub = computed(() => currentPageId.value !== null && !workspaceChunkFailed.value && !failedWidgets.has(HUB_WIDGET) && !!workspace.page(currentPageId.value)?.tiles.some(t => t.widget === HUB_WIDGET))
 // Before the layout has loaded a page id cannot be judged missing; loaded is a
 // source of its own because a failed load flips it without replacing layout.
 watch([activeView, workspace.layout, workspace.loaded], () => {
   if (workspace.loaded.value)
     activeView.value = resolveView(activeView.value, workspace.layout.value.pages.map(p => p.id))
 }, { immediate: true })
-const needsYouPlace = computed(() => needsYouPlacement({ view: activeView.value, pageHasHub: pageHasHub.value, error: !!error.value }))
 
 // The toggle's own click, not a watcher on workspace.editing: that ref also flips on
 // navigation (activeView watcher above) and on create-page, which already owns focus
