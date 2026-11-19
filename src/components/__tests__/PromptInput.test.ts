@@ -2,13 +2,8 @@ import type { Agent } from '@/types'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/features/mission', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/features/mission')>()),
-  markSeen: vi.fn(async () => {}),
-  markOutcomeSeen: vi.fn(async () => {}),
-}))
-
 let PromptInput: any
+let AGENT_INJECTED: symbol
 
 // Only the fields PromptInput and useAgentPrompt actually read. A partial
 // fixture is safe here because neither path formats cost or tokens.
@@ -47,6 +42,7 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', makeFetch())
   vi.resetModules()
   PromptInput = (await import('../PromptInput.vue')).default
+  AGENT_INJECTED = (await import('@/composables/openTask')).AGENT_INJECTED
 })
 
 afterEach(() => {
@@ -236,12 +232,11 @@ describe('promptInput interactive commands', () => {
   })
 })
 
-describe('promptInput clears a failed needs-you item on send', () => {
-  let markOutcomeSeen: ReturnType<typeof vi.fn>
+describe('promptInput reports an accepted inject', () => {
+  const onInjected = vi.fn()
 
-  beforeEach(async () => {
-    markOutcomeSeen = (await import('@/features/mission')).markOutcomeSeen as unknown as ReturnType<typeof vi.fn>
-    markOutcomeSeen.mockClear()
+  beforeEach(() => {
+    onInjected.mockClear()
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
       if (url.endsWith('/message'))
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
@@ -250,7 +245,7 @@ describe('promptInput clears a failed needs-you item on send', () => {
   })
 
   async function sendText(agent: Agent) {
-    const w = mount(PromptInput, { props: { agent } })
+    const w = mount(PromptInput, { props: { agent }, global: { provide: { [AGENT_INJECTED]: onInjected } } })
     await flushPromises()
     const input = w.find('input[role="combobox"]')
     await input.setValue('hello')
@@ -258,10 +253,10 @@ describe('promptInput clears a failed needs-you item on send', () => {
     await flushPromises()
   }
 
-  it('marks the failed outcome seen once an accepted send reaches the agent', async () => {
-    const agent = makeAgent({ sessionId: 's1', errorState: 'quota_exhausted', lastActivity: '2026-11-19T10:00:00Z' })
+  it('calls the provided callback once with the agent', async () => {
+    const agent = makeAgent({ sessionId: 's1', lastActivity: '2026-11-19T10:00:00Z' })
     await sendText(agent)
-    expect(markOutcomeSeen).toHaveBeenCalledTimes(1)
-    expect(markOutcomeSeen).toHaveBeenCalledWith(agent, 'failed')
+    expect(onInjected).toHaveBeenCalledTimes(1)
+    expect(onInjected).toHaveBeenCalledWith(agent)
   })
 })

@@ -1,3 +1,4 @@
+import type { VueWrapper } from '@vue/test-utils'
 import type { NextThing } from '../composables/useNextThing'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,13 +24,15 @@ describe('needsYouQueue put away guard', () => {
     vi.useFakeTimers()
     vi.mocked(markSeen).mockClear()
   })
+  let w: VueWrapper | undefined
   afterEach(() => {
+    w?.unmount()
     vi.useRealTimers()
   })
 
   it('disables Put away on the card that moves under the cursor until the guard window passes', async () => {
     const items = ref<NextThing[]>([perm('t0'), perm('t1')])
-    const w = mount(NeedsYouQueue, {
+    w = mount(NeedsYouQueue, {
       props: { variant: 'docked' },
       attachTo: document.body,
       global: { provide: {
@@ -41,7 +44,7 @@ describe('needsYouQueue put away guard', () => {
       } },
     })
     await vi.advanceTimersByTimeAsync(500)
-    const firstPutAway = () => w.findAll('[data-testid="needs-you-put-away"]')[0]!
+    const firstPutAway = () => w!.findAll('[data-testid="needs-you-put-away"]')[0]!
 
     await firstPutAway().trigger('click')
     expect(markSeen).toHaveBeenCalledTimes(1)
@@ -55,6 +58,5 @@ describe('needsYouQueue put away guard', () => {
 
     await vi.advanceTimersByTimeAsync(500)
     expect(firstPutAway().attributes('disabled')).toBeUndefined()
-    w.unmount()
   })
 })

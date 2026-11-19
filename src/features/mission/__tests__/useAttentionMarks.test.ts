@@ -243,19 +243,22 @@ describe('stream', () => {
     expect(marks.value.get('k:1')).toBe('2026-11-19T11:00:00Z')
   })
 
-  it('ignores the attention_ready frame', async () => {
+  it('refetches the marks on every attention_ready frame', async () => {
     MockEventSource.instances = []
     vi.stubGlobal('EventSource', MockEventSource)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ baseline: T, marks: [{ key: 'seed:1', seenThrough: T }] }),
-    }))
-    const { marks, baseline, start } = (await freshMarks()).useAttentionMarks()
+      json: () => Promise.resolve({ baseline: T, marks: [] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { baseline, start } = (await freshMarks()).useAttentionMarks()
     start()
     await vi.waitFor(() => expect(baseline.value).toBe(T))
-    const before = marks.value
-    MockEventSource.instances.at(-1)!.onmessage?.({ data: JSON.stringify({ type: 'attention_ready' }) } as MessageEvent)
-    expect(marks.value).toBe(before)
+    const initial = fetchMock.mock.calls.length
+    const stream = MockEventSource.instances.at(-1)!
+    stream.onmessage?.({ data: JSON.stringify({ type: 'attention_ready' }) } as MessageEvent)
+    stream.onmessage?.({ data: JSON.stringify({ type: 'attention_ready' }) } as MessageEvent)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(initial + 2))
   })
 
   it('assigns the fetched marks in one step', async () => {

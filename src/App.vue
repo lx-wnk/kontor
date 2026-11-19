@@ -20,7 +20,7 @@ import ToastHost from './components/ToastHost.vue'
 import AppModal from './components/ui/AppModal.vue'
 import AppModalHeader from './components/ui/AppModalHeader.vue'
 import { needsYouPlacement, triageKeysActive, triageListFor } from './composables/needsYouPlacement'
-import { NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
+import { AGENT_INJECTED, NEEDS_YOU, NEEDS_YOU_FOCUS, NEEDS_YOU_QUEUES, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from './composables/openTask'
 import { useInstallPrompt } from './composables/useInstallPrompt'
 import { useOnboarding } from './composables/useOnboarding'
 import { usePendingPermissions } from './composables/usePendingPermissions'
@@ -350,6 +350,9 @@ function navigateTo(target: { agent?: Agent, taskId?: string }) {
 }
 
 // Widgets open a task through this — App.vue owns navigation.
+provide(AGENT_INJECTED, (agent: Agent) => {
+  void markOutcomeSeen(agent, 'failed')
+})
 provide(OPEN_TASK, (taskId: string) => navigateTo({ taskId }))
 provide(OPEN_SETTINGS, () => {
   showSettings.value = true

@@ -1,7 +1,7 @@
 import type { NextThing } from '@/features/mission'
 import { describe, expect, it } from 'vitest'
-import { KIND_RANK } from '@/features/mission/composables/useNextThing'
-import { DOCKED_KINDS, needsYouPlacement, triageKeysActive, triageListFor } from '../needsYouPlacement'
+import { DOCKED_KINDS, KIND_RANK } from '@/features/mission/composables/useNextThing'
+import { needsYouPlacement, triageKeysActive, triageListFor } from '../needsYouPlacement'
 
 describe('needsYouPlacement', () => {
   it('docks into the hub on a workspace page that holds one, without finished turns', () => {

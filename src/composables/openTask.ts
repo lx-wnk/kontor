@@ -1,6 +1,7 @@
 import type { ComputedRef, InjectionKey, Ref } from 'vue'
 import type { usePendingPermissions } from './usePendingPermissions'
 import type { NextThing } from '@/features/mission'
+import type { Agent } from '@/types'
 
 // How a widget opens a task: App.vue owns navigation and provides this.
 export const OPEN_TASK: InjectionKey<(taskId: string) => void> = Symbol('openTask')
@@ -21,3 +22,6 @@ export const NEEDS_YOU_QUEUES: InjectionKey<Ref<number>> = Symbol('needsYouQueue
 
 // App.vue owns the settings panel; the hub opens it through this.
 export const OPEN_SETTINGS: InjectionKey<() => void> = Symbol('openSettings')
+
+// App.vue provides what runs after a prompt reached an agent; PromptInput must not import the mission feature.
+export const AGENT_INJECTED: InjectionKey<(agent: Agent) => void> = Symbol('agentInjected')

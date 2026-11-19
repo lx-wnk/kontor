@@ -1,6 +1,7 @@
 import type { Agent } from '../../types'
 import { describe, expect, it } from 'vitest'
 import { agentGroupOptions, FLEET_FILTERS, fleetBucket, fleetCounts, groupAgents, resolveGroup, sortAgents } from '../agentGroup'
+import { STALLED_THRESHOLD_SECONDS } from '../format'
 import { statusLabel } from '../statusColors'
 
 function makeAgent(overrides: Partial<Agent> = {}): Agent {
@@ -225,6 +226,10 @@ describe('fleet buckets', () => {
 
   it('errorState lands in needsYou', () => {
     expect(fleetBucket(errored, 10)).toBe('needsYou')
+  })
+
+  it('a stalled working agent lands in needsYou', () => {
+    expect(fleetBucket(working, STALLED_THRESHOLD_SECONDS + 1)).toBe('needsYou')
   })
 
   it('working with no attention lands in working', () => {

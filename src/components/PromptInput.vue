@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { DynamicCommandSet } from '../composables/useSlashCommands'
 import type { Agent, OutputMessage } from '../types'
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, inject, nextTick, ref, useId, watch } from 'vue'
+import { AGENT_INJECTED } from '@/composables/openTask'
 import { useAgentPrompt } from '@/features/agents/composables/useAgentPrompt'
-import { markOutcomeSeen } from '@/features/mission'
 import { emptyCommandSet, fetchDynamicCommands, isInteractiveCommand, SLASH_COMMAND_DEFS } from '../composables/useSlashCommands'
 import TemplatePicker from './TemplatePicker.vue'
 
@@ -30,6 +30,8 @@ const commandSet = ref<DynamicCommandSet>(emptyCommandSet())
 // The sent echo fires before delivery; the terminal opens only once the command reached the session.
 let awaitingInteractiveDelivery = false
 
+const onInjected = inject(AGENT_INJECTED, () => {})
+
 const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm, confirmResume, cancelResume, trackedMessages } = useAgentPrompt(
   () => props.agent,
   (msg) => {
@@ -42,9 +44,7 @@ const { promptInput, isSending, sendStatus, sendError, handleSend, resumeConfirm
     get cwd() { return props.agent?.cwd },
   },
   attachments,
-  (agent) => {
-    void markOutcomeSeen(agent, 'failed')
-  },
+  onInjected,
 )
 
 watch(sendStatus, (status) => {

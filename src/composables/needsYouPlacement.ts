@@ -2,8 +2,6 @@ import type { ActiveView } from './useViewState'
 import type { NextKind, NextThing } from '@/features/mission'
 import { DOCKED_KINDS } from '@/features/mission'
 
-export { DOCKED_KINDS }
-
 export interface NeedsYouPlacement {
   strip: boolean
   kinds?: readonly NextKind[]

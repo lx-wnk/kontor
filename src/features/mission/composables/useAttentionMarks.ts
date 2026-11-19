@@ -45,7 +45,7 @@ async function fetchMarks(): Promise<void> {
     marks.value = next
   }
   catch {
-    // the next (re)connect refetches
+    // the next attention_ready refetches
   }
 }
 
@@ -54,6 +54,8 @@ function handleMessage(data: string): void {
     const event = JSON.parse(data) as AttentionEvent
     if (event.type === 'attention_marked')
       applyMark(event.mark.key, event.mark.seenThrough)
+    else
+      void fetchMarks()
   }
   catch {}
 }
@@ -62,7 +64,6 @@ const sse = createSseResource({
   streamUrl: '/api/attention/stream',
   fetchInitial: fetchMarks,
   onMessage: handleMessage,
-  onConnected: fetchMarks,
 })
 
 export async function markSeen(key: string, since: string): Promise<void> {

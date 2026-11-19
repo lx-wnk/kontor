@@ -149,7 +149,7 @@ The server does not validate the kind prefix against a kind list. A list would b
 | R10 | The server keeps the later `seenThrough` per key. | A stale browser must not resurface an item another browser cleared. | None known. |
 | R11 | Marks are never pruned. | One small row per put-away item; growth is user-paced. | Follow-up: prune rows older than 30 days. |
 | R12 | A server-side baseline (one-row table `attention_baselines`, written once on first read, never changed) hides `failed` and `finished` items whose `since` is at or before it. `GET /api/attention/marks` returns `{"baseline", "marks"}`. Until the client has the baseline, it hides both kinds. Decided by the user on 2026-11-19. | Without it, every idle or failed agent from before the release floods the list on first load. | One more table; deleting its row resets the cutoff to the next read. |
-| R13 | The docked hub queue leaves out `finished` items (`DOCKED_KINDS` in `needsYouPlacement.ts`). The title count and the strip on other views still include them; the hub core badge counts the dock. Decided by the user on 2026-11-19. | With many idle agents the dock fills its height share and covers map dots; the map already shows idle agents. | One kinds list; revert by dropping the filter. |
+| R13 | The docked hub queue leaves out `finished` items (`DOCKED_KINDS` in `src/features/mission/composables/useNextThing.ts`). The title count and the strip on other views still include them; the hub core badge counts the dock. Decided by the user on 2026-11-19. | With many idle agents the dock fills its height share and covers map dots; the map already shows idle agents. | One kinds list; revert by dropping the filter. |
 
 ## Open questions
 
