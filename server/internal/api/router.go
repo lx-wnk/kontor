@@ -22,6 +22,7 @@ import (
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
 	apikeyhandler "github.com/lx-wnk/kontor/server/internal/api/apikeys"
 	apiapplications "github.com/lx-wnk/kontor/server/internal/api/applications"
+	"github.com/lx-wnk/kontor/server/internal/api/attention"
 	apiauth "github.com/lx-wnk/kontor/server/internal/api/auth"
 	"github.com/lx-wnk/kontor/server/internal/api/capabilities"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
@@ -172,6 +173,7 @@ type RouterDeps struct {
 	CoordHandler           *coordapi.Handler
 	TaskHandler            *tasks.Handler
 	SchedulesHandler       *schedules.Handler
+	AttentionHandler       *attention.Handler
 	CloudSessionsHandler   *cloudsessions.Handler
 	CloudRoutinesHandler   *cloudroutines.Handler
 	WebPushHandler         *apiwp.Handler
@@ -412,6 +414,9 @@ func NewRouter(deps RouterDeps) http.Handler {
 			deps.SchedulesHandler.Mount(r)
 		}
 
+		if deps.AttentionHandler != nil {
+			deps.AttentionHandler.Mount(r)
+		}
 		if deps.CloudSessionsHandler != nil {
 			deps.CloudSessionsHandler.Mount(r)
 		}

@@ -2,18 +2,18 @@
 import type { NextThing } from '../composables/useNextThing'
 import type { PermissionDecision } from '@/features/pipeline'
 import type { AnswerIntent } from '@/utils/answerKeys'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import ConfirmCard from '@/components/ConfirmCard.vue'
 import QuestionCard from '@/components/QuestionCard.vue'
 import { toast } from '@/composables/useToast'
-import { AgentTerminalModal, useCapabilityDecisions } from '@/features/agents'
+import { AgentTerminalModal, useAgents, useCapabilityDecisions } from '@/features/agents'
 import { resolvePermissionRequest } from '@/features/pipeline'
 import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import { capabilityValueLabel, elidedTitle } from '@/utils/capabilityDecision'
 import { errorMessage } from '@/utils/errorMessage'
 
-const props = defineProps<{ next: NextThing | null }>()
-const emit = defineEmits<{ resolved: [], open: [taskId: string] }>()
+const props = defineProps<{ next: NextThing | null, position?: number }>()
+const emit = defineEmits<{ resolved: [], open: [taskId: string], putAway: [] }>()
 
 const busy = ref<PermissionDecision | null>(null)
 const answering = ref(false)
@@ -22,22 +22,13 @@ const capabilityBusy = ref<'allow' | 'deny' | null>(null)
 const terminal = ref<{ pid: number, title: string } | null>(null)
 const problem = ref('')
 const { resolve: resolveCapability } = useCapabilityDecisions()
+const { agents, selectAgent } = useAgents({ autoStart: false })
 
-// Identifies which item is on screen so the card below can remount on
-// change: a permission's own id, or the agent holding a question/confirm
-// screen, or the task for a plan.
-const itemKey = computed(() => {
-  const n = props.next
-  if (!n)
-    return undefined
-  if (n.kind === 'permission')
-    return `permission:${n.request?.id ?? ''}`
-  if (n.kind === 'capability')
-    return `capability:${n.decision?.id ?? ''}`
-  if (n.pid !== undefined)
-    return `${n.kind}:${n.pid}`
-  return `task:${n.taskId}`
-})
+function openAgent() {
+  const a = agents.value.find(x => x.sessionId === props.next?.sessionId)
+  if (a)
+    selectAgent(a)
+}
 
 // Guards the decision buttons for a short window after the shown item
 // changes, so a click already in flight for the previous item (e.g. a
@@ -46,7 +37,7 @@ const DECISION_GUARD_MS = 500
 const guarding = ref(true)
 let guardTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(itemKey, () => {
+watch([() => props.next?.key, () => props.position], () => {
   guarding.value = true
   if (guardTimer)
     clearTimeout(guardTimer)
@@ -67,6 +58,12 @@ const DECISIONS: Array<{ value: PermissionDecision, label: string, primary?: boo
   { value: 'allow_routine', label: 'Allow for this routine' },
   { value: 'deny_once', label: 'Deny once' },
 ]
+
+function putAway() {
+  if (guarding.value)
+    return
+  emit('putAway')
+}
 
 async function decide(decision: PermissionDecision) {
   const n = props.next
@@ -131,16 +128,11 @@ async function answer(intent: AnswerIntent) {
 
 <template>
   <div v-if="next" data-testid="mission-next" class="flex flex-col gap-4">
-    <div class="flex items-center gap-3">
-      <span class="text-[11px] font-mono tracking-widest text-accent">NEXT</span>
-      <span class="h-px flex-grow bg-line" />
-    </div>
-
     <p data-testid="mission-why" class="text-[13px] text-fg-mute">
       {{ next.why }}
     </p>
 
-    <div :key="itemKey" class="rounded-2xl border border-line-strong bg-card p-7 flex flex-col gap-4">
+    <div :key="next.key" class="rounded-2xl border border-line-strong bg-card p-7 flex flex-col gap-4">
       <div class="flex items-center gap-2.5">
         <span class="font-mono text-[10px] uppercase rounded px-1.5 py-0.5 border border-warning-line text-warning-text">
           {{ next.kind }}
@@ -155,7 +147,7 @@ async function answer(intent: AnswerIntent) {
         </span>
       </div>
 
-      <h2 v-if="next.kind !== 'question'" class="text-[23px] font-medium leading-snug text-fg">
+      <h3 v-if="next.kind !== 'question'" class="text-[23px] font-medium leading-snug text-fg" :class="next.kind === 'finished' ? 'truncate' : ''">
         <template v-if="next.kind === 'permission'">
           Let this agent run <span class="font-mono text-[20px] text-accent">{{ next.title }}</span>?
         </template>
@@ -169,7 +161,7 @@ async function answer(intent: AnswerIntent) {
         <template v-else>
           {{ next.title }}
         </template>
-      </h2>
+      </h3>
 
       <p v-if="next.request?.outsideSafeList" class="text-[13px] text-warning-text leading-relaxed">
         This command is outside the server's safe list — allowing it is a deliberate override, not a formality.
@@ -245,6 +237,16 @@ async function answer(intent: AnswerIntent) {
           This session runs in a tmux pane. Attach to the pane to answer it.
         </p>
       </div>
+      <div v-else-if="next.kind === 'failed' || next.kind === 'finished'" class="flex gap-2 pt-1">
+        <button
+          type="button"
+          data-testid="mission-open-agent"
+          class="h-9 rounded-lg bg-accent px-4 text-[13.5px] font-semibold text-accent-contrast"
+          @click="openAgent"
+        >
+          Open agent
+        </button>
+      </div>
       <div v-else class="flex gap-2 pt-1">
         <button
           type="button"
@@ -255,6 +257,16 @@ async function answer(intent: AnswerIntent) {
           Open
         </button>
       </div>
+      <button
+        type="button"
+        data-testid="needs-you-put-away"
+        aria-label="Put away until the agent posts something new"
+        :disabled="guarding"
+        class="self-end rounded border border-line-strong px-2 py-1 text-[12px] text-fg-mute disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
+        @click="putAway"
+      >
+        Put away
+      </button>
     </div>
   </div>
 

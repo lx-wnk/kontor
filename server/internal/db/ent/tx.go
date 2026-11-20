@@ -20,6 +20,10 @@ type Tx struct {
 	AppSetting *AppSettingClient
 	// ApplicationSecret is the client for interacting with the ApplicationSecret builders.
 	ApplicationSecret *ApplicationSecretClient
+	// AttentionBaseline is the client for interacting with the AttentionBaseline builders.
+	AttentionBaseline *AttentionBaselineClient
+	// AttentionMark is the client for interacting with the AttentionMark builders.
+	AttentionMark *AttentionMarkClient
 	// AuditEvent is the client for interacting with the AuditEvent builders.
 	AuditEvent *AuditEventClient
 	// Capability is the client for interacting with the Capability builders.
@@ -227,6 +231,8 @@ func (tx *Tx) init() {
 	tx.ApiKey = NewApiKeyClient(tx.config)
 	tx.AppSetting = NewAppSettingClient(tx.config)
 	tx.ApplicationSecret = NewApplicationSecretClient(tx.config)
+	tx.AttentionBaseline = NewAttentionBaselineClient(tx.config)
+	tx.AttentionMark = NewAttentionMarkClient(tx.config)
 	tx.AuditEvent = NewAuditEventClient(tx.config)
 	tx.Capability = NewCapabilityClient(tx.config)
 	tx.Checkpoint = NewCheckpointClient(tx.config)

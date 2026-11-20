@@ -28,6 +28,7 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/api/agents"
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
 	apiapplications "github.com/lx-wnk/kontor/server/internal/api/applications"
+	"github.com/lx-wnk/kontor/server/internal/api/attention"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	coordapi "github.com/lx-wnk/kontor/server/internal/api/coord"
@@ -1146,6 +1147,14 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		}
 	}
 
+	var attentionHandler *attention.Handler
+	if entClient != nil {
+		attentionHandler = attention.NewHandler(
+			repo.NewAttentionMarkRepo(entClient, bundle.WriteClient),
+			sse.NewTypedBroadcaster[sse.AttentionEvent](sse.NewBroadcaster()),
+		)
+	}
+
 	var cloudSessionsHandler *cloudsessions.Handler
 	var cloudRoutinesHandler *cloudroutines.Handler
 	if entClient != nil {
@@ -1210,6 +1219,7 @@ func initializeServer(ctx context.Context, cfg config.Config, cfgFile string, re
 		VisualizationsHandler:  apivisualizations.NewHandler(),
 		MCPHandler:             mcpHandler,
 		SchedulesHandler:       schedulesHandler,
+		AttentionHandler:       attentionHandler,
 		CloudSessionsHandler:   cloudSessionsHandler,
 		CloudRoutinesHandler:   cloudRoutinesHandler,
 		ChannelReply:           agents.NewChannelReplyHandler(replyStore, apiKeyRepo, repo.NewStageRunRepo(entClient)),

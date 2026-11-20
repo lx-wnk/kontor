@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let PromptInput: any
+let AGENT_INJECTED: symbol
 
 // Only the fields PromptInput and useAgentPrompt actually read. A partial
 // fixture is safe here because neither path formats cost or tokens.
@@ -41,6 +42,7 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', makeFetch())
   vi.resetModules()
   PromptInput = (await import('../PromptInput.vue')).default
+  AGENT_INJECTED = (await import('@/composables/openTask')).AGENT_INJECTED
 })
 
 afterEach(() => {
@@ -227,5 +229,34 @@ describe('promptInput interactive commands', () => {
   it('stays quiet when delivery failed', async () => {
     const w = await sendModel(false)
     expect(w.emitted('interactiveCommand')).toBeUndefined()
+  })
+})
+
+describe('promptInput reports an accepted inject', () => {
+  const onInjected = vi.fn()
+
+  beforeEach(() => {
+    onInjected.mockClear()
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/message'))
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) })
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(commandsResponse) })
+    }))
+  })
+
+  async function sendText(agent: Agent) {
+    const w = mount(PromptInput, { props: { agent }, global: { provide: { [AGENT_INJECTED]: onInjected } } })
+    await flushPromises()
+    const input = w.find('input[role="combobox"]')
+    await input.setValue('hello')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+  }
+
+  it('calls the provided callback once with the agent', async () => {
+    const agent = makeAgent({ sessionId: 's1', lastActivity: '2026-11-19T10:00:00Z' })
+    await sendText(agent)
+    expect(onInjected).toHaveBeenCalledTimes(1)
+    expect(onInjected).toHaveBeenCalledWith(agent)
   })
 })

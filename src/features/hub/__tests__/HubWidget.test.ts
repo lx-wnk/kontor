@@ -8,6 +8,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { NEEDS_YOU, OPEN_SETTINGS, OPEN_TASK, PENDING_PERMISSIONS } from '@/composables/openTask'
 import { useSidebar } from '@/composables/useSidebar'
 import { useViewState } from '@/composables/useViewState'
+import { DOCKED_KINDS } from '@/features/mission'
 import { DEFAULT_LAYOUT, failedWidgets, useWorkspace } from '@/features/workspace'
 import HubBrainCanvas from '../components/HubBrainCanvas.vue'
 import { useHealthLens } from '../composables/useHealthLens'
@@ -60,8 +61,10 @@ vi.mock('@/features/agents', () => ({
   useAgents: () => ({ agents: computed(() => agents.value.map(a => ({ ...a, cwd: a.cwd ?? `/code/${a.projectName}` }))), selectAgent: vi.fn() }),
 }))
 vi.mock('@/features/mission', () => ({
+  DOCKED_KINDS: ['permission', 'question', 'dialog', 'capability', 'plan', 'failed'],
   NeedsYouQueue: {
-    props: ['variant'],
+    name: 'NeedsYouQueue',
+    props: ['variant', 'kinds'],
     template: '<div data-testid="stub-queue">{{ variant }}</div>',
   },
   useKontorSession: () => ({ ask, overlayOpen }),
@@ -135,12 +138,12 @@ const TILE = { width: 584, height: 734 }
 const ROOMY = { width: 8000, height: 8040 }
 
 // queueHeight is the height the queue wrapper's observer reports; 0 leaves it unmeasured.
-async function mountHub(size = { width: 1090, height: 1130 }, needsYouCount = 0, queueHeight = 0) {
+async function mountHub(size = { width: 1090, height: 1130 }, needsYouCount = 0, queueHeight = 0, kinds?: string[]) {
   const w = mount(HubWidget, {
     attachTo: document.body,
     global: {
       provide: {
-        [NEEDS_YOU]: computed(() => Array.from({ length: needsYouCount }, () => ({}))) as unknown as ComputedRef<NextThing[]>,
+        [NEEDS_YOU]: computed(() => kinds ? kinds.map(kind => ({ kind })) : Array.from({ length: needsYouCount }, () => ({ kind: 'permission' }))) as unknown as ComputedRef<NextThing[]>,
         [PENDING_PERMISSIONS]: { items: ref([]), refresh: vi.fn() },
         [OPEN_TASK]: vi.fn(),
         [OPEN_SETTINGS]: openSettings,
@@ -293,6 +296,18 @@ describe('hubWidget', () => {
     expect(w.get('[data-testid="hub-agent-102"]').attributes('aria-label')).toContain('needs you')
     expect(w.get('[data-testid="hub-core"]').text()).toContain('2 running · 2 need you')
     expect(w.get('[data-testid="stub-queue"]').text()).toBe('docked')
+    w.unmount()
+  })
+
+  it('counts only the docked queue in the core badge', async () => {
+    const w = await mountHub(undefined, 0, 0, ['permission', 'finished'])
+    expect(w.findComponent({ name: 'HubOrbit' }).props('needsYou')).toBe(1)
+    w.unmount()
+  })
+
+  it('docks the queue without finished turns', async () => {
+    const w = await mountHub()
+    expect(w.findComponent({ name: 'NeedsYouQueue' }).props('kinds')).toEqual(DOCKED_KINDS)
     w.unmount()
   })
 

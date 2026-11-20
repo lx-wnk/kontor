@@ -2,7 +2,7 @@ import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PendingCapabilityDecision } from '@/sdk.generated'
 import type { Agent, PermissionRequest, PipelineTask } from '@/types'
 import { describe, expect, it } from 'vitest'
-import { KIND_RANK, rankNextThings, WHY } from '../composables/useNextThing'
+import { DOCKED_KINDS, KIND_RANK, outcomeKey, rankNextThings, WHY } from '../composables/useNextThing'
 
 function task(id: string, over: Partial<PipelineTask> = {}): PipelineTask {
   return { id, slug: id, title: `task ${id}`, currentStage: 'implementation', cwd: '/repo', ...over } as PipelineTask
@@ -168,5 +168,98 @@ describe('rankNextThings', () => {
     ], [decision])
     expect(ranked.map(n => n.kind)).toEqual(['question', 'dialog', 'capability'])
     expect(ranked[1]).toMatchObject({ kind: 'dialog', pid: 7, terminalAttachable: true, why: WHY.dialog })
+  })
+
+  describe('item keys and watermarks', () => {
+    it('keys a permission request by id and stamps requestedAt', () => {
+      const out = rankNextThings([item('a', [req('r1', '2026-11-19T10:00:00Z')])], [task('a')])
+      expect(out[0]).toMatchObject({ key: 'permission:r1', since: '2026-11-19T10:00:00Z' })
+    })
+
+    it('keys a question by session and stamps lastActivity', () => {
+      const out = rankNextThings([], [], [agent(1, { sessionId: 's1', pendingQuestion: colourQuestion, lastActivity: '2026-11-19T10:01:00Z' })])
+      expect(out[0]).toMatchObject({ kind: 'question', key: 'question:s1', since: '2026-11-19T10:01:00Z', sessionId: 's1' })
+    })
+
+    it('keys a plan by task and stamps updatedAt', () => {
+      const out = rankNextThings([], [task('t1', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user', updatedAt: '2026-11-19T09:00:00Z' })])
+      expect(out[0]).toMatchObject({ key: 'plan:t1', since: '2026-11-19T09:00:00Z' })
+    })
+
+    it('keys a capability decision by id and stamps requestedAt', () => {
+      const decision: PendingCapabilityDecision = { id: 'd1', capability: 'net.fetch', value: 'x', context: 'c', reason: 'r', requestedAt: '2026-11-19T08:00:00Z' }
+      const out = rankNextThings([], [], [], [decision])
+      expect(out[0]).toMatchObject({ key: 'capability:d1', since: '2026-11-19T08:00:00Z' })
+    })
+
+    it('keys a terminal dialog by session', () => {
+      const out = rankNextThings([], [], [agent(2, { sessionId: 'sd', awaitingTerminalDialog: true, lastActivity: '2026-11-19T10:02:00Z' })])
+      expect(out[0]).toMatchObject({ kind: 'dialog', key: 'dialog:sd', since: '2026-11-19T10:02:00Z' })
+    })
+  })
+
+  describe('failed and finished agents', () => {
+    it('surfaces an idle agent that waits for the next instruction as finished', () => {
+      const out = rankNextThings([], [], [agent(3, { sessionId: 's2', status: 'active', working: false, lastActivity: '2026-11-19T10:03:00Z', lastOutput: 'done' })])
+      expect(out).toHaveLength(1)
+      expect(out[0]).toMatchObject({ kind: 'finished', key: 'finished:s2', since: '2026-11-19T10:03:00Z', sessionId: 's2', pid: 3, title: 'done', why: WHY.finished })
+    })
+
+    it('surfaces a finished-status agent as finished', () => {
+      const out = rankNextThings([], [], [agent(4, { sessionId: 's3', status: 'finished' })])
+      expect(out[0]).toMatchObject({ kind: 'finished', key: 'finished:s3', title: 'Finished' })
+    })
+
+    it('surfaces a run with an error as failed', () => {
+      const out = rankNextThings([], [], [agent(5, { sessionId: 's4', status: 'active', working: true, errorState: 'rate_limited' })])
+      expect(out[0]).toMatchObject({ kind: 'failed', key: 'failed:s4', title: 'Rate limited', why: WHY.failed })
+    })
+
+    it('uses the question alone when an agent has both a question and an error', () => {
+      const out = rankNextThings([], [], [agent(6, { sessionId: 's5', pendingQuestion: colourQuestion, errorState: 'rate_limited' })])
+      expect(out.map(n => n.key)).toEqual(['question:s5'])
+    })
+
+    it('orders one of each kind by rank', () => {
+      const decision: PendingCapabilityDecision = { id: 'd1', capability: 'net.fetch', value: 'x', context: 'c', reason: 'r', requestedAt: '2026-11-19T08:00:00Z' }
+      const out = rankNextThings(
+        [item('a', [req('r1', '2026-11-19T10:00:00Z')])],
+        [task('t1', { currentStage: 'plan_review', latestStageRunStatus: 'awaiting_user' })],
+        [
+          agent(10, { sessionId: 'f', status: 'active', working: false }),
+          agent(11, { sessionId: 'x', status: 'active', working: true, errorState: 'rate_limited' }),
+          agent(12, { sessionId: 'd', awaitingTerminalDialog: true }),
+          agent(13, { sessionId: 'q', pendingQuestion: colourQuestion }),
+        ],
+        [decision],
+      )
+      expect(out.map(n => n.kind)).toEqual(['permission', 'question', 'dialog', 'capability', 'plan', 'failed', 'finished'])
+    })
+
+    it('keeps one item per key, the one with the latest since', () => {
+      const out = rankNextThings([], [], [
+        agent(1, { sessionId: 'same', status: 'finished', lastActivity: '2026-11-19T10:00:00Z' }),
+        agent(2, { sessionId: 'same', status: 'finished', lastActivity: '2026-11-19T11:00:00Z' }),
+      ])
+      expect(out).toHaveLength(1)
+      expect(out[0]).toMatchObject({ key: 'finished:same', pid: 2, since: '2026-11-19T11:00:00Z' })
+    })
+
+    it('orders failed and finished items by how long they waited', () => {
+      const out = rankNextThings([], [], [
+        agent(1, { sessionId: 'new', status: 'finished', lastActivity: '2026-11-19T11:00:00Z' }),
+        agent(2, { sessionId: 'old', status: 'finished', lastActivity: '2026-11-19T09:00:00Z' }),
+      ])
+      expect(out.map(n => n.key)).toEqual(['finished:old', 'finished:new'])
+    })
+
+    it('builds outcome keys with the same function the ranking uses', () => {
+      expect(outcomeKey('failed', 's9')).toBe('failed:s9')
+    })
+  })
+
+  it('docks every kind but finished', () => {
+    expect(DOCKED_KINDS).not.toContain('finished')
+    expect([...DOCKED_KINDS].sort()).toEqual(Object.keys(KIND_RANK).filter(k => k !== 'finished').sort())
   })
 })

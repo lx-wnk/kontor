@@ -15,6 +15,7 @@ import (
 	"golang.org/x/time/rate"
 
 	apianalytics "github.com/lx-wnk/kontor/server/internal/api/analytics"
+	"github.com/lx-wnk/kontor/server/internal/api/attention"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudroutines"
 	"github.com/lx-wnk/kontor/server/internal/api/cloudsessions"
 	apicost "github.com/lx-wnk/kontor/server/internal/api/cost"
@@ -207,6 +208,11 @@ func buildBypassRouter(t *testing.T) http.Handler {
 		stubRoutineFirer{},
 		cloudBroadcaster,
 		func() bool { return true },
+	)
+
+	deps.AttentionHandler = attention.NewHandler(
+		repo.NewAttentionMarkRepo(c, bundle.WriteClient),
+		sse.NewTypedBroadcaster[sse.AttentionEvent](sse.NewBroadcaster()),
 	)
 
 	return NewRouter(deps)
@@ -467,5 +473,16 @@ func TestBypassAuth_CloudMutationsRequireSameOrigin(t *testing.T) {
 		if rec.Code != http.StatusForbidden {
 			t.Errorf("%s %s without Origin = %d, want 403", tc.method, tc.path, rec.Code)
 		}
+	}
+}
+
+func TestBypassAuth_AttentionMutationRequiresSameOrigin(t *testing.T) {
+	router := buildBypassRouter(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/attention/marks", strings.NewReader("{}"))
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("PUT /api/attention/marks without Origin = %d, want 403", rec.Code)
 	}
 }

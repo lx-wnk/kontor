@@ -57,6 +57,30 @@ func (f ApplicationSecretFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ApplicationSecretMutation", m)
 }
 
+// The AttentionBaselineFunc type is an adapter to allow the use of ordinary
+// function as AttentionBaseline mutator.
+type AttentionBaselineFunc func(context.Context, *ent.AttentionBaselineMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AttentionBaselineFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AttentionBaselineMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AttentionBaselineMutation", m)
+}
+
+// The AttentionMarkFunc type is an adapter to allow the use of ordinary
+// function as AttentionMark mutator.
+type AttentionMarkFunc func(context.Context, *ent.AttentionMarkMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AttentionMarkFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AttentionMarkMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AttentionMarkMutation", m)
+}
+
 // The AuditEventFunc type is an adapter to allow the use of ordinary
 // function as AuditEvent mutator.
 type AuditEventFunc func(context.Context, *ent.AuditEventMutation) (ent.Value, error)

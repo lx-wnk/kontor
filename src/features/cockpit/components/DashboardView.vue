@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { PermissionItem } from '@/composables/usePendingPermissions'
 import type { PermissionDecision } from '@/features/pipeline'
-import { computed, ref, watch } from 'vue'
+import type { Agent } from '@/types'
+import type { FleetFilter } from '@/utils/agentGroup'
+import { computed, nextTick, ref, watch } from 'vue'
 import AutoApprovingStrip from '@/components/AutoApprovingStrip.vue'
 import ChannelScriptCallout from '@/components/shell/ChannelScriptCallout.vue'
 import DashboardToolbar from '@/components/shell/DashboardToolbar.vue'
@@ -9,8 +11,10 @@ import { useNow } from '@/composables/useNow'
 import { useSpawners } from '@/composables/useSpawners'
 import { useViewState } from '@/composables/useViewState'
 import { AgentCardGrid, AgentTable, AgentTriageBand, EmptyAgentState, useAgents } from '@/features/agents'
-import { agentProjectKey, groupAgents, sortAgents } from '@/utils/agentGroup'
+import { agentProjectKey, fleetBucket, fleetCounts, groupAgents, sortAgents } from '@/utils/agentGroup'
+import { secondsSince } from '@/utils/format'
 import { friendlyProjectName } from '@/utils/friendlyProjectName'
+import FleetFilterChips from './FleetFilterChips.vue'
 
 defineProps<{
   permissionItems: PermissionItem[]
@@ -31,16 +35,30 @@ const { nowMs } = useNow()
 
 const autoApprovingStrip = ref<InstanceType<typeof AutoApprovingStrip> | null>(null)
 
-// Dashboard roster: project + spawner filter → sort → optional grouping. Project
-// options list every known project (pre-filter) so the dropdown stays stable.
-const rosterAgents = computed(() => {
+const fleet = ref<FleetFilter>('all')
+const fleetChips = ref<InstanceType<typeof FleetFilterChips> | null>(null)
+async function showAll() {
+  fleet.value = 'all'
+  await nextTick()
+  fleetChips.value?.focusAll()
+}
+const secsOf = (a: Agent) => secondsSince(a.lastActivity, nowMs.value)
+const preChipAgents = computed(() => {
   let base = filteredAgents.value
   if (dashboardProject.value !== 'all')
     base = base.filter(a => agentProjectKey(a) === dashboardProject.value)
   if (dashboardSpawner.value !== 'all')
     base = base.filter(a => a.spawnerId === dashboardSpawner.value)
+  return base
+})
+const fleetChipCounts = computed(() => fleetCounts(preChipAgents.value, secsOf))
+const rosterAgents = computed(() => {
+  const base = fleet.value === 'all'
+    ? preChipAgents.value
+    : preChipAgents.value.filter(a => fleetBucket(a, secsOf(a)) === fleet.value)
   return sortAgents(base, dashboardSort.value, nowMs.value)
 })
+const chipEmptiedRoster = computed(() => fleet.value !== 'all' && preChipAgents.value.length > 0 && rosterAgents.value.length === 0)
 const rosterGroups = computed(() => groupAgents(rosterAgents.value, dashboardGroup.value))
 const projectOptions = computed(() => [
   { value: 'all', label: 'All projects' },
@@ -82,6 +100,7 @@ defineExpose({ rosterAgents })
     @decide="(taskId, ids, decision) => emit('decide', taskId, ids, decision)"
   />
   <AutoApprovingStrip ref="autoApprovingStrip" />
+  <FleetFilterChips ref="fleetChips" v-model="fleet" :counts="fleetChipCounts" />
   <DashboardToolbar
     :layout="dashboardLayout"
     :spawner="dashboardSpawner"
@@ -100,7 +119,13 @@ defineExpose({ rosterAgents })
     @update:group-by="setDashboardGroup($event)"
     @update:search-query="searchQuery = $event"
   />
-  <template v-if="dashboardLayout === 'list'">
+  <div v-if="chipEmptiedRoster" role="status" class="flex items-center gap-3 py-8 text-[13px] text-fg-mute">
+    <span>No agents match this filter.</span>
+    <button type="button" data-testid="fleet-show-all" class="cursor-pointer rounded-full border border-line-strong px-3 py-1 text-[12px] text-fg focus-visible:outline-2 focus-visible:outline-accent" @click="showAll">
+      Show all
+    </button>
+  </div>
+  <template v-else-if="dashboardLayout === 'list'">
     <EmptyAgentState v-if="rosterAgents.length === 0" :search-query="searchQuery" />
     <AgentTable v-else :agents="rosterAgents" :groups="rosterGroups" @select="selectAgent" />
   </template>

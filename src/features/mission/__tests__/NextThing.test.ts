@@ -2,7 +2,7 @@ import type { NextThing as NextThingItem } from '../composables/useNextThing'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import { useCapabilityDecisions } from '@/features/agents'
+import { useAgents, useCapabilityDecisions } from '@/features/agents'
 import { resolvePermissionRequest } from '@/features/pipeline'
 import { sendQuestionAnswer } from '@/utils/answerQuestion'
 import NextThing from '../components/NextThing.vue'
@@ -11,6 +11,7 @@ vi.mock('@/features/pipeline', () => ({ resolvePermissionRequest: vi.fn() }))
 vi.mock('@/utils/answerQuestion', () => ({ sendQuestionAnswer: vi.fn() }))
 vi.mock('@/features/agents', () => ({
   useCapabilityDecisions: vi.fn(),
+  useAgents: vi.fn(),
   AgentTerminalModal: { props: { open: Boolean, pid: Number }, template: '<div v-if="open" data-testid="stub-terminal" :data-pid="pid" />' },
 }))
 
@@ -19,6 +20,7 @@ vi.mocked(useCapabilityDecisions).mockReturnValue({ resolvingIds: ref({}), resol
 
 beforeEach(() => {
   resolveCapability.mockClear()
+  vi.mocked(useAgents).mockReturnValue({ agents: ref([]), selectAgent: vi.fn() } as never)
 })
 
 const stubs = {
@@ -36,6 +38,8 @@ function mountNext(next: NextThingItem | null) {
 
 const permission: NextThingItem = {
   kind: 'permission',
+  key: 'permission:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: 't1',
   taskTitle: 'Fix the thing',
   projectName: 'Dashboard',
@@ -47,6 +51,8 @@ const permission: NextThingItem = {
 
 const capability: NextThingItem = {
   kind: 'capability',
+  key: 'capability:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: '',
   taskTitle: '',
   projectName: '',
@@ -57,6 +63,8 @@ const capability: NextThingItem = {
 
 const question: NextThingItem = {
   kind: 'question',
+  key: 'question:x',
+  since: '2026-11-19T10:00:00Z',
   taskId: '',
   taskTitle: 'agent-dashboard',
   projectName: 'agent-dashboard',
@@ -103,7 +111,7 @@ describe('nextThing', () => {
     resolveCapability.mockResolvedValue({ outcome: 'applied' })
     const w = mountNext(capability)
     await vi.advanceTimersByTimeAsync(500)
-    expect(w.get('h2').text()).toBe('net.fetch(api.github.com)')
+    expect(w.get('h3').text()).toBe('net.fetch(api.github.com)')
     expect(w.get('[data-testid="mission-context"]').text()).toBe('routine:nightly')
     expect(w.get('[data-testid="mission-capability-reason"]').text()).toBe('not granted')
 
@@ -134,7 +142,7 @@ describe('nextThing', () => {
     const calm = w.get('[data-testid="mission-calm"]')
     expect(calm.element.tagName).toBe('P')
     expect(calm.text()).toContain('Nothing needs you')
-    expect(w.find('h2').exists()).toBe(false)
+    expect(w.find('h3').exists()).toBe(false)
     expect(w.find('[data-testid="mission-next"]').exists()).toBe(false)
     w.unmount()
   })
@@ -142,6 +150,19 @@ describe('nextThing', () => {
 
 // A stale click aimed at the request just resolved must not land on whatever
 // the refresh puts in its place — see Security Minor 2.
+describe('nextThing failed and finished', () => {
+  it.each(['failed', 'finished'] as const)('shows the %s title and opens the matching agent', async (kind) => {
+    const selectAgent = vi.fn()
+    const other = { sessionId: 's0' }
+    const agent = { sessionId: 's1' }
+    vi.mocked(useAgents).mockReturnValue({ agents: ref([other, agent]), selectAgent } as never)
+    const w = mountNext({ kind, key: `${kind}:s1`, since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: '', projectName: 'Dashboard', stage: '', sessionId: 's1', title: 'It ended', why: 'w' })
+    expect(w.text()).toContain('It ended')
+    await w.get('[data-testid="mission-open-agent"]').trigger('click')
+    expect(selectAgent).toHaveBeenCalledWith(agent)
+  })
+})
+
 describe('nextThing decision guard', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -153,7 +174,7 @@ describe('nextThing decision guard', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...permission, request: { ...permission.request, id: 'r2' } as never }
+    const next: NextThingItem = { ...permission, key: 'permission:r2', request: { ...permission.request, id: 'r2' } as never }
     await w.setProps({ next })
     expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="mission-decide-allow_once"]').trigger('click')
@@ -166,13 +187,57 @@ describe('nextThing decision guard', () => {
     w.unmount()
   })
 
+  it('re-arms the guard when the card moves to another position in the list', async () => {
+    vi.useFakeTimers()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    await vi.advanceTimersByTimeAsync(500)
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
+    await w.setProps({ position: 1 })
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeDefined()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
+    w.unmount()
+  })
+
+  it('puts away only once the guard is released, and the handler path is blocked while armed', async () => {
+    vi.useFakeTimers()
+    vi.mocked(resolvePermissionRequest).mockClear()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    const putAway = w.get('[data-testid="needs-you-put-away"]')
+    expect(putAway.attributes('aria-label')).toBe('Put away until the agent posts something new')
+    expect(putAway.attributes('disabled')).toBeDefined()
+    const decideButton = w.get('[data-testid="mission-decide-allow_once"]').element as HTMLButtonElement
+    const putAwayButton = putAway.element as HTMLButtonElement
+    putAwayButton.disabled = false
+    decideButton.disabled = false
+    putAwayButton.click()
+    decideButton.click()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(w.emitted('putAway')).toBeUndefined()
+    expect(resolvePermissionRequest).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(500)
+    await w.get('[data-testid="needs-you-put-away"]').trigger('click')
+    expect(w.emitted('putAway')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('keeps an armed card armed when a refresh rebuilds the same item', async () => {
+    vi.useFakeTimers()
+    const w = mount(NextThing, { props: { next: permission, position: 0 }, global: { stubs } })
+    await vi.advanceTimersByTimeAsync(500)
+    await w.setProps({ next: { ...permission } })
+    expect(w.get('[data-testid="mission-decide-allow_once"]').attributes('disabled')).toBeUndefined()
+    w.unmount()
+  })
+
   it('disables the answer controls for 500ms after the shown question changes, then sends', async () => {
     vi.useFakeTimers()
     const w = mountNext(question)
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="stub-question"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...question, pid: 4712 }
+    const next: NextThingItem = { ...question, key: 'question:4712', pid: 4712 }
     await w.setProps({ next })
     expect(w.get('[data-testid="stub-question"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="stub-question"]').trigger('click')
@@ -191,7 +256,7 @@ describe('nextThing decision guard', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(w.get('[data-testid="mission-capability-allow"]').attributes('disabled')).toBeUndefined()
 
-    const next: NextThingItem = { ...capability, decision: { ...capability.decision, id: 'd2' } as never }
+    const next: NextThingItem = { ...capability, key: 'capability:d2', decision: { ...capability.decision, id: 'd2' } as never }
     await w.setProps({ next })
     expect(w.get('[data-testid="mission-capability-allow"]').attributes('disabled')).toBeDefined()
     await w.get('[data-testid="mission-capability-allow"]').trigger('click')
@@ -204,7 +269,7 @@ describe('nextThing decision guard', () => {
   })
 
   it('opens the session terminal for a picker held there, or says to attach to its tmux pane', async () => {
-    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 'A dialog is open in this session\'s terminal', why: 'w' }
+    const dialog: NextThingItem = { kind: 'dialog', key: 'dialog:x', since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 'A dialog is open in this session\'s terminal', why: 'w' }
     const w = mountNext(dialog)
     expect(w.find('[data-testid="stub-terminal"]').exists()).toBe(false)
     await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
@@ -216,7 +281,7 @@ describe('nextThing decision guard', () => {
   })
 
   it('keeps an opened terminal while the item above it changes, until it is closed', async () => {
-    const dialog: NextThingItem = { kind: 'dialog', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 't', why: 'w' }
+    const dialog: NextThingItem = { kind: 'dialog', key: 'dialog:x', since: '2026-11-19T10:00:00Z', taskId: '', taskTitle: 'kontor', projectName: 'kontor', stage: '', pid: 9, terminalAttachable: true, title: 't', why: 'w' }
     const w = mountNext(dialog)
     await w.get('[data-testid="mission-dialog-terminal"]').trigger('click')
     await w.setProps({ next: permission })

@@ -119,6 +119,42 @@ describe('useAgentPrompt routing', () => {
   })
 })
 
+describe('useAgentPrompt onInjected callback', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })))
+  })
+
+  it('calls onInjected once with the agent after an accepted inject', async () => {
+    const agent = makeAgent({ liveInjectable: true })
+    const onInjected = vi.fn()
+    const { promptInput, handleSend } = useAgentPrompt(() => agent, undefined, undefined, undefined, onInjected)
+    promptInput.value = 'hello'
+    await handleSend()
+    expect(onInjected).toHaveBeenCalledTimes(1)
+    expect(onInjected).toHaveBeenCalledWith(agent)
+  })
+
+  it('does not call onInjected when the server rejects the inject', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })))
+    const onInjected = vi.fn()
+    const { promptInput, handleSend } = useAgentPrompt(() => makeAgent({ liveInjectable: true }), undefined, undefined, undefined, onInjected)
+    promptInput.value = 'hello'
+    await handleSend()
+    expect(onInjected).not.toHaveBeenCalled()
+  })
+
+  it('does not call onInjected for a resume spawn', async () => {
+    const agent = makeAgent({ liveInjectable: false, status: 'active' })
+    const onInjected = vi.fn()
+    const { promptInput, handleSend, confirmResume } = useAgentPrompt(() => agent, undefined, undefined, undefined, onInjected)
+    promptInput.value = 'resume please'
+    await handleSend()
+    await confirmResume()
+    expect(fetch).toHaveBeenCalledWith('/api/agents/spawn', expect.objectContaining({ method: 'POST' }))
+    expect(onInjected).not.toHaveBeenCalled()
+  })
+})
+
 // The desktop shell registers no service worker, so `ready` never settles there.
 describe('useAgentPrompt offline queueing', () => {
   beforeEach(() => {

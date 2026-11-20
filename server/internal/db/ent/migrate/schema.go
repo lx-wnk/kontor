@@ -121,6 +121,33 @@ var (
 			},
 		},
 	}
+	// AttentionBaselinesColumns holds the columns for the "attention_baselines" table.
+	AttentionBaselinesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "started_at", Type: field.TypeTime},
+	}
+	// AttentionBaselinesTable holds the schema information for the "attention_baselines" table.
+	AttentionBaselinesTable = &schema.Table{
+		Name:       "attention_baselines",
+		Columns:    AttentionBaselinesColumns,
+		PrimaryKey: []*schema.Column{AttentionBaselinesColumns[0]},
+	}
+	// AttentionMarksColumns holds the columns for the "attention_marks" table.
+	AttentionMarksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "item_key", Type: field.TypeString, Unique: true, Size: 160},
+		{Name: "seen_through", Type: field.TypeTime},
+	}
+	// AttentionMarksTable holds the schema information for the "attention_marks" table.
+	AttentionMarksTable = &schema.Table{
+		Name:       "attention_marks",
+		Columns:    AttentionMarksColumns,
+		PrimaryKey: []*schema.Column{AttentionMarksColumns[0]},
+	}
 	// AuditEventsColumns holds the columns for the "audit_events" table.
 	AuditEventsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -1189,6 +1216,8 @@ var (
 		APIKeysTable,
 		AppSettingsTable,
 		ApplicationSecretsTable,
+		AttentionBaselinesTable,
+		AttentionMarksTable,
 		AuditEventsTable,
 		CapabilitiesTable,
 		CheckpointsTable,

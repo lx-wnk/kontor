@@ -16,6 +16,15 @@ type CloudSessionEvent struct {
 	Payload        any    `json:"payload,omitempty"`
 }
 
+const AttentionMarked = "attention_marked"
+
+// AttentionEvent is a server-sent event for attention mark changes. JSON keys MUST match the
+// frontend attention event contract.
+type AttentionEvent struct {
+	Type string `json:"type"`
+	Mark any    `json:"mark"`
+}
+
 // TypedBroadcaster wraps Broadcaster with typed event publishing.
 type TypedBroadcaster[E any] struct {
 	b *Broadcaster

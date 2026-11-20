@@ -29,6 +29,8 @@ GET /api/agents/{sessionId}/output
 GET /api/analytics/cost-forecast
 GET /api/analytics/heatmap
 GET /api/analytics/patterns
+GET /api/attention/marks
+GET /api/attention/stream
 GET /api/audit
 GET /api/auth/callback
 GET /api/auth/github
@@ -187,6 +189,7 @@ POST /api/tasks/{id}/retry
 POST /api/tasks/{id}/run
 POST /api/tasks/{id}/worktree
 PUT /*
+PUT /api/attention/marks
 PUT /api/config/file
 PUT /api/notifications/config
 PUT /api/notifications/preferences/{eventType}

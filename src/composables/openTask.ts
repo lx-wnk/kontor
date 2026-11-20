@@ -1,6 +1,7 @@
-import type { ComputedRef, InjectionKey } from 'vue'
+import type { ComputedRef, InjectionKey, Ref } from 'vue'
 import type { usePendingPermissions } from './usePendingPermissions'
 import type { NextThing } from '@/features/mission'
+import type { Agent } from '@/types'
 
 // How a widget opens a task: App.vue owns navigation and provides this.
 export const OPEN_TASK: InjectionKey<(taskId: string) => void> = Symbol('openTask')
@@ -13,5 +14,14 @@ export const PENDING_PERMISSIONS: InjectionKey<ReturnType<typeof usePendingPermi
 // App.vue ranks once per tick and provides the list; every queue and the hub core read it.
 export const NEEDS_YOU: InjectionKey<ComputedRef<NextThing[]>> = Symbol('needsYou')
 
+// App.vue owns the key handler and provides the focused needs-you key; the queue reads it to highlight the row.
+export const NEEDS_YOU_FOCUS: InjectionKey<Ref<string | null>> = Symbol('needsYouFocus')
+
+// Counts the mounted needs-you queues; App.vue's keys act only while one is on screen.
+export const NEEDS_YOU_QUEUES: InjectionKey<Ref<number>> = Symbol('needsYouQueues')
+
 // App.vue owns the settings panel; the hub opens it through this.
 export const OPEN_SETTINGS: InjectionKey<() => void> = Symbol('openSettings')
+
+// App.vue provides what runs after a prompt reached an agent; PromptInput must not import the mission feature.
+export const AGENT_INJECTED: InjectionKey<(agent: Agent) => void> = Symbol('agentInjected')

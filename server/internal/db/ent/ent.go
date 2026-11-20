@@ -16,6 +16,8 @@ import (
 	"github.com/lx-wnk/kontor/server/internal/db/ent/apikey"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/applicationsecret"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/appsetting"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionbaseline"
+	"github.com/lx-wnk/kontor/server/internal/db/ent/attentionmark"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/auditevent"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/capability"
 	"github.com/lx-wnk/kontor/server/internal/db/ent/checkpoint"
@@ -116,6 +118,8 @@ func checkColumn(t, c string) error {
 			apikey.Table:             apikey.ValidColumn,
 			appsetting.Table:         appsetting.ValidColumn,
 			applicationsecret.Table:  applicationsecret.ValidColumn,
+			attentionbaseline.Table:  attentionbaseline.ValidColumn,
+			attentionmark.Table:      attentionmark.ValidColumn,
 			auditevent.Table:         auditevent.ValidColumn,
 			capability.Table:         capability.ValidColumn,
 			checkpoint.Table:         checkpoint.ValidColumn,
