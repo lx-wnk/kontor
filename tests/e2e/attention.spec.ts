@@ -182,6 +182,7 @@ test.describe('fleet filter chips', () => {
     await expect(chips.getByRole('button', { name: 'All 2' })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('agent-card-project')).toHaveCount(2)
 
+    await parkPointerOffNav(page)
     await chips.getByRole('button', { name: 'Needs you 1' }).click()
 
     await expect(chips.getByRole('button', { name: 'Needs you 1' })).toHaveAttribute('aria-pressed', 'true')
@@ -247,6 +248,7 @@ test.describe('put away persists', () => {
     await expect(shown(page, controlSid)).toBeVisible()
     await expect(shown(page, oldSid)).toHaveCount(0)
 
+    await parkPointerOffNav(page)
     await shown(page, sid).getByTestId('needs-you-put-away').click()
     await expect(shown(page, controlSid)).toBeVisible()
     await expect(shown(page, sid)).toHaveCount(0)
@@ -291,6 +293,7 @@ test.describe('put away persists', () => {
     await expect(shown(controlSid)).toBeVisible()
 
     const marked = page.waitForResponse(r => r.url().includes('/api/attention/marks') && r.request().method() === 'PUT')
+    await parkPointerOffNav(page)
     await shown(sid).getByTestId('mission-open-agent').click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
